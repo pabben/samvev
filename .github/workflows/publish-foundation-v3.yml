@@ -1,0 +1,52 @@
+name: Publish Samvev foundation v3
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-foundation-v3.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: samvev-foundation-v3
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .stage-v3/part{00..08} | base64 --decode > /tmp/samvev-foundation-v2.tar.xz
+          echo "7a96c0fd87e7b336b866c34e8ba21630f28fce4fc61ed551cd6051e79f874fd9  /tmp/samvev-foundation-v2.tar.xz" | sha256sum -c -
+          test "$(wc -c < /tmp/samvev-foundation-v2.tar.xz)" -eq 69300
+          mkdir -p /tmp/samvev-foundation
+          tar -xJf /tmp/samvev-foundation-v2.tar.xz -C /tmp/samvev-foundation
+          test -s /tmp/samvev-foundation/samvev/README.md
+          test -s /tmp/samvev-foundation/samvev/docs/PRODUCT_REQUIREMENTS.md
+          test -s /tmp/samvev-foundation/samvev/docs/VOICE.md
+          test -s /tmp/samvev-foundation/samvev/prompts/implementation-kickoff.md
+
+      - name: Publish prepared repository content
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete --exclude ".git/" /tmp/samvev-foundation/samvev/ ./
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+            exit 0
+          fi
+          git commit -m "docs: publish Samvev foundation and implementation kickoff"
+          git push origin HEAD:main
