@@ -1,0 +1,72 @@
+name: Publish corrected Samvev foundation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/bootstrap-content-v2.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: samvev-foundation-bootstrap-v2
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify payload
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            cat .bootstrap/payload.part00
+            cat .bootstrap/payload.part01
+            cat .bootstrap/fix02.{00..03}
+            cat .bootstrap/payload.part03
+            cat .bootstrap/payload.part04
+            cat .bootstrap/fix05.{00..03}
+            cat .bootstrap/payload.part06
+            cat .bootstrap/fix07.{00..03}
+            cat .bootstrap/fix08.{00..03}
+            cat .bootstrap/payload.part09
+          } | base64 --decode > /tmp/samvev-foundation.tar.gz
+          echo "dd829d0c1704ec142a07d0034c3c505e5bd634714aa12fc8f1f451c7ea228ca4  /tmp/samvev-foundation.tar.gz" | sha256sum -c -
+          test "$(wc -c < /tmp/samvev-foundation.tar.gz)" -eq 97760
+          mkdir -p /tmp/samvev-foundation
+          tar -xzf /tmp/samvev-foundation.tar.gz -C /tmp/samvev-foundation
+          test -s /tmp/samvev-foundation/samvev/README.md
+          test -s /tmp/samvev-foundation/samvev/docs/PRODUCT_REQUIREMENTS.md
+          test -s /tmp/samvev-foundation/samvev/docs/VOICE.md
+          test -s /tmp/samvev-foundation/samvev/prompts/implementation-kickoff.md
+
+      - name: Publish prepared repository content
+        shell: bash
+        run: |
+          set -euo pipefail
+          rsync -a --delete \
+            --exclude ".git/" \
+            --exclude ".bootstrap/" \
+            --exclude ".github/workflows/bootstrap-content-v2.yml" \
+            /tmp/samvev-foundation/samvev/ ./
+          rm -rf .bootstrap
+          rm -f .github/workflows/bootstrap-content.yml
+          rm -f .github/workflows/bootstrap-content-v2.yml
+          rm -f .github/workflows/verify-payload.yml
+          rm -f .github/workflows/verify-corrected-payload.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to publish."
+            exit 0
+          fi
+          git commit -m "docs: publish Samvev foundation"
+          git push origin HEAD:main
