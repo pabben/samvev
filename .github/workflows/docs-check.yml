@@ -1,0 +1,35 @@
+name: Documentation checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  repository-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check required files
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            README.md README.nb.md LICENSE LICENSE_POLICY.md
+            CONTRIBUTING.md CODE_OF_CONDUCT.md SECURITY.md GOVERNANCE.md
+            docs/VISION.md docs/PRODUCT_REQUIREMENTS.md docs/ARCHITECTURE.md docs/ROADMAP.md
+          )
+          for file in "${required[@]}"; do
+            test -s "$file" || { echo "Missing or empty: $file"; exit 1; }
+          done
+      - name: Reject obvious private fixture markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE --exclude-dir=.git --exclude='*.svg' '(BEGIN (RSA|OPENSSH|EC) PRIVATE KEY|api[_-]?key[[:space:]]*[:=][[:space:]]*[^$<{[:space:]]+)' .; then
+            echo "Potential secret material detected. Review before merge."
+            exit 1
+          fi
