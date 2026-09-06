@@ -1,0 +1,26 @@
+name: Verify staged Samvev payload
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/verify-payload.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report payload hashes and size
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum .bootstrap/payload.part{00..09}
+          wc -c .bootstrap/payload.part{00..09}
+          cat .bootstrap/payload.part{00..09} | base64 --decode > /tmp/samvev-foundation.tar.gz
+          sha256sum /tmp/samvev-foundation.tar.gz
+          wc -c /tmp/samvev-foundation.tar.gz
