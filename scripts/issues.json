@@ -1,0 +1,202 @@
+[
+  {
+    "title": "Define and scaffold the initial monorepo",
+    "labels": [
+      "type: architecture",
+      "priority: P0",
+      "milestone: M0"
+    ],
+    "milestone": "M0 — Open-source foundation",
+    "body": "## Goal\nCreate the agreed top-level application, service, package, integration and infrastructure directories with minimal build tooling.\n\n## Acceptance criteria\n- [ ] Repository structure matches or updates `docs/ARCHITECTURE.md`\n- [ ] Each workspace has an ownership and license note\n- [ ] A fresh checkout can run documentation checks\n- [ ] No framework choice is hidden; accepted decisions are recorded in an ADR\n"
+  },
+  {
+    "title": "Implement first-run installation and household onboarding",
+    "labels": [
+      "type: feature",
+      "area: onboarding",
+      "priority: P0"
+    ],
+    "milestone": "M1 — Multi-user messages and shared display",
+    "body": "## Goal\nCreate the guided first-run flow described in `docs/FIRST_RUN_SETUP.md`.\n\n## Acceptance criteria\n- [ ] Installation owner is claimed securely\n- [ ] First household and several people can be created\n- [ ] Age group is optional and full birth date is not required\n- [ ] Users can choose English or Norwegian Bokmål\n- [ ] Integrations are optional and skippable\n- [ ] Test message verifies the first display\n"
+  },
+  {
+    "title": "Design multi-user roles, capabilities and shared-display projections",
+    "labels": [
+      "type: architecture",
+      "area: security",
+      "priority: P0"
+    ],
+    "milestone": "M1 — Multi-user messages and shared display",
+    "body": "## Goal\nImplement server-enforced household, membership, capability and display boundaries.\n\n## Acceptance criteria\n- [ ] Person profiles and user accounts are separate\n- [ ] Role templates map to explicit capabilities\n- [ ] Display clients receive only an authorized projection\n- [ ] Cross-user and cross-household authorization tests exist\n- [ ] Audit events cover permission and pairing changes\n"
+  },
+  {
+    "title": "Build immediate and scheduled household messages",
+    "labels": [
+      "type: feature",
+      "area: messages",
+      "priority: P0"
+    ],
+    "milestone": "M1 — Multi-user messages and shared display",
+    "body": "## Goal\nLet household members publish now or schedule a message for selected people and displays.\n\n## Acceptance criteria\n- [ ] Create, preview, schedule, edit and withdraw\n- [ ] Start and expiry times use household time zone correctly\n- [ ] Child capabilities can allow direct publishing or approval\n- [ ] Device-displayed state is not mislabelled as read\n- [ ] The feature works without AI\n"
+  },
+  {
+    "title": "Prototype shared display pairing and live updates",
+    "labels": [
+      "type: feature",
+      "area: display",
+      "priority: P0"
+    ],
+    "milestone": "M1 — Multi-user messages and shared display",
+    "body": "## Goal\nCreate a restricted shared web display with secure pairing and live notice/message updates.\n\n## Acceptance criteria\n- [ ] Short-lived pairing code\n- [ ] Revocable display credential\n- [ ] Distance-readable layout\n- [ ] Live updates without manual refresh\n- [ ] Stale/offline indication\n- [ ] Light and dark appearance\n"
+  },
+  {
+    "title": "Prototype Action Board and Timeline/Person Columns designs",
+    "labels": [
+      "type: design",
+      "area: design-system",
+      "priority: P0"
+    ],
+    "milestone": "M1 — Multi-user messages and shared display",
+    "body": "## Goal\nTurn design concepts 2 and 5 into interactive prototypes across iPhone, shared display and Shelly-size layouts.\n\n## Acceptance criteria\n- [ ] Fictional data only\n- [ ] Light and dark variants\n- [ ] English and Norwegian text-expansion checks\n- [ ] Distance readability test for shared display\n- [ ] Child and adult feedback documented\n- [ ] Recommendation for the first production component set\n"
+  },
+  {
+    "title": "Define durable AI task, run and notice contracts",
+    "labels": [
+      "type: architecture",
+      "area: ai",
+      "priority: P0"
+    ],
+    "milestone": "M2 — Durable AI tasks and notification engine",
+    "body": "## Goal\nVersion the schemas for task drafts, confirmed tasks, runs, source evidence, AI output, notices and deliveries.\n\n## Acceptance criteria\n- [ ] Natural-language draft is separate from confirmation\n- [ ] AI provider is not embedded in the domain model\n- [ ] Source, uncertainty and run history are represented\n- [ ] Delivery channels are idempotent and retryable\n- [ ] Example payloads validate against schemas\n"
+  },
+  {
+    "title": "Implement website and PDF source monitoring with deterministic change detection",
+    "labels": [
+      "type: feature",
+      "area: sources",
+      "priority: P0"
+    ],
+    "milestone": "M2 — Durable AI tasks and notification engine",
+    "body": "## Goal\nMonitor a configured page and discovered documents while avoiding unnecessary AI calls.\n\n## Acceptance criteria\n- [ ] Fetch schedule and retry policy\n- [ ] URL/document fingerprints\n- [ ] New versus changed source distinction\n- [ ] Original source metadata retained\n- [ ] Safe parsing limits and prompt-injection threat review\n- [ ] Synthetic test fixture for a changing weekly plan\n"
+  },
+  {
+    "title": "Create provider-neutral structured AI extraction",
+    "labels": [
+      "type: feature",
+      "area: ai",
+      "priority: P0"
+    ],
+    "milestone": "M2 — Durable AI tasks and notification engine",
+    "body": "## Goal\nExtract confirmed activities, dates and things to bring using a strict validated schema.\n\n## Acceptance criteria\n- [ ] Cloud and local provider interface\n- [ ] Per-household data-egress policy\n- [ ] Schema validation and unsupported-claim rejection\n- [ ] Source evidence references\n- [ ] Model/provider/cost metadata where available\n- [ ] No guessed missing dates in tests\n"
+  },
+  {
+    "title": "Build generic webhook ingestion and event normalization",
+    "labels": [
+      "type: integration",
+      "area: webhook",
+      "priority: P1"
+    ],
+    "milestone": "M2 — Durable AI tasks and notification engine",
+    "body": "## Goal\nAllow Codex, GitHub, Axentra, Uptime Kuma and custom scripts to publish signed events into Samvev.\n\n## Acceptance criteria\n- [ ] Scoped webhook credential\n- [ ] Signature and replay protection\n- [ ] Versioned event payload\n- [ ] Rate limiting and duplicate handling\n- [ ] Test examples without private infrastructure data\n"
+  },
+  {
+    "title": "Implement Homey notification and allowlisted Flow adapter",
+    "labels": [
+      "type: integration",
+      "area: homey",
+      "priority: P0"
+    ],
+    "milestone": "M2 — Durable AI tasks and notification engine",
+    "body": "## Goal\nUse Homey for outbound notifications, inbound events and explicitly allowed Flow actions.\n\n## Acceptance criteria\n- [ ] Supported connection method is documented and tested\n- [ ] User selects capabilities and Flows\n- [ ] Synthetic test notification\n- [ ] Errors and last successful delivery are visible\n- [ ] Safety-sensitive Flows require policy/confirmation\n- [ ] Tokens never reach shared displays or client logs\n"
+  },
+  {
+    "title": "Run the class 1A weekly-plan end-to-end pilot",
+    "labels": [
+      "type: feature",
+      "area: pilot",
+      "priority: P0"
+    ],
+    "milestone": "M2 — Durable AI tasks and notification engine",
+    "body": "## Goal\nValidate the complete source-to-display loop using anonymized or synthetic weekly-plan content before any real household source is connected.\n\n## Acceptance criteria\n- [ ] Natural-language task draft and confirmation\n- [ ] New/changed document detection\n- [ ] Structured relevant-item extraction\n- [ ] Shared-display notice with source\n- [ ] Homey delivery\n- [ ] Morning briefing update rather than notification spam\n- [ ] Failure and uncertainty are visible\n"
+  },
+  {
+    "title": "Create native iPhone app shell and authentication flow",
+    "labels": [
+      "type: feature",
+      "area: ios",
+      "priority: P1"
+    ],
+    "milestone": "M3 — iPhone, widgets and compact displays",
+    "body": "## Goal\nCreate the native iPhone foundation for personal overview, tasks and messages.\n\n## Acceptance criteria\n- [ ] MPL-2.0 directory/license boundary confirmed\n- [ ] Sign-in and household selection\n- [ ] Overview, Tasks, Messages and More navigation\n- [ ] Deep-link routing\n- [ ] English and Norwegian Bokmål\n- [ ] Light, dark and system appearance\n"
+  },
+  {
+    "title": "Implement Next, Remember Today and Household widgets",
+    "labels": [
+      "type: feature",
+      "area: ios",
+      "priority: P1"
+    ],
+    "milestone": "M3 — iPhone, widgets and compact displays",
+    "body": "## Goal\nProvide configurable home-screen widgets backed by an authorized snapshot.\n\n## Acceptance criteria\n- [ ] Three widget configurations\n- [ ] Household/person/privacy selection\n- [ ] Deep links to exact content\n- [ ] Stale state\n- [ ] No reliance on widgets for urgent delivery\n- [ ] Light/dark previews\n"
+  },
+  {
+    "title": "Validate Samvev on Shelly Wall Display XL hardware",
+    "labels": [
+      "type: research",
+      "area: shelly",
+      "priority: P1"
+    ],
+    "milestone": "M3 — iPhone, widgets and compact displays",
+    "body": "## Goal\nDetermine the reliable rendering, authentication and interaction path on real Shelly Wall Display XL hardware.\n\n## Acceptance criteria\n- [ ] Record model and firmware\n- [ ] Test web/kiosk or supported alternative\n- [ ] Test session persistence and touch behavior\n- [ ] Measure readable density and performance\n- [ ] Document limitations without assuming X2 behavior\n- [ ] Produce a compact prototype recommendation\n"
+  },
+  {
+    "title": "Implement share-sheet import from Google Keep and other apps",
+    "labels": [
+      "type: integration",
+      "area: ios",
+      "priority: P2"
+    ],
+    "milestone": "M4 — Calendars and household integrations",
+    "body": "## Goal\nLet users share text, URLs and supported attachments into Samvev as a message, note, task or task source.\n\n## Acceptance criteria\n- [ ] Preview and choose audience\n- [ ] Clearly label import as a copy\n- [ ] Preserve original content and import time\n- [ ] No automatic AI use\n- [ ] Test with Google Keep and at least one other iOS app\n"
+  },
+  {
+    "title": "Design calendar aggregation and curated household output",
+    "labels": [
+      "type: architecture",
+      "area: calendars",
+      "priority: P1"
+    ],
+    "milestone": "M4 — Calendars and household integrations",
+    "body": "## Goal\nAggregate Google, Microsoft and ICS sources while preserving source ownership and household privacy.\n\n## Acceptance criteria\n- [ ] Source events are not blindly duplicated\n- [ ] Busy-only publication is supported\n- [ ] Curated household calendar output is designed\n- [ ] Source updates and deletions reconcile safely\n- [ ] Per-calendar AI and display permissions\n- [ ] Sports-calendar use case included\n"
+  },
+  {
+    "title": "Research supported Spond integration paths",
+    "labels": [
+      "type: research",
+      "area: integrations",
+      "priority: P2"
+    ],
+    "milestone": "M4 — Calendars and household integrations",
+    "body": "## Goal\nDetermine what Spond data can be integrated through current supported mechanisms.\n\n## Acceptance criteria\n- [ ] Primary documentation reviewed\n- [ ] Calendar-only and richer-data paths separated\n- [ ] Authentication and policy constraints documented\n- [ ] No scraping dependency proposed as core\n- [ ] Clear supported MVP recommendation\n"
+  },
+  {
+    "title": "Build assigned and claimable household task MVP",
+    "labels": [
+      "type: feature",
+      "area: rewards",
+      "priority: P1"
+    ],
+    "milestone": "M5 — Household tasks and rewards",
+    "body": "## Goal\nAllow children and adults to claim tasks, report completion and contribute to rewards.\n\n## Acceptance criteria\n- [ ] Assigned, exclusive claimable and collaborative task types\n- [ ] Atomic claim behavior\n- [ ] Optional approval\n- [ ] Individual and shared reward models\n- [ ] Auditable corrections and duplicate prevention\n- [ ] No default child leaderboard\n"
+  },
+  {
+    "title": "Create self-hosted Docker Compose installation and upgrade design",
+    "labels": [
+      "type: architecture",
+      "area: deployment",
+      "priority: P1"
+    ],
+    "milestone": "M6 — Production self-hosting and managed hosting",
+    "body": "## Goal\nDesign a guided, supportable self-hosted deployment for non-developers.\n\n## Acceptance criteria\n- [ ] Compose services and persistent volumes documented\n- [ ] Secure first-run claim\n- [ ] Backup/restore and upgrade strategy\n- [ ] Health checks and diagnostics\n- [ ] Local-only operation documented\n- [ ] No mandatory paid service\n"
+  }
+]

@@ -1,0 +1,44 @@
+name: Integration request
+description: Propose or validate an external service or device integration
+title: "[Integration]: "
+labels: ["type: integration", "status: needs-research"]
+body:
+  - type: input
+    id: service
+    attributes:
+      label: Service or device
+      placeholder: Homey, Google Keep, Spond, Samsung Family Hub, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: use_cases
+    attributes:
+      label: User outcomes
+      description: What should Samvev receive, display or do?
+    validations:
+      required: true
+  - type: dropdown
+    id: direction
+    attributes:
+      label: Data direction
+      options:
+        - Into Samvev
+        - Out of Samvev
+        - Two-way
+        - Not yet known
+    validations:
+      required: true
+  - type: textarea
+    id: official
+    attributes:
+      label: Official API or documentation
+      description: Link primary documentation. Do not include credentials.
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy and permission considerations
+  - type: textarea
+    id: fallback
+    attributes:
+      label: Acceptable fallback
+      description: For example, share-sheet import instead of unsupported continuous synchronization.

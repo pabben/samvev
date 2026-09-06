@@ -1,0 +1,54 @@
+name: Feature request
+description: Propose a user-facing capability or product improvement
+title: "[Feature]: "
+labels: ["type: feature", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include real household data, children's schedules, private URLs or credentials.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem should be solved, and for whom?
+      placeholder: Describe the current difficulty rather than only the proposed control.
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: What should the user be able to accomplish?
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Primary surface
+      options:
+        - iPhone app
+        - iPhone widget
+        - Shared family display
+        - Shelly Wall Display XL
+        - Web administration
+        - AI task / notification engine
+        - Integration
+        - Multiple or not yet known
+    validations:
+      required: true
+  - type: textarea
+    id: roles
+    attributes:
+      label: Users and permissions
+      description: Which household roles should see or perform this, and which must not?
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that would make the feature complete.
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Include anonymized sketches or examples when useful.

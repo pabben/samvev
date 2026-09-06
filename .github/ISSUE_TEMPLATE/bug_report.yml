@@ -1,0 +1,56 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: "[Bug]: "
+labels: ["type: bug", "status: needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Remove names, schedules, addresses, source documents, tokens and other private household data before submitting.
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Go to …
+        2. Create …
+        3. Observe …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - API / backend
+        - Worker / scheduling
+        - Web administration
+        - Shared family display
+        - iPhone app
+        - iPhone widget
+        - Shelly Wall Display XL
+        - Homey
+        - Home Assistant
+        - Other integration
+        - Unknown
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs or screenshots
+      description: Do not include secrets or private family information.

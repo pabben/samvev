@@ -1,0 +1,47 @@
+name: Design feedback
+description: Review a flow, component or one of the five design concepts
+title: "[Design]: "
+labels: ["type: design", "status: needs-triage"]
+body:
+  - type: dropdown
+    id: concept
+    attributes:
+      label: Concept
+      options:
+        - Nordic Soft Cards
+        - Timeline and Person Columns
+        - Playful Family Board
+        - Premium Focus
+        - Action Board
+        - Shared component / all concepts
+        - New concept
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - iPhone
+        - Widget
+        - Shared display
+        - Shelly Wall Display XL
+        - Multiple surfaces
+    validations:
+      required: true
+  - type: textarea
+    id: task
+    attributes:
+      label: What were you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: feedback
+    attributes:
+      label: What worked or did not work?
+    validations:
+      required: true
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Readability, accessibility or privacy concerns

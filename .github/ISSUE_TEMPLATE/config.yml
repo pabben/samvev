@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/pabben/samvev/security
+    about: Do not publish vulnerabilities or private household data in a public issue.
+  - name: General discussion
+    url: https://github.com/pabben/samvev/discussions
+    about: Use Discussions for broad ideas and questions once enabled.
