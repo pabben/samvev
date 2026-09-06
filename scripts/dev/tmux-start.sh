@@ -12,7 +12,7 @@ fi
 mkdir -p "$ROOT/logs"
 # Create an idle pane first so logging is active before Codex starts.
 tmux new-session -d -s samvev-m1 -n codex -c "$ROOT" -x 160 -y 48
-tmux set-option -t '=samvev-m1' remain-on-exit on
+tmux set-window-option -t samvev-m1:codex remain-on-exit on
 printf -v LOG_COMMAND 'cat >> %q' "$ROOT/logs/codex-m1.log"
 tmux pipe-pane -o -t samvev-m1:codex "$LOG_COMMAND"
 for WINDOW in app tests logs git; do
