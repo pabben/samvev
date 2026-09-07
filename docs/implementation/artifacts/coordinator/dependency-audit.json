@@ -1,0 +1,25 @@
+{
+  "executedOn": "2026-09-07 UTC",
+  "command": "docker compose -p samvev-m1 -f compose.yaml --profile tools run --rm --no-deps tools npm audit --json --audit-level=moderate",
+  "exitCode": 0,
+  "auditReportVersion": 2,
+  "vulnerabilities": {},
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0,
+      "total": 0
+    },
+    "dependencies": {
+      "prod": 99,
+      "dev": 83,
+      "optional": 55,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 182
+    }
+  }
+}

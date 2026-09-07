@@ -14,3 +14,4 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0008](0008-design-from-start.md) | Five structural concepts; light/dark from foundation | Accepted |
 | [0009](0009-google-keep-import-first.md) | Keep share/import before continuous sync | Proposed |
 | [0010](0010-rewards-and-claimable-tasks.md) | Support individual and shared rewards | Accepted product direction |
+| [0011](0011-typescript-m1-postgresql-scheduler.md) | TypeScript M1 and PostgreSQL-backed scheduling | Accepted for M1 |

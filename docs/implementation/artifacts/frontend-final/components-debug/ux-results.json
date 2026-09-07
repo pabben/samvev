@@ -1,0 +1,64 @@
+{
+  "executedAt": "2026-09-07T03:08:14.075Z",
+  "baseURL": "http://samvev-m1-app-1:4173",
+  "completed": true,
+  "phase": "components",
+  "checks": [
+    "pending loading and recoverable service-error states have semantic feedback and successful retry",
+    "workbench components captured in phone, Shelly and 16:9 profiles across en/nb and light/dark"
+  ],
+  "screenshots": [
+    {
+      "file": "member-loading.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Test-only held initial API request; genuine pending loading component",
+      "fullPage": false
+    },
+    {
+      "file": "member-error-retry.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Test-only initial API503; accessible error and retry",
+      "fullPage": false
+    },
+    {
+      "file": "workbench-390-en-light.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "evidence": "Synthetic component workbench: message/person/status/schedule/header/empty/offline/error/loading",
+      "fullPage": true
+    },
+    {
+      "file": "workbench-1280-nb-dark.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Synthetic component workbench: message/person/status/schedule/header/empty/offline/error/loading",
+      "fullPage": true
+    },
+    {
+      "file": "workbench-1920-en-dark.png",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "evidence": "Synthetic component workbench: message/person/status/schedule/header/empty/offline/error/loading",
+      "fullPage": true
+    }
+  ],
+  "cleanup": {
+    "ownMessagesWithdrawn": 0,
+    "ownDisplaysRevoked": 0,
+    "temporaryGrantRemoved": false
+  },
+  "syntheticOnly": true,
+  "networkFaults": "Explicitly labeled per screenshot; no auth artifacts recorded"
+}

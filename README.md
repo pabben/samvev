@@ -12,9 +12,9 @@ Samvev stores that as a durable task, monitors the source, uses an approved AI p
 
 ## Project status
 
-**Documentation and product-definition phase. There is no runnable release yet.**
+**M1 passes local acceptance and is ready for testing. Git delivery is blocked by read-only Git metadata; there is no production release.**
 
-The repository begins with product requirements, architecture, design concepts, security principles, GitHub contribution templates and an initial issue backlog. Implementation will follow through public issues and pull requests.
+The first runnable slice includes household setup, people and roles, paired displays, immediate and scheduled messages, English and Norwegian Bokmål, and light and dark modes. Start with the [local demo](docs/implementation/M1_DEMO.md), [delivery evidence](docs/implementation/M1_DELIVERY.md) and [operations guide](docs/implementation/M1_OPERATIONS.md). The wider product vision below describes future capabilities; M1 does not implement external integrations, AI, native iOS, rewards or voice.
 
 [Les introduksjonen på norsk](README.nb.md)
 
@@ -94,7 +94,19 @@ integrations/
   webhook/
 ```
 
-This is a draft architecture, not yet an implementation commitment. See [Architecture](docs/ARCHITECTURE.md) and the architectural decision records in `docs/decisions/`.
+M1 implements the web/API/worker/contracts subset. The iOS and integration directories remain planned. See [Architecture](docs/ARCHITECTURE.md) and [ADR 0011](docs/decisions/0011-typescript-m1-postgresql-scheduler.md) for the current M1 decision.
+
+## M1 local development
+
+The first runnable M1 slice uses a project-scoped Docker Compose stack. Start it with:
+
+```bash
+bash scripts/m1.sh start
+```
+
+It binds the local app only to `http://127.0.0.1:4173`; PostgreSQL is not
+published to the host. See [M1 local operations](docs/implementation/M1_OPERATIONS.md)
+for scoped status, logs, tests, synthetic-data reset and rollback guidance.
 
 ## Contributing
 

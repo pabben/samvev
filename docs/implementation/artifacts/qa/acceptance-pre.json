@@ -1,0 +1,9 @@
+{
+  "executedAt": "2026-09-07T02:22:54.309Z",
+  "baseURL": "http://qa-app:4173",
+  "phase": "pre",
+  "checks": [
+    "full clean-install browser acceptance path completed",
+    "two durable schedules committed before worker stop: one missed window and one recoverable window"
+  ]
+}

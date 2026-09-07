@@ -18,6 +18,9 @@ node_modules/
 .next/
 dist/
 coverage/
+playwright-report/
+test-results/
+logs/
 
 # Python
 __pycache__/

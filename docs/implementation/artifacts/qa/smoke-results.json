@@ -1,0 +1,24 @@
+{
+  "executedAt": "2026-09-07T00:26:38.009Z",
+  "baseURL": "http://qa-app:4173",
+  "checks": [
+    "first-run ownership and post-claim People-step refresh resume",
+    "adult plus two limited profiles, optional limited sign-in, explicit capability presets",
+    "browser-bound display-generated code approval and restricted cookie redemption",
+    "limited member gets explicit approved-display grant through UI",
+    "real immediate publication appears live without manual display refresh",
+    "after-paint device render acknowledgement changes real delivery to displayed",
+    "limited sign-in, tomorrow 07:00 scheduling, optimistic edit and withdrawal via mobile UI",
+    "real worker automatically publishes and expires accelerated limited-member schedule",
+    "12 real paired-display viewport/theme/locale screenshots with no horizontal overflow",
+    "offline saved projection is visibly stale; reconnection restores live status",
+    "member language and appearance persist through reload",
+    "no uncaught browser page errors"
+  ],
+  "screenshots": "display-{mobile,shared,shelly-xl}-{en,nb}-{light,dark}.png",
+  "notes": [
+    "Synthetic fixtures only. Runtime was not reset.",
+    "Initial browser evidence, not final QA accessibility/visual regression/restart gate.",
+    "Screenshots at Shelly dimensions are not physical hardware certification."
+  ]
+}

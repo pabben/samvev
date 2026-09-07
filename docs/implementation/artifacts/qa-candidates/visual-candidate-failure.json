@@ -1,0 +1,6 @@
+{
+  "executedAt": "2026-09-07T02:30:03.014Z",
+  "mode": "candidate",
+  "results": [],
+  "error": "Error: display-mobile-en-light.png requires recorded dynamic text bounds\n\nexpect(received).toBeTruthy()\n\nReceived: false\n    at captureRawStack (/workspace/node_modules/playwright-core/lib/coreBundle.js:8588:17)\n    at callMatcherAsStep (/workspace/node_modules/playwright/lib/matchers/expect.js:13310:57)\n    at Object.toBeTruthy (/workspace/node_modules/playwright/lib/matchers/expect.js:13302:23)\n    at /workspace/tests/e2e/visual-regression.mjs:49:103"
+}

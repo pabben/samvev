@@ -1,0 +1,932 @@
+{
+  "executedAt": "2026-09-07T03:41:52.614Z",
+  "mode": "compare",
+  "results": [
+    {
+      "name": "display-mobile-en-light.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "cdd10eb8686f57dc013a7d30a28884f8a4e483e4aa077fd1c6943f7f827c36ef",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45 AM",
+          "x": 259,
+          "y": 60,
+          "width": 109,
+          "height": 33
+        },
+        {
+          "selector": ".display-date span",
+          "text": "Monday, September 7",
+          "x": 270,
+          "y": 102,
+          "width": 98,
+          "height": 11
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 289,
+          "y": 315,
+          "width": 55,
+          "height": 16
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 289,
+          "y": 659,
+          "width": 55,
+          "height": 16
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 296,
+          "y": 568,
+          "width": 48,
+          "height": 13
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            390,
+            844
+          ],
+          [
+            390,
+            844
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-mobile-en-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "15e1272e42081c81bc931291083ca2fe50363a062da5800f8dbf0e23c33a4eee",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45 AM",
+          "x": 259,
+          "y": 60,
+          "width": 109,
+          "height": 33
+        },
+        {
+          "selector": ".display-date span",
+          "text": "Monday, September 7",
+          "x": 270,
+          "y": 102,
+          "width": 98,
+          "height": 11
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 289,
+          "y": 315,
+          "width": 55,
+          "height": 16
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 289,
+          "y": 659,
+          "width": 55,
+          "height": 16
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 296,
+          "y": 568,
+          "width": 48,
+          "height": 13
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            390,
+            844
+          ],
+          [
+            390,
+            844
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-mobile-nb-light.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "bb5834353fb27a5636d261dd61220f2d152586f20d06ac1c6a4d8d34f4b9a292",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45",
+          "x": 304,
+          "y": 60,
+          "width": 65,
+          "height": 33
+        },
+        {
+          "selector": ".display-date span",
+          "text": "mandag 7. september",
+          "x": 270,
+          "y": 102,
+          "width": 98,
+          "height": 11
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 311,
+          "y": 315,
+          "width": 33,
+          "height": 16
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 311,
+          "y": 659,
+          "width": 33,
+          "height": 16
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 316,
+          "y": 568,
+          "width": 28,
+          "height": 13
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            390,
+            844
+          ],
+          [
+            390,
+            844
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-mobile-nb-dark.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "b82e425d6c5aeb5967ed457d3431ad0680cb259c809b69ebdff3cf0f7619782d",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45",
+          "x": 304,
+          "y": 60,
+          "width": 65,
+          "height": 33
+        },
+        {
+          "selector": ".display-date span",
+          "text": "mandag 7. september",
+          "x": 270,
+          "y": 102,
+          "width": 98,
+          "height": 11
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 311,
+          "y": 315,
+          "width": 33,
+          "height": 16
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 311,
+          "y": 659,
+          "width": 33,
+          "height": 16
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 316,
+          "y": 568,
+          "width": 28,
+          "height": 13
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            390,
+            844
+          ],
+          [
+            390,
+            844
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shared-en-light.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "2af367ceaefb877babe45ed473e6e33fabb81bb00865a899b194ec1c7f58b769",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45 AM",
+          "x": 1563,
+          "y": 38,
+          "width": 189,
+          "height": 54
+        },
+        {
+          "selector": ".display-date span",
+          "text": "Monday, September 7",
+          "x": 1595,
+          "y": 102,
+          "width": 157,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 841,
+          "y": 349,
+          "width": 72,
+          "height": 20
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 1719,
+          "y": 349,
+          "width": 72,
+          "height": 20
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 848,
+          "y": 584,
+          "width": 65,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 1726,
+          "y": 584,
+          "width": 65,
+          "height": 18
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39 AM",
+          "x": 1773,
+          "y": 1040,
+          "width": 51,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            1920,
+            1080
+          ],
+          [
+            1920,
+            1080
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shared-en-dark.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "69171b29e3a25d655869483b695fe913bb73a81a62db3aafc045e31108415226",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45 AM",
+          "x": 1563,
+          "y": 38,
+          "width": 189,
+          "height": 54
+        },
+        {
+          "selector": ".display-date span",
+          "text": "Monday, September 7",
+          "x": 1595,
+          "y": 102,
+          "width": 157,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 841,
+          "y": 349,
+          "width": 72,
+          "height": 20
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 1719,
+          "y": 349,
+          "width": 72,
+          "height": 20
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 848,
+          "y": 584,
+          "width": 65,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 1726,
+          "y": 584,
+          "width": 65,
+          "height": 18
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39 AM",
+          "x": 1773,
+          "y": 1040,
+          "width": 51,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            1920,
+            1080
+          ],
+          [
+            1920,
+            1080
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shared-nb-light.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "5ba9a24fb3ed50efae8dfb5d5d011f8e03348733a2459608b24ab6de42d570bf",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45",
+          "x": 1640,
+          "y": 38,
+          "width": 112,
+          "height": 54
+        },
+        {
+          "selector": ".display-date span",
+          "text": "mandag 7. september",
+          "x": 1596,
+          "y": 102,
+          "width": 156,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 870,
+          "y": 349,
+          "width": 43,
+          "height": 20
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 1748,
+          "y": 349,
+          "width": 43,
+          "height": 20
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 875,
+          "y": 584,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 1753,
+          "y": 584,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39",
+          "x": 1793,
+          "y": 1040,
+          "width": 31,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            1920,
+            1080
+          ],
+          [
+            1920,
+            1080
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shared-nb-dark.png",
+      "width": 1920,
+      "height": 1080,
+      "sha256": "a24edf0a64baa00b902e75296906fe1297d084736437406081b9ee67acfd3a15",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45",
+          "x": 1640,
+          "y": 38,
+          "width": 112,
+          "height": 54
+        },
+        {
+          "selector": ".display-date span",
+          "text": "mandag 7. september",
+          "x": 1596,
+          "y": 102,
+          "width": 156,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 870,
+          "y": 349,
+          "width": 43,
+          "height": 20
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 1748,
+          "y": 349,
+          "width": 43,
+          "height": 20
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 875,
+          "y": 584,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 1753,
+          "y": 584,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39",
+          "x": 1793,
+          "y": 1040,
+          "width": 31,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            1920,
+            1080
+          ],
+          [
+            1920,
+            1080
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shelly-xl-en-light.png",
+      "width": 1280,
+      "height": 752,
+      "sha256": "0f79311c6234a747f2812666961604f12eb6b347078c4c0b5772ce12fd288ca7",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45 AM",
+          "x": 989,
+          "y": 26,
+          "width": 155,
+          "height": 45
+        },
+        {
+          "selector": ".display-date span",
+          "text": "Monday, September 7",
+          "x": 1007,
+          "y": 80,
+          "width": 137,
+          "height": 17
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 538,
+          "y": 274,
+          "width": 64,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 1125,
+          "y": 274,
+          "width": 64,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 542,
+          "y": 508,
+          "width": 60,
+          "height": 17
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 1129,
+          "y": 465,
+          "width": 60,
+          "height": 17
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39 AM",
+          "x": 1165,
+          "y": 719,
+          "width": 51,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            1280,
+            752
+          ],
+          [
+            1280,
+            752
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shelly-xl-en-dark.png",
+      "width": 1280,
+      "height": 752,
+      "sha256": "d069a134040de627c4e6039e86b357500e61ad410f55ca61f595b6c5eaf23957",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45 AM",
+          "x": 989,
+          "y": 26,
+          "width": 155,
+          "height": 45
+        },
+        {
+          "selector": ".display-date span",
+          "text": "Monday, September 7",
+          "x": 1007,
+          "y": 80,
+          "width": 137,
+          "height": 17
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 538,
+          "y": 274,
+          "width": 64,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38 AM",
+          "x": 1125,
+          "y": 274,
+          "width": 64,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 542,
+          "y": 508,
+          "width": 60,
+          "height": 17
+        },
+        {
+          "selector": ".display-until",
+          "text": "01:38 PM",
+          "x": 1129,
+          "y": 465,
+          "width": 60,
+          "height": 17
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39 AM",
+          "x": 1165,
+          "y": 719,
+          "width": 51,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            1280,
+            752
+          ],
+          [
+            1280,
+            752
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shelly-xl-nb-light.png",
+      "width": 1280,
+      "height": 752,
+      "sha256": "c034425a33a0461041a1bed510e6804484ebb864f1c26b56ed74d7d32122e01c",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45",
+          "x": 1052,
+          "y": 26,
+          "width": 93,
+          "height": 45
+        },
+        {
+          "selector": ".display-date span",
+          "text": "mandag 7. september",
+          "x": 1007,
+          "y": 80,
+          "width": 137,
+          "height": 17
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 564,
+          "y": 274,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 1151,
+          "y": 274,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 566,
+          "y": 508,
+          "width": 36,
+          "height": 17
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 1153,
+          "y": 465,
+          "width": 36,
+          "height": 17
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39",
+          "x": 1185,
+          "y": 719,
+          "width": 31,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 13,
+        "samples": [
+          {
+            "x": 1215,
+            "y": 266
+          },
+          {
+            "x": 1214,
+            "y": 268
+          },
+          {
+            "x": 1215,
+            "y": 268
+          },
+          {
+            "x": 1214,
+            "y": 269
+          },
+          {
+            "x": 1214,
+            "y": 270
+          },
+          {
+            "x": 1214,
+            "y": 271
+          },
+          {
+            "x": 1214,
+            "y": 493
+          },
+          {
+            "x": 1214,
+            "y": 494
+          },
+          {
+            "x": 1214,
+            "y": 495
+          },
+          {
+            "x": 1215,
+            "y": 495
+          },
+          {
+            "x": 1214,
+            "y": 496
+          },
+          {
+            "x": 1215,
+            "y": 496
+          },
+          {
+            "x": 1215,
+            "y": 497
+          }
+        ],
+        "dimensions": [
+          [
+            1280,
+            752
+          ],
+          [
+            1280,
+            752
+          ]
+        ]
+      }
+    },
+    {
+      "name": "display-shelly-xl-nb-dark.png",
+      "width": 1280,
+      "height": 752,
+      "sha256": "360f2de41e5a83feebbea64eef42d137e2c3f16debdf0813c06c04de93e534bb",
+      "masks": [
+        {
+          "selector": ".display-date strong",
+          "text": "04:45",
+          "x": 1052,
+          "y": 26,
+          "width": 93,
+          "height": 45
+        },
+        {
+          "selector": ".display-date span",
+          "text": "mandag 7. september",
+          "x": 1007,
+          "y": 80,
+          "width": 137,
+          "height": 17
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 564,
+          "y": 274,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-card-top > span:last-child",
+          "text": "05:38",
+          "x": 1151,
+          "y": 274,
+          "width": 38,
+          "height": 18
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 566,
+          "y": 508,
+          "width": 36,
+          "height": 17
+        },
+        {
+          "selector": ".display-until",
+          "text": "13:38",
+          "x": 1153,
+          "y": 465,
+          "width": 36,
+          "height": 17
+        },
+        {
+          "selector": ".display-footer span:last-child",
+          "text": "05:39",
+          "x": 1185,
+          "y": 719,
+          "width": 31,
+          "height": 15
+        }
+      ],
+      "comparison": {
+        "changedOutsideMask": 0,
+        "samples": [],
+        "dimensions": [
+          [
+            1280,
+            752
+          ],
+          [
+            1280,
+            752
+          ]
+        ]
+      }
+    }
+  ],
+  "error": "Error: visual differences outside approved masks: [{\"name\":\"display-shelly-xl-nb-light.png\",\"changedOutsideMask\":13,\"samples\":[{\"x\":1215,\"y\":266},{\"x\":1214,\"y\":268},{\"x\":1215,\"y\":268},{\"x\":1214,\"y\":269},{\"x\":1214,\"y\":270},{\"x\":1214,\"y\":271},{\"x\":1214,\"y\":493},{\"x\":1214,\"y\":494},{\"x\":1214,\"y\":495},{\"x\":1215,\"y\":495},{\"x\":1214,\"y\":496},{\"x\":1215,\"y\":496},{\"x\":1215,\"y\":497}],\"dimensions\":[[1280,752],[1280,752]]}]\n\nexpect(received).toEqual(expected) // deep equality\n\n- Expected  -  1\n+ Received  + 70\n\n- Array []\n+ Array [\n+   Object {\n+     \"changedOutsideMask\": 13,\n+     \"dimensions\": Array [\n+       Array [\n+         1280,\n+         752,\n+       ],\n+       Array [\n+         1280,\n+         752,\n+       ],\n+     ],\n+     \"name\": \"display-shelly-xl-nb-light.png\",\n+     \"samples\": Array [\n+       Object {\n+         \"x\": 1215,\n+         \"y\": 266,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 268,\n+       },\n+       Object {\n+         \"x\": 1215,\n+         \"y\": 268,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 269,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 270,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 271,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 493,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 494,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 495,\n+       },\n+       Object {\n+         \"x\": 1215,\n+         \"y\": 495,\n+       },\n+       Object {\n+         \"x\": 1214,\n+         \"y\": 496,\n+       },\n+       Object {\n+         \"x\": 1215,\n+         \"y\": 496,\n+       },\n+       Object {\n+         \"x\": 1215,\n+         \"y\": 497,\n+       },\n+     ],\n+   },\n+ ]\n    at captureRawStack (/workspace/node_modules/playwright-core/lib/coreBundle.js:8588:17)\n    at callMatcherAsStep (/workspace/node_modules/playwright/lib/matchers/expect.js:13310:57)\n    at Object.toEqual (/workspace/node_modules/playwright/lib/matchers/expect.js:13302:23)\n    at /workspace/tests/e2e/visual-regression.mjs:91:98"
+}

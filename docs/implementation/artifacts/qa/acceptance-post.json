@@ -1,0 +1,11 @@
+{
+  "executedAt": "2026-09-07T03:53:12.922Z",
+  "baseURL": "http://qa-app:4173",
+  "phase": "post",
+  "checks": [
+    "stopped worker restart expires a schedule whose whole publication window elapsed",
+    "restarted worker publishes a still-valid durable schedule automatically",
+    "recovered schedule expires automatically after restarted-worker publication",
+    "lifecycle ledger proves no missed-window publication and exactly one recovery publication"
+  ]
+}

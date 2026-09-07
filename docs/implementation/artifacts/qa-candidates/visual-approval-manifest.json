@@ -1,0 +1,23 @@
+{
+  "executedAt": "2026-09-07T03:17:03.224Z",
+  "mode": "approve",
+  "source": "docs/implementation/artifacts/qa-candidates",
+  "approvedCandidate": {
+    "executedAt": "2026-09-07T02:46:05.751Z",
+    "manifestSha256": "255eef840bfe78431a62a5791f788aad8a1e1cd43e1c8b9e6648b66e098ca71f"
+  },
+  "names": [
+    "display-mobile-en-light.png",
+    "display-mobile-en-dark.png",
+    "display-mobile-nb-light.png",
+    "display-mobile-nb-dark.png",
+    "display-shared-en-light.png",
+    "display-shared-en-dark.png",
+    "display-shared-nb-light.png",
+    "display-shared-nb-dark.png",
+    "display-shelly-xl-en-light.png",
+    "display-shelly-xl-en-dark.png",
+    "display-shelly-xl-nb-light.png",
+    "display-shelly-xl-nb-dark.png"
+  ]
+}
