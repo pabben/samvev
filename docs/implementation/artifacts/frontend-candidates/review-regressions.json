@@ -1,0 +1,19 @@
+{
+  "executedAt": "2026-09-07T02:50:09.982Z",
+  "checks": [
+    "F1 delayed PATCH disables rapid changes; both persisted choices survive reload after save",
+    "F1 failure retains preferences, retry succeeds, system follows OS changes",
+    "F4 keyboard selected state and F5 localized preview, expiry, zone and invalid-time preservation",
+    "F2 composer unchanged Axe WCAG A/AA checks",
+    "F2 member board unchanged Axe WCAG A/AA checks",
+    "F7 separate people/account controls and active-login elevated role/grant requirements",
+    "F6 real other-user edit/withdraw activity is visible to original author",
+    "F3 degraded startup and heartbeat cannot claim Live; restored waits for fresh projection",
+    "F3 offline closes old stream; online creates a new stream and requires ready plus fresh projection",
+    "F3 independent offline card expiry, metadata retention, reload deadline and real 15min cache clearing"
+  ],
+  "notes": [
+    "Fault injection is frontend-only test code; scheduling smoke uses real worker.",
+    "No QA baselines changed."
+  ]
+}

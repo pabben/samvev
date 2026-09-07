@@ -1,0 +1,6 @@
+{
+  "executedAt": "2026-09-07T00:44:59.613Z",
+  "update": false,
+  "results": [],
+  "error": "Error: expect(received).toBeLessThanOrEqual(expected)\n\nExpected: <= 0.01\nReceived:    0.5360979462875197\n    at Proxy.<anonymous> (/workspace/node_modules/playwright/lib/matchers/expect.js:221:24)\n    at file:///workspace/tests/e2e/visual-regression.mjs:44:72"
+}

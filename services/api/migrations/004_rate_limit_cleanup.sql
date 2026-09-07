@@ -1,0 +1,1 @@
+CREATE INDEX rate_limits_window_started_idx ON rate_limits(window_started_at);

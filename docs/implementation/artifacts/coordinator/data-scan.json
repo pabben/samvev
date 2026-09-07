@@ -1,0 +1,12 @@
+{
+  "executedAt": {
+    "current_time": "2026-09-07 04:13:40 UTC"
+  },
+  "scope": "all modified and new nonignored working-tree text files after delivery documentation; no symlink traversal",
+  "textFilesScanned": 123,
+  "artifactJsonFilesScanned": 33,
+  "secretPatternAndPersistedAuthFindings": [],
+  "nonReservedEmailLocations": [],
+  "localMarkdownLinksChecked": 85,
+  "brokenLocalMarkdownLinks": 0
+}

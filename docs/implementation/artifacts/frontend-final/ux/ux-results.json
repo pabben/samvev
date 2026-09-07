@@ -1,0 +1,55 @@
+{
+  "executedAt": "2026-09-07T03:07:11.391Z",
+  "baseURL": "http://samvev-m1-app-1:4173",
+  "completed": false,
+  "checks": [
+    "F8 real permissions save preserves 1 active grants and excludes 1 historical unavailable grants",
+    "F7 all four account disclosure labels and icon semantics rendered in en and nb",
+    "new restricted display has truthful fresh empty state"
+  ],
+  "screenshots": [
+    {
+      "file": "people-valid-grants-en.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Real membership save after historical grant sanitization",
+      "fullPage": false
+    },
+    {
+      "file": "people-account-states-en.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Test-only account disclosure variants: active, disabled, profile-only, undisclosed",
+      "fullPage": false
+    },
+    {
+      "file": "people-account-states-nb.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Test-only account disclosure variants: active, disabled, profile-only, undisclosed",
+      "fullPage": false
+    },
+    {
+      "file": "display-fresh-empty-en.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Real newly paired display with no targeted messages",
+      "fullPage": false
+    }
+  ],
+  "cleanup": {
+    "ownMessagesWithdrawn": 0,
+    "ownDisplaysRevoked": 2,
+    "temporaryGrantRemoved": true
+  },
+  "syntheticOnly": true,
+  "networkFaults": "Explicitly labeled per screenshot; no auth artifacts recorded"
+}

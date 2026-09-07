@@ -12,9 +12,9 @@ Samvev lagrer dette som et varig oppdrag, følger kilden, bruker en godkjent AI-
 
 ## Status
 
-**Prosjektet er i dokumentasjons- og produktdefinisjonsfasen. Det finnes ingen kjørbar utgave ennå.**
+**M1 har bestått lokal akseptansetesting og er klar til å prøves. Git-leveransen er blokkert fordi Git-metadata er skrivebeskyttet. Det finnes ingen produksjonsutgave.**
 
-Første repository-versjon inneholder produktkrav, arkitektur, designkonsepter, sikkerhetsprinsipper, bidragsmaler og en første backlog. Implementasjonen skal utvikles videre gjennom åpne issues og pull requests.
+Den første kjørbare delen omfatter husholdningsoppsett, personer og roller, parkoblede skjermer, umiddelbare og planlagte beskjeder, norsk bokmål og engelsk samt lys og mørk visning. Start med [lokal demo](docs/implementation/M1_DEMO.md), [leveranse og testresultater](docs/implementation/M1_DELIVERY.md) og [veiledning for lokal kjøring](docs/implementation/M1_OPERATIONS.md). Produktvisjonen nedenfor beskriver også fremtidige funksjoner. M1 har ingen eksterne integrasjoner, AI, egen iOS-app, belønninger eller stemmestyring.
 
 [Read the English introduction](README.md)
 

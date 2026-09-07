@@ -1,0 +1,13 @@
+{
+  "approvedAt": "2026-09-07",
+  "reason": "UX and coordinator approved a one-pixel right-edge antialias correction after strict comparison found only the Norwegian header-clock glyph boundary.",
+  "originalManifestSha256": "7878f15d137f3ffa7fa593501bf6a58f6a8b2f6579ec6e9f07243538281c1bca",
+  "correctedManifestSha256": "fd3e5da25b2f645bc2eabbdb1734fd10d9b96c7ef8b4253a665f79f02d1008b2",
+  "baselineImagesChanged": false,
+  "changes": [
+    { "name": "display-mobile-nb-light.png", "selector": ".display-date strong", "from": { "x": 304, "y": 60, "width": 64, "height": 33 }, "to": { "x": 304, "y": 60, "width": 65, "height": 33 } },
+    { "name": "display-mobile-nb-dark.png", "selector": ".display-date strong", "from": { "x": 304, "y": 60, "width": 64, "height": 33 }, "to": { "x": 304, "y": 60, "width": 65, "height": 33 } },
+    { "name": "display-shelly-xl-nb-light.png", "selector": ".display-date strong", "from": { "x": 1052, "y": 26, "width": 92, "height": 45 }, "to": { "x": 1052, "y": 26, "width": 93, "height": 45 } },
+    { "name": "display-shelly-xl-nb-dark.png", "selector": ".display-date strong", "from": { "x": 1052, "y": 26, "width": 92, "height": 45 }, "to": { "x": 1052, "y": 26, "width": 93, "height": 45 } }
+  ]
+}
