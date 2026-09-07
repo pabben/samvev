@@ -3,20 +3,46 @@
 Reviewed 2026-09-07 UTC by the read-only `release_gate` project agent, run last
 after sequential fixes, complete QA and coordinator verification.
 
-**BLOCKED — local M1 acceptance PASS; reported Git delivery is not remotely verified.**
+**PASS — local M1 acceptance passed; the sole Git delivery blocker is resolved.**
 
 The reviewer found no additional confirmed high- or medium-severity local
 defect. The implementation, final execution evidence and running services
 support local acceptance. Historical failures remain explicitly distinguished
 from the final passing results.
 
-## Git delivery follow-up — 2026-09-07 UTC
+## Git delivery resolved — external verification, 2026-09-07 UTC
+
+The user supplied direct GitHub verification of the completed host-shell
+delivery and instructed the coordinator to close the sole remaining blocker.
+Together with the prior local acceptance PASS and absence of any other
+blocking finding, this changes the release gate from BLOCKED to **PASS**.
+
+| Verification evidence supplied by the user | Result |
+|---|---|
+| Draft pull request | [PR #1](https://github.com/pabben/samvev/pull/1) |
+| Work branch | `feat/m1-first-runnable-slice` |
+| Remote head | `5e1f384cf8b4322454ea5a200ae457db6738b764` |
+| PR state | Open, draft, mergeable |
+| GitHub Documentation checks | Success |
+
+This is externally supplied verification, not a claim that Codex reran GitHub
+checks or application tests in this update. The earlier sandbox restriction
+remains a local constraint; it no longer blocks delivery completed from the
+host shell. The earlier unsuccessful observations below are historical and
+superseded by this confirmation. The PR has not been merged by the coordinator.
+
+Only M1_RELEASE_GATE.md, M1_DELIVERY.md and M1_STATUS.md are updated here.
+Earlier checklist and JSON evidence snapshots remain unchanged under that
+explicit scope. No application code or tests were changed, no tests were run,
+and no commit or push was attempted from the sandbox.
+
+## Historical Git delivery follow-up — resolved
 
 The user reported completing the implementation commit, work-branch push and
 draft PR from a normal host shell. Read-only verification in this follow-up
-did not confirm that delivery. Both Git transport and GitHub API still expose
-the previous branch tip, and both PR interfaces return an empty list.
-The conditional change to PASS therefore cannot be made. No new local
+did not confirm that delivery. Both Git transport and GitHub API exposed
+the previous branch tip, and both PR interfaces returned an empty list.
+The conditional change to PASS could not be made at that time. No new local
 implementation defect was found or asserted by this Git-only follow-up.
 
 | Read-only command | Observed result |
@@ -34,32 +60,36 @@ PR commands used JSON output; API commands selected the relevant fields with
 `--jq`. All commands completed successfully; the delivery assertions failed
 because the expected new remote commit and draft PR were absent from results.
 Local branch, remote URL, log, status and unstaged-diff reads were also checked.
-The sandbox still reports the previous HEAD and staged implementation files;
-remote conclusions above use `ls-remote` and GitHub API, not cached tracking refs.
+The sandbox then reported the previous HEAD and staged implementation files;
+those remote conclusions used `ls-remote` and GitHub API, not cached tracking refs.
 
 A PR URL was requested to resolve the discrepancy with the host-shell report.
 No commit, push, fetch, merge or Git metadata repair was attempted. This follow-up
-updates only M1_RELEASE_GATE.md, M1_DELIVERY.md and M1_STATUS.md; prior checklist
-and evidence artifacts remain unchanged. Application tests were not rerun for
+updated only M1_RELEASE_GATE.md, M1_DELIVERY.md and M1_STATUS.md; prior checklist
+and evidence artifacts remained unchanged. Application tests were not rerun for
 this documentation-only verification.
 
-## Original sole blocker — historical review
+## Original sole blocker — historical review, resolved by host-shell delivery
 
 The required signed-off implementation commit, work-branch push and draft PR
-cannot be produced while `.git` is mounted read-only. The reviewer independently
-confirmed the writable worktree/read-only Git distinction through `os.statvfs`.
+could not be produced from the sandbox while `.git` was mounted read-only.
+The reviewer independently confirmed the writable worktree/read-only Git
+distinction through `os.statvfs`.
 No mutation or bypass was attempted.
 
 - Branch: `feat/m1-first-runnable-slice`.
 - Unchanged existing HEAD: `5bd4f0416efb3eaeb88a34e456d1f075de463ac9`.
-- Implementation remains working-tree changes; no implementation commit, push
-  or draft PR exists.
-- Release-PASS, pushed-commits and draft-PR checklist items remain unchecked.
+- Implementation then remained working-tree changes; no implementation commit,
+  push or draft PR had been verified.
+- Release-PASS, pushed-commits and draft-PR checklist items were left unchecked
+  in that historical snapshot.
 
 At that review, normal workspace Git metadata write access was needed to
 complete delivery from the sandbox. A [concrete PR draft](M1_PR_DRAFT.md) was
 prepared but not submitted by the coordinator. The later host-shell delivery
-report and its unsuccessful remote verification are recorded above.
+report and its initially unsuccessful remote verification are recorded above.
+The current external confirmation resolves that delivery blocker without
+changing sandbox permissions.
 
 ## Execution evidence and independent verification
 

@@ -1,7 +1,7 @@
 # M1 implementation status
 
 Updated: 2026-09-07. Branch: `feat/m1-first-runnable-slice`.
-Overall status: **LOCAL ACCEPTANCE PASSED — release gate BLOCKED; reported Git delivery not remotely verified**.
+Overall status: **PASS — local acceptance passed; Git delivery externally verified and sole blocker resolved**.
 
 Current delivery and demo: [M1_DELIVERY.md](M1_DELIVERY.md),
 [M1_DEMO.md](M1_DEMO.md). The gate table and **Final execution and independent
@@ -14,34 +14,49 @@ sections record earlier states and counts.
 |---|---|---|
 | A: parallel discovery | Complete | All four named agents returned read-only reports; M1_DISCOVERY.md |
 | B: coordinator plan and ADR | Complete | M1_DISCOVERY.md, M1_PLAN.md, M1_FIRST_SLICE.md, ADR 0011 |
-| C: sequential implementation | Complete, including initial QA with failures | M1_QA.md; no overall acceptance PASS |
+| C: sequential implementation | Complete; initial QA failures resolved in Gate E | M1_QA.md |
 | D: parallel review | Complete; findings resolved | All three reports and rechecks returned; M1_REVIEW_FINDINGS.md |
-| E: fixes, full retest, release gate | Local acceptance PASS; final gate BLOCKED solely by Git delivery | [Final release review](M1_RELEASE_GATE.md); complete QA and independent verification passed, no additional high/medium local finding |
-| Push and draft PR | Host-shell completion reported; remote verification failed | Git/GitHub still show `5bd4f0416efb3eaeb88a34e456d1f075de463ac9`; filtered/all PR lists and REST endpoint return empty lists |
+| E: fixes, full retest, release gate | PASS; sole Git blocker resolved | [Final release review](M1_RELEASE_GATE.md); prior complete QA and independent verification passed; external GitHub delivery confirmation closes the remaining blocker |
+| Push and draft PR | Complete; externally verified by the user | [Draft PR #1](https://github.com/pabben/samvev/pull/1), remote head `5e1f384cf8b4322454ea5a200ae457db6738b764`; open, draft, mergeable; Documentation checks success |
 
-## Git delivery follow-up — 2026-09-07 UTC
+## Git delivery resolved — 2026-09-07 UTC
+
+The user supplied direct GitHub confirmation of [PR #1](https://github.com/pabben/samvev/pull/1)
+on `feat/m1-first-runnable-slice`, remote head
+`5e1f384cf8b4322454ea5a200ae457db6738b764`. The PR is open, draft and mergeable;
+GitHub Documentation checks succeeded. Git was the only remaining blocking
+finding, so the release gate changes from BLOCKED to **PASS**.
+
+This status uses the user's external verification and the existing local
+acceptance evidence. Codex did not rerun GitHub checks or application tests
+for this update. Only M1_RELEASE_GATE.md, M1_DELIVERY.md and M1_STATUS.md are
+changed; no application/test changes, test execution, merge, commit or push.
+The sandbox's read-only Git restriction remains in place. Historical checklist
+and JSON snapshots are unchanged under the explicit three-document scope.
+
+## Historical Git delivery follow-up — resolved
 
 The user reported a completed implementation commit, work-branch push and draft
 PR from the host shell. Read-only verification did not confirm the report:
 
-- `git ls-remote` and GitHub's branch-ref API agree on the old work-branch SHA
-  `5bd4f0416efb3eaeb88a34e456d1f075de463ac9`; main remains
+- `git ls-remote` and GitHub's branch-ref API agreed on the old work-branch SHA
+  `5bd4f0416efb3eaeb88a34e456d1f075de463ac9`; main remained
   `f82dd8208c0a169a21226fe4af81fb7e9dc62d09`.
-- GitHub's commit API identifies the same signed-off tmux-fix commit from
+- GitHub's commit API identified the same signed-off tmux-fix commit from
   `2026-09-06T22:43:09Z`, not an implementation commit. A local tree read of
-  that exact object contains none of the queried implementation paths.
-- Repository identity is `pabben/samvev`, default branch `main`. Both filtered
-  and unfiltered `gh pr list --state all` calls return `[]`; a separate REST
-  pull-request listing also returns `[]`.
+  that exact object contained none of the queried implementation paths.
+- Repository identity was `pabben/samvev`, default branch `main`. Both filtered
+  and unfiltered `gh pr list --state all` calls returned `[]`; a separate REST
+  pull-request listing also returned `[]`.
 - Commands succeeded, but the expected new remote commit and draft PR were
-  not found. Release gate remains BLOCKED; local acceptance remains PASS.
+  not found. Release gate then remained BLOCKED; local acceptance remained PASS.
   A PR URL was requested to reconcile the host-shell report.
-- Only M1_RELEASE_GATE.md, M1_DELIVERY.md and M1_STATUS.md are updated. No
+- Only M1_RELEASE_GATE.md, M1_DELIVERY.md and M1_STATUS.md were updated. No
   application changes, test rerun, commit attempt, push, fetch or merge.
 
-Full commands/results: [M1_RELEASE_GATE.md](M1_RELEASE_GATE.md). Previous
-checklist and JSON verification snapshots remain unchanged under the
-three-document scope of this follow-up.
+Historical commands/results: [M1_RELEASE_GATE.md](M1_RELEASE_GATE.md). These
+observations are superseded by the external GitHub confirmation above;
+the previous delivery discrepancy is resolved.
 
 ## Executed checks
 
@@ -78,7 +93,8 @@ three-document scope of this follow-up.
 - Security recheck found no remaining high/medium findings; final UX accepted
   F7–F9 and all seventeen difficult-state screenshots. The final release reviewer
   independently confirmed local acceptance and found no additional high/medium
-  local defect. Overall gate is BLOCKED solely by the Git delivery requirements.
+  local defect. Git was the sole remaining blocker and is now resolved by
+  the user's external GitHub confirmation; the overall gate is PASS.
 - Main and QA app/database/worker are healthy. Node 24.20.0 and PostgreSQL 17.11
   verified directly. Runtime has five fictional people, four migrations and one
   dedicated projection listener. Current routes and JS/CSS return 200; anonymous
@@ -90,9 +106,9 @@ three-document scope of this follow-up.
 - Evidence: [coordinator verification](artifacts/coordinator/final-verification.json),
   [independent tests](artifacts/coordinator/unit-integration.log),
   [final visual comparison](artifacts/qa-final/visual-comparison.json),
-  M1_QA.md and M1_DELIVERY.md. The latest Git-only follow-up still observes
-  `5bd4f0416efb3eaeb88a34e456d1f075de463ac9` remotely and cannot verify the
-  reported implementation commit/push/PR.
+  M1_QA.md and M1_DELIVERY.md. Current external Git delivery evidence is
+  [PR #1](https://github.com/pabben/samvev/pull/1), remote head
+  `5e1f384cf8b4322454ea5a200ae457db6738b764`, supplied by the user.
 
 ## Historical Gate C: devops checkpoint
 
@@ -321,18 +337,20 @@ three-document scope of this follow-up.
   Isolated `qa-candidates` is intact. The control added one synthetic teen and
   two test displays; final runtime fixture cleanup/count verification is pending.
 
-## Original Git delivery blocker and follow-up
+## Historical Git delivery blocker and follow-up — resolved
 
-Actual Git blocker: coordinator attempted a signed-off documentation checkpoint,
+Original Git blocker: coordinator attempted a signed-off documentation checkpoint,
 but `git add` failed before committing with `Unable to create .../.git/index.lock:
 Read-only file system`. No commit was created. Git metadata was not relocated,
 remounted, chmodded or accessed through a container to bypass the restriction.
 That was the coordinator's original sandbox failure. The user later reported
-host-shell delivery; this follow-up performed only read-only Git/gh checks and
-found the old remote tip and no PR. No new commit attempt was made.
+host-shell delivery; the first follow-up performed only read-only Git/gh checks
+and found the old remote tip and no PR. The user's subsequent direct GitHub
+verification of PR #1 and remote head `5e1f384cf8b4322454ea5a200ae457db6738b764`
+resolves the delivery blocker. No new commit attempt was made in the sandbox.
 
 Host Node absence is handled through Compose tooling. Local acceptance passed;
-the final release gate is BLOCKED solely by Git delivery. Only synthetic fixtures
+the final release gate is PASS with Git delivery externally verified. Only synthetic fixtures
 are used. See [M1_RELEASE_GATE.md](M1_RELEASE_GATE.md).
 
 No secrets/private household data introduced. No parent/sibling project or

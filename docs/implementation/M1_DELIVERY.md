@@ -1,12 +1,12 @@
 # M1 local delivery
 
-Verified 2026-09-07 UTC. **Local acceptance passed; reported Git delivery is
-not remotely verified.**
-The final independent [release gate](M1_RELEASE_GATE.md) returned **BLOCKED
-solely for Git delivery**, with local M1 acceptance **PASS** and no additional
-confirmed high- or medium-severity local finding.
-The subsequent read-only Git/PR checks still show the previous remote commit
-and no PR; the release gate therefore remains BLOCKED.
+Updated 2026-09-07 UTC. **Release gate PASS — local acceptance passed and Git
+delivery is externally verified.**
+The independent review found no additional confirmed high- or medium-severity
+local finding. Its sole Git delivery blocker is now resolved by the user's
+direct GitHub confirmation of [PR #1](https://github.com/pabben/samvev/pull/1)
+and remote head `5e1f384cf8b4322454ea5a200ae457db6738b764`.
+See the [release gate and preserved history](M1_RELEASE_GATE.md).
 
 ## Runtime and review entry points
 
@@ -110,26 +110,45 @@ deployment. AI, Homey, Home Assistant, calendars, Spond, Keep, native iOS, rewar
 and voice remain deferred. The next product issue should validate the pilot on
 actual devices and record usability feedback before expanding integrations.
 
-## Git delivery verification — 2026-09-07 UTC
+## Git delivery verified — 2026-09-07 UTC
 
-Branch: `feat/m1-first-runnable-slice`. Observed remote tip and sandbox HEAD:
+The user supplied direct GitHub verification of the completed host-shell
+delivery:
+
+- Draft PR: [#1](https://github.com/pabben/samvev/pull/1).
+- Branch: `feat/m1-first-runnable-slice`.
+- Remote head: `5e1f384cf8b4322454ea5a200ae457db6738b764`.
+- PR state: open, draft, mergeable.
+- GitHub Documentation checks: success.
+
+Git was the sole remaining blocking finding. This external confirmation closes
+it and changes the release gate to **PASS**. It is evidence supplied by the
+user, not a new GitHub or test execution by Codex in this documentation update.
+
+## Historical Git problem — resolved
+
+Branch: `feat/m1-first-runnable-slice`. Previously observed remote tip and sandbox HEAD:
 `5bd4f0416efb3eaeb88a34e456d1f075de463ac9`.
 
 The user reported completing commit, push and draft PR from a normal host shell.
-However, `git ls-remote` and GitHub's branch-ref and commit APIs still show the
-existing tmux-fix commit, dated `2026-09-06T22:43:09Z`. `gh pr list` returns no
-PRs with or without branch/base filters, and the REST pull-request listing is
-also empty. Repository identity is confirmed as `pabben/samvev`, base `main`.
-**A pushed implementation commit and draft PR could not be verified; PASS is
-not justified by these results.** See the [exact release-gate checks](M1_RELEASE_GATE.md).
+At the earlier follow-up, `git ls-remote` and GitHub's branch-ref and commit APIs
+showed the existing tmux-fix commit, dated `2026-09-06T22:43:09Z`. `gh pr list`
+returned no PRs with or without branch/base filters, and the REST pull-request
+listing was also empty. Repository identity was confirmed as `pabben/samvev`,
+base `main`. A pushed implementation commit and draft PR could not be verified
+at that time, so the gate remained BLOCKED. Those observations are superseded
+by the external confirmation above. See the [historical release-gate checks](M1_RELEASE_GATE.md).
 
 The earlier sandbox attempt failed at `.git/index.lock` on a read-only
-filesystem. This follow-up made no commit attempt or Git metadata change.
+filesystem. That follow-up made no commit attempt or Git metadata change.
 The existing [PR title/body file](M1_PR_DRAFT.md) is preparation, not evidence
-that a remote PR exists. A PR URL was requested to reconcile the discrepancy.
+that a remote PR exists. The requested PR reference has now been supplied as
+PR #1, resolving the discrepancy. The sandbox remains read-only for Git;
+delivery was completed from the host shell without bypassing that restriction.
 
 Only M1_RELEASE_GATE.md, M1_DELIVERY.md and M1_STATUS.md were updated in this
-follow-up. No application behavior, tests, runtime data or migration changed;
-prior acceptance evidence remains applicable and was not rerun. No secret/private
+status update, which has not been committed or pushed from the sandbox. No
+application behavior, tests, runtime data or migration changed; no tests were
+run. Prior acceptance evidence remains unchanged. No secret/private
 family data, parent/sibling project change, host-global change, main push,
 merge, tag, release or production deploy was made.
