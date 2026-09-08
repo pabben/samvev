@@ -20,6 +20,7 @@ interface AiSettings {
   enabled: boolean;
   provider: ProviderId;
   hasApiKey: boolean;
+  baseUrl: string | null;
   defaultModel: string;
   strongModel: string;
   revision: number;
@@ -64,6 +65,7 @@ interface AiUsage {
 interface Draft {
   enabled: boolean;
   provider: ProviderId;
+  baseUrl: string;
   defaultModel: string;
   strongModel: string;
 }
@@ -71,6 +73,7 @@ interface Draft {
 const asDraft = (settings: AiSettings): Draft => ({
   enabled: settings.enabled,
   provider: settings.provider,
+  baseUrl: settings.baseUrl ?? "",
   defaultModel: settings.defaultModel,
   strongModel: settings.strongModel,
 });
@@ -134,6 +137,7 @@ export function AiSettingsPanel({
           draft &&
           (draft.enabled !== settings.enabled ||
             draft.provider !== settings.provider ||
+            draft.baseUrl !== (settings.baseUrl ?? "") ||
             draft.defaultModel !== settings.defaultModel ||
             draft.strongModel !== settings.strongModel ||
             apiKey.length > 0 ||
@@ -141,7 +145,16 @@ export function AiSettingsPanel({
       ),
     [apiKey, draft, removeApiKey, settings],
   );
-  const invalidKey = apiKey.length > 0 && apiKey.length < 20;
+  const credentialIdentityChanged = Boolean(
+    settings &&
+      draft &&
+      (draft.provider !== settings.provider ||
+        (draft.provider === "openai_compatible" &&
+          draft.baseUrl !== (settings.baseUrl ?? ""))),
+  );
+  const hasCurrentApiKey = Boolean(settings?.hasApiKey && !credentialIdentityChanged);
+  const invalidKey =
+    apiKey.length > 0 && draft?.provider === "openai" && apiKey.length < 20;
 
   const save = async () => {
     if (!settings || !draft || busy || invalidKey || !dirty) return;
@@ -151,9 +164,13 @@ export function AiSettingsPanel({
     setTestResult(undefined);
     try {
       const body: Record<string, unknown> = {
-        ...draft,
+        enabled: draft.enabled,
+        provider: draft.provider,
+        defaultModel: draft.defaultModel,
+        strongModel: draft.strongModel,
         expectedRevision: settings.revision,
       };
+      if (draft.provider === "openai_compatible") body.baseUrl = draft.baseUrl;
       if (apiKey) body.apiKey = apiKey;
       else if (removeApiKey) body.apiKey = null;
       const next = await api<AiSettings>(`${base}/settings`, "PATCH", body);
@@ -269,7 +286,9 @@ export function AiSettingsPanel({
 
             <fieldset className="ai-providers">
               <legend>{t("aiProvider")}</legend>
-              <label className="ai-provider active">
+              <label
+                className={`ai-provider ${draft.provider === "openai" ? "active" : ""}`}
+              >
                 <input
                   type="radio"
                   name="ai-provider"
@@ -285,7 +304,27 @@ export function AiSettingsPanel({
                   <strong>OpenAI API</strong>
                   <small>{t("aiProviderOpenAiHint")}</small>
                 </span>
-                <span className="ai-provider-state">{t("aiProviderActive")}</span>
+                <span className="ai-provider-state">{t("aiProviderAvailable")}</span>
+              </label>
+              <label
+                className={`ai-provider ${draft.provider === "openai_compatible" ? "active" : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="ai-provider"
+                  value="openai_compatible"
+                  checked={draft.provider === "openai_compatible"}
+                  disabled={busy}
+                  onChange={() => {
+                    setDraft({ ...draft, provider: "openai_compatible" });
+                    setSaved(false);
+                  }}
+                />
+                <span>
+                  <strong>{t("aiProviderLocal")}</strong>
+                  <small>{t("aiProviderLocalHint")}</small>
+                </span>
+                <span className="ai-provider-state">{t("aiProviderAvailable")}</span>
               </label>
               <div className="ai-provider unavailable" aria-disabled="true">
                 <Icon name="offline" />
@@ -295,15 +334,27 @@ export function AiSettingsPanel({
                 </span>
                 <span className="ai-provider-state">{t("aiUnavailableSlice")}</span>
               </div>
-              <div className="ai-provider unavailable" aria-disabled="true">
-                <Icon name="offline" />
-                <span>
-                  <strong>{t("aiProviderLocal")}</strong>
-                  <small>{t("aiProviderLocalHint")}</small>
-                </span>
-                <span className="ai-provider-state">{t("aiUnavailableSlice")}</span>
-              </div>
             </fieldset>
+
+            {draft.provider === "openai_compatible" && (
+              <Field label={t("aiBaseUrl")} hint={t("aiBaseUrlHint")}>
+                <input
+                  type="url"
+                  value={draft.baseUrl}
+                  maxLength={2048}
+                  required
+                  disabled={busy}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  placeholder="http://localhost:11434/v1"
+                  onChange={(event) => {
+                    setDraft({ ...draft, baseUrl: event.target.value });
+                    setSaved(false);
+                  }}
+                />
+              </Field>
+            )}
 
             <div className="form-grid">
               <Field label={t("aiRoutineModel")} hint={t("aiRoutineModelHint")}>
@@ -332,16 +383,31 @@ export function AiSettingsPanel({
               </Field>
             </div>
 
-            <Field label={t("aiApiKey")} hint={t("aiApiKeyHint")}>
+            <Field
+              label={t(
+                draft.provider === "openai_compatible"
+                  ? "aiApiKeyOptional"
+                  : "aiApiKey",
+              )}
+              hint={t(
+                draft.provider === "openai_compatible"
+                  ? "aiApiKeyOptionalHint"
+                  : "aiApiKeyHint",
+              )}
+            >
               <input
                 type="password"
                 value={apiKey}
-                minLength={20}
+                minLength={draft.provider === "openai" ? 20 : 1}
                 maxLength={512}
-                disabled={busy || removeApiKey}
+                disabled={busy || (removeApiKey && hasCurrentApiKey)}
                 autoComplete="new-password"
                 placeholder={
-                  settings.hasApiKey ? t("aiApiKeyConfigured") : t("aiApiKeyEmpty")
+                  hasCurrentApiKey
+                    ? t("aiApiKeyConfigured")
+                    : draft.provider === "openai_compatible"
+                      ? t("aiApiKeyOptionalEmpty")
+                      : t("aiApiKeyEmpty")
                 }
                 onChange={(event) => {
                   setApiKey(event.target.value);
@@ -350,7 +416,10 @@ export function AiSettingsPanel({
               />
             </Field>
             {invalidKey && <p className="field-error">{t("aiApiKeyLength")}</p>}
-            {settings.hasApiKey && (
+            {credentialIdentityChanged && settings.hasApiKey && !apiKey && (
+              <p className="field-hint">{t("aiApiKeyResetOnProviderChange")}</p>
+            )}
+            {hasCurrentApiKey && (
               <Check
                 label={t("aiRemoveApiKey")}
                 checked={removeApiKey}
@@ -408,7 +477,13 @@ export function AiSettingsPanel({
             )}
             <div className="notice offline ai-credit-notice">
               <Icon name="spark" />
-              <span>{t("aiTestUsageWarning")}</span>
+              <span>
+                {t(
+                  settings.provider === "openai_compatible"
+                    ? "aiLocalTestUsageWarning"
+                    : "aiTestUsageWarning",
+                )}
+              </span>
             </div>
             {dirty && <p className="field-hint">{t("aiSaveBeforeTest")}</p>}
             <div className="ai-test-actions">
@@ -508,6 +583,7 @@ type ErrorTranslationKey =
   | "AI_UPSTREAM_ERROR"
   | "AI_RESPONSE_INVALID"
   | "AI_TIMEOUT"
+  | "AI_ENDPOINT_BLOCKED"
   | "AI_DISABLED"
   | "CHATGPT_CONNECTION_NOT_CONFIGURED"
   | "PROVIDER_NOT_IMPLEMENTED_M2_1";
@@ -518,6 +594,7 @@ const errorLabels: Record<string, ErrorTranslationKey> = {
   AI_UPSTREAM_ERROR: "AI_UPSTREAM_ERROR",
   AI_RESPONSE_INVALID: "AI_RESPONSE_INVALID",
   AI_TIMEOUT: "AI_TIMEOUT",
+  AI_ENDPOINT_BLOCKED: "AI_ENDPOINT_BLOCKED",
   AI_DISABLED: "AI_DISABLED",
   CHATGPT_CONNECTION_NOT_CONFIGURED: "CHATGPT_CONNECTION_NOT_CONFIGURED",
   PROVIDER_NOT_IMPLEMENTED_M2_1: "PROVIDER_NOT_IMPLEMENTED_M2_1",

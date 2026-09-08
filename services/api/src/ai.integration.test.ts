@@ -21,11 +21,24 @@ let aiAdmin: AiAdminService;
 let transportMode: 'success' | 'incomplete' = 'success';
 let transportHook: (() => Promise<void>) | undefined;
 const seenModels: string[] = [];
+const seenUrls: string[] = [];
+const seenAuthorization: Array<string | null> = [];
 
-const transport = async (_url: string, init: RequestInit): Promise<Response> => {
+const transport = async (url: string, init: RequestInit): Promise<Response> => {
   const body = JSON.parse(String(init.body)) as { model: string };
   seenModels.push(body.model);
+  seenUrls.push(url);
+  seenAuthorization.push(new Headers(init.headers).get('authorization'));
   if (transportHook) { const hook = transportHook; transportHook = undefined; await hook(); }
+  if (url.endsWith('/chat/completions')) {
+    if (transportMode === 'incomplete') return new Response(JSON.stringify({
+      choices: [], usage: { prompt_tokens: 7, completion_tokens: 64 }
+    }), { status: 200 });
+    return new Response(JSON.stringify({
+      choices: [{ message: { role: 'assistant', content: 'OK' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 6, completion_tokens: 1 }
+    }), { status: 200 });
+  }
   if (transportMode === 'incomplete') return new Response(JSON.stringify({
     status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, usage: { input_tokens: 7, output_tokens: 64 }
   }), { status: 200 });
@@ -159,12 +172,74 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   assert.equal(changedDuringTest.json().availability.status, 'not_tested');
   assert.equal(changedDuringTest.json().availability.checkedAt, null);
 
-  const removed = await app.inject({ method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf), payload: { apiKey: null, expectedRevision: 3 } });
-  assert.equal(removed.json().hasApiKey, false);
+  const localSaved = await app.inject({
+    method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
+    payload: {
+      enabled: true, provider: 'openai_compatible', baseUrl: 'http://127.0.0.1:11434/v1/',
+      defaultModel: 'local-routine', strongModel: 'local-strong', expectedRevision: 3
+    }
+  });
+  assert.equal(localSaved.statusCode, 200, localSaved.body);
+  assert.equal(localSaved.json().baseUrl, 'http://127.0.0.1:11434/v1');
+  assert.equal(localSaved.json().hasApiKey, false, 'provider changes must not retain the OpenAI key');
+  assert.equal(localSaved.json().providers.find((item: { id: string }) => item.id === 'openai_compatible').runtimeAvailable, true);
+
+  const localTest = await app.inject({
+    method: 'POST', url: `/api/v1/households/${f.householdId}/ai/test`, headers: auth(f.adminToken, f.adminCsrf),
+    payload: { modelTier: 'strong' }
+  });
+  assert.equal(localTest.json().available, true);
+  assert.equal(seenModels.at(-1), 'local-strong');
+  assert.equal(seenUrls.at(-1), 'http://127.0.0.1:11434/v1/chat/completions');
+  assert.equal(seenAuthorization.at(-1), null);
+
+  const localResult = await aiAdmin.executeTask(f.householdId, {
+    operation: 'classify', purpose: 'synthetic_local_classification', input: 'Synthetic local input',
+    modelTier: 'routine', sources: []
+  });
+  assert.equal(localResult.output, 'OK');
+  assert.equal(seenModels.at(-1), 'local-routine');
+
+  const localKey = await app.inject({
+    method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
+    payload: { apiKey: 'short-local-key', expectedRevision: 4 }
+  });
+  assert.equal(localKey.statusCode, 200, localKey.body);
+  assert.equal(localKey.json().hasApiKey, true);
+  assert.equal(localKey.body.includes('short-local-key'), false);
+
+  const movedEndpoint = await app.inject({
+    method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
+    payload: { baseUrl: 'http://192.168.1.50:8080/openai/v1', expectedRevision: 5 }
+  });
+  assert.equal(movedEndpoint.statusCode, 200, movedEndpoint.body);
+  assert.equal(movedEndpoint.json().hasApiKey, false, 'endpoint changes must clear the prior endpoint credential');
   assert.equal((await pool.query('SELECT api_key_ciphertext FROM ai_settings WHERE household_id=$1', [f.householdId])).rows[0].api_key_ciphertext, null);
 
-  const migrations = await pool.query<{ count: number }>("SELECT count(*)::int AS count FROM schema_migrations WHERE version='005_ai_provider_foundation.sql'");
-  assert.equal(migrations.rows[0]!.count, 1);
+  const blockedEndpoint = await app.inject({
+    method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
+    payload: { baseUrl: 'http://169.254.169.254/latest', expectedRevision: 6 }
+  });
+  assert.equal(blockedEndpoint.statusCode, 422, blockedEndpoint.body);
+  assert.equal(blockedEndpoint.json().error.code, 'AI_ENDPOINT_BLOCKED');
+
+  const usageBeforeLargeTotals = await app.inject({
+    method: 'GET', url: `/api/v1/households/${f.householdId}/ai/usage`, headers: { cookie: cookie(f.adminToken) }
+  });
+  await pool.query(`INSERT INTO ai_usage_events(
+    household_id,provider,model,operation,purpose,success,input_tokens,output_tokens
+  ) VALUES ($1,'openai_compatible','synthetic-large-counter','generate','synthetic_counter',true,2000000000,0),
+           ($1,'openai_compatible','synthetic-large-counter','generate','synthetic_counter',true,2000000000,0)`, [f.householdId]);
+  const usageAfterLargeTotals = await app.inject({
+    method: 'GET', url: `/api/v1/households/${f.householdId}/ai/usage`, headers: { cookie: cookie(f.adminToken) }
+  });
+  assert.equal(
+    usageAfterLargeTotals.json().summary.inputTokens - usageBeforeLargeTotals.json().summary.inputTokens,
+    4_000_000_000
+  );
+
+  const migrations = await pool.query<{ version: string }>("SELECT version FROM schema_migrations WHERE version IN ('005_ai_provider_foundation.sql','006_openai_compatible_provider.sql') ORDER BY version");
+  assert.deepEqual(migrations.rows.map((row) => row.version), ['005_ai_provider_foundation.sql', '006_openai_compatible_provider.sql']);
   await migrate();
-  assert.equal((await pool.query<{ count: number }>("SELECT count(*)::int AS count FROM schema_migrations WHERE version='005_ai_provider_foundation.sql'")).rows[0]!.count, 1);
+  assert.equal((await pool.query<{ count: number }>("SELECT count(*)::int AS count FROM schema_migrations WHERE version='006_openai_compatible_provider.sql'")).rows[0]!.count, 1);
 });

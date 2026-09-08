@@ -355,3 +355,16 @@ are used. See [M1_RELEASE_GATE.md](M1_RELEASE_GATE.md).
 
 No secrets/private household data introduced. No parent/sibling project or
 host-global service modified. No merge, tag, release or production deployment.
+
+## Pangolin / reverse proxy hardening
+
+- The canonical origin now controls CSRF origin validation and `Secure` cookies;
+  trusted forwarding is opt-in for an explicit immediate proxy address.
+- Compose keeps PostgreSQL and worker private and keeps app port 4173 on
+  `127.0.0.1` by default. This deployment overrides only the app bind to
+  `0.0.0.0` so Synology Newt can target `192.168.0.144:4173`; PostgreSQL,
+  worker and local AI remain unpublished. Existing health and authenticated SSE
+  endpoints are retained without WebSocket or application redirect assumptions.
+- Public HTTPS startup fails closed for unclaimed or demo-seeded installations.
+  The exact Synology Newt target and proxy fields are documented in
+  [M1_OPERATIONS.md](M1_OPERATIONS.md#pangolin--reverse-proxy-deployment).

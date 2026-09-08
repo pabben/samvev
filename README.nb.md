@@ -12,9 +12,11 @@ Samvev lagrer dette som et varig oppdrag, følger kilden, bruker en godkjent AI-
 
 ## Status
 
-**M1 har bestått lokal akseptansetesting og er klar til å prøves. Git-leveransen er blokkert fordi Git-metadata er skrivebeskyttet. Det finnes ingen produksjonsutgave.**
+**M1 har bestått akseptansetesting og Git-leveransen er verifisert. M2.2 legger til konfigurerbare OpenAI- og lokale OpenAI-kompatible KI-leverandører. Det finnes ingen produksjonsutgave.**
 
 Den første kjørbare delen omfatter husholdningsoppsett, personer og roller, parkoblede skjermer, umiddelbare og planlagte beskjeder, norsk bokmål og engelsk samt lys og mørk visning. Start med [lokal demo](docs/implementation/M1_DEMO.md), [leveranse og testresultater](docs/implementation/M1_DELIVERY.md) og [veiledning for lokal kjøring](docs/implementation/M1_OPERATIONS.md). Produktvisjonen nedenfor beskriver også fremtidige funksjoner. M1 har ingen eksterne integrasjoner, AI, egen iOS-app, belønninger eller stemmestyring.
+
+M2.2 bygger videre på M2.1 med et lokalt/OpenAI-kompatibelt Chat Completions-endepunkt som administrator kan konfigurere, rutine- og sterk modell, valgfri kryptert nøkkel, tilkoblingstest, brukslogg og SSRF-beskyttelse som tillater localhost og LAN. KI er deaktivert i utgangspunktet. ChatGPT-abonnement er fortsatt delvis utredet og utilgjengelig. Se [leveransen for M2.2](docs/implementation/M2_2.md) og [providerbeslutningen](docs/decisions/0012-ai-provider-foundation.md). Ukeplanmonitoren er ikke implementert.
 
 [Read the English introduction](README.md)
 

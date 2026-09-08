@@ -123,23 +123,34 @@ export const nb: Record<TranslationKey, string> = {
   aiEnabled: "Aktiver KI for denne husstanden",
   aiProvider: "Leverandør",
   aiProviderActive: "Tilgjengelig",
+  aiProviderAvailable: "Tilgjengelig",
   aiProviderOpenAiHint: "Bruker en egen API-nøkkel som faktureres av leverandøren.",
   aiProviderChatGpt: "ChatGPT-abonnement",
   aiProviderChatGptHint:
     "Muligheten er delvis utredet. En støttet og autentisert tilkobling er ikke konfigurert for denne installasjonen.",
-  aiProviderLocal: "Lokalt eller kompatibelt API",
-  aiProviderLocalHint: "Lokale og kompatible endepunkter er reservert for en senere leveranse.",
+  aiProviderLocal: "Lokal / OpenAI-kompatibel",
+  aiProviderLocalHint: "Bruker et OpenAI-kompatibelt Chat Completions-endepunkt du kontrollerer.",
   aiUnavailableSlice: "Ikke tilgjengelig i denne leveransen",
+  aiBaseUrl: "Base-URL",
+  aiBaseUrlHint:
+    "Skriv inn API-basen, inkludert /v1 når det kreves. localhost viser til Samvev-API-serveren eller containeren.",
   aiRoutineModel: "Rutinemodell",
   aiRoutineModelHint: "Brukes til vanlige oppgaver med lavere kompleksitet.",
   aiStrongModel: "Sterk modell",
-  aiStrongModelHint: "Brukes når en oppgave uttrykkelig ber om det sterke nivået.",
+  aiStrongModelHint:
+    "Brukes når en oppgave uttrykkelig ber om det sterke nivået. Den kan være lik rutinemodellen.",
   aiApiKey: "API-nøkkel",
   aiApiKeyHint:
     "Kan bare skrives. En lagret nøkkel vises aldri igjen; la feltet stå tomt for å beholde den.",
   aiApiKeyConfigured: "En nøkkel er lagret sikkert",
   aiApiKeyEmpty: "Skriv inn en API-nøkkel",
+  aiApiKeyOptional: "API-nøkkel (valgfri)",
+  aiApiKeyOptionalHint:
+    "La feltet stå tomt for en server uten autentisering. Lagrede nøkler kan bare skrives.",
+  aiApiKeyOptionalEmpty: "Ingen API-nøkkel kreves",
   aiApiKeyLength: "API-nøkkelen må inneholde minst 20 tegn.",
+  aiApiKeyResetOnProviderChange:
+    "Den lagrede nøkkelen fjernes når leverandøren eller lokal Base-URL endres. Skriv inn riktig nøkkel her hvis det nye endepunktet krever en.",
   aiRemoveApiKey: "Fjern den lagrede API-nøkkelen når jeg lagrer",
   aiSettingsSaved: "KI-innstillingene er lagret",
   aiConnectionTest: "Tilkoblingstest",
@@ -147,6 +158,8 @@ export const nb: Record<TranslationKey, string> = {
     "Tester det valgte nivået med den lagrede konfigurasjonen, også når KI er deaktivert.",
   aiTestUsageWarning:
     "Hver test sender en liten forespørsel og kan bruke API-kreditter fra leverandørkontoen din.",
+  aiLocalTestUsageWarning:
+    "Hver test sender en liten forespørsel til den konfigurerte lokale eller kompatible serveren.",
   aiSaveBeforeTest: "Lagre disse endringene før du tester tilkoblingen.",
   aiTestRoutine: "Test rutinenivået",
   aiTestStrong: "Test det sterke nivået",
@@ -354,7 +367,7 @@ export const nb: Record<TranslationKey, string> = {
   SCHEDULE_INVALID:
     "Velg et gyldig fremtidig tidspunkt og en utløpstid etter publisering.",
   AI_CONFIGURATION_INVALID:
-    "Fullfør den lagrede API-nøkkelen og modellkonfigurasjonen, og prøv igjen.",
+    "Fullfør de påkrevde innstillingene for endepunkt, modell og nøkkel, og prøv igjen.",
   AI_PROVIDER_UNAVAILABLE:
     "Den valgte leverandøren er ikke tilgjengelig på denne installasjonen.",
   AI_UPSTREAM_ERROR:
@@ -362,6 +375,8 @@ export const nb: Record<TranslationKey, string> = {
   AI_RESPONSE_INVALID:
     "Svaret fra leverandøren var ufullstendig eller kunne ikke valideres.",
   AI_TIMEOUT: "Leverandøren fullførte ikke forespørselen i tide.",
+  AI_ENDPOINT_BLOCKED:
+    "Endepunktet er blokkert fordi det peker til en metadata-, link-local-, uspesifisert eller multicast-adresse.",
   AI_DISABLED: "KI er deaktivert for denne husstanden.",
   CHATGPT_CONNECTION_NOT_CONFIGURED:
     "Ingen støttet og autentisert ChatGPT-tilkobling er konfigurert her.",

@@ -4,7 +4,7 @@ export interface AiProviderConfiguration {
   provider: AiProviderId;
   model: string;
   apiKey?: string;
-  /** Reserved for a later OpenAI-compatible provider; admin cannot set it in M2.1. */
+  /** Required by OpenAI-compatible providers; absent for the fixed OpenAI endpoint. */
   baseUrl?: string;
 }
 
@@ -15,7 +15,7 @@ export interface AiProvider {
 }
 
 export type AiFailureCode = 'AI_CONFIGURATION_INVALID' | 'AI_PROVIDER_UNAVAILABLE' |
-  'AI_UPSTREAM_ERROR' | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT';
+  'AI_UPSTREAM_ERROR' | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED';
 
 export class AiProviderFailure extends Error {
   constructor(

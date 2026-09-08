@@ -1,10 +1,12 @@
 import { aiResultSchema, aiTaskSchema, type AiResult, type AiTask } from '@samvev/contracts';
 import { AiProviderFailure, type AiProvider, type AiProviderConfiguration } from './provider.ts';
 
-export type AiHttpTransport = (url: string, init: RequestInit) => Promise<Response>;
+export interface AiResolvedTarget { address: string; family: 4 | 6 }
+export type AiHttpTransport = (url: string, init: RequestInit, target?: AiResolvedTarget) => Promise<Response>;
 
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_RESPONSE_BYTES = 256 * 1024;
+const MAX_STORED_TOKENS = 2_147_483_647;
 
 interface OpenAiPayload {
   status?: unknown;
@@ -16,8 +18,8 @@ interface OpenAiPayload {
 function normalizedUsage(value: unknown): { inputTokens?: number; outputTokens?: number } | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const row = value as Record<string, unknown>;
-  const inputTokens = Number.isInteger(row.input_tokens) && Number(row.input_tokens) >= 0 ? Number(row.input_tokens) : undefined;
-  const outputTokens = Number.isInteger(row.output_tokens) && Number(row.output_tokens) >= 0 ? Number(row.output_tokens) : undefined;
+  const inputTokens = Number.isInteger(row.input_tokens) && Number(row.input_tokens) >= 0 && Number(row.input_tokens) <= MAX_STORED_TOKENS ? Number(row.input_tokens) : undefined;
+  const outputTokens = Number.isInteger(row.output_tokens) && Number(row.output_tokens) >= 0 && Number(row.output_tokens) <= MAX_STORED_TOKENS ? Number(row.output_tokens) : undefined;
   return inputTokens === undefined && outputTokens === undefined ? undefined : {
     ...(inputTokens === undefined ? {} : { inputTokens }),
     ...(outputTokens === undefined ? {} : { outputTokens })

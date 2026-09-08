@@ -12,11 +12,11 @@ Samvev stores that as a durable task, monitors the source, uses an approved AI p
 
 ## Project status
 
-**M1 passes acceptance with Git delivery verified. M2.1 adds an optional AI provider foundation for local testing; there is no production release.**
+**M1 passes acceptance with Git delivery verified. M2.2 adds configurable OpenAI and local OpenAI-compatible AI providers; there is no production release.**
 
 The first runnable slice includes household setup, people and roles, paired displays, immediate and scheduled messages, English and Norwegian Bokmål, and light and dark modes. Start with the [local demo](docs/implementation/M1_DEMO.md), [delivery evidence](docs/implementation/M1_DELIVERY.md) and [operations guide](docs/implementation/M1_OPERATIONS.md). The wider product vision below describes future capabilities; M1 does not implement external integrations, AI, native iOS, rewards or voice.
 
-M2.1 adds admin-only AI settings, configurable OpenAI API models, connection testing and usage records. AI starts disabled; ChatGPT subscription and local providers remain unavailable. See the [M2.1 delivery and validation limits](docs/implementation/M2_1.md) and [provider architecture decision](docs/decisions/0012-ai-provider-foundation.md). The weekly-plan monitor is not implemented.
+M2.2 extends the M2.1 foundation with an admin-configured local/OpenAI-compatible Chat Completions endpoint, routine and strong models, an optional encrypted key, connection testing, usage records and LAN-aware SSRF protection. AI starts disabled. ChatGPT subscription feasibility remains partial and unavailable. See the [M2.2 delivery note](docs/implementation/M2_2.md), [M2.1 foundation](docs/implementation/M2_1.md) and [provider architecture decision](docs/decisions/0012-ai-provider-foundation.md). The weekly-plan monitor is not implemented.
 
 [Les introduksjonen på norsk](README.nb.md)
 

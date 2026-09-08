@@ -122,23 +122,34 @@ export const en = {
   aiEnabled: "Enable AI for this household",
   aiProvider: "Provider",
   aiProviderActive: "Available",
+  aiProviderAvailable: "Available",
   aiProviderOpenAiHint: "Uses a separate API key billed by the provider.",
   aiProviderChatGpt: "ChatGPT subscription",
   aiProviderChatGptHint:
     "Feasibility is partial. A supported, authenticated connection has not been configured for this installation.",
-  aiProviderLocal: "Local or compatible API",
-  aiProviderLocalHint: "Local and compatible endpoints are reserved for a later slice.",
+  aiProviderLocal: "Local / OpenAI-compatible",
+  aiProviderLocalHint: "Uses an OpenAI-compatible Chat Completions endpoint you control.",
   aiUnavailableSlice: "Unavailable in this slice",
+  aiBaseUrl: "Base URL",
+  aiBaseUrlHint:
+    "Enter the API base, including /v1 when required. localhost refers to the Samvev API server or container.",
   aiRoutineModel: "Routine model",
   aiRoutineModelHint: "Used for ordinary, lower-complexity tasks.",
   aiStrongModel: "Strong model",
-  aiStrongModelHint: "Used when a task explicitly requests the strong tier.",
+  aiStrongModelHint:
+    "Used when a task explicitly requests the strong tier. It may be the same as the routine model.",
   aiApiKey: "API key",
   aiApiKeyHint:
     "Write only. A saved key is never shown again; leave this blank to keep it.",
   aiApiKeyConfigured: "A key is saved securely",
   aiApiKeyEmpty: "Enter an API key",
+  aiApiKeyOptional: "API key (optional)",
+  aiApiKeyOptionalHint:
+    "Leave blank for a server without authentication. Saved keys remain write only.",
+  aiApiKeyOptionalEmpty: "No API key required",
   aiApiKeyLength: "The API key must contain at least 20 characters.",
+  aiApiKeyResetOnProviderChange:
+    "The saved key will be removed when the provider or local Base URL changes. Enter the correct key here if the new endpoint needs one.",
   aiRemoveApiKey: "Remove the saved API key when I save",
   aiSettingsSaved: "AI settings saved",
   aiConnectionTest: "Connection test",
@@ -146,6 +157,8 @@ export const en = {
     "Tests the selected tier using the saved configuration, even while AI is disabled.",
   aiTestUsageWarning:
     "Each test sends a small request and may use API credits from your provider account.",
+  aiLocalTestUsageWarning:
+    "Each test sends a small request to your configured local or compatible server.",
   aiSaveBeforeTest: "Save these changes before testing the connection.",
   aiTestRoutine: "Test routine tier",
   aiTestStrong: "Test strong tier",
@@ -353,7 +366,7 @@ export const en = {
   SCHEDULE_INVALID:
     "Choose a valid future time and an expiry after publication.",
   AI_CONFIGURATION_INVALID:
-    "Complete the saved API key and model configuration, then try again.",
+    "Complete the required endpoint, model, and credential settings, then try again.",
   AI_PROVIDER_UNAVAILABLE:
     "The selected provider is not available on this installation.",
   AI_UPSTREAM_ERROR:
@@ -361,6 +374,8 @@ export const en = {
   AI_RESPONSE_INVALID:
     "The provider response was incomplete or could not be validated.",
   AI_TIMEOUT: "The provider did not complete the request in time.",
+  AI_ENDPOINT_BLOCKED:
+    "That endpoint is blocked because it targets a metadata, link-local, unspecified, or multicast address.",
   AI_DISABLED: "AI is disabled for this household.",
   CHATGPT_CONNECTION_NOT_CONFIGURED:
     "No supported, authenticated ChatGPT connection is configured here.",

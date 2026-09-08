@@ -21,6 +21,7 @@ import { pool, transaction, type DbClient } from './db.ts';
 import { ProjectionEventFanout } from './projection-events.ts';
 import { AiAdminService } from './ai/admin-service.ts';
 import type { AiHttpTransport } from './ai/openai-provider.ts';
+import { loadRuntimeConfig, type RuntimeConfig } from './runtime-config.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -61,13 +62,13 @@ async function durableRateLimit(bucket: string, key: string, limit: number, wind
   if ((result.rows[0]?.attempts ?? 0) > limit) throw new DomainError('RATE_LIMITED', 429);
 }
 
-function cookieOptions(maxAge: number, path = '/'): Record<string, unknown> {
-  return { httpOnly: true, sameSite: 'strict', secure: process.env.NODE_ENV === 'production', path, maxAge };
+function cookieOptions(maxAge: number, secure: boolean, path = '/'): Record<string, unknown> {
+  return { httpOnly: true, sameSite: 'strict', secure, path, maxAge };
 }
 
-function setSessionCookies(reply: FastifyReply, session: {token:string;csrf:string}): void {
-  reply.setCookie(SESSION_COOKIE,session.token,cookieOptions(SESSION_SECONDS));
-  reply.setCookie(CSRF_COOKIE,session.csrf,{sameSite:'strict',secure:process.env.NODE_ENV==='production',path:'/',maxAge:SESSION_SECONDS});
+function setSessionCookies(reply: FastifyReply, session: {token:string;csrf:string}, secure: boolean): void {
+  reply.setCookie(SESSION_COOKIE,session.token,cookieOptions(SESSION_SECONDS,secure));
+  reply.setCookie(CSRF_COOKIE,session.csrf,{sameSite:'strict',secure,path:'/',maxAge:SESSION_SECONDS});
 }
 
 async function createSession(client: pg.PoolClient, accountId: string): Promise<{ token: string; csrf: string }> {
@@ -170,8 +171,9 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string } = {}): Promise<FastifyInstance> {
-  const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: false, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; runtimeConfig?: RuntimeConfig } = {}): Promise<FastifyInstance> {
+  const runtime = options.runtimeConfig ?? loadRuntimeConfig();
+  const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
   await app.register(cookie);
   const projectionEvents=new ProjectionEventFanout();
@@ -182,9 +184,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.addHook('onRequest', async (request) => {
     if (!isUnsafe(request.method)) return;
     const origin = request.headers.origin;
-    if (!origin) return;
-    const allowed = process.env.SAMVEV_PUBLIC_ORIGIN ?? `http://${request.headers.host}`;
-    if (origin !== allowed) throw new DomainError('CSRF_REQUIRED', 403);
+    if (!origin) {
+      if (runtime.secureCookies) throw new DomainError('CSRF_REQUIRED', 403);
+      return;
+    }
+    if (origin !== runtime.publicOrigin) throw new DomainError('CSRF_REQUIRED', 403);
   });
 
   app.setErrorHandler((error, request, reply) => {
@@ -237,7 +241,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     await client.query(`UPDATE installations SET claimed_at=clock_timestamp(),claim_token_hash=NULL,claim_expires_at=NULL,default_locale=$2,setup_step='people',demo_mode=$3 WHERE id=$1`, [current.id,body.preferences.locale,demo]);
     await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata) VALUES ($1,$2,'system',NULL,'installation.claimed','installation',$1,$3)`, [current.id,householdId,JSON.stringify({ demo })]);
     const session = await createSession(client, account.rows[0]!.id);
-    setSessionCookies(reply,session);
+    setSessionCookies(reply,session,runtime.secureCookies);
     return { csrfToken: session.csrf, householdId, membershipId: membership.rows[0]!.id, setupStep: 'people' };
   });
 
@@ -269,15 +273,15 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const verified=await verifyLoginPassword(body.password,account?.password_hash,Boolean(account && !account.disabled_at));
     if (!account || !verified) throw new DomainError('UNAUTHENTICATED', 401);
     const session = await transaction((client) => createSession(client, account.id));
-    setSessionCookies(reply,session);
+    setSessionCookies(reply,session,runtime.secureCookies);
     return { csrfToken: session.csrf };
   });
 
   app.post('/api/v1/auth/logout', async (request, reply) => {
     const session = await sessionAccount(request);
     await pool.query('UPDATE sessions SET revoked_at=clock_timestamp() WHERE token_hash=$1', [session.tokenHash]);
-    reply.clearCookie(SESSION_COOKIE, { path: '/' });
-    reply.clearCookie(CSRF_COOKIE, { path: '/' });
+    reply.clearCookie(SESSION_COOKIE, { path: '/', sameSite: 'strict', secure: runtime.secureCookies });
+    reply.clearCookie(CSRF_COOKIE, { path: '/', sameSite: 'strict', secure: runtime.secureCookies });
     return reply.status(204).send();
   });
 
@@ -496,7 +500,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if (!display.rowCount) throw new DomainError('PAIRING_EXPIRED', 410);
       return display.rows[0];
     });
-    reply.setCookie(DISPLAY_COOKIE,credential,cookieOptions(DISPLAY_SECONDS,'/api/v1/display'));
+    reply.setCookie(DISPLAY_COOKIE,credential,cookieOptions(DISPLAY_SECONDS,runtime.secureCookies,'/api/v1/display'));
     return result;
   });
 

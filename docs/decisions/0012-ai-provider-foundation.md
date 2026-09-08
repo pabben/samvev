@@ -39,6 +39,23 @@ Sources checked during the prior spike, 2026-09-07:
 [Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
 The missing account/connection validation is tracked in the M2.1 delivery note.
 
+Extended for M2.2, 2026-09-08: `openai_compatible` uses the existing provider
+contract through the OpenAI Chat Completions surface. Its admin-supplied base URL
+is stored per household and its optional credential uses the same vault. The API
+appends `/chat/completions`, preserves configured proxy paths and does not add
+Ollama-specific behavior. Local requests have a 30-second total timeout, bounded
+responses and normalized errors; returned prompt/completion usage maps to the
+provider-neutral usage fields.
+
+The endpoint policy intentionally permits loopback, private LAN and public
+HTTP(S) addresses. It rejects URL credentials, query/fragment components,
+known metadata hostnames, metadata addresses, link-local, unspecified and
+multicast targets. DNS answers are checked before every call and the accepted
+address is pinned into the actual HTTP/TLS connection; redirects are not
+followed. Changing provider or local base URL clears an existing credential
+unless the administrator supplies a replacement, preventing a cloud key from
+being forwarded to a different endpoint.
+
 Migration: additive AI settings/usage tables only; existing M1 schema remains
 unchanged. Older M1 code can ignore these tables. Back up the encryption key
 alongside the database; deleting the key requires re-entering API credentials.

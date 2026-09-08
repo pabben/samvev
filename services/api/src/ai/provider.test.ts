@@ -1,8 +1,15 @@
 import assert from 'node:assert/strict';
 import { constants, promises as fs } from 'node:fs';
+import { createServer } from 'node:http';
 import test from 'node:test';
 import { resolve } from 'node:path';
 import { OpenAiProvider } from './openai-provider.ts';
+import {
+  isBlockedAiTarget,
+  normalizeOpenAiCompatibleBaseUrl,
+  OpenAiCompatibleProvider,
+  resolveOpenAiCompatibleTarget
+} from './openai-compatible-provider.ts';
 import { AiProviderFailure, validateAiResult, validateAiTask } from './provider.ts';
 import { AiCredentialVault } from './credential-vault.ts';
 
@@ -72,6 +79,157 @@ test('OpenAI adapter bounds stalled response bodies and rejects non-object JSON'
     nonObject.execute(task, { provider: 'openai', model: 'configured-routine', apiKey: 'synthetic-api-key-for-tests' }),
     (error: unknown) => error instanceof AiProviderFailure && error.code === 'AI_RESPONSE_INVALID'
   );
+});
+
+test('OpenAI-compatible adapter supports every operation, optional credentials and Chat Completions usage', async () => {
+  const seen: Array<{ url: string; init: RequestInit; target?: { address: string; family: 4 | 6 } }> = [];
+  const provider = new OpenAiCompatibleProvider(async (url, init, target) => {
+    seen.push({ url, init, target });
+    return new Response(JSON.stringify({
+      choices: [{ message: { role: 'assistant', content: 'Synthetic local result' }, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 9, completion_tokens: 3 }
+    }), { status: 200 });
+  }, 1_000, async () => [{ address: '192.168.1.40', family: 4 }]);
+
+  for (const operation of ['generate', 'extract', 'classify', 'plan'] as const) {
+    const result = await provider.execute({ ...task, operation }, {
+      provider: 'openai_compatible', model: 'local-routine', baseUrl: 'http://local-ai.test:11434/v1'
+    });
+    assert.equal(result.output, 'Synthetic local result');
+    assert.deepEqual(result.usage, { inputTokens: 9, outputTokens: 3 });
+    assert.deepEqual(result.sources, task.sources);
+  }
+  assert.equal(seen[0]!.url, 'http://local-ai.test:11434/v1/chat/completions');
+  assert.equal(new Headers(seen[0]!.init.headers).has('authorization'), false);
+  assert.deepEqual(seen[0]!.target, { address: '192.168.1.40', family: 4 });
+  assert.deepEqual(JSON.parse(String(seen[0]!.init.body)), {
+    model: 'local-routine',
+    messages: [{ role: 'user', content: task.input }],
+    max_tokens: 64,
+    stream: false
+  });
+
+  await provider.execute(task, {
+    provider: 'openai_compatible', model: 'local-routine', baseUrl: 'http://local-ai.test/v1', apiKey: 'short'
+  });
+  assert.equal(new Headers(seen.at(-1)!.init.headers).get('authorization'), 'Bearer short');
+});
+
+test('OpenAI-compatible default transport reaches a mocked local endpoint through the validated pinned address', async () => {
+  let seenPath = '';
+  let seenBody = '';
+  const server = createServer((request, response) => {
+    seenPath = request.url ?? '';
+    request.setEncoding('utf8');
+    request.on('data', (chunk: string) => { seenBody += chunk; });
+    request.on('end', () => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({
+        choices: [{ message: { content: 'Pinned local response' } }],
+        usage: { prompt_tokens: 4, completion_tokens: 2 }
+      }));
+    });
+  });
+  await new Promise<void>((resolveListen) => server.listen(0, '127.0.0.1', resolveListen));
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === 'object');
+    const result = await new OpenAiCompatibleProvider().execute(task, {
+      provider: 'openai_compatible', model: 'local-test', baseUrl: `http://127.0.0.1:${address.port}/v1`
+    });
+    assert.equal(result.output, 'Pinned local response');
+    assert.equal(seenPath, '/v1/chat/completions');
+    assert.equal(JSON.parse(seenBody).model, 'local-test');
+  } finally {
+    await new Promise<void>((resolveClose, reject) => server.close((error) => error ? reject(error) : resolveClose()));
+  }
+
+  for (const status of [204, 205, 304]) {
+    const emptyServer = createServer((_request, response) => {
+      response.writeHead(status);
+      response.end();
+    });
+    await new Promise<void>((resolveListen) => emptyServer.listen(0, '127.0.0.1', resolveListen));
+    try {
+      const address = emptyServer.address();
+      assert.ok(address && typeof address === 'object');
+      await assert.rejects(
+        new OpenAiCompatibleProvider().execute(task, {
+          provider: 'openai_compatible', model: 'local-test', baseUrl: `http://127.0.0.1:${address.port}/v1`
+        }),
+        (error: unknown) => error instanceof AiProviderFailure &&
+          error.code === (status === 304 ? 'AI_UPSTREAM_ERROR' : 'AI_RESPONSE_INVALID')
+      );
+    } finally {
+      await new Promise<void>((resolveClose, reject) => emptyServer.close((error) => error ? reject(error) : resolveClose()));
+    }
+  }
+});
+
+test('OpenAI-compatible endpoint policy permits localhost and LAN while blocking metadata and link-local targets', async () => {
+  assert.equal(normalizeOpenAiCompatibleBaseUrl('http://127.0.0.1:11434/v1/'), 'http://127.0.0.1:11434/v1');
+  assert.equal(normalizeOpenAiCompatibleBaseUrl('http://localhost:11434/v1'), 'http://localhost:11434/v1');
+  assert.equal(normalizeOpenAiCompatibleBaseUrl('https://192.168.10.8/openai/v1'), 'https://192.168.10.8/openai/v1');
+  assert.equal(isBlockedAiTarget('169.254.169.254'), true);
+  assert.equal(isBlockedAiTarget('fe80::1'), true);
+  assert.equal(isBlockedAiTarget('fd20:ce::254'), true);
+  assert.equal(isBlockedAiTarget('::ffff:169.254.169.254'), true);
+  assert.equal(isBlockedAiTarget('127.0.0.1'), false);
+  assert.equal(isBlockedAiTarget('10.0.0.8'), false);
+
+  for (const blocked of [
+    'file:///etc/passwd',
+    'http://169.254.169.254/latest/meta-data',
+    'http://metadata.google.internal/computeMetadata/v1',
+    'http://metadata.goog/computeMetadata/v1',
+    'http://[fd20:ce::254]/computeMetadata/v1',
+    'http://user:secret@localhost:11434/v1',
+    'http://localhost:11434/v1?target=metadata'
+  ]) {
+    assert.throws(
+      () => normalizeOpenAiCompatibleBaseUrl(blocked),
+      (error: unknown) => error instanceof AiProviderFailure && error.code === 'AI_ENDPOINT_BLOCKED'
+    );
+  }
+  await assert.rejects(
+    resolveOpenAiCompatibleTarget('http://rebind.test/v1', async () => [
+      { address: '192.168.1.30', family: 4 },
+      { address: '169.254.169.254', family: 4 }
+    ]),
+    (error: unknown) => error instanceof AiProviderFailure && error.code === 'AI_ENDPOINT_BLOCKED'
+  );
+});
+
+test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failures', async () => {
+  const resolver = async () => [{ address: '127.0.0.1', family: 4 as const }];
+  for (const item of [
+    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 401 }), code: 'AI_UPSTREAM_ERROR' },
+    { response: new Response(JSON.stringify({ choices: [] }), { status: 200 }), code: 'AI_RESPONSE_INVALID' }
+  ]) {
+    const provider = new OpenAiCompatibleProvider(async () => item.response, 1_000, resolver);
+    await assert.rejects(
+      provider.execute(task, { provider: 'openai_compatible', model: 'local', baseUrl: 'http://localhost:11434/v1' }),
+      (error: unknown) => error instanceof AiProviderFailure && error.code === item.code && error.message === item.code
+    );
+  }
+  const timeout = new OpenAiCompatibleProvider(
+    async () => new Response('{}'),
+    20,
+    async () => new Promise(() => undefined)
+  );
+  await assert.rejects(
+    timeout.execute(task, { provider: 'openai_compatible', model: 'local', baseUrl: 'http://localhost:11434/v1' }),
+    (error: unknown) => error instanceof AiProviderFailure && error.code === 'AI_TIMEOUT'
+  );
+
+  const oversizedUsage = new OpenAiCompatibleProvider(async () => new Response(JSON.stringify({
+    choices: [{ message: { content: 'Valid output without unsafe counters' } }],
+    usage: { prompt_tokens: 2_147_483_648, completion_tokens: 2_147_483_648 }
+  })), 1_000, resolver);
+  const result = await oversizedUsage.execute(task, {
+    provider: 'openai_compatible', model: 'local', baseUrl: 'http://localhost:11434/v1'
+  });
+  assert.equal(result.usage, undefined);
 });
 
 test('credential vault encrypts at rest, binds ciphertext to household and creates a private persistent key', async () => {

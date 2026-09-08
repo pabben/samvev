@@ -1,4 +1,4 @@
-// M2.1 AI admin smoke. Provider inference is always intercepted; no paid request leaves the browser.
+// M2.2 AI admin smoke. Provider inference is always intercepted; no paid request leaves the browser.
 import { chromium, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -6,7 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 const baseURL = process.env.BASE_URL ?? "http://samvev-m1-app-1:4173";
 const out =
   process.env.AI_SMOKE_ARTIFACT_DIR ??
-  "docs/implementation/artifacts/m2-1";
+  "docs/implementation/artifacts/m2-2";
 await mkdir(out, { recursive: true });
 
 const browser = await chromium.launch();
@@ -17,6 +17,7 @@ const ownerContext = await browser.newContext({
 });
 const limitedContext = await browser.newContext({ baseURL });
 const page = await ownerContext.newPage();
+page.on("pageerror", (error) => console.error("PAGE ERROR", error));
 const checks = [];
 const screenshots = [];
 const record = (label) => {
@@ -81,25 +82,40 @@ try {
   await page.goto("/");
   await page.getByRole("button", { name: "AI settings", exact: true }).click();
   await expect(page.getByRole("heading", { name: "AI, under your control." })).toBeVisible();
-  await expect(page.getByText("Unavailable in this slice")).toHaveCount(2);
+  await expect(page.getByText("Unavailable in this slice")).toHaveCount(1);
   await expect(page.getByLabel("API key", { exact: true })).toHaveValue("");
-  record("owner-only settings load with precise unavailable provider choices and a blank write-only key");
+  await page.getByLabel("Local / OpenAI-compatible", { exact: false }).check();
+  await expect(page.getByLabel("Base URL", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("API key (optional)", { exact: true })).toHaveValue("");
+  record("owner-only settings expose OpenAI and local compatible choices with conditional local fields");
 
   const enableAi = page.getByLabel("Enable AI for this household", { exact: true });
   if (await enableAi.isChecked()) await enableAi.uncheck();
+  await page.getByLabel("Base URL", { exact: true }).fill("http://127.0.0.1:11434/v1");
   await page.getByLabel("Routine model", { exact: true }).fill("synthetic-routine-test");
   await page.getByLabel("Strong model", { exact: true }).fill("synthetic-strong-test");
   await page
-    .getByLabel("API key", { exact: true })
-    .fill("sk-test-only-not-a-real-provider-key-000000");
+    .getByLabel("API key (optional)", { exact: true })
+    .fill("short-local-test-key");
   settingsChanged = true;
   await page.getByRole("button", { name: "Save changes", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("AI settings saved");
-  await expect(page.getByLabel("API key", { exact: true })).toHaveValue("");
-  await expect(page.getByLabel("API key", { exact: true })).toHaveAttribute(
+  await expect(page.getByLabel("API key (optional)", { exact: true })).toHaveValue("");
+  await expect(page.getByLabel("API key (optional)", { exact: true })).toHaveAttribute(
     "placeholder",
     "A key is saved securely",
   );
+
+  await page
+    .getByLabel("Remove the saved API key when I save", { exact: true })
+    .check();
+  await page.getByLabel("Base URL", { exact: true }).fill("http://127.0.0.1:11434/other/v1");
+  await expect(page.getByLabel("API key (optional)", { exact: true })).toBeEnabled();
+  await page.getByLabel("Base URL", { exact: true }).fill("http://127.0.0.1:11434/v1");
+  await page
+    .getByLabel("Remove the saved API key when I save", { exact: true })
+    .uncheck();
+  record("credential removal cannot leave a replacement key field disabled after an endpoint change");
 
   await page.getByLabel("Routine model", { exact: true }).fill("synthetic-routine-test-v2");
   const patchRequest = page.waitForRequest(
@@ -132,7 +148,7 @@ try {
       contentType: "application/json",
       body: JSON.stringify({
         available: false,
-        provider: "openai",
+        provider: "openai_compatible",
         modelTier: "routine",
         checkedAt: new Date().toISOString(),
         errorCode: "AI_RESPONSE_INVALID",
@@ -201,6 +217,7 @@ try {
       enabled: originalSettings.enabled,
       provider: originalSettings.provider,
       apiKey: null,
+      baseUrl: originalSettings.baseUrl,
       defaultModel: originalSettings.defaultModel,
       strongModel: originalSettings.strongModel,
       expectedRevision: current.revision,

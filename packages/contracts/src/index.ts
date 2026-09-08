@@ -127,7 +127,8 @@ export const aiResultSchema = z.object({
 export const aiSettingsUpdateSchema = z.object({
   enabled: z.boolean().optional(),
   provider: z.enum(aiProviderIds).optional(),
-  apiKey: z.string().min(20).max(512).nullable().optional(),
+  apiKey: z.string().min(1).max(512).nullable().optional(),
+  baseUrl: z.string().trim().max(2048).nullable().optional(),
   defaultModel: z.string().trim().max(100).optional(),
   strongModel: z.string().trim().max(100).optional(),
   expectedRevision: z.number().int().nonnegative()
@@ -161,6 +162,6 @@ export type ErrorCode =
   | 'NOT_FOUND' | 'CONFLICT' | 'REVISION_CONFLICT' | 'RATE_LIMITED' | 'INSTALLATION_CLAIMED'
   | 'CLAIM_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID'
   | 'AI_CONFIGURATION_INVALID' | 'AI_PROVIDER_UNAVAILABLE' | 'AI_UPSTREAM_ERROR'
-  | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'INTERNAL_ERROR';
+  | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED' | 'INTERNAL_ERROR';
 
 export interface ApiErrorBody { error: { code: ErrorCode; requestId: string; details?: Record<string, unknown> } }
