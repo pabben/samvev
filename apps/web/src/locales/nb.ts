@@ -37,7 +37,7 @@ export const nb: Record<TranslationKey, string> = {
     "Husstandens eget, selvdriftede sted. Beskjeder og kontoer lagres på denne installasjonen.",
   privacy: "Personvern og kildekode",
   privacyBody:
-    "Felles skjermer mottar bare beskjeder som er sendt direkte til dem. Passord blir på serveren, og skjermer har egen tilgang som kan trekkes tilbake. M1 er en lokal pilot uten eksterne integrasjoner. Gjenoppretting og flerfaktorautentisering er ikke tilgjengelig ennå.",
+    "Felles skjermer mottar bare beskjeder som er sendt direkte til dem. Passord blir på serveren, og skjermer har egen tilgang som kan trekkes tilbake. En administrator kan velge å konfigurere KI; bare uttrykkelige tester eller oppgaveinndata sendes til valgt leverandør, og beskjeder utløser ikke KI automatisk. Gjenoppretting og flerfaktorautentisering er ikke tilgjengelig ennå.",
   source: "Kildekode",
   timezone: "Husstandens tidssone",
   themeHint: "Du kan endre dette når som helst.",
@@ -112,6 +112,69 @@ export const nb: Record<TranslationKey, string> = {
   signInFailed: "Kontroller e-post og passord, og prøv igjen.",
   preferences: "Dine innstillinger",
   account: "Konto",
+  ai: "KI-innstillinger",
+  aiEyebrow: "KI FOR HUSSTANDEN",
+  aiTitle: "KI, under din kontroll.",
+  aiBody:
+    "Konfigurer leverandøren og modellnivåene som er tilgjengelige for denne husstanden. Bare husstandsadministratorer kan se disse innstillingene.",
+  aiConfiguration: "Konfigurasjon",
+  aiConfigurationHint:
+    "KI er deaktivert i utgangspunktet. Når du aktiverer KI, kan fremtidige funksjoner bruke den lagrede konfigurasjonen.",
+  aiEnabled: "Aktiver KI for denne husstanden",
+  aiProvider: "Leverandør",
+  aiProviderActive: "Tilgjengelig",
+  aiProviderOpenAiHint: "Bruker en egen API-nøkkel som faktureres av leverandøren.",
+  aiProviderChatGpt: "ChatGPT-abonnement",
+  aiProviderChatGptHint:
+    "Muligheten er delvis utredet. En støttet og autentisert tilkobling er ikke konfigurert for denne installasjonen.",
+  aiProviderLocal: "Lokalt eller kompatibelt API",
+  aiProviderLocalHint: "Lokale og kompatible endepunkter er reservert for en senere leveranse.",
+  aiUnavailableSlice: "Ikke tilgjengelig i denne leveransen",
+  aiRoutineModel: "Rutinemodell",
+  aiRoutineModelHint: "Brukes til vanlige oppgaver med lavere kompleksitet.",
+  aiStrongModel: "Sterk modell",
+  aiStrongModelHint: "Brukes når en oppgave uttrykkelig ber om det sterke nivået.",
+  aiApiKey: "API-nøkkel",
+  aiApiKeyHint:
+    "Kan bare skrives. En lagret nøkkel vises aldri igjen; la feltet stå tomt for å beholde den.",
+  aiApiKeyConfigured: "En nøkkel er lagret sikkert",
+  aiApiKeyEmpty: "Skriv inn en API-nøkkel",
+  aiApiKeyLength: "API-nøkkelen må inneholde minst 20 tegn.",
+  aiRemoveApiKey: "Fjern den lagrede API-nøkkelen når jeg lagrer",
+  aiSettingsSaved: "KI-innstillingene er lagret",
+  aiConnectionTest: "Tilkoblingstest",
+  aiConnectionTestHint:
+    "Tester det valgte nivået med den lagrede konfigurasjonen, også når KI er deaktivert.",
+  aiTestUsageWarning:
+    "Hver test sender en liten forespørsel og kan bruke API-kreditter fra leverandørkontoen din.",
+  aiSaveBeforeTest: "Lagre disse endringene før du tester tilkoblingen.",
+  aiTestRoutine: "Test rutinenivået",
+  aiTestStrong: "Test det sterke nivået",
+  aiTesting: "Tester …",
+  aiRoutineTier: "Rutinenivå",
+  aiStrongTier: "Sterkt nivå",
+  aiTestSucceeded: "Tilkoblingen for {tier} var vellykket.",
+  aiTestFailed: "Tilkoblingstesten mislyktes: {reason}",
+  aiLastTest: "Sist testet {time}",
+  aiAvailabilityScope:
+    "Statusen viser den siste tilkoblingstesten for ett nivå. Den bekrefter ikke alle modeller eller fremtidige forespørsler.",
+  aiStatusNotTested: "Ikke testet",
+  aiStatusNotConfigured: "Ikke konfigurert",
+  aiStatusAvailable: "Siste test var vellykket",
+  aiStatusUnavailable: "Leverandøren er utilgjengelig",
+  aiStatusError: "Siste test mislyktes",
+  aiUsage: "Bruk",
+  aiUsageHint:
+    "Antall og metadata om tokener lagres uten ledetekster eller generert innhold.",
+  aiRequests: "Forespørsler",
+  aiSucceeded: "Vellykket",
+  aiFailed: "Mislykket",
+  aiTokens: "Tokener",
+  aiRecentActivity: "Nylig aktivitet",
+  aiConnectionTestPurpose: "Tilkoblingstest",
+  aiModelNotConfigured: "Modell er ikke konfigurert",
+  aiTokenPair: "{input} inn · {output} ut",
+  aiNoUsage: "Ingen KI-forespørsler er registrert for denne husstanden.",
   boardEyebrow: "HUSSTANDEN DIN, I TAKT",
   boardTitle: "Små beskjeder.\nEn enklere hverdag.",
   boardBody: "La det riktige være synlig, for dem som betyr noe.",
@@ -290,6 +353,20 @@ export const nb: Record<TranslationKey, string> = {
     "Koden er ugyldig, utløpt eller brukt. Se etter en ny kode på skjermen.",
   SCHEDULE_INVALID:
     "Velg et gyldig fremtidig tidspunkt og en utløpstid etter publisering.",
+  AI_CONFIGURATION_INVALID:
+    "Fullfør den lagrede API-nøkkelen og modellkonfigurasjonen, og prøv igjen.",
+  AI_PROVIDER_UNAVAILABLE:
+    "Den valgte leverandøren er ikke tilgjengelig på denne installasjonen.",
+  AI_UPSTREAM_ERROR:
+    "Leverandøren avviste forespørselen eller svarte at tjenesten var utilgjengelig.",
+  AI_RESPONSE_INVALID:
+    "Svaret fra leverandøren var ufullstendig eller kunne ikke valideres.",
+  AI_TIMEOUT: "Leverandøren fullførte ikke forespørselen i tide.",
+  AI_DISABLED: "KI er deaktivert for denne husstanden.",
+  CHATGPT_CONNECTION_NOT_CONFIGURED:
+    "Ingen støttet og autentisert ChatGPT-tilkobling er konfigurert her.",
+  PROVIDER_NOT_IMPLEMENTED_M2_1:
+    "Denne leverandøren er ikke tilgjengelig i den nåværende leveransen.",
   INTERNAL_ERROR: "Noe gikk galt. Prøv igjen.",
   TIME_AMBIGUOUS:
     "Dette lokale tidspunktet forekommer to ganger ved klokkeomstilling. Velg et tidspunkt utenfor omstillingen.",

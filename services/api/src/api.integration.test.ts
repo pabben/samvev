@@ -222,7 +222,13 @@ test('scheduler does not starve due rows behind active published rows and migrat
   assert.deepEqual(batch,{published:1,expired:0});
   assert.equal((await pool.query('SELECT state FROM messages WHERE id=$1',[due.rows[0]!.id])).rows[0].state,'published');
   await migrate();
-  assert.equal((await pool.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count,4);
+  assert.deepEqual((await pool.query<{version:string}>('SELECT version FROM schema_migrations ORDER BY version')).rows.map(row=>row.version),[
+    '001_m1.sql',
+    '002_demo_label.sql',
+    '003_idempotency_and_display_events.sql',
+    '004_rate_limit_cleanup.sql',
+    '005_ai_provider_foundation.sql'
+  ]);
 });
 
 test('migration checksum mismatch fails closed without changing the isolated schema or application data', async()=>{

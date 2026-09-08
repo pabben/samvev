@@ -19,6 +19,10 @@ import { formatDate } from "./time";
 import { Composer } from "./messages";
 import { PeoplePanel } from "./people";
 import { DisplaysPanel } from "./displays-admin";
+import { AiSettingsPanel } from "./ai-settings";
+
+type MemberTab = "messages" | "people" | "displays" | "ai";
+
 export function MemberApp({
   me,
   demo,
@@ -36,9 +40,7 @@ export function MemberApp({
   const [household, setHousehold] = useState(me.memberships[0]!.household_id);
   const member = me.memberships.find((m) => m.household_id === household)!;
   const base = `/households/${household}`;
-  const [tab, setTab] = useState<"messages" | "people" | "displays">(
-    "messages",
-  );
+  const [tab, setTab] = useState<MemberTab>("messages");
   const [lane, setLane] = useState<"now" | "planned" | "history">("now");
   const [people, setPeople] = useState<Person[]>([]);
   const [displays, setDisplays] = useState<Display[]>([]);
@@ -82,6 +84,11 @@ export function MemberApp({
         },
       );
   }, [member.id]);
+  useEffect(() => {
+    if (tab === "ai" && !member.capabilities.includes("household.manage")) {
+      setTab("messages");
+    }
+  }, [member.id, tab]);
   const nextStep = async (next: string) => {
     await api("/setup/progress", "PATCH", { setupStep: next });
     setStep(next);
@@ -102,6 +109,12 @@ export function MemberApp({
         : !["published", "scheduled"].includes(m.state),
   );
   const can = (cap: string) => member.capabilities.includes(cap);
+  const navigation: MemberTab[] = [
+    "messages",
+    "people",
+    "displays",
+    ...(can("household.manage") ? (["ai"] as const) : []),
+  ];
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">
@@ -127,8 +140,11 @@ export function MemberApp({
             <strong>{member.household_name}</strong>
           )}
         </div>
-        <nav aria-label={t("householdName")}>
-          {(["messages", "people", "displays"] as const).map((key) => (
+        <nav
+          aria-label={t("householdName")}
+          className={navigation.length === 4 ? "admin-navigation" : undefined}
+        >
+          {navigation.map((key) => (
             <button
               key={key}
               aria-label={t(key)}
@@ -142,7 +158,9 @@ export function MemberApp({
                     ? "message"
                     : key === "displays"
                       ? "display"
-                      : "people"
+                      : key === "people"
+                        ? "people"
+                        : "spark"
                 }
               />
               {t(key)}
@@ -228,7 +246,13 @@ export function MemberApp({
           )}
           <ErrorNotice error={error} />
           <ErrorNotice error={loadError} />
-          {!loaded ? (
+          {tab === "ai" && can("household.manage") ? (
+            <AiSettingsPanel
+              key={household}
+              householdId={household}
+              timezone={member.timezone}
+            />
+          ) : !loaded ? (
             <Loading />
           ) : tab === "people" ? (
             <PeoplePanel

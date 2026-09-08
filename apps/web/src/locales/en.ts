@@ -36,7 +36,7 @@ export const en = {
     "Your self-hosted household space. Messages and accounts are stored on this installation.",
   privacy: "Privacy & source",
   privacyBody:
-    "Shared screens receive only messages explicitly addressed to them. Passwords stay on the server; screens have their own revocable access. M1 is a local pilot with no external integrations. Recovery and multi-factor authentication are not available yet.",
+    "Shared screens receive only messages explicitly addressed to them. Passwords stay on the server; screens have their own revocable access. An administrator can optionally configure AI; only explicit test or task input is sent to the selected provider, and messages do not trigger AI automatically. Recovery and multi-factor authentication are not available yet.",
   source: "Source code",
   timezone: "Household time zone",
   themeHint: "You can change this any time.",
@@ -111,6 +111,69 @@ export const en = {
   signInFailed: "Check your email and password and try again.",
   preferences: "Your preferences",
   account: "Account",
+  ai: "AI settings",
+  aiEyebrow: "HOUSEHOLD AI",
+  aiTitle: "AI, under your control.",
+  aiBody:
+    "Configure the provider and model tiers available to this household. Only household administrators can see these settings.",
+  aiConfiguration: "Configuration",
+  aiConfigurationHint:
+    "AI starts disabled. Enabling it allows future household features to use the saved configuration.",
+  aiEnabled: "Enable AI for this household",
+  aiProvider: "Provider",
+  aiProviderActive: "Available",
+  aiProviderOpenAiHint: "Uses a separate API key billed by the provider.",
+  aiProviderChatGpt: "ChatGPT subscription",
+  aiProviderChatGptHint:
+    "Feasibility is partial. A supported, authenticated connection has not been configured for this installation.",
+  aiProviderLocal: "Local or compatible API",
+  aiProviderLocalHint: "Local and compatible endpoints are reserved for a later slice.",
+  aiUnavailableSlice: "Unavailable in this slice",
+  aiRoutineModel: "Routine model",
+  aiRoutineModelHint: "Used for ordinary, lower-complexity tasks.",
+  aiStrongModel: "Strong model",
+  aiStrongModelHint: "Used when a task explicitly requests the strong tier.",
+  aiApiKey: "API key",
+  aiApiKeyHint:
+    "Write only. A saved key is never shown again; leave this blank to keep it.",
+  aiApiKeyConfigured: "A key is saved securely",
+  aiApiKeyEmpty: "Enter an API key",
+  aiApiKeyLength: "The API key must contain at least 20 characters.",
+  aiRemoveApiKey: "Remove the saved API key when I save",
+  aiSettingsSaved: "AI settings saved",
+  aiConnectionTest: "Connection test",
+  aiConnectionTestHint:
+    "Tests the selected tier using the saved configuration, even while AI is disabled.",
+  aiTestUsageWarning:
+    "Each test sends a small request and may use API credits from your provider account.",
+  aiSaveBeforeTest: "Save these changes before testing the connection.",
+  aiTestRoutine: "Test routine tier",
+  aiTestStrong: "Test strong tier",
+  aiTesting: "Testing…",
+  aiRoutineTier: "Routine tier",
+  aiStrongTier: "Strong tier",
+  aiTestSucceeded: "{tier} connection succeeded.",
+  aiTestFailed: "Connection test failed: {reason}",
+  aiLastTest: "Last tested {time}",
+  aiAvailabilityScope:
+    "Status reflects the latest connection test for one tier. It does not certify every model or future request.",
+  aiStatusNotTested: "Not tested",
+  aiStatusNotConfigured: "Not configured",
+  aiStatusAvailable: "Last test succeeded",
+  aiStatusUnavailable: "Provider unavailable",
+  aiStatusError: "Last test failed",
+  aiUsage: "Usage",
+  aiUsageHint:
+    "Counts and token metadata are stored without prompts or generated content.",
+  aiRequests: "Requests",
+  aiSucceeded: "Succeeded",
+  aiFailed: "Failed",
+  aiTokens: "Tokens",
+  aiRecentActivity: "Recent activity",
+  aiConnectionTestPurpose: "Connection test",
+  aiModelNotConfigured: "Model not configured",
+  aiTokenPair: "{input} in · {output} out",
+  aiNoUsage: "No AI requests have been recorded for this household.",
   boardEyebrow: "YOUR HOUSEHOLD, IN SYNC",
   boardTitle: "Small messages.\nA smoother day.",
   boardBody: "Keep the right things in view, for the people who matter.",
@@ -289,6 +352,20 @@ export const en = {
     "That code is invalid, expired, or already used. Check the display for a new code.",
   SCHEDULE_INVALID:
     "Choose a valid future time and an expiry after publication.",
+  AI_CONFIGURATION_INVALID:
+    "Complete the saved API key and model configuration, then try again.",
+  AI_PROVIDER_UNAVAILABLE:
+    "The selected provider is not available on this installation.",
+  AI_UPSTREAM_ERROR:
+    "The provider rejected the request or returned an unavailable service response.",
+  AI_RESPONSE_INVALID:
+    "The provider response was incomplete or could not be validated.",
+  AI_TIMEOUT: "The provider did not complete the request in time.",
+  AI_DISABLED: "AI is disabled for this household.",
+  CHATGPT_CONNECTION_NOT_CONFIGURED:
+    "No supported, authenticated ChatGPT connection is configured here.",
+  PROVIDER_NOT_IMPLEMENTED_M2_1:
+    "This provider is unavailable in the current product slice.",
   INTERNAL_ERROR: "Something went wrong. Please try again.",
   TIME_AMBIGUOUS:
     "That local time occurs twice when the clocks change. Choose a time outside the clock change.",

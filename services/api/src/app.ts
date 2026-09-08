@@ -10,6 +10,7 @@ import {
   claimSchema, displayUpdateSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
   personCreateSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
+  aiConnectionTestSchema, aiSettingsUpdateSchema,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
 import {
@@ -18,6 +19,8 @@ import {
 } from '@samvev/core';
 import { pool, transaction, type DbClient } from './db.ts';
 import { ProjectionEventFanout } from './projection-events.ts';
+import { AiAdminService } from './ai/admin-service.ts';
+import type { AiHttpTransport } from './ai/openai-provider.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -167,8 +170,9 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string } = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: false, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
+  const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
   await app.register(cookie);
   const projectionEvents=new ProjectionEventFanout();
   await projectionEvents.start();
@@ -307,6 +311,42 @@ export async function buildApp(): Promise<FastifyInstance> {
     if (!grants.rowCount) throw new DomainError('FORBIDDEN', 403);
     await pool.query('UPDATE installations SET setup_step=$1 WHERE id=$2', [step,session.installationId]);
     return { setupStep: step };
+  });
+
+  app.get('/api/v1/households/:householdId/ai/settings', async (request) => {
+    const auth = await authForHousehold(request, params(request).householdId!);
+    requireCapability(auth.capabilities, 'household.manage');
+    return aiAdmin.settings(auth.householdId);
+  });
+
+  app.patch('/api/v1/households/:householdId/ai/settings', async (request) => {
+    const auth = await authForHousehold(request, params(request).householdId!);
+    requireCapability(auth.capabilities, 'household.manage');
+    const body = parse(aiSettingsUpdateSchema, request.body);
+    const result = await aiAdmin.updateSettings(auth.householdId, body);
+    await audit(pool, auth, 'ai.settings_changed', 'ai_settings', auth.householdId, {
+      fields: Object.keys(body).filter((key) => !['apiKey','expectedRevision'].includes(key)),
+      apiKeyAction: body.apiKey === undefined ? 'unchanged' : body.apiKey === null ? 'removed' : 'replaced'
+    });
+    return result;
+  });
+
+  app.post('/api/v1/households/:householdId/ai/test', async (request) => {
+    const auth = await authForHousehold(request, params(request).householdId!);
+    requireCapability(auth.capabilities, 'household.manage');
+    const body = parse(aiConnectionTestSchema, request.body);
+    await durableRateLimit('ai_connection_test', auth.householdId, 10, 3600);
+    const result = await aiAdmin.testConnection(auth.householdId, body.modelTier);
+    await audit(pool, auth, 'ai.connection_tested', 'ai_settings', auth.householdId, {
+      provider: result.provider, modelTier: body.modelTier, available: result.available
+    });
+    return result;
+  });
+
+  app.get('/api/v1/households/:householdId/ai/usage', async (request) => {
+    const auth = await authForHousehold(request, params(request).householdId!);
+    requireCapability(auth.capabilities, 'household.manage');
+    return aiAdmin.usage(auth.householdId);
   });
 
   app.get('/api/v1/households/:householdId/people', async (request) => {

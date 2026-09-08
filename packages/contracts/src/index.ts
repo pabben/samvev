@@ -91,9 +91,76 @@ export const displayUpdateSchema = z.object({
 }).strict().refine((value) => Object.keys(value).length > 0);
 export const renderAckSchema = z.object({ cardId: uuidSchema, revision: z.number().int().positive(), renderedAt: isoInstant }).strict();
 
+export const aiOperations = ['generate', 'extract', 'classify', 'plan'] as const;
+export const aiModelTiers = ['routine', 'strong'] as const;
+export const aiProviderIds = ['openai', 'chatgpt_subscription', 'openai_compatible', 'gemini'] as const;
+export const aiUncertaintyLevels = ['low', 'medium', 'high', 'unknown'] as const;
+
+export const aiSourceEvidenceSchema = z.object({
+  url: z.string().url().max(2048),
+  observedAt: isoInstant,
+  uncertainty: z.enum(aiUncertaintyLevels)
+}).strict();
+
+/** Provider-neutral work: provider and concrete model are deliberately absent. */
+export const aiTaskSchema = z.object({
+  operation: z.enum(aiOperations),
+  purpose: z.string().trim().min(1).max(128),
+  input: z.string().min(1).max(32_000),
+  modelTier: z.enum(aiModelTiers),
+  sources: z.array(aiSourceEvidenceSchema).max(20).default([])
+}).strict();
+
+export const aiUsageSchema = z.object({
+  inputTokens: z.number().int().nonnegative().optional(),
+  outputTokens: z.number().int().nonnegative().optional()
+}).strict();
+
+export const aiResultSchema = z.object({
+  output: z.string().min(1).max(32_000),
+  generatedAt: isoInstant,
+  uncertainty: z.enum(aiUncertaintyLevels),
+  sources: z.array(aiSourceEvidenceSchema).max(20),
+  usage: aiUsageSchema.optional()
+}).strict();
+
+export const aiSettingsUpdateSchema = z.object({
+  enabled: z.boolean().optional(),
+  provider: z.enum(aiProviderIds).optional(),
+  apiKey: z.string().min(20).max(512).nullable().optional(),
+  defaultModel: z.string().trim().max(100).optional(),
+  strongModel: z.string().trim().max(100).optional(),
+  expectedRevision: z.number().int().nonnegative()
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'expectedRevision'));
+
+export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers) }).strict();
+
+/** Reserved for a future authenticated ChatGPT Tasks/MCP connection. No endpoint consumes it in M2.1. */
+export const chatGptBridgeInputV1Schema = z.object({
+  version: z.literal(1),
+  taskId: uuidSchema,
+  idempotencyKey: z.string().min(8).max(128),
+  task: aiTaskSchema
+}).strict();
+
+export const chatGptBridgeResultV1Schema = z.object({
+  version: z.literal(1),
+  taskId: uuidSchema,
+  idempotencyKey: z.string().min(8).max(128),
+  result: aiResultSchema
+}).strict();
+
+export type AiOperation = (typeof aiOperations)[number];
+export type AiModelTier = (typeof aiModelTiers)[number];
+export type AiProviderId = (typeof aiProviderIds)[number];
+export type AiTask = z.infer<typeof aiTaskSchema>;
+export type AiResult = z.infer<typeof aiResultSchema>;
+
 export type ErrorCode =
   | 'BAD_REQUEST' | 'VALIDATION_FAILED' | 'UNAUTHENTICATED' | 'CSRF_REQUIRED' | 'FORBIDDEN'
   | 'NOT_FOUND' | 'CONFLICT' | 'REVISION_CONFLICT' | 'RATE_LIMITED' | 'INSTALLATION_CLAIMED'
-  | 'CLAIM_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID' | 'INTERNAL_ERROR';
+  | 'CLAIM_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID'
+  | 'AI_CONFIGURATION_INVALID' | 'AI_PROVIDER_UNAVAILABLE' | 'AI_UPSTREAM_ERROR'
+  | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'INTERNAL_ERROR';
 
 export interface ApiErrorBody { error: { code: ErrorCode; requestId: string; details?: Record<string, unknown> } }

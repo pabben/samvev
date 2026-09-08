@@ -2399,3 +2399,236 @@ details[open] > summary:before {
 .message-activity p + p {
   margin-top: 8px;
 }
+
+.ai-settings {
+  max-width: 1260px;
+  margin: 0 auto;
+}
+.ai-heading {
+  align-items: flex-start;
+}
+.ai-availability {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+.ai-available {
+  background: var(--soft-teal);
+  color: var(--teal);
+}
+.ai-error,
+.ai-unavailable {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+.ai-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
+  gap: 22px;
+  align-items: start;
+}
+.ai-primary {
+  display: grid;
+  gap: 22px;
+}
+.ai-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 25px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+}
+.ai-card.form-stack {
+  margin-top: 0;
+}
+.ai-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+}
+.ai-card-heading > div > p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  margin-top: 6px;
+  max-width: 530px;
+}
+.ai-card-heading > small {
+  text-align: right;
+}
+.ai-card-heading .check {
+  flex-shrink: 0;
+}
+.ai-providers {
+  display: grid;
+  gap: 10px;
+}
+.ai-provider {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 62px;
+  padding: 10px 13px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+.ai-provider.active {
+  border-color: color-mix(in srgb, var(--teal) 40%, var(--line));
+  background: var(--soft-teal);
+}
+.ai-provider.unavailable {
+  color: var(--muted);
+  background: var(--canvas);
+}
+.ai-provider input {
+  width: 19px;
+  min-height: 19px;
+  padding: 0;
+  accent-color: var(--teal);
+}
+.ai-provider > span:nth-child(2) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ai-provider strong {
+  font-size: 13px;
+}
+.ai-provider small {
+  font-size: 11px;
+  line-height: 1.5;
+}
+.ai-provider-state {
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: right;
+}
+.ai-provider.unavailable .ai-provider-state {
+  color: var(--muted);
+}
+.field-error {
+  color: var(--danger);
+  font-size: 12px;
+  margin-top: -14px;
+}
+.ai-card .form-actions .field-hint {
+  margin: 0 auto 0 0;
+  color: var(--teal);
+}
+.ai-credit-notice {
+  margin-bottom: 10px;
+}
+.ai-availability-reason {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 14px;
+}
+.ai-test-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0 4px;
+}
+.ai-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 20px 0 26px;
+}
+.ai-summary div {
+  background: var(--canvas);
+  border-radius: 13px;
+  padding: 13px;
+}
+.ai-summary dt {
+  color: var(--muted);
+  font-size: 10px;
+}
+.ai-summary dd {
+  margin: 3px 0 0;
+  font-size: 22px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.ai-usage-list {
+  display: grid;
+  gap: 0;
+  margin-top: 10px;
+}
+.ai-usage-list article {
+  border-top: 1px solid var(--line);
+  padding: 13px 0;
+}
+.ai-usage-list article > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+.ai-usage-list article > p,
+.ai-usage-list article > small {
+  color: var(--muted);
+  font-size: 10px;
+}
+.ai-usage-list .success {
+  color: var(--teal);
+}
+.ai-usage-list .failure {
+  color: var(--danger);
+}
+.ai-empty-usage {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 24px 0 8px;
+}
+
+@media (max-width: 1000px) {
+  .ai-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .sidebar nav.admin-navigation {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .sidebar nav.admin-navigation .nav-item {
+    padding-inline: 3px;
+  }
+  .ai-heading,
+  .ai-card-heading {
+    flex-direction: column;
+  }
+  .ai-heading {
+    gap: 16px;
+  }
+  .ai-card-heading > small {
+    text-align: left;
+  }
+  .ai-card-heading .check {
+    flex-shrink: 1;
+  }
+  .ai-card {
+    padding: 20px;
+  }
+  .ai-provider {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .ai-provider-state {
+    grid-column: 2;
+    text-align: left;
+  }
+  .ai-test-actions .button {
+    width: 100%;
+  }
+}
