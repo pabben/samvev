@@ -1131,6 +1131,10 @@ details[open] > summary:before {
   width: 100%;
   margin-top: 10px;
 }
+.person-birth-date{line-height:1.45}.permission-summary{margin-top:18px}.permission-summary summary,.password-editor summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--muted)}.permission-summary .permission-list{margin-top:10px}.person-login.pending{color:var(--warm-text)}.person-login.disabled{color:var(--muted)}
+.household-feature{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:20px 24px;margin:-16px 0 28px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.household-feature h2{font-size:17px}.household-feature p{font-size:12px;color:var(--muted);margin-top:5px}.household-feature>.check{flex-shrink:0}.household-feature>.notice{width:100%}
+.person-editor{margin-top:10px}.editor-section{display:flex;flex-direction:column;gap:16px;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--canvas)}.editor-section h3{font-size:17px}.calculated-age{font-size:12px;color:var(--teal);font-weight:700}.account-setup,.account-state{display:flex;flex-direction:column;gap:13px;padding:15px;border-left:3px solid var(--teal);background:var(--card)}.account-state small{color:var(--muted)}.radio-row{display:flex;gap:9px;align-items:center;min-height:38px;font-size:13px}.capability-preview{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px}.capability-preview legend,.account-setup legend{font-size:13px;font-weight:700}.capability-preview .field-hint{grid-column:1/-1}.owner-confirm{padding:14px;border:1px solid var(--warm-text);border-radius:12px;background:var(--warm)}
+.birthday-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:20px;padding:22px 26px;margin:-12px 0 28px;background:linear-gradient(120deg,var(--warm),var(--card));border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}.birthday-mark{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--card);color:var(--warm-text);font-size:24px}.birthday-card h2{font-size:23px;margin:2px 0}.birthday-card p:not(.eyebrow){font-size:13px;color:var(--muted)}.birthday-relative{font-weight:700!important;color:var(--text)!important}.password-editor{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}.password-editor .form-stack{margin-top:18px}
 .display-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1928,6 +1932,7 @@ details[open] > summary:before {
     grid-template-columns: 1fr;
   }
 }
+@media (max-width: 640px){.household-feature{align-items:flex-start;flex-direction:column}.capability-preview{grid-template-columns:1fr}.birthday-card{grid-template-columns:auto 1fr}.birthday-relative{grid-column:1/-1}.person-editor .form-grid{grid-template-columns:1fr}}
 @media (max-width: 640px) {
   body {
     font-size: 14px;

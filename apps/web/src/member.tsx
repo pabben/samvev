@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "./api";
-import type { Display, Me, Message, Person } from "./types";
+import type { Display, HouseholdDashboard, HouseholdSettings, Me, Message, Person } from "./types";
 import {
   Avatar,
   Brand,
@@ -10,6 +10,8 @@ import {
   Icon,
   Loading,
   PreferenceEditor,
+  Field,
+  Submit,
   Status,
   useAction,
   useI18n,
@@ -46,6 +48,8 @@ export function MemberApp({
   const [people, setPeople] = useState<Person[]>([]);
   const [displays, setDisplays] = useState<Display[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [dashboard, setDashboard] = useState<HouseholdDashboard>({ upcomingBirthday: null });
+  const [householdSettings, setHouseholdSettings] = useState<HouseholdSettings | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState<unknown>();
   const [step, setStep] = useState("complete");
@@ -55,14 +59,18 @@ export function MemberApp({
   const { error, busy, run } = useAction();
   const refresh = useCallback(async () => {
     try {
-      const [p, d, m] = await Promise.all([
+      const [p, d, m, board, householdConfig] = await Promise.all([
         api<{ people: Person[] }>(`${base}/people`),
         api<{ displays: Display[] }>(`${base}/displays`),
         api<{ messages: Message[] }>(`${base}/messages`),
+        api<HouseholdDashboard>(`${base}/dashboard`),
+        api<HouseholdSettings>(`${base}/settings`),
       ]);
       setPeople(p.people);
       setDisplays(d.displays);
       setMessages(m.messages);
+      setDashboard(board);
+      setHouseholdSettings(householdConfig);
       setLoadError(null);
       setLoaded(true);
     } catch (error) {
@@ -262,6 +270,7 @@ export function MemberApp({
               people={people}
               displays={displays}
               member={member}
+              householdSettings={householdSettings}
               refresh={refresh}
             />
           ) : tab === "displays" ? (
@@ -291,6 +300,7 @@ export function MemberApp({
                   </button>
                 )}
               </section>
+              {dashboard.upcomingBirthday && <BirthdayCard birthday={dashboard.upcomingBirthday} locale={locale} />}
               <div className="board-toolbar">
                 <div className="tabs" role="tablist" aria-label={t("messages")}>
                   {(["now", "planned", "history"] as const).map((key) => (
@@ -568,6 +578,7 @@ export function MemberApp({
         <Dialog title={t("preferences")} onClose={() => setSettings(false)}>
           <p>{me.account.email}</p>
           <PreferenceEditor prefs={prefs} onSave={onPreferences} />
+          <PasswordEditor />
           {demo && (
             <div className="demo-info">
               <strong>{t("demoAccounts")}</strong>
@@ -592,4 +603,28 @@ export function MemberApp({
       )}
     </div>
   );
+}
+
+function BirthdayCard({ birthday, locale }: { birthday: NonNullable<HouseholdDashboard["upcomingBirthday"]>; locale: "en" | "nb" }) {
+  const { t } = useI18n();
+  const relative = birthday.daysUntil === 0 ? t("birthdayToday") : birthday.daysUntil === 1 ? t("birthdayTomorrow") : t("birthdayInDays", { count: birthday.daysUntil });
+  const date = new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(`${birthday.date}T12:00:00Z`));
+  return <section className="birthday-card" aria-labelledby="next-birthday-title">
+    <div className="birthday-mark" aria-hidden="true">✦</div>
+    <div><p className="eyebrow" id="next-birthday-title">{t("nextBirthday")}</p><h2>{birthday.displayName}</h2><p>{date}</p></div>
+    <p className="birthday-relative">{relative}<span aria-hidden="true"> · </span>{t("turningAge", { age: birthday.ageTurning })}</p>
+  </section>;
+}
+
+function PasswordEditor() {
+  const { t } = useI18n();
+  const { busy, error, run } = useAction();
+  const [saved, setSaved] = useState(false);
+  return <details className="password-editor"><summary>{t("changePassword")}</summary>
+    <form className="form-stack" onSubmit={(event) => { event.preventDefault(); const form=event.currentTarget; const data=new FormData(form); setSaved(false); void run(async()=>{await api("/me/password","POST",{currentPassword:data.get("currentPassword"),newPassword:data.get("newPassword")});form.reset();setSaved(true);}); }}>
+      <Field label={t("currentPassword")}><input name="currentPassword" type="password" autoComplete="current-password" required maxLength={128}/></Field>
+      <Field label={t("newPassword")} hint={t("passwordHint")}><input name="newPassword" type="password" autoComplete="new-password" required minLength={12} maxLength={128}/></Field>
+      {saved && <p role="status" className="notice success">{t("passwordChanged")}</p>}<ErrorNotice error={error}/><Submit busy={busy} label={t("changePassword")}/>
+    </form>
+  </details>;
 }

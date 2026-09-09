@@ -22,15 +22,30 @@ export interface Person {
   id: string;
   display_name: string;
   age_group: string;
+  birth_date?: string | null;
+  calculated_age?: number;
+  person_revision?: number;
   membership_id: string;
   role_preset: string;
   capabilities: string[];
   revision: number;
   has_login: boolean;
   has_active_login?: boolean;
+  account_status?: "profile" | "pending" | "active" | "disabled";
   email: string | null;
+  account_id?: string | null;
+  account_revision?: number | null;
   display_ids: string[];
 }
+export interface UpcomingBirthday {
+  personId: string;
+  displayName: string;
+  date: string;
+  daysUntil: number;
+  ageTurning: number;
+}
+export interface HouseholdDashboard { upcomingBirthday: UpcomingBirthday | null }
+export interface HouseholdSettings { show_upcoming_birthday: boolean; revision: number }
 export interface Display {
   id: string;
   name: string;

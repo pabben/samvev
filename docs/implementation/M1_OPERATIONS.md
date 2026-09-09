@@ -100,6 +100,54 @@ no automatic schema down migration: restore a verified PostgreSQL backup before
 returning to an earlier application version. Initial M1 migrations are additive
 and tracked by the API migration ledger.
 
+## Move a local installation from synthetic to live data
+
+The local bootstrap command stages a separate live household. It does not merge
+or delete the synthetic household and it does not disable its accounts during
+the prepare phase. Put personal input only in the ignored `.local/` directory,
+set file mode 0600, and use a unique operation key:
+
+```bash
+chmod 600 .local/household-prepare.json
+docker compose --profile tools run --rm migrate npm run bootstrap:local --workspace @samvev/api -- \
+  .local/household-prepare.json .local/household-invitations.json
+```
+
+The prepare JSON has `phase: "prepare"`, `operationKey`,
+`sourceHouseholdId`, household name/timezone/locale, the birthday setting,
+and a people array. Each person has a display name, role preset, optional
+`birthDate`, optional age group and optional email. Exactly one person must
+be the installation owner and have an email. Accounts are invitation-only;
+no bootstrap password is accepted or stored.
+
+Keep the mode-0600 output: it is the only copy of the clear invitation tokens.
+Opening an `/invitation#token=...` link sends the token in the URL fragment,
+which is not included in HTTP request URLs. Acceptance sets a password and
+starts a normal Samvev session. Prepare is idempotent, but a repeated call does
+not reveal the already-hashed tokens again.
+The CLI refuses group/world-readable input and refuses to overwrite an existing
+output file.
+If an invitation output is lost, leaked or expired before activation, use a
+new mode-0600 input with `phase: "rotate"`, the same operation key and
+`confirmRotateInvitations: true`, and choose a new output filename. This
+revokes every still-pending bootstrap invitation before issuing replacements.
+
+Only after the new installation owner has accepted the invitation and created
+a newer authenticated session, create a second private file with
+`phase: "finalize"`, the same `operationKey`, and
+`confirmDisableSourceAccounts: true`:
+
+```bash
+chmod 600 .local/household-finalize.json
+docker compose --profile tools run --rm migrate npm run bootstrap:local --workspace @samvev/api -- \
+  .local/household-finalize.json .local/household-finalized.json
+```
+
+Finalize disables every account attached to the source synthetic household and
+revokes its sessions. It retains people, messages, audit history and the source
+household for controlled recovery. Finalize refuses to proceed if a source
+account is shared with another household.
+
 ## Local configuration
 
 `.env.example` contains synthetic development values only. Copy it to `.env`

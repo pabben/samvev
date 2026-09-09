@@ -1,0 +1,22 @@
+import { chmod, mkdir, readFile, stat, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { pool } from './db.ts';
+import { migrate } from './db/migrate.ts';
+import { runLocalBootstrap } from './people/local-bootstrap.ts';
+
+const inputPath=process.argv[2];const outputPath=process.argv[3];
+if(!inputPath||!outputPath)throw new Error('Usage: tsx services/api/src/local-bootstrap-cli.ts <private-input.json> <private-output.json>');
+const repositoryRoot=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
+const resolvedInput=resolve(repositoryRoot,inputPath);
+const resolvedOutput=resolve(repositoryRoot,outputPath);
+if(!resolvedOutput.startsWith(`${repositoryRoot}/.local/`) && !resolvedOutput.startsWith('/tmp/'))throw new Error('Output must be under ignored .local/ or /tmp');
+const inputStat=await stat(resolvedInput);
+if((inputStat.mode&0o077)!==0)throw new Error('Private input must have mode 0600');
+await migrate();
+const input=JSON.parse(await readFile(resolvedInput,'utf8')) as unknown;
+const result=await runLocalBootstrap(input);
+await mkdir(dirname(resolvedOutput),{recursive:true});
+await writeFile(resolvedOutput,`${JSON.stringify(result,null,2)}\n`,{mode:0o600,flag:'wx'});
+await chmod(resolvedOutput,0o600);
+await pool.end();

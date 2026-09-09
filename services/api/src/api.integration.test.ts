@@ -111,7 +111,7 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   const ownerEscalation=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(cookies(managerLogin),managerLogin.json().csrfToken),payload:{rolePreset:'limited',capabilities:['household.view'],displayIds:[],expectedRevision:1}});
   assert.equal(ownerEscalation.statusCode,403);
 
-  const ownerDemotion=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'household_admin',capabilities:['household.view','household.manage'],displayIds:[],expectedRevision:1}});
+  const ownerDemotion=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'household_admin',capabilities:['household.view','household.manage','people.manage','account.manage','capability.manage','message.create.household','message.publish.display','message.schedule','message.manage.household','display.manage'],displayIds:[],expectedRevision:1}});
   assert.equal(ownerDemotion.statusCode,409);
   assert.equal(ownerDemotion.json().error.details.reason,'last_installation_owner');
 
@@ -229,7 +229,9 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '004_rate_limit_cleanup.sql',
     '005_ai_provider_foundation.sql',
     '006_openai_compatible_provider.sql',
-    '007_monitor_tasks.sql'
+    '007_monitor_tasks.sql',
+    '008_people_accounts_households.sql',
+    '009_invitation_rotation.sql'
   ]);
 });
 

@@ -2,6 +2,7 @@ export class ApiError extends Error {
   constructor(
     public code: string,
     public status = 0,
+    public details?: Record<string, unknown>,
   ) {
     super(code);
   }
@@ -37,6 +38,7 @@ export async function api<T = unknown>(
     throw new ApiError(
       result?.error?.code ?? "INTERNAL_ERROR",
       response.status,
+      result?.error?.details,
     );
   }
   return response.status === 204

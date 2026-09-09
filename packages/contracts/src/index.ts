@@ -29,12 +29,16 @@ export const themeSchema = z.enum(themes);
 export const rolePresetSchema = z.enum(rolePresets);
 export const capabilitySchema = z.enum(capabilities);
 export const nameSchema = z.string().trim().min(1).max(80);
+export const birthDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value && value >= '1900-01-01' && value <= new Date().toISOString().slice(0, 10);
+});
 
 export const claimSchema = z.object({
   claimToken: z.string().min(32).max(256),
   owner: z.object({ displayName: nameSchema, email: emailSchema, password: passwordSchema }),
-  household: z.object({ name: nameSchema, timezone: z.string().min(1).max(80), locale: localeSchema }),
-  preferences: z.object({ locale: localeSchema, theme: themeSchema })
+  household: z.object({ name: nameSchema, timezone: z.string().min(1).max(80), locale: localeSchema.default('nb') }),
+  preferences: z.object({ locale: localeSchema.default('nb'), theme: themeSchema })
 }).strict();
 
 export const loginSchema = z.object({ email: emailSchema, password: z.string().min(1).max(128) }).strict();
@@ -43,17 +47,63 @@ export const preferencesSchema = z.object({ locale: localeSchema.optional(), the
 
 export const personCreateSchema = z.object({
   displayName: nameSchema,
-  ageGroup: z.enum(ageGroups).default('unspecified'),
+  birthDate: birthDateSchema.nullable().optional(),
+  ageGroup: z.enum(ageGroups).optional(),
   rolePreset: rolePresetSchema,
   capabilities: z.array(capabilitySchema).optional(),
   displayIds: z.array(uuidSchema).default([]),
-  login: z.object({ email: emailSchema, password: passwordSchema, locale: localeSchema, theme: themeSchema }).optional()
-}).strict();
+  login: z.object({
+    email: emailSchema,
+    loginMethod: z.enum(['password','invitation']).default('password'),
+    password: passwordSchema.optional(),
+    locale: localeSchema.default('nb'),
+    theme: themeSchema.default('system')
+  }).strict().refine((value) => value.loginMethod === 'invitation' ? value.password === undefined : value.password !== undefined, 'password_method_mismatch').optional(),
+  confirmInstallationOwner: z.literal(true).optional()
+}).strict().refine((value) => value.rolePreset !== 'installation_admin' || value.confirmInstallationOwner === true, 'installation_owner_confirmation_required');
+
+export const personUpdateSchema = z.object({
+  displayName: nameSchema.optional(),
+  birthDate: birthDateSchema.nullable().optional(),
+  ageGroup: z.enum(ageGroups).optional(),
+  expectedRevision: z.number().int().positive()
+}).strict().refine((value) => value.displayName !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
+
+const loginSetupSchema = z.object({
+  email: emailSchema,
+  loginMethod: z.enum(['password','invitation']).default('password'),
+  password: passwordSchema.optional(),
+  locale: localeSchema.default('nb'),
+  theme: themeSchema.default('system')
+}).strict().refine((value) => value.loginMethod === 'invitation' ? value.password === undefined : value.password !== undefined, 'password_method_mismatch');
+
+export const personAccountCreateSchema = z.object({
+  login: loginSetupSchema,
+  rolePreset: rolePresetSchema,
+  capabilities: z.array(capabilitySchema).optional(),
+  displayIds: z.array(uuidSchema).default([]),
+  expectedRevision: z.number().int().positive(),
+  confirmInstallationOwner: z.literal(true).optional()
+}).strict().refine((value) => value.rolePreset !== 'installation_admin' || value.confirmInstallationOwner === true, 'installation_owner_confirmation_required');
 
 export const membershipUpdateSchema = z.object({
   rolePreset: rolePresetSchema,
   capabilities: z.array(capabilitySchema),
   displayIds: z.array(uuidSchema).default([]),
+  expectedRevision: z.number().int().positive(),
+  confirmInstallationOwner: z.literal(true).optional()
+}).strict();
+
+export const accountStatusUpdateSchema = z.object({
+  disabled: z.boolean(),
+  expectedRevision: z.number().int().positive()
+}).strict();
+
+export const passwordChangeSchema = z.object({ currentPassword: z.string().min(1).max(128), newPassword: passwordSchema }).strict();
+export const invitationAcceptSchema = z.object({ token: z.string().min(32).max(256), password: passwordSchema }).strict();
+export const invitationReissueSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const householdSettingsUpdateSchema = z.object({
+  showUpcomingBirthday: z.boolean(),
   expectedRevision: z.number().int().positive()
 }).strict();
 
@@ -217,7 +267,7 @@ export type AiResult = z.infer<typeof aiResultSchema>;
 export type ErrorCode =
   | 'BAD_REQUEST' | 'VALIDATION_FAILED' | 'UNAUTHENTICATED' | 'CSRF_REQUIRED' | 'FORBIDDEN'
   | 'NOT_FOUND' | 'CONFLICT' | 'REVISION_CONFLICT' | 'RATE_LIMITED' | 'INSTALLATION_CLAIMED'
-  | 'CLAIM_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID'
+  | 'CLAIM_EXPIRED' | 'INVITATION_INVALID' | 'INVITATION_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID'
   | 'AI_CONFIGURATION_INVALID' | 'AI_PROVIDER_UNAVAILABLE' | 'AI_UPSTREAM_ERROR'
   | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED'
   | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'

@@ -1,7 +1,17 @@
 # M1 implementation status
 
-Updated: 2026-09-07. Branch: `feat/m1-first-runnable-slice`.
+Updated: 2026-09-09. Branch: `feat/m2-ai-provider-foundation`.
 Overall status: **PASS — local acceptance passed; Git delivery externally verified and sole blocker resolved**.
+
+## Post-M1 person/account checkpoint — 2026-09-09
+
+An additive follow-up adds direct household-administrator creation, protected
+installation-owner succession, optional full birth dates with derived age,
+one-time account invitations, Norwegian Bokmål as the fresh-install default,
+an opt-in next-birthday dashboard card and a controlled synthetic-to-live local
+bootstrap. Existing explicit locales and synthetic history are retained.
+Targeted delivery evidence is recorded in the current task report; this did not
+rerun or replace the historical full M1 acceptance matrix.
 
 Current delivery and demo: [M1_DELIVERY.md](M1_DELIVERY.md),
 [M1_DEMO.md](M1_DEMO.md). The gate table and **Final execution and independent

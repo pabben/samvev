@@ -7,9 +7,10 @@ import { createHash } from 'node:crypto';
 import type pg from 'pg';
 import { ZodError, type ZodType } from 'zod';
 import {
-  claimSchema, displayUpdateSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
+  accountStatusUpdateSchema, claimSchema, displayUpdateSchema, householdSettingsUpdateSchema,
+  invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
-  personCreateSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
+  passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,
   monitorTaskCreateSchema, monitorTaskRevisionSchema, monitorTaskUpdateSchema,
   type Capability, type ErrorCode
@@ -24,6 +25,7 @@ import { AiAdminService } from './ai/admin-service.ts';
 import type { AiHttpTransport } from './ai/openai-provider.ts';
 import { loadRuntimeConfig, type RuntimeConfig } from './runtime-config.ts';
 import { MonitorService } from './monitor/service.ts';
+import { ageOnDate, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -214,7 +216,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/setup/status', async () => {
     const result = await pool.query<{ claimed_at: Date|null; setup_step: string; default_locale: string; demo_mode:boolean }>('SELECT claimed_at,setup_step,default_locale,demo_mode FROM installations WHERE singleton=true');
     const row = result.rows[0];
-    return { claimed: Boolean(row?.claimed_at), setupStep: row?.setup_step ?? 'welcome', locale: row?.default_locale ?? 'en', demo: row?.demo_mode ?? false, demoAvailable: process.env.SAMVEV_DEMO_MODE === 'true' };
+    return { claimed: Boolean(row?.claimed_at), setupStep: row?.setup_step ?? 'welcome', locale: row?.default_locale ?? 'nb', demo: row?.demo_mode ?? false, demoAvailable: process.env.SAMVEV_DEMO_MODE === 'true' };
   });
 
   app.post('/api/v1/setup/begin', async (request) => {
@@ -236,7 +238,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     if (!current || current.claimed_at) throw new DomainError('INSTALLATION_CLAIMED', 409);
     if (!demo && (current.claim_token_hash !== tokenHash(body.claimToken) || !current.claim_expires_at || current.claim_expires_at <= new Date())) throw new DomainError('CLAIM_EXPIRED', 410);
     const passwordHash = await hashPassword(body.owner.password);
-    const household = await client.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) VALUES ($1,$2,$3,$4) RETURNING id`, [current.id,body.household.name,body.household.timezone,body.household.locale]);
+    const household = await client.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale,data_kind) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [current.id,body.household.name,body.household.timezone,body.household.locale,demo?'demo':'live']);
     const householdId = household.rows[0]!.id;
     const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES ($1,$2,'adult') RETURNING id`, [householdId,body.owner.displayName]);
     const account = await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [current.id,body.owner.email,passwordHash,body.preferences.locale,body.preferences.theme]);
@@ -302,6 +304,40 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const body = parse(preferencesSchema, request.body);
     const result = await pool.query(`UPDATE accounts SET locale=COALESCE($2,locale),theme=COALESCE($3,theme) WHERE id=$1 RETURNING locale,theme`, [session.accountId,body.locale ?? null,body.theme ?? null]);
     return result.rows[0];
+  });
+
+  app.post('/api/v1/me/password', async (request) => {
+    const session=await sessionAccount(request);
+    const body=parse(passwordChangeSchema,request.body);
+    await durableRateLimit('password_change',`${session.accountId}:${request.ip}`,10,900);
+    const account=(await pool.query<{password_hash:string|null}>(`SELECT password_hash FROM accounts WHERE id=$1`,[session.accountId])).rows[0];
+    const verified=await verifyLoginPassword(body.currentPassword,account?.password_hash??undefined,Boolean(account?.password_hash));
+    if(!verified)throw new DomainError('UNAUTHENTICATED',401);
+    const passwordHash=await hashPassword(body.newPassword);
+    return transaction(async(client)=>{
+      await client.query(`UPDATE accounts SET password_hash=$2,password_changed_at=clock_timestamp(),revision=revision+1 WHERE id=$1`,[session.accountId,passwordHash]);
+      const revoked=await client.query(`UPDATE sessions SET revoked_at=clock_timestamp() WHERE account_id=$1 AND token_hash<>$2 AND revoked_at IS NULL RETURNING id`,[session.accountId,session.tokenHash]);
+      return {sessionsRevoked:revoked.rowCount??0};
+    });
+  });
+
+  app.post('/api/v1/auth/invitations/accept',async(request,reply)=>{
+    const body=parse(invitationAcceptSchema,request.body);
+    await durableRateLimit('invitation_accept',request.ip,20,900);
+    const hash=tokenHash(body.token);
+    const passwordHash=await hashPassword(body.password);
+    const result=await transaction(async(client)=>{
+      const invitation=await client.query<{id:string;account_id:string;expires_at:Date;accepted_at:Date|null;revoked_at:Date|null;disabled_at:Date|null}>(`SELECT i.id,i.account_id,i.expires_at,i.accepted_at,i.revoked_at,a.disabled_at FROM account_invitations i JOIN accounts a ON a.id=i.account_id WHERE i.token_hash=$1 FOR UPDATE OF i,a`,[hash]);
+      const row=invitation.rows[0];
+      if(!row || row.accepted_at || row.revoked_at || row.disabled_at)throw new DomainError('INVITATION_INVALID',410);
+      if(row.expires_at<=new Date())throw new DomainError('INVITATION_EXPIRED',410);
+      await client.query(`UPDATE accounts SET password_hash=$2,password_changed_at=clock_timestamp(),revision=revision+1 WHERE id=$1`,[row.account_id,passwordHash]);
+      await client.query(`UPDATE account_invitations SET accepted_at=clock_timestamp() WHERE id=$1`,[row.id]);
+      const session=await createSession(client,row.account_id);
+      return {session};
+    });
+    setSessionCookies(reply,result.session,runtime.secureCookies);
+    return {csrfToken:result.session.csrf};
   });
 
   app.get('/api/v1/setup/progress', async (request) => {
@@ -386,17 +422,28 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'household.view');
     const canManagePeople=auth.capabilities.includes('people.manage');
     const canManageAccounts=auth.capabilities.includes('account.manage');
-    const result = await pool.query(`SELECT p.id,p.display_name,p.age_group,m.id AS membership_id,m.role_preset,
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
+    const today=localDateInTimezone(new Date(),household.timezone);
+    const result = await pool.query(`SELECT p.id,p.display_name,p.age_group,p.revision AS person_revision,
+      CASE WHEN $2 THEN p.birth_date::text ELSE NULL END AS birth_date,m.id AS membership_id,m.role_preset,
       CASE WHEN $2 THEN m.capabilities ELSE '[]'::jsonb END AS capabilities,m.revision,
-      (m.account_id IS NOT NULL) AS has_login,(m.account_id IS NOT NULL AND a.disabled_at IS NULL) AS has_active_login,
+      (m.account_id IS NOT NULL) AS has_login,(m.account_id IS NOT NULL AND a.password_hash IS NOT NULL AND a.disabled_at IS NULL) AS has_active_login,
+      CASE WHEN m.account_id IS NULL THEN 'profile' WHEN a.disabled_at IS NOT NULL THEN 'disabled' WHEN a.password_hash IS NULL THEN 'pending' ELSE 'active' END AS account_status,
       CASE WHEN $3 THEN a.email_normalized ELSE NULL END AS email,
+      CASE WHEN $3 THEN a.id ELSE NULL END AS account_id,
+      CASE WHEN $3 THEN a.revision ELSE NULL END AS account_revision,
       CASE WHEN $2 THEN COALESCE((SELECT json_agg(display_id) FROM membership_display_grants g WHERE g.membership_id=m.id),'[]') ELSE '[]'::json END AS display_ids
       FROM persons p LEFT JOIN memberships m ON m.person_id=p.id AND m.household_id=p.household_id LEFT JOIN accounts a ON a.id=m.account_id
       WHERE p.household_id=$1 ORDER BY p.created_at`, [auth.householdId,canManagePeople,canManageAccounts]);
     return { people: result.rows.map((row)=>{
+      const person=row as Record<string,unknown>;
+      if(canManagePeople && typeof person.birth_date==='string')person.calculated_age=ageOnDate(person.birth_date,today);
       if(canManagePeople || canManageAccounts)return row;
       const visible={...row};
+      delete visible.birth_date;
+      delete visible.person_revision;
       delete visible.has_active_login;
+      delete visible.account_status;
       return visible;
     }) };
   });
@@ -406,20 +453,67 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'people.manage');
     const body = parse(personCreateSchema, request.body);
     if(body.login)requireCapability(auth.capabilities,'account.manage');
-    if(requiresActiveLogin(body.rolePreset,body.capabilities ?? roleCapabilityPresets[body.rolePreset]) && !body.login)throw new DomainError('VALIDATION_FAILED',400,{reason:'elevated_login_required'});
-    assertGrantAuthority(auth, body.rolePreset, body.capabilities ?? roleCapabilityPresets[body.rolePreset]);
+    const desired=exactCapabilities(body.rolePreset,body.capabilities);
+    if(requiresActiveLogin(body.rolePreset,desired) && !body.login)throw new DomainError('VALIDATION_FAILED',400,{reason:'elevated_login_required'});
+    assertGrantAuthority(auth, body.rolePreset, desired);
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
+    const ageGroup=body.ageGroup??deriveAgeGroup(body.birthDate,localDateInTimezone(new Date(),household.timezone));
+    const invitationToken=body.login?.loginMethod==='invitation'?opaqueToken():null;
+    const passwordHash=body.login?.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result = await transaction(async (client) => {
       await validateAudience(client, auth, [], body.displayIds, false);
-      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES ($1,$2,$3) RETURNING id`, [auth.householdId,body.displayName,body.ageGroup]);
+      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group,birth_date) VALUES ($1,$2,$3,$4) RETURNING id`, [auth.householdId,body.displayName,ageGroup,body.birthDate??null]);
       let accountId: string|null = null;
       if (body.login) {
-        const passwordHash = await hashPassword(body.login.password);
         accountId = (await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.installationId,body.login.email,passwordHash,body.login.locale,body.login.theme])).rows[0]!.id;
       }
-      const membership = await client.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,accountId,person.rows[0]!.id,body.rolePreset,JSON.stringify(body.capabilities ?? roleCapabilityPresets[body.rolePreset])]);
+      const membership = await client.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,accountId,person.rows[0]!.id,body.rolePreset,JSON.stringify(desired)]);
+      if(accountId && invitationToken)await client.query(`INSERT INTO account_invitations(installation_id,household_id,account_id,token_hash,expires_at,created_by_account_id) VALUES($1,$2,$3,$4,clock_timestamp()+interval '7 days',$5)`,[auth.installationId,auth.householdId,accountId,tokenHash(invitationToken),auth.accountId]);
       for (const displayId of body.displayIds) await client.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES ($1,$2,$3)', [auth.householdId,membership.rows[0]!.id,displayId]);
       await audit(client,auth,'person.created','person',person.rows[0]!.id,{ rolePreset: body.rolePreset, hasLogin: Boolean(body.login) });
-      return { personId: person.rows[0]!.id, membershipId: membership.rows[0]!.id, hasLogin: Boolean(body.login) };
+      return { personId: person.rows[0]!.id, membershipId: membership.rows[0]!.id, hasLogin: Boolean(body.login),invitationToken };
+    });
+    return reply.status(201).send(result);
+  });
+
+  app.patch('/api/v1/households/:householdId/people/:personId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'people.manage');
+    const body=parse(personUpdateSchema,request.body);
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
+    return transaction(async(client)=>{
+      const current=await client.query<{birth_date:string|null;age_group:'adult'|'teen'|'child'|'unspecified'}>(`SELECT birth_date::text,age_group FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).personId,auth.householdId]);
+      if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
+      const birthDate=body.birthDate===undefined?current.rows[0]!.birth_date:body.birthDate;
+      const ageGroup=body.ageGroup??(body.birthDate===undefined?current.rows[0]!.age_group:deriveAgeGroup(birthDate,localDateInTimezone(new Date(),household.timezone)));
+      const updated=await client.query(`UPDATE persons SET display_name=COALESCE($3,display_name),birth_date=$4,age_group=$5,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$6 RETURNING id,display_name,birth_date::text,age_group,revision`,[params(request).personId,auth.householdId,body.displayName??null,birthDate,ageGroup,body.expectedRevision]);
+      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      await audit(client,auth,'person.updated','person',params(request).personId,{fields:Object.keys(body).filter((key)=>key!=='expectedRevision')});
+      return updated.rows[0];
+    });
+  });
+
+  app.post('/api/v1/households/:householdId/memberships/:membershipId/account',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);
+    requireCapability(auth.capabilities,'people.manage');requireCapability(auth.capabilities,'account.manage');requireCapability(auth.capabilities,'capability.manage');
+    const body=parse(personAccountCreateSchema,request.body);
+    const desired=exactCapabilities(body.rolePreset,body.capabilities);
+    assertGrantAuthority(auth,body.rolePreset,desired);
+    const invitationToken=body.login.loginMethod==='invitation'?opaqueToken():null;
+    const passwordHash=body.login.loginMethod==='password'?await hashPassword(body.login.password!):null;
+    const result=await transaction(async(client)=>{
+      await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
+      await validateAudience(client,auth,[],body.displayIds,false);
+      const target=await client.query<{id:string;account_id:string|null}>(`SELECT id,account_id FROM memberships WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).membershipId,auth.householdId]);
+      if(!target.rowCount)throw new DomainError('NOT_FOUND',404);
+      if(target.rows[0]!.account_id)throw new DomainError('CONFLICT',409,{reason:'account_already_exists'});
+      const account=(await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,$2,$3,$4,$5) RETURNING id`,[auth.installationId,body.login.email,passwordHash,body.login.locale,body.login.theme])).rows[0]!;
+      const updated=await client.query(`UPDATE memberships SET account_id=$3,role_preset=$4,capabilities=$5,revision=revision+1 WHERE id=$1 AND household_id=$2 AND revision=$6 RETURNING id,role_preset,capabilities,revision`,[params(request).membershipId,auth.householdId,account.id,body.rolePreset,JSON.stringify(desired),body.expectedRevision]);
+      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      if(invitationToken)await client.query(`INSERT INTO account_invitations(installation_id,household_id,account_id,token_hash,expires_at,created_by_account_id) VALUES($1,$2,$3,$4,clock_timestamp()+interval '7 days',$5)`,[auth.installationId,auth.householdId,account.id,tokenHash(invitationToken),auth.accountId]);
+      await client.query('DELETE FROM membership_display_grants WHERE membership_id=$1',[params(request).membershipId]);
+      for(const displayId of body.displayIds)await client.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES($1,$2,$3)',[auth.householdId,params(request).membershipId,displayId]);
+      await audit(client,auth,'account.created','account',account.id,{membershipId:params(request).membershipId,rolePreset:body.rolePreset,loginMethod:body.login.loginMethod});
+      return {accountId:account.id,membership:updated.rows[0],invitationToken};
     });
     return reply.status(201).send(result);
   });
@@ -428,31 +522,99 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'capability.manage');
     const body = parse(membershipUpdateSchema, request.body);
-    assertGrantAuthority(auth, body.rolePreset, body.capabilities);
+    const desired=exactCapabilities(body.rolePreset,body.capabilities);
+    assertGrantAuthority(auth, body.rolePreset, desired);
     return transaction(async (client) => {
       await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
       await validateAudience(client, auth, [], body.displayIds, false);
-      const target = await client.query<{role_preset:string;capabilities:Capability[];account_id:string|null;disabled_at:Date|null}>(`SELECT m.role_preset,m.capabilities,m.account_id,a.disabled_at FROM memberships m LEFT JOIN accounts a ON a.id=m.account_id WHERE m.id=$1 AND m.household_id=$2 FOR UPDATE OF m`, [params(request).membershipId,auth.householdId]);
+      const target = await client.query<{role_preset:string;capabilities:Capability[];account_id:string|null;disabled_at:Date|null;password_hash:string|null}>(`SELECT m.role_preset,m.capabilities,m.account_id,a.disabled_at,a.password_hash FROM memberships m LEFT JOIN accounts a ON a.id=m.account_id WHERE m.id=$1 AND m.household_id=$2 FOR UPDATE OF m`, [params(request).membershipId,auth.householdId]);
       if (!target.rowCount) throw new DomainError('NOT_FOUND', 404);
-      if(requiresActiveLogin(body.rolePreset,body.capabilities) && (!target.rows[0]!.account_id || target.rows[0]!.disabled_at))throw new DomainError('VALIDATION_FAILED',400,{reason:'elevated_login_required'});
+      if(body.rolePreset==='installation_admin' && target.rows[0]!.role_preset!=='installation_admin' && body.confirmInstallationOwner!==true)throw new DomainError('VALIDATION_FAILED',400,{reason:'installation_owner_confirmation_required'});
+      if(requiresActiveLogin(body.rolePreset,desired) && (!target.rows[0]!.account_id || target.rows[0]!.disabled_at || !target.rows[0]!.password_hash))throw new DomainError('VALIDATION_FAILED',400,{reason:'elevated_login_required'});
       if (target.rows[0]!.role_preset === 'installation_admin' && !auth.capabilities.includes('installation.manage')) throw new DomainError('FORBIDDEN',403);
-      const targetWasUsableOwner=target.rows[0]!.account_id && !target.rows[0]!.disabled_at && hasCapabilities(target.rows[0]!.capabilities,['installation.manage','capability.manage']);
-      if (targetWasUsableOwner && !hasCapabilities(body.capabilities,['installation.manage','capability.manage'])) {
-        const owners = await client.query(`SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id WHERE a.disabled_at IS NULL AND m.capabilities ?& ARRAY['installation.manage','capability.manage'] AND m.id<>$1 LIMIT 1`, [params(request).membershipId]);
+      const targetWasUsableOwner=target.rows[0]!.account_id && target.rows[0]!.password_hash && !target.rows[0]!.disabled_at && hasCapabilities(target.rows[0]!.capabilities,['installation.manage','capability.manage']);
+      if (targetWasUsableOwner && !hasCapabilities(desired,['installation.manage','capability.manage'])) {
+        const owners = await client.query(`SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id WHERE a.installation_id=$2 AND a.disabled_at IS NULL AND a.password_hash IS NOT NULL AND m.capabilities ?& ARRAY['installation.manage','capability.manage'] AND m.id<>$1 LIMIT 1`, [params(request).membershipId,auth.installationId]);
         if (!owners.rowCount) throw new DomainError('CONFLICT', 409, { reason: 'last_installation_owner' });
       }
-      const targetWasUsableManager=target.rows[0]!.account_id && !target.rows[0]!.disabled_at && hasCapabilities(target.rows[0]!.capabilities,['household.manage','capability.manage']);
-      if (targetWasUsableManager && !hasCapabilities(body.capabilities,['household.manage','capability.manage'])) {
-        const managers=await client.query(`SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id WHERE m.household_id=$1 AND a.disabled_at IS NULL AND m.capabilities ?& ARRAY['household.manage','capability.manage'] AND m.id<>$2 LIMIT 1`,[auth.householdId,params(request).membershipId]);
+      const targetWasUsableManager=target.rows[0]!.account_id && target.rows[0]!.password_hash && !target.rows[0]!.disabled_at && hasCapabilities(target.rows[0]!.capabilities,['household.manage','capability.manage']);
+      if (targetWasUsableManager && !hasCapabilities(desired,['household.manage','capability.manage'])) {
+        const managers=await client.query(`SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id WHERE m.household_id=$1 AND a.disabled_at IS NULL AND a.password_hash IS NOT NULL AND m.capabilities ?& ARRAY['household.manage','capability.manage'] AND m.id<>$2 LIMIT 1`,[auth.householdId,params(request).membershipId]);
         if(!managers.rowCount) throw new DomainError('CONFLICT',409,{reason:'last_household_manager'});
       }
-      const updated = await client.query(`UPDATE memberships SET role_preset=$3,capabilities=$4,revision=revision+1 WHERE id=$1 AND household_id=$2 AND revision=$5 RETURNING id,role_preset,capabilities,revision`, [params(request).membershipId,auth.householdId,body.rolePreset,JSON.stringify(body.capabilities),body.expectedRevision]);
+      const updated = await client.query(`UPDATE memberships SET role_preset=$3,capabilities=$4,revision=revision+1 WHERE id=$1 AND household_id=$2 AND revision=$5 RETURNING id,role_preset,capabilities,revision`, [params(request).membershipId,auth.householdId,body.rolePreset,JSON.stringify(desired),body.expectedRevision]);
       if (!updated.rowCount) throw new DomainError('REVISION_CONFLICT', 409);
       await client.query('DELETE FROM membership_display_grants WHERE membership_id=$1', [params(request).membershipId]);
       for (const displayId of body.displayIds) await client.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES ($1,$2,$3)', [auth.householdId,params(request).membershipId,displayId]);
-      await audit(client,auth,'membership.permissions_changed','membership',params(request).membershipId,{ rolePreset: body.rolePreset, capabilities: body.capabilities, displayIds: body.displayIds });
+      await audit(client,auth,'membership.permissions_changed','membership',params(request).membershipId,{ rolePreset: body.rolePreset, capabilities: desired, displayIds: body.displayIds });
       return updated.rows[0];
     });
+  });
+
+  app.patch('/api/v1/households/:householdId/accounts/:accountId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'account.manage');
+    const body=parse(accountStatusUpdateSchema,request.body);
+    return transaction(async(client)=>{
+      await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
+      const target=await client.query<{id:string;disabled_at:Date|null;password_hash:string|null;revision:number;is_owner:boolean;is_manager_here:boolean;has_other_household:boolean}>(`SELECT a.id,a.disabled_at,a.password_hash,a.revision,EXISTS(SELECT 1 FROM memberships owner_m WHERE owner_m.account_id=a.id AND owner_m.capabilities ?& ARRAY['installation.manage','capability.manage']) AS is_owner,EXISTS(SELECT 1 FROM memberships manager_m WHERE manager_m.account_id=a.id AND manager_m.household_id=$3 AND manager_m.capabilities ?& ARRAY['household.manage','capability.manage']) AS is_manager_here,EXISTS(SELECT 1 FROM memberships other_m WHERE other_m.account_id=a.id AND other_m.household_id<>$3) AS has_other_household FROM accounts a WHERE a.id=$1 AND a.installation_id=$2 AND EXISTS(SELECT 1 FROM memberships visible_m WHERE visible_m.account_id=a.id AND visible_m.household_id=$3) FOR UPDATE OF a`,[params(request).accountId,auth.installationId,auth.householdId]);
+      const row=target.rows[0];if(!row)throw new DomainError('NOT_FOUND',404);
+      if((row.is_owner || row.has_other_household) && !auth.capabilities.includes('installation.manage'))throw new DomainError('FORBIDDEN',403);
+      if(body.disabled && row.is_owner && !row.disabled_at){
+        const owner=await client.query(`SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id WHERE a.installation_id=$1 AND a.id<>$2 AND a.disabled_at IS NULL AND a.password_hash IS NOT NULL AND m.capabilities ?& ARRAY['installation.manage','capability.manage'] LIMIT 1`,[auth.installationId,row.id]);
+        if(!owner.rowCount)throw new DomainError('CONFLICT',409,{reason:'last_installation_owner'});
+      }
+      if(body.disabled && row.is_manager_here && row.password_hash && !row.disabled_at){
+        const manager=await client.query(`SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id WHERE m.household_id=$1 AND a.id<>$2 AND a.disabled_at IS NULL AND a.password_hash IS NOT NULL AND m.capabilities ?& ARRAY['household.manage','capability.manage'] LIMIT 1`,[auth.householdId,row.id]);
+        if(!manager.rowCount)throw new DomainError('CONFLICT',409,{reason:'last_household_manager'});
+      }
+      const updated=await client.query(`UPDATE accounts SET disabled_at=CASE WHEN $3 THEN COALESCE(disabled_at,clock_timestamp()) ELSE NULL END,revision=revision+1 WHERE id=$1 AND revision=$2 RETURNING id,disabled_at,revision`,[row.id,body.expectedRevision,body.disabled]);
+      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      if(body.disabled)await client.query(`UPDATE sessions SET revoked_at=clock_timestamp() WHERE account_id=$1 AND revoked_at IS NULL`,[row.id]);
+      await audit(client,auth,body.disabled?'account.disabled':'account.enabled','account',row.id);
+      return updated.rows[0];
+    });
+  });
+
+  app.post('/api/v1/households/:householdId/accounts/:accountId/invitation',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'account.manage');
+    const body=parse(invitationReissueSchema,request.body);const token=opaqueToken();
+    const result=await transaction(async(client)=>{
+      await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
+      const account=await client.query<{id:string;revision:number;password_hash:string|null;disabled_at:Date|null;is_owner:boolean;has_other_household:boolean}>(`SELECT a.id,a.revision,a.password_hash,a.disabled_at,EXISTS(SELECT 1 FROM memberships owner_m WHERE owner_m.account_id=a.id AND owner_m.capabilities ? 'installation.manage') AS is_owner,EXISTS(SELECT 1 FROM memberships other_m WHERE other_m.account_id=a.id AND other_m.household_id<>$3) AS has_other_household FROM accounts a WHERE a.id=$1 AND a.installation_id=$2 AND EXISTS(SELECT 1 FROM memberships visible_m WHERE visible_m.account_id=a.id AND visible_m.household_id=$3) FOR UPDATE OF a`,[params(request).accountId,auth.installationId,auth.householdId]);
+      const row=account.rows[0];if(!row)throw new DomainError('NOT_FOUND',404);
+      if((row.is_owner||row.has_other_household)&&!auth.capabilities.includes('installation.manage'))throw new DomainError('FORBIDDEN',403);
+      if(row.disabled_at||row.password_hash)throw new DomainError('CONFLICT',409,{reason:'account_not_pending'});
+      const updated=await client.query(`UPDATE accounts SET revision=revision+1 WHERE id=$1 AND revision=$2 RETURNING revision`,[row.id,body.expectedRevision]);
+      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      await client.query(`UPDATE account_invitations SET revoked_at=clock_timestamp() WHERE account_id=$1 AND accepted_at IS NULL AND revoked_at IS NULL`,[row.id]);
+      await client.query(`INSERT INTO account_invitations(installation_id,household_id,account_id,token_hash,expires_at,created_by_account_id) VALUES($1,$2,$3,$4,clock_timestamp()+interval '7 days',$5)`,[auth.installationId,auth.householdId,row.id,tokenHash(token),auth.accountId]);
+      await audit(client,auth,'invitation.reissued','account',row.id);
+      return {invitationToken:token,accountRevision:updated.rows[0].revision};
+    });
+    return reply.status(201).send(result);
+  });
+
+  app.get('/api/v1/households/:householdId/dashboard',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const household=(await pool.query<{timezone:string;show_upcoming_birthday:boolean}>(`SELECT timezone,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
+    if(!household.show_upcoming_birthday)return {upcomingBirthday:null};
+    const people=await pool.query<{id:string;display_name:string;birth_date:string}>(`SELECT id,display_name,birth_date::text FROM persons WHERE household_id=$1 AND birth_date IS NOT NULL`,[auth.householdId]);
+    return {upcomingBirthday:nextBirthday(people.rows.map((row)=>({id:row.id,displayName:row.display_name,birthDate:row.birth_date})),localDateInTimezone(new Date(),household.timezone))};
+  });
+
+  app.get('/api/v1/households/:householdId/settings',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const settings=await pool.query(`SELECT show_upcoming_birthday,revision FROM households WHERE id=$1`,[auth.householdId]);
+    return settings.rows[0];
+  });
+
+  app.patch('/api/v1/households/:householdId/settings',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(householdSettingsUpdateSchema,request.body);
+    const updated=await pool.query(`UPDATE households SET show_upcoming_birthday=$2,revision=revision+1 WHERE id=$1 AND revision=$3 RETURNING show_upcoming_birthday,revision`,[auth.householdId,body.showUpcomingBirthday,body.expectedRevision]);
+    if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+    await transaction((client)=>audit(client,auth,'household.birthday_setting_changed','household',auth.householdId,{enabled:body.showUpcomingBirthday}));
+    return updated.rows[0];
   });
 
   app.get('/api/v1/households/:householdId/displays', async (request) => {
@@ -719,6 +881,17 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 function assertGrantAuthority(auth: AuthContext, rolePreset: string, desired: readonly Capability[]): void {
   if ((rolePreset === 'installation_admin' || desired.includes('installation.manage')) && !auth.capabilities.includes('installation.manage')) throw new DomainError('FORBIDDEN',403);
   if (desired.some((capability)=>!auth.capabilities.includes(capability))) throw new DomainError('FORBIDDEN',403,{reason:'cannot_grant_capability_not_held'});
+}
+
+function exactCapabilities(rolePreset:keyof typeof roleCapabilityPresets,requested:readonly Capability[]|undefined):Capability[]{
+  const preset=roleCapabilityPresets[rolePreset];
+  if(rolePreset==='installation_admin' || rolePreset==='household_admin'){
+    if(requested && (requested.length!==preset.length || requested.some((value)=>!preset.includes(value))))throw new DomainError('VALIDATION_FAILED',400,{reason:'admin_preset_must_be_exact'});
+    return [...preset];
+  }
+  const desired=[...(requested??preset)];
+  if(desired.some((capability)=>elevatedCapabilities.has(capability)))throw new DomainError('FORBIDDEN',403,{reason:'non_admin_cannot_receive_admin_capability'});
+  return desired;
 }
 
 function hasCapabilities(actual:readonly Capability[],required:readonly Capability[]):boolean{

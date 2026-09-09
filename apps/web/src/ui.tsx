@@ -23,7 +23,7 @@ export interface Preferences {
 const I18n = createContext<{
   locale: Locale;
   t: (key: TranslationKey, vars?: Record<string, string | number>) => string;
-}>({ locale: "en", t: (k) => en[k] });
+}>({ locale: "nb", t: (k) => nb[k] });
 export function LocaleProvider({
   locale,
   children,
@@ -60,17 +60,20 @@ export function LocaleProvider({
 }
 export const useI18n = () => useContext(I18n);
 export function usePreferences(storageKey = "samvev.preferences") {
+  const [hadStoredValue] = useState(() => {
+    try { return localStorage.getItem(storageKey) !== null; } catch { return false; }
+  });
   const [prefs, setPrefs] = useState<Preferences>(() => {
     try {
       const v = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
       return {
-        locale: v.locale === "nb" ? "nb" : "en",
+        locale: v.locale === "en" ? "en" : "nb",
         theme: ["light", "dark", "system"].includes(v.theme)
           ? v.theme
           : "system",
       };
     } catch {
-      return { locale: "en", theme: "system" };
+      return { locale: "nb", theme: "system" };
     }
   });
   useEffect(() => {
@@ -91,7 +94,7 @@ export function usePreferences(storageKey = "samvev.preferences") {
     media.addEventListener("change", apply);
     return () => media.removeEventListener("change", apply);
   }, [prefs, storageKey]);
-  return [prefs, setPrefs] as const;
+  return [prefs, setPrefs, hadStoredValue] as const;
 }
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {
   const paths: Record<string, ReactNode> = {
@@ -369,10 +372,12 @@ export function ErrorNotice({ error }: { error: unknown }) {
   const { t } = useI18n();
   if (!error) return null;
   const code = error instanceof Error ? error.message : "INTERNAL_ERROR";
+  const reason = error instanceof ApiError && typeof error.details?.reason === "string" ? error.details.reason : undefined;
+  const key = reason && reason in en ? reason : code in en ? code : "INTERNAL_ERROR";
   return (
     <div role="alert" className="notice error">
       <Icon name="shield" />
-      <span>{t(code in en ? (code as TranslationKey) : "INTERNAL_ERROR")}</span>
+      <span>{t(key as TranslationKey)}</span>
     </div>
   );
 }
