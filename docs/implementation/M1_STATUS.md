@@ -368,3 +368,11 @@ host-global service modified. No merge, tag, release or production deployment.
 - Public HTTPS startup fails closed for unclaimed or demo-seeded installations.
   The exact Synology Newt target and proxy fields are documented in
   [M1_OPERATIONS.md](M1_OPERATIONS.md#pangolin--reverse-proxy-deployment).
+
+## M2.3 general AI task/monitor checkpoint
+
+- Added an administrator-only draft, interpretation and explicit approval flow for general source-monitor tasks, with pause/resume/edit/delete and optimistic revisions.
+- The independent worker monitor loop fetches bounded public HTML/PDF sources, fingerprints normalized text before AI, and records source checks, AI calls and unchanged skips without prompts or output in usage metadata.
+- Validated events retain exact source evidence, confidence and uncertainty. Persistent event mappings reuse M1 messages and targets for idempotent create/update/withdraw behavior.
+- Provider policies gate the existing default, local-compatible or OpenAI provider configuration. No automatic paid fallback, browser automation, OCR or external AI test call is included.
+- Migration `007_monitor_tasks.sql` is additive. Security, source, integration, UI, build and targeted M1/M2 regression evidence is recorded in [M2_3.md](M2_3.md).

@@ -84,7 +84,7 @@ export class OpenAiProvider implements AiProvider {
       const response = await this.transport(OPENAI_RESPONSES_URL, {
         method: 'POST',
         headers: { authorization: `Bearer ${configuration.apiKey}`, 'content-type': 'application/json' },
-        body: JSON.stringify({ model: configuration.model, input: task.input, max_output_tokens: 64, store: false }),
+        body: JSON.stringify({ model: configuration.model, input: task.input, max_output_tokens: task.maxOutputTokens ?? 64, store: false }),
         signal: controller.signal
       });
       const text = await boundedText(response);

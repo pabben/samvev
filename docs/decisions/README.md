@@ -16,3 +16,4 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0010](0010-rewards-and-claimable-tasks.md) | Support individual and shared rewards | Accepted product direction |
 | [0011](0011-typescript-m1-postgresql-scheduler.md) | TypeScript M1 and PostgreSQL-backed scheduling | Accepted for M1 |
 | [0012](0012-ai-provider-foundation.md) | Household-scoped AI providers, encrypted credentials, local compatible endpoints and deferred ChatGPT bridge | Accepted for M2.1; extended for M2.2 |
+| [0013](0013-general-ai-task-monitor.md) | General approved AI tasks, source change detection and M1 notification reconciliation | Accepted for M2.3 |

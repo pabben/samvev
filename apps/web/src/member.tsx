@@ -20,8 +20,9 @@ import { Composer } from "./messages";
 import { PeoplePanel } from "./people";
 import { DisplaysPanel } from "./displays-admin";
 import { AiSettingsPanel } from "./ai-settings";
+import { MonitorsPanel } from "./monitors";
 
-type MemberTab = "messages" | "people" | "displays" | "ai";
+type MemberTab = "messages" | "people" | "displays" | "monitors" | "ai";
 
 export function MemberApp({
   me,
@@ -85,7 +86,7 @@ export function MemberApp({
       );
   }, [member.id]);
   useEffect(() => {
-    if (tab === "ai" && !member.capabilities.includes("household.manage")) {
+    if (["ai", "monitors"].includes(tab) && !member.capabilities.includes("household.manage")) {
       setTab("messages");
     }
   }, [member.id, tab]);
@@ -113,7 +114,7 @@ export function MemberApp({
     "messages",
     "people",
     "displays",
-    ...(can("household.manage") ? (["ai"] as const) : []),
+    ...(can("household.manage") ? (["monitors", "ai"] as const) : []),
   ];
   return (
     <div className="app-shell">
@@ -142,7 +143,7 @@ export function MemberApp({
         </div>
         <nav
           aria-label={t("householdName")}
-          className={navigation.length === 4 ? "admin-navigation" : undefined}
+          className={navigation.length > 3 ? "admin-navigation" : undefined}
         >
           {navigation.map((key) => (
             <button
@@ -246,7 +247,9 @@ export function MemberApp({
           )}
           <ErrorNotice error={error} />
           <ErrorNotice error={loadError} />
-          {tab === "ai" && can("household.manage") ? (
+          {tab === "monitors" && can("household.manage") ? (
+            <MonitorsPanel householdId={household} timezone={member.timezone} people={people} displays={displays}/>
+          ) : tab === "ai" && can("household.manage") ? (
             <AiSettingsPanel
               key={household}
               householdId={household}

@@ -1,4 +1,4 @@
-import { aiTaskSchema, type AiModelTier, type AiProviderId, type AiResult, type AiTask } from '@samvev/contracts';
+import { aiTaskSchema, type AiModelTier, type AiProviderId, type AiResult, type AiTask, type MonitorProviderPolicy } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import { pool, transaction } from '../db.ts';
 import { AiCredentialVault } from './credential-vault.ts';
@@ -136,11 +136,18 @@ export class AiAdminService {
   }
 
   /** Server-internal execution boundary. Authorization remains the caller's responsibility. */
-  async executeTask(householdId: string, rawTask: AiTask): Promise<AiResult> {
+  async executeTask(householdId: string, rawTask: AiTask, policy: MonitorProviderPolicy = 'default'): Promise<AiResult> {
+    return (await this.executeTaskWithContext(householdId, rawTask, policy)).result;
+  }
+
+  async executeTaskWithContext(householdId: string, rawTask: AiTask, policy: MonitorProviderPolicy = 'default'): Promise<{result:AiResult;provider:AiProviderId;model:string}> {
     const task = aiTaskSchema.parse(rawTask);
     const settings = await this.rawSettings(householdId);
+    if ((policy === 'local' && settings.provider !== 'openai_compatible') ||
+        (policy === 'openai' && settings.provider !== 'openai')) throw new DomainError('AI_PROVIDER_UNAVAILABLE', 422);
     const outcome = await this.run(householdId, settings, task, true, false);
-    if (outcome.success) return outcome.result;
+    const model=task.modelTier==='strong'?settings.strong_model:settings.default_model;
+    if (outcome.success) return {result:outcome.result,provider:settings.provider,model};
     const status = outcome.failure.code === 'AI_CONFIGURATION_INVALID' ? 422 :
       outcome.failure.code === 'AI_TIMEOUT' ? 504 : 502;
     throw new DomainError(outcome.failure.code, status);

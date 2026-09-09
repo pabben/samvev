@@ -11,6 +11,7 @@ import {
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
   personCreateSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,
+  monitorTaskCreateSchema, monitorTaskRevisionSchema, monitorTaskUpdateSchema,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
 import {
@@ -22,6 +23,7 @@ import { ProjectionEventFanout } from './projection-events.ts';
 import { AiAdminService } from './ai/admin-service.ts';
 import type { AiHttpTransport } from './ai/openai-provider.ts';
 import { loadRuntimeConfig, type RuntimeConfig } from './runtime-config.ts';
+import { MonitorService } from './monitor/service.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -175,6 +177,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
+  const monitors = new MonitorService(aiAdmin);
   await app.register(cookie);
   const projectionEvents=new ProjectionEventFanout();
   await projectionEvents.start();
@@ -351,6 +354,31 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.manage');
     return aiAdmin.usage(auth.householdId);
+  });
+
+  app.get('/api/v1/households/:householdId/monitors', async (request) => {
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    return {tasks:await monitors.list(auth)};
+  });
+  app.post('/api/v1/households/:householdId/monitors', async (request,reply) => {
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const task=await monitors.create(auth,parse(monitorTaskCreateSchema,request.body));return reply.status(201).send(task);
+  });
+  app.patch('/api/v1/households/:householdId/monitors/:monitorId', async (request) => {
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    return monitors.update(auth,params(request).monitorId!,parse(monitorTaskUpdateSchema,request.body));
+  });
+  app.post('/api/v1/households/:householdId/monitors/:monitorId/interpret', async (request) => {
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(monitorTaskRevisionSchema,request.body);return monitors.interpret(auth,params(request).monitorId!,body.expectedRevision);
+  });
+  for(const action of ['approve','pause','resume'] as const)app.post(`/api/v1/households/:householdId/monitors/:monitorId/${action}`,async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(monitorTaskRevisionSchema,request.body);return monitors.setState(auth,params(request).monitorId!,body.expectedRevision,action);
+  });
+  app.delete('/api/v1/households/:householdId/monitors/:monitorId',async (request) => {
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(monitorTaskRevisionSchema,request.body);await monitors.remove(auth,params(request).monitorId!,body.expectedRevision);return undefined;
   });
 
   app.get('/api/v1/households/:householdId/people', async (request) => {

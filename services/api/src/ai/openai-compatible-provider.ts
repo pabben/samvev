@@ -213,7 +213,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
         body: JSON.stringify({
           model: configuration.model,
           messages: [{ role: 'user', content: task.input }],
-          max_tokens: 64,
+          max_tokens: task.maxOutputTokens ?? 64,
           stream: false
         }),
         signal: controller.signal

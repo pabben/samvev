@@ -108,6 +108,7 @@ export const aiTaskSchema = z.object({
   purpose: z.string().trim().min(1).max(128),
   input: z.string().min(1).max(32_000),
   modelTier: z.enum(aiModelTiers),
+  maxOutputTokens: z.number().int().min(16).max(8192).optional(),
   sources: z.array(aiSourceEvidenceSchema).max(20).default([])
 }).strict();
 
@@ -136,6 +137,61 @@ export const aiSettingsUpdateSchema = z.object({
 
 export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers) }).strict();
 
+export const monitorProviderPolicies = ['default', 'local', 'openai'] as const;
+export const monitorStates = ['draft', 'active', 'paused'] as const;
+const monitorTargetsSchema = z.object({
+  personIds: z.array(uuidSchema).max(50).default([]),
+  displayIds: z.array(uuidSchema).max(50).default([])
+}).strict().refine((value) => value.personIds.length > 0 || value.displayIds.length > 0, 'target_required');
+
+export const monitorTaskCreateSchema = z.object({
+  name: nameSchema,
+  instruction: z.string().trim().min(10).max(2000),
+  sourceUrl: z.string().url().max(2048),
+  checkIntervalMinutes: z.number().int().min(15).max(10080).default(1440),
+  noticeDaysBefore: z.number().int().min(0).max(30).default(1),
+  noticeLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).default('18:00'),
+  targets: monitorTargetsSchema,
+  providerPolicy: z.enum(monitorProviderPolicies).default('default'),
+  modelTier: z.enum(aiModelTiers).default('routine')
+}).strict();
+
+export const monitorTaskUpdateSchema = monitorTaskCreateSchema.partial().extend({
+  expectedRevision: z.number().int().positive()
+}).strict().refine((value) => Object.keys(value).some((key) => key !== 'expectedRevision'));
+
+export const monitorTaskRevisionSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const monitorInterpretationSchema = z.object({
+  version: z.literal(1),
+  summary: z.string().trim().min(1).max(500),
+  eventTypes: z.array(z.string().trim().min(1).max(80)).max(20),
+  keywords: z.array(z.string().trim().min(1).max(80)).max(50),
+  people: z.array(z.string().trim().min(1).max(80)).max(20),
+  noticeDaysBefore: z.number().int().min(0).max(30),
+  noticeLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  checkIntervalMinutes: z.number().int().min(15).max(10080)
+}).strict();
+
+const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+});
+
+export const monitorExtractionSchema = z.object({
+  version: z.literal(1),
+  events: z.array(z.object({
+    date: calendarDateSchema,
+    time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).nullable(),
+    type: z.string().trim().min(1).max(80),
+    description: z.string().trim().min(1).max(500),
+    actions: z.array(z.string().trim().min(1).max(200)).max(20),
+    who: z.array(z.string().trim().min(1).max(80)).max(20),
+    evidence: z.object({ quote: z.string().trim().min(1).max(500), sourceUrl: z.string().url().max(2048) }).strict(),
+    confidence: z.number().min(0).max(1),
+    uncertainty: z.string().trim().max(500).nullable()
+  }).strict()).max(200)
+}).strict();
+
 /** Reserved for a future authenticated ChatGPT Tasks/MCP connection. No endpoint consumes it in M2.1. */
 export const chatGptBridgeInputV1Schema = z.object({
   version: z.literal(1),
@@ -154,6 +210,7 @@ export const chatGptBridgeResultV1Schema = z.object({
 export type AiOperation = (typeof aiOperations)[number];
 export type AiModelTier = (typeof aiModelTiers)[number];
 export type AiProviderId = (typeof aiProviderIds)[number];
+export type MonitorProviderPolicy = (typeof monitorProviderPolicies)[number];
 export type AiTask = z.infer<typeof aiTaskSchema>;
 export type AiResult = z.infer<typeof aiResultSchema>;
 
@@ -162,6 +219,8 @@ export type ErrorCode =
   | 'NOT_FOUND' | 'CONFLICT' | 'REVISION_CONFLICT' | 'RATE_LIMITED' | 'INSTALLATION_CLAIMED'
   | 'CLAIM_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID'
   | 'AI_CONFIGURATION_INVALID' | 'AI_PROVIDER_UNAVAILABLE' | 'AI_UPSTREAM_ERROR'
-  | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED' | 'INTERNAL_ERROR';
+  | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED'
+  | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'
+  | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_OWNER_UNAUTHORIZED' | 'INTERNAL_ERROR';
 
 export interface ApiErrorBody { error: { code: ErrorCode; requestId: string; details?: Record<string, unknown> } }
