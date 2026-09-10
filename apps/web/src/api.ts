@@ -15,6 +15,7 @@ export async function api<T = unknown>(
   path: string,
   method = "GET",
   body?: unknown,
+  options: { timeoutMs?: number } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -28,7 +29,7 @@ export async function api<T = unknown>(
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 12000),
     });
   } catch {
     throw new ApiError("OFFLINE");

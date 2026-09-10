@@ -231,7 +231,9 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '006_openai_compatible_provider.sql',
     '007_monitor_tasks.sql',
     '008_people_accounts_households.sql',
-    '009_invitation_rotation.sql'
+    '009_invitation_rotation.sql',
+    '010_ai_reasoning_effort.sql',
+    '011_monitor_manual_runs.sql'
   ]);
 });
 

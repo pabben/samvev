@@ -9,6 +9,7 @@ type ProviderId =
   | "openai_compatible"
   | "gemini";
 type ModelTier = "routine" | "strong";
+type ReasoningEffort = "none" | "low" | "medium" | "high";
 type AvailabilityStatus =
   | "not_tested"
   | "not_configured"
@@ -23,6 +24,8 @@ interface AiSettings {
   baseUrl: string | null;
   defaultModel: string;
   strongModel: string;
+  defaultReasoningEffort: ReasoningEffort;
+  strongReasoningEffort: ReasoningEffort;
   revision: number;
   availability: {
     status: AvailabilityStatus;
@@ -68,6 +71,8 @@ interface Draft {
   baseUrl: string;
   defaultModel: string;
   strongModel: string;
+  defaultReasoningEffort: ReasoningEffort;
+  strongReasoningEffort: ReasoningEffort;
 }
 
 const asDraft = (settings: AiSettings): Draft => ({
@@ -76,6 +81,8 @@ const asDraft = (settings: AiSettings): Draft => ({
   baseUrl: settings.baseUrl ?? "",
   defaultModel: settings.defaultModel,
   strongModel: settings.strongModel,
+  defaultReasoningEffort: settings.defaultReasoningEffort ?? "none",
+  strongReasoningEffort: settings.strongReasoningEffort ?? "medium",
 });
 
 export function AiSettingsPanel({
@@ -140,6 +147,8 @@ export function AiSettingsPanel({
             draft.baseUrl !== (settings.baseUrl ?? "") ||
             draft.defaultModel !== settings.defaultModel ||
             draft.strongModel !== settings.strongModel ||
+            draft.defaultReasoningEffort !== (settings.defaultReasoningEffort ?? "none") ||
+            draft.strongReasoningEffort !== (settings.strongReasoningEffort ?? "medium") ||
             apiKey.length > 0 ||
             removeApiKey),
       ),
@@ -170,7 +179,11 @@ export function AiSettingsPanel({
         strongModel: draft.strongModel,
         expectedRevision: settings.revision,
       };
-      if (draft.provider === "openai_compatible") body.baseUrl = draft.baseUrl;
+      if (draft.provider === "openai_compatible") {
+        body.baseUrl = draft.baseUrl;
+        body.defaultReasoningEffort = draft.defaultReasoningEffort;
+        body.strongReasoningEffort = draft.strongReasoningEffort;
+      }
       if (apiKey) body.apiKey = apiKey;
       else if (removeApiKey) body.apiKey = null;
       const next = await api<AiSettings>(`${base}/settings`, "PATCH", body);
@@ -199,7 +212,7 @@ export function AiSettingsPanel({
         modelTier: ModelTier;
         checkedAt: string;
         errorCode?: string;
-      }>(`${base}/test`, "POST", { modelTier: tier });
+      }>(`${base}/test`, "POST", { modelTier: tier }, { timeoutMs: 35000 });
       setTestResult({
         tier,
         available: result.available,
@@ -383,6 +396,32 @@ export function AiSettingsPanel({
               </Field>
             </div>
 
+            {draft.provider === "openai_compatible" && (
+              <div className="form-grid">
+                {(["defaultReasoningEffort", "strongReasoningEffort"] as const).map((field) => (
+                  <Field
+                    key={field}
+                    label={t(field === "defaultReasoningEffort" ? "aiRoutineReasoning" : "aiStrongReasoning")}
+                    hint={t(field === "defaultReasoningEffort" ? "aiRoutineReasoningHint" : "aiStrongReasoningHint")}
+                  >
+                    <select
+                      value={draft[field]}
+                      disabled={busy}
+                      onChange={(event) => {
+                        setDraft({ ...draft, [field]: event.target.value as ReasoningEffort });
+                        setSaved(false);
+                      }}
+                    >
+                      <option value="none">{t("aiReasoningNone")}</option>
+                      <option value="low">{t("aiReasoningLow")}</option>
+                      <option value="medium">{t("aiReasoningMedium")}</option>
+                      <option value="high">{t("aiReasoningHigh")}</option>
+                    </select>
+                  </Field>
+                ))}
+              </div>
+            )}
+
             <Field
               label={t(
                 draft.provider === "openai_compatible"
@@ -456,7 +495,7 @@ export function AiSettingsPanel({
             <div className="ai-card-heading">
               <div>
                 <h2 id="ai-test-title">{t("aiConnectionTest")}</h2>
-                <p>{t("aiConnectionTestHint")}</p>
+                <p>{t(settings.provider === "openai_compatible" ? "aiLocalConnectionTestHint" : "aiConnectionTestHint")}</p>
               </div>
               {settings.availability.checkedAt && (
                 <small>

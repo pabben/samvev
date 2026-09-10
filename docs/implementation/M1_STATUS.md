@@ -1,7 +1,33 @@
 # M1 implementation status
 
-Updated: 2026-09-09. Branch: `feat/m2-ai-provider-foundation`.
+Updated: 2026-09-10. Branch: `feat/m2-ai-provider-foundation`.
 Overall status: **PASS — local acceptance passed; Git delivery externally verified and sole blocker resolved**.
+
+## Post-M1 M2.3 issue #4 checkpoint — 2026-09-10
+
+The general Oppdrag flow now accepts one explicit domain or URL directly in a
+plain-language request, shows the normalized source and interpreted setup before
+approval, and supports side-effect-free testing plus manual active runs without
+moving the regular schedule. Standard and smarter execution remain internal
+choices expressed in user language; provider, model and reasoning details are
+absent from the ordinary Oppdrag surface. Current answers and dated events retain
+validated source evidence, while unchanged sources reuse the prior result without
+another AI call. Target permissions, display grants, approving authority,
+interpretation leases/rate limits and public-only source fetching are enforced
+server-side. Detailed behavior, migration and focused evidence are recorded in
+[M2_3.md](M2_3.md). This checkpoint does not replace or rerun the historical M1
+acceptance matrix.
+
+## Post-M1 local AI compatibility checkpoint — 2026-09-10
+
+The M2.2 OpenAI-compatible adapter now sends configurable reasoning effort per
+model tier, with `none` for routine work and `medium` for strong work by default.
+Connection tests always force `none`; timeout, upstream failure and invalid
+completed responses remain distinct. Targeted provider, migration, browser,
+typecheck and build checks passed without paid AI calls. Implementation details
+are recorded in [M2_2.md](M2_2.md), with one synthetic UI capture at
+[ai-reasoning-nb-synthetic.png](artifacts/m2-2/ai-reasoning-nb-synthetic.png).
+This checkpoint does not alter or rerun the historical M1 acceptance matrix.
 
 ## Post-M1 person/account checkpoint — 2026-09-09
 

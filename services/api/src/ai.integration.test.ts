@@ -23,12 +23,14 @@ let transportHook: (() => Promise<void>) | undefined;
 const seenModels: string[] = [];
 const seenUrls: string[] = [];
 const seenAuthorization: Array<string | null> = [];
+const seenReasoningEfforts: Array<string | undefined> = [];
 
 const transport = async (url: string, init: RequestInit): Promise<Response> => {
-  const body = JSON.parse(String(init.body)) as { model: string };
+  const body = JSON.parse(String(init.body)) as { model: string; reasoning_effort?: string };
   seenModels.push(body.model);
   seenUrls.push(url);
   seenAuthorization.push(new Headers(init.headers).get('authorization'));
+  seenReasoningEfforts.push(body.reasoning_effort);
   if (transportHook) { const hook = transportHook; transportHook = undefined; await hook(); }
   if (url.endsWith('/chat/completions')) {
     if (transportMode === 'incomplete') return new Response(JSON.stringify({
@@ -100,12 +102,14 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   assert.equal(initial.statusCode, 200, initial.body);
   assert.equal(initial.json().revision, 0);
   assert.equal(initial.json().enabled, false);
+  assert.equal(initial.json().defaultReasoningEffort, 'none');
+  assert.equal(initial.json().strongReasoningEffort, 'medium');
   assert.equal(initial.json().chatGptSubscription.status, 'unavailable');
 
   const callsBeforeDisabledExecution = seenModels.length;
   await assert.rejects(
     aiAdmin.executeTask(f.householdId, { operation: 'classify', purpose: 'synthetic_classification', input: 'Synthetic input', modelTier: 'routine', sources: [] }),
-    (error: unknown) => (error as { code?: string }).code === 'AI_CONFIGURATION_INVALID'
+    (error: unknown) => (error as { code?: string }).code === 'AI_DISABLED'
   );
   assert.equal(seenModels.length, callsBeforeDisabledExecution);
 
@@ -116,10 +120,12 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
 
   const saved = await app.inject({
     method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
-    payload: { enabled: true, provider: 'openai', apiKey: 'syntheticApiKeyOnlyForM21Tests', defaultModel: 'configured-routine', strongModel: 'configured-strong', expectedRevision: 0 }
+    payload: { enabled: true, provider: 'openai', apiKey: 'syntheticApiKeyOnlyForM21Tests', defaultModel: 'configured-routine', strongModel: 'configured-strong', defaultReasoningEffort: 'low', strongReasoningEffort: 'high', expectedRevision: 0 }
   });
   assert.equal(saved.statusCode, 200, saved.body);
   assert.equal(saved.json().hasApiKey, true);
+  assert.equal(saved.json().defaultReasoningEffort, 'low');
+  assert.equal(saved.json().strongReasoningEffort, 'high');
   assert.equal(saved.body.includes('syntheticApiKeyOnlyForM21Tests'), false);
   assert.equal('apiKey' in saved.json(), false);
   const stored = await pool.query<{ api_key_ciphertext: string }>('SELECT api_key_ciphertext FROM ai_settings WHERE household_id=$1', [f.householdId]);
@@ -151,6 +157,8 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
 
   const retained = await app.inject({ method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf), payload: { enabled: false, expectedRevision: 1 } });
   assert.equal(retained.json().hasApiKey, true);
+  assert.equal(retained.json().defaultReasoningEffort, 'low');
+  assert.equal(retained.json().strongReasoningEffort, 'high');
   transportMode = 'success';
   const whileDisabled = await app.inject({ method: 'POST', url: `/api/v1/households/${f.householdId}/ai/test`, headers: auth(f.adminToken, f.adminCsrf), payload: { modelTier: 'routine' } });
   assert.equal(whileDisabled.json().available, true);
@@ -176,13 +184,24 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
     method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
     payload: {
       enabled: true, provider: 'openai_compatible', baseUrl: 'http://127.0.0.1:11434/v1/',
-      defaultModel: 'local-routine', strongModel: 'local-strong', expectedRevision: 3
+      defaultModel: 'local-routine', strongModel: 'local-strong',
+      defaultReasoningEffort: 'none', strongReasoningEffort: 'high', expectedRevision: 3
     }
   });
   assert.equal(localSaved.statusCode, 200, localSaved.body);
   assert.equal(localSaved.json().baseUrl, 'http://127.0.0.1:11434/v1');
   assert.equal(localSaved.json().hasApiKey, false, 'provider changes must not retain the OpenAI key');
+  assert.equal(localSaved.json().defaultReasoningEffort, 'none');
+  assert.equal(localSaved.json().strongReasoningEffort, 'high');
   assert.equal(localSaved.json().providers.find((item: { id: string }) => item.id === 'openai_compatible').runtimeAvailable, true);
+
+  const localRoutineTest = await app.inject({
+    method: 'POST', url: `/api/v1/households/${f.householdId}/ai/test`, headers: auth(f.adminToken, f.adminCsrf),
+    payload: { modelTier: 'routine' }
+  });
+  assert.equal(localRoutineTest.json().available, true);
+  assert.equal(seenModels.at(-1), 'local-routine');
+  assert.equal(seenReasoningEfforts.at(-1), 'none');
 
   const localTest = await app.inject({
     method: 'POST', url: `/api/v1/households/${f.householdId}/ai/test`, headers: auth(f.adminToken, f.adminCsrf),
@@ -190,6 +209,7 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   });
   assert.equal(localTest.json().available, true);
   assert.equal(seenModels.at(-1), 'local-strong');
+  assert.equal(seenReasoningEfforts.at(-1), 'none');
   assert.equal(seenUrls.at(-1), 'http://127.0.0.1:11434/v1/chat/completions');
   assert.equal(seenAuthorization.at(-1), null);
 
@@ -199,6 +219,15 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   });
   assert.equal(localResult.output, 'OK');
   assert.equal(seenModels.at(-1), 'local-routine');
+  assert.equal(seenReasoningEfforts.at(-1), 'none');
+
+  const localStrongResult = await aiAdmin.executeTask(f.householdId, {
+    operation: 'plan', purpose: 'synthetic_local_strong', input: 'Synthetic local strong input',
+    modelTier: 'strong', sources: []
+  });
+  assert.equal(localStrongResult.output, 'OK');
+  assert.equal(seenModels.at(-1), 'local-strong');
+  assert.equal(seenReasoningEfforts.at(-1), 'high');
 
   const localKey = await app.inject({
     method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
@@ -238,8 +267,38 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
     4_000_000_000
   );
 
-  const migrations = await pool.query<{ version: string }>("SELECT version FROM schema_migrations WHERE version IN ('005_ai_provider_foundation.sql','006_openai_compatible_provider.sql') ORDER BY version");
-  assert.deepEqual(migrations.rows.map((row) => row.version), ['005_ai_provider_foundation.sql', '006_openai_compatible_provider.sql']);
+  const migrations = await pool.query<{ version: string }>("SELECT version FROM schema_migrations WHERE version IN ('005_ai_provider_foundation.sql','006_openai_compatible_provider.sql','010_ai_reasoning_effort.sql') ORDER BY version");
+  assert.deepEqual(migrations.rows.map((row) => row.version), ['005_ai_provider_foundation.sql', '006_openai_compatible_provider.sql', '010_ai_reasoning_effort.sql']);
   await migrate();
-  assert.equal((await pool.query<{ count: number }>("SELECT count(*)::int AS count FROM schema_migrations WHERE version='006_openai_compatible_provider.sql'")).rows[0]!.count, 1);
+  assert.equal((await pool.query<{ count: number }>("SELECT count(*)::int AS count FROM schema_migrations WHERE version='010_ai_reasoning_effort.sql'")).rows[0]!.count, 1);
+});
+
+test('reasoning migration preserves existing provider configuration and adds only its defaults',async()=>{
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    await client.query(`CREATE TEMP TABLE ai_settings(
+      household_id uuid PRIMARY KEY,enabled boolean NOT NULL,provider text NOT NULL,
+      api_key_ciphertext text,base_url text,default_model text NOT NULL,strong_model text NOT NULL
+    )`);
+    await client.query(`SET LOCAL search_path TO pg_temp`);
+    await client.query(`INSERT INTO ai_settings VALUES(
+      '11111111-1111-4111-8111-111111111111',true,'openai_compatible',
+      'synthetic-encrypted-credential','http://127.0.0.1:11434/v1','synthetic-routine','synthetic-strong'
+    )`);
+    const before=(await client.query(`SELECT household_id,enabled,provider,api_key_ciphertext,base_url,default_model,strong_model FROM ai_settings`)).rows[0];
+    const migration=await fs.readFile(resolve(process.cwd(),'services/api/migrations/010_ai_reasoning_effort.sql'),'utf8');
+    await client.query(migration);
+    const after=(await client.query(`SELECT household_id,enabled,provider,api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort FROM ai_settings`)).rows[0];
+    assert.deepEqual({
+      household_id:after.household_id,enabled:after.enabled,provider:after.provider,
+      api_key_ciphertext:after.api_key_ciphertext,base_url:after.base_url,
+      default_model:after.default_model,strong_model:after.strong_model
+    },before);
+    assert.equal(after.default_reasoning_effort,'none');
+    assert.equal(after.strong_reasoning_effort,'medium');
+  }finally{
+    await client.query('ROLLBACK');
+    client.release();
+  }
 });

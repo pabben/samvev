@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MonitorSourceFetcher, isBlockedMonitorAddress, normalizeMonitorUrl, selectRelevantSource } from './source-fetcher.ts';
+import { MonitorSourceFetcher, isBlockedMonitorAddress, normalizeMonitorUrl, selectRelevantSource, sourceUrlFromInstruction } from './source-fetcher.ts';
 
 const resolver=async()=>[{address:'93.184.216.34',family:4 as const}];
 const response=(body:string|Buffer,type:string,status=200,location?:string)=>({status,headers:{'content-type':type,location,etag:undefined,'last-modified':undefined},body:Buffer.isBuffer(body)?body:Buffer.from(body)});
@@ -15,6 +15,16 @@ test('monitor URL policy permits public HTTP(S) and blocks internal and metadata
   for(const address of ['127.0.0.1','10.0.0.4','192.168.1.10','169.254.169.254','::1','fd00::1','fec0::1','64:ff9b::a9fe:a9fe','2002:a9fe:a9fe::'])assert.equal(isBlockedMonitorAddress(address),true,address);
   assert.throws(()=>normalizeMonitorUrl('http://metadata.google.internal/latest'));
   assert.throws(()=>normalizeMonitorUrl('http://user:password@example.com/'));
+});
+
+test('natural instructions yield one explicit, normalized and approved source',()=>{
+  assert.equal(sourceUrlFromInstruction('Sjekk nrk.no og presenter toppsaken'),'https://nrk.no/');
+  assert.equal(sourceUrlFromInstruction('Read https://example.com/news?day=1#top now'),'https://example.com/news?day=1');
+  assert.equal(sourceUrlFromInstruction('Sjekk nrk.no','https://example.com/manual'),'https://example.com/manual');
+  assert.throws(()=>sourceUrlFromInstruction('Send resultatet til reader@example.com'),(error:any)=>error.code==='MONITOR_SOURCE_REQUIRED');
+  assert.throws(()=>sourceUrlFromInstruction('Finn dagens toppsak'),(error:any)=>error.code==='MONITOR_SOURCE_REQUIRED');
+  assert.throws(()=>sourceUrlFromInstruction('Sammenlign nrk.no med example.com'),(error:any)=>error.code==='MONITOR_SOURCE_AMBIGUOUS');
+  for(const instruction of ['Sjekk http://127.0.0.1/private','Sjekk 127.0.0.1:8080/private','Sjekk 169.254.169.254/latest','Sjekk http://169.254.169.254/latest','Sjekk metadata.google.internal'])assert.throws(()=>sourceUrlFromInstruction(instruction),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
 });
 
 test('HTML is normalized and unchanged relevant content has a stable fingerprint',async()=>{

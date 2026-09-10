@@ -129,7 +129,9 @@ const pinnedHttpTransport: AiHttpTransport = (urlText, init, target) => new Prom
     let size = 0;
     response.on('data', (chunk: Buffer) => {
       size += chunk.length;
-      if (size > MAX_RESPONSE_BYTES) response.destroy(new AiProviderFailure('AI_RESPONSE_INVALID'));
+      if (size > MAX_RESPONSE_BYTES) response.destroy(new AiProviderFailure(
+        (response.statusCode??502)>=200 && (response.statusCode??502)<300 ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR'
+      ));
       else chunks.push(chunk);
     });
     response.on('error', reject);
@@ -169,7 +171,7 @@ function normalizedUsage(value: unknown): { inputTokens?: number; outputTokens?:
 function outputText(payload: Record<string, unknown>, usage?: { inputTokens?: number; outputTokens?: number }): string {
   if (!Array.isArray(payload.choices) || !payload.choices.length) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
   const message = (payload.choices[0] as { message?: unknown } | undefined)?.message;
-  if (!message || typeof message !== 'object' || (message as { refusal?: unknown }).refusal) {
+  if (!message || typeof message !== 'object') {
     throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
   }
   const content = (message as { content?: unknown }).content;
@@ -198,14 +200,11 @@ export class OpenAiCompatibleProvider implements AiProvider {
     }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    try {
-      const abort = new Promise<never>((_resolve, reject) => {
-        controller.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
-      });
-      const { baseUrl, target } = await Promise.race([
-        resolveOpenAiCompatibleTarget(configuration.baseUrl, this.resolver),
-        abort
-      ]);
+    const abort = new Promise<never>((_resolve, reject) => {
+      controller.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
+    });
+    const request = async (): Promise<AiResult> => {
+      const { baseUrl, target } = await resolveOpenAiCompatibleTarget(configuration.baseUrl!, this.resolver);
       const headers: Record<string, string> = { 'content-type': 'application/json' };
       if (configuration.apiKey) headers.authorization = `Bearer ${configuration.apiKey}`;
       const response = await this.transport(completionUrl(baseUrl), {
@@ -214,12 +213,13 @@ export class OpenAiCompatibleProvider implements AiProvider {
           model: configuration.model,
           messages: [{ role: 'user', content: task.input }],
           max_tokens: task.maxOutputTokens ?? 64,
+          reasoning_effort: configuration.reasoningEffort ?? 'none',
           stream: false
         }),
         signal: controller.signal
       }, target);
       const text = await response.text();
-      if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES) throw new AiProviderFailure('AI_RESPONSE_INVALID');
+      if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES) throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR');
       let parsed: unknown;
       try { parsed = JSON.parse(text); }
       catch { throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR'); }
@@ -233,9 +233,12 @@ export class OpenAiCompatibleProvider implements AiProvider {
         output: outputText(payload, usage), generatedAt: new Date().toISOString(), uncertainty: 'unknown',
         sources: task.sources, ...(usage ? { usage } : {})
       });
+    };
+    try {
+      return await Promise.race([request(),abort]);
     } catch (error) {
+      if (controller.signal.aborted) throw new AiProviderFailure('AI_TIMEOUT');
       if (error instanceof AiProviderFailure) throw error;
-      if (controller.signal.aborted || (error as { name?: string }).name === 'AbortError') throw new AiProviderFailure('AI_TIMEOUT');
       throw new AiProviderFailure('AI_UPSTREAM_ERROR');
     } finally { clearTimeout(timeout); }
   }
@@ -244,6 +247,6 @@ export class OpenAiCompatibleProvider implements AiProvider {
     return this.execute({
       operation: 'generate', purpose: 'connection_test', input: 'Reply with the single word OK.',
       modelTier: 'routine', sources: []
-    }, configuration);
+    }, { ...configuration, reasoningEffort: 'none' });
   }
 }

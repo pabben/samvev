@@ -85,10 +85,17 @@ export interface Message {
 export interface MonitorTask {
   id:string;name:string;instruction:string;sourceUrl:string;state:'draft'|'active'|'paused';
   checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;providerPolicy:'default'|'local'|'openai';modelTier:'routine'|'strong';
-  targets:{personIds:string[];displayIds:string[]};interpretedRule:{summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number}|null;
+  targets:{personIds:string[];displayIds:string[]};interpretedRule:{resultKind?:'events'|'answer';summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number}|null;
   events:{date:string;time:string|null;type:string;description:string;actions:string[];who:string[];evidence:{quote:string;sourceUrl:string};confidence:number;uncertainty:string|null}[];
   revision:number;approvedRevision:number|null;lastCheckedAt:string|null;nextCheckAt:string|null;lastResult:string|null;lastChangedAt:string|null;errorCode:string|null;
   stats:{checks:number;aiCalls:number;unchanged:number};
+  source?:{finalUrl:string|null};
+  latestResult?:Omit<MonitorRunResult,'outcome'>|null;
+}
+export interface MonitorRunResult {
+  outcome:'changed'|'unchanged';resultKind:'events'|'answer'|null;
+  result:{answer?:string;events?:MonitorTask['events'];evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
+  sourceUrl:string;checkedAt:string;
 }
 export interface Card {
   id: string;

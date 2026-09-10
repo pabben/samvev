@@ -10,7 +10,7 @@ import {
   OpenAiCompatibleProvider,
   resolveOpenAiCompatibleTarget
 } from './openai-compatible-provider.ts';
-import { AiProviderFailure, validateAiResult, validateAiTask } from './provider.ts';
+import { AiProviderFailure, validateAiProviderConfiguration, validateAiResult, validateAiTask } from './provider.ts';
 import { AiCredentialVault } from './credential-vault.ts';
 
 const task = {
@@ -20,6 +20,12 @@ const task = {
   modelTier: 'routine' as const,
   sources: [{ url: 'https://example.invalid/source', observedAt: '2026-09-08T10:00:00.000Z', uncertainty: 'medium' as const }]
 };
+
+test('provider configuration requires credentials only when the provider contract does',()=>{
+  assert.doesNotThrow(()=>validateAiProviderConfiguration({provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}));
+  assert.throws(()=>validateAiProviderConfiguration({provider:'openai',model:'remote'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_CONFIGURATION_INVALID');
+  assert.doesNotThrow(()=>validateAiProviderConfiguration({provider:'openai',model:'remote',apiKey:'synthetic'}));
+});
 
 test('provider-neutral task and result contracts are strict and preserve evidence', async () => {
   assert.deepEqual(validateAiTask(task), task);
@@ -38,7 +44,7 @@ test('provider-neutral task and result contracts are strict and preserve evidenc
       usage: { input_tokens: 12, output_tokens: 4 }
     }), { status: 200 });
   });
-  const result = await provider.execute(task, { provider: 'openai', model: 'configured-routine', apiKey: 'synthetic-api-key-for-tests' });
+  const result = await provider.execute(task, { provider: 'openai', model: 'configured-routine', apiKey: 'synthetic-api-key-for-tests', reasoningEffort: 'high' });
   assert.equal(seenUrl, 'https://api.openai.com/v1/responses');
   assert.equal((seenInit?.headers as Record<string, string>).authorization, 'Bearer synthetic-api-key-for-tests');
   assert.deepEqual(JSON.parse(String(seenInit?.body)), {
@@ -86,7 +92,8 @@ test('OpenAI-compatible adapter supports every operation, optional credentials a
   const provider = new OpenAiCompatibleProvider(async (url, init, target) => {
     seen.push({ url, init, target });
     return new Response(JSON.stringify({
-      choices: [{ message: { role: 'assistant', content: 'Synthetic local result' }, finish_reason: 'stop' }],
+      reasoning: { summary: 'extra top-level reasoning is ignored' },
+      choices: [{ message: { role: 'assistant', content: 'Synthetic local result', reasoning_content: 'extra reasoning is ignored', refusal: 'extra refusal metadata is ignored when content is valid' }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 9, completion_tokens: 3 }
     }), { status: 200 });
   }, 1_000, async () => [{ address: '192.168.1.40', family: 4 }]);
@@ -106,6 +113,7 @@ test('OpenAI-compatible adapter supports every operation, optional credentials a
     model: 'local-routine',
     messages: [{ role: 'user', content: task.input }],
     max_tokens: 64,
+    reasoning_effort: 'none',
     stream: false
   });
 
@@ -113,6 +121,17 @@ test('OpenAI-compatible adapter supports every operation, optional credentials a
     provider: 'openai_compatible', model: 'local-routine', baseUrl: 'http://local-ai.test/v1', apiKey: 'short'
   });
   assert.equal(new Headers(seen.at(-1)!.init.headers).get('authorization'), 'Bearer short');
+
+  await provider.execute(task, {
+    provider: 'openai_compatible', model: 'local-routine', baseUrl: 'http://local-ai.test/v1', reasoningEffort: 'high'
+  });
+  assert.equal(JSON.parse(String(seen.at(-1)!.init.body)).reasoning_effort,'high');
+  await provider.testConnection({
+    provider:'openai_compatible',model:'local-strong',baseUrl:'http://local-ai.test/v1',reasoningEffort:'high'
+  });
+  const connectionBody=JSON.parse(String(seen.at(-1)!.init.body));
+  assert.equal(connectionBody.model,'local-strong');
+  assert.equal(connectionBody.reasoning_effort,'none');
 });
 
 test('OpenAI-compatible default transport reaches a mocked local endpoint through the validated pinned address', async () => {
@@ -204,7 +223,9 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
   const resolver = async () => [{ address: '127.0.0.1', family: 4 as const }];
   for (const item of [
     { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 401 }), code: 'AI_UPSTREAM_ERROR' },
-    { response: new Response(JSON.stringify({ choices: [] }), { status: 200 }), code: 'AI_RESPONSE_INVALID' }
+    { response: new Response('{', { status: 503 }), code: 'AI_UPSTREAM_ERROR' },
+    { response: new Response(JSON.stringify({ choices: [] }), { status: 200 }), code: 'AI_RESPONSE_INVALID' },
+    { response: new Response('{', { status: 200 }), code: 'AI_RESPONSE_INVALID' }
   ]) {
     const provider = new OpenAiCompatibleProvider(async () => item.response, 1_000, resolver);
     await assert.rejects(
@@ -221,6 +242,49 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
     timeout.execute(task, { provider: 'openai_compatible', model: 'local', baseUrl: 'http://localhost:11434/v1' }),
     (error: unknown) => error instanceof AiProviderFailure && error.code === 'AI_TIMEOUT'
   );
+
+  const transportTimeout = new OpenAiCompatibleProvider(
+    async () => new Promise((_resolve,reject)=>setTimeout(()=>reject(new AiProviderFailure('AI_RESPONSE_INVALID')),60)),
+    20,
+    resolver
+  );
+  await assert.rejects(
+    transportTimeout.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_TIMEOUT'
+  );
+
+  const bodyTimeout = new OpenAiCompatibleProvider(async()=>new Response(new ReadableStream({start(){ /* intentionally never closes */ }})),20,resolver);
+  await assert.rejects(
+    bodyTimeout.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_TIMEOUT'
+  );
+
+  const networkFailure=new OpenAiCompatibleProvider(async()=>{throw new Error('synthetic network failure');},1_000,resolver);
+  await assert.rejects(
+    networkFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'
+  );
+
+  const upstreamAbort=new OpenAiCompatibleProvider(async()=>{throw new DOMException('upstream aborted early','AbortError');},1_000,resolver);
+  await assert.rejects(
+    upstreamAbort.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'
+  );
+
+  const dnsFailure=new OpenAiCompatibleProvider(async()=>new Response('{}'),1_000,async()=>{throw new Error('synthetic dns failure');});
+  await assert.rejects(
+    dnsFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'
+  );
+
+  const reasoningOnly=new OpenAiCompatibleProvider(async()=>new Response(JSON.stringify({choices:[{message:{content:null,reasoning_content:'No final answer'}}]})),1_000,resolver);
+  await assert.rejects(
+    reasoningOnly.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_RESPONSE_INVALID'
+  );
+
+  const textParts=new OpenAiCompatibleProvider(async()=>new Response(JSON.stringify({choices:[{message:{content:[{type:'reasoning',text:'ignore'},{type:'text',text:'Final text'}],reasoning_content:'ignore'}}]})),1_000,resolver);
+  assert.equal((await textParts.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'})).output,'Final text');
 
   const oversizedUsage = new OpenAiCompatibleProvider(async () => new Response(JSON.stringify({
     choices: [{ message: { content: 'Valid output without unsafe counters' } }],

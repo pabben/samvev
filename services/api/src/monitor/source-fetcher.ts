@@ -33,6 +33,25 @@ export function normalizeMonitorUrl(value:string):string {
   return url.toString();
 }
 
+function trimUrlPunctuation(value:string):string {
+  return value.replace(/[),.;!?\]}]+$/g,'');
+}
+
+/** Deterministic extraction only. The model never selects an unapproved source. */
+export function sourceUrlFromInstruction(instruction:string,manualSource?:string):string {
+  if(manualSource?.trim())return normalizeMonitorUrl(manualSource.trim());
+  const matches:string[]=[];
+  const withoutUrls=instruction.replace(/https?:\/\/[^\s<>"']+/gi,(match)=>{matches.push(trimUrlPunctuation(match));return ' ';});
+  const withoutEmails=withoutUrls.replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,63}\b/gi,' ');
+  const withoutIps=withoutEmails.replace(/\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?:\/[^\s<>"']*)?/g,(match)=>{matches.push(`https://${trimUrlPunctuation(match)}`);return ' ';});
+  const domains=withoutIps.match(/\b(?:www\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}(?::\d{1,5})?(?:\/[^\s<>"']*)?/gi)??[];
+  matches.push(...domains.map(trimUrlPunctuation).map((value)=>`https://${value}`));
+  const normalized=[...new Set(matches.map((value)=>normalizeMonitorUrl(value)))];
+  if(normalized.length===0)throw new DomainError('MONITOR_SOURCE_REQUIRED',422);
+  if(normalized.length!==1)throw new DomainError('MONITOR_SOURCE_AMBIGUOUS',422);
+  return normalized[0]!;
+}
+
 export interface SourceDocument { finalUrl:string; contentType:'text/html'|'application/pdf'; text:string; fingerprint:string; etag?:string; lastModified?:string; }
 export type MonitorResolver=(hostname:string)=>Promise<Array<{address:string;family:4|6}>>;
 
@@ -91,7 +110,7 @@ async function pdfText(bytes:Uint8Array,signal:AbortSignal):Promise<string>{
 
 export class MonitorSourceFetcher {
   constructor(private readonly resolver:MonitorResolver=defaultResolver,private readonly transport=fetchPinned,private readonly timeoutMs=TIMEOUT_MS){}
-  async fetch(rawUrl:string):Promise<SourceDocument>{
+  async fetch(rawUrl:string,options:{followLinkedPdf?:boolean}={}):Promise<SourceDocument>{
     const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),this.timeoutMs);
     try{
       let url=new URL(normalizeMonitorUrl(rawUrl));let response:Awaited<ReturnType<typeof fetchPinned>>|undefined;
@@ -104,7 +123,7 @@ export class MonitorSourceFetcher {
       if(!kind&&url.pathname.toLowerCase().endsWith('.pdf'))kind='application/pdf';
       let text:string;let finalUrl=url.toString();let metadata=response;
       if(kind==='text/html'||kind==='application/xhtml+xml'){
-        const html=response.body.toString('utf8');const pdf=linkedPdf(html,url);
+        const html=response.body.toString('utf8');const pdf=options.followLinkedPdf===false?undefined:linkedPdf(html,url);
         if(pdf){
           let safePdf=new URL(normalizeMonitorUrl(pdf.toString()));let linked:Awaited<ReturnType<typeof fetchPinned>>|undefined;
           for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){const target=await resolvePublic(safePdf,this.resolver,controller.signal);linked=await this.transport(safePdf,target,controller.signal);if(linked.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);if(linked.status>=300&&linked.status<400&&linked.headers.location){if(redirects===MAX_REDIRECTS)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);safePdf=new URL(normalizeMonitorUrl(new URL(linked.headers.location,safePdf).toString()));continue;}break;}

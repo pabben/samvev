@@ -2639,3 +2639,22 @@ details[open] > summary:before {
     width: 100%;
   }
 }
+
+/* Tasks: request first, reviewable setup and source-backed results. */
+.monitor-page .section-heading h1:focus,.monitor-card:focus,.monitor-result:focus,.monitor-error:focus,.monitor-delete:focus{outline:3px solid var(--focus);outline-offset:4px}
+.monitor-page .card-top{align-items:flex-start;gap:12px;flex-wrap:wrap}
+.monitor-page .card-top h2{flex:1;min-width:160px;overflow-wrap:anywhere}
+.monitor-state{max-width:100%;white-space:normal}
+.monitor-source{font-size:12px;color:var(--teal);overflow-wrap:anywhere}
+.monitor-options summary,.monitor-findings summary{cursor:pointer;font-weight:700;padding:8px 0}
+.monitor-options>.form-stack{margin-top:16px}
+.monitor-form>fieldset{min-width:0}
+.monitor-result{padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--canvas);overflow-wrap:anywhere}
+.monitor-result h3{font-size:17px;margin:0 0 12px}.monitor-result p{margin:10px 0}.monitor-result a,.monitor-finding a{color:var(--teal);font-size:13px}
+.monitor-result blockquote,.monitor-finding blockquote{margin:12px 0;padding-left:12px;border-left:3px solid var(--line);font-size:13px;color:var(--muted)}
+.monitor-result small{margin-top:10px}.monitor-answer{white-space:pre-wrap}.monitor-finding{padding:12px 0;border-bottom:1px solid var(--line)}
+.monitor-delete{display:block}.monitor-delete p{margin-top:0}.monitor-card .card-actions button{min-height:44px;white-space:normal;text-align:left}.monitor-form .card-actions{display:flex;flex-wrap:wrap;gap:10px}
+.monitor-card .monitor-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-card[aria-busy=true]{opacity:.8}
+@media(max-width:600px){.monitor-rule{grid-template-columns:1fr}.monitor-form .card-actions .primary{width:100%}.monitor-page .section-heading{gap:14px}.monitor-card{padding:20px}.monitor-result{padding:14px}}
+
+.monitor-card .preview-panel{align-self:stretch;overflow-wrap:anywhere}

@@ -59,3 +59,12 @@ being forwarded to a different endpoint.
 Migration: additive AI settings/usage tables only; existing M1 schema remains
 unchanged. Older M1 code can ignore these tables. Back up the encryption key
 alongside the database; deleting the key requires re-entering API credentials.
+
+Extended for local reasoning compatibility, 2026-09-10: routine and strong
+tiers store explicit reasoning effort (`none`, `low`, `medium`, `high`), with
+defaults `none` and `medium`. OpenAI-compatible Chat Completions receives the
+flat `reasoning_effort` field. OpenAI Responses stays unchanged. A connection
+test always forces `none` so health checks do not incur reasoning work, while
+normal work uses its selected tier setting. The single local deadline covers
+DNS, transport and body consumption; timeout classification wins over a late
+provider failure.

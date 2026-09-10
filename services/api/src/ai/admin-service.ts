@@ -1,10 +1,13 @@
-import { aiTaskSchema, type AiModelTier, type AiProviderId, type AiResult, type AiTask, type MonitorProviderPolicy } from '@samvev/contracts';
+import { aiTaskSchema, type AiModelTier, type AiProviderId, type AiReasoningEffort, type AiResult, type AiTask, type MonitorProviderPolicy } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import { pool, transaction } from '../db.ts';
 import { AiCredentialVault } from './credential-vault.ts';
 import { normalizeOpenAiCompatibleBaseUrl, OpenAiCompatibleProvider } from './openai-compatible-provider.ts';
 import { OpenAiProvider, type AiHttpTransport } from './openai-provider.ts';
-import { AiProviderFailure, type AiFailureCode, type AiProvider } from './provider.ts';
+import {
+  AiProviderFailure, aiProviderRequirements, validateAiProviderConfiguration,
+  type AiFailureCode, type AiProvider
+} from './provider.ts';
 
 interface SettingsRow {
   household_id: string;
@@ -14,6 +17,8 @@ interface SettingsRow {
   base_url: string | null;
   default_model: string;
   strong_model: string;
+  default_reasoning_effort: AiReasoningEffort;
+  strong_reasoning_effort: AiReasoningEffort;
   revision: number;
   availability_status: 'not_tested' | 'available' | 'unavailable' | 'error';
   availability_error_code: string | null;
@@ -28,6 +33,8 @@ export interface AiSettingsPatch {
   baseUrl?: string | null;
   defaultModel?: string;
   strongModel?: string;
+  defaultReasoningEffort?: AiReasoningEffort;
+  strongReasoningEffort?: AiReasoningEffort;
   expectedRevision: number;
 }
 
@@ -41,7 +48,8 @@ const providerCatalog = [
 function emptySettings(householdId: string): SettingsRow {
   return {
     household_id: householdId, enabled: false, provider: 'openai', api_key_ciphertext: null, base_url: null,
-    default_model: '', strong_model: '', revision: 0, availability_status: 'not_tested',
+    default_model: '', strong_model: '', default_reasoning_effort: 'none', strong_reasoning_effort: 'medium',
+    revision: 0, availability_status: 'not_tested',
     availability_error_code: null, availability_checked_at: null, availability_checked_revision: null
   };
 }
@@ -52,6 +60,13 @@ function normalizedBaseUrl(value: string): string {
     if (error instanceof AiProviderFailure) throw new DomainError(error.code, 422);
     throw new DomainError('AI_CONFIGURATION_INVALID', 422);
   }
+}
+
+function hasStoredProviderConfiguration(settings: SettingsRow): boolean {
+  const requirements = aiProviderRequirements[settings.provider];
+  return Boolean(settings.default_model && settings.strong_model &&
+    (!requirements.apiKey || settings.api_key_ciphertext) &&
+    (!requirements.baseUrl || settings.base_url));
 }
 
 export class AiAdminService {
@@ -83,12 +98,15 @@ export class AiAdminService {
         }
         const baseUrl = provider === 'openai_compatible' && patch.baseUrl ? normalizedBaseUrl(patch.baseUrl) : null;
         const inserted = await client.query<SettingsRow>(`INSERT INTO ai_settings(
-          household_id,enabled,provider,api_key_ciphertext,base_url,default_model,strong_model,revision
-        ) SELECT $1,$2,$3,$4,$5,$6,$7,1 WHERE EXISTS(SELECT 1 FROM households WHERE id=$1)
+          household_id,enabled,provider,api_key_ciphertext,base_url,default_model,strong_model,
+          default_reasoning_effort,strong_reasoning_effort,revision
+        ) SELECT $1,$2,$3,$4,$5,$6,$7,$8,$9,1 WHERE EXISTS(SELECT 1 FROM households WHERE id=$1)
         ON CONFLICT DO NOTHING RETURNING *`, [
           householdId, patch.enabled ?? base.enabled, provider,
           ciphertext === undefined ? base.api_key_ciphertext : ciphertext,
-          baseUrl, patch.defaultModel ?? base.default_model, patch.strongModel ?? base.strong_model
+          baseUrl, patch.defaultModel ?? base.default_model, patch.strongModel ?? base.strong_model,
+          patch.defaultReasoningEffort ?? base.default_reasoning_effort,
+          patch.strongReasoningEffort ?? base.strong_reasoning_effort
         ]);
         if (!inserted.rowCount) throw new DomainError('REVISION_CONFLICT', 409);
         return inserted.rows[0]!;
@@ -107,11 +125,14 @@ export class AiAdminService {
         : ciphertext;
       const result = await client.query<SettingsRow>(`UPDATE ai_settings SET
         enabled=$2,provider=$3,api_key_ciphertext=$4,base_url=$5,default_model=$6,strong_model=$7,
+        default_reasoning_effort=$8,strong_reasoning_effort=$9,
         revision=revision+1,availability_status='not_tested',availability_error_code=NULL,
         availability_checked_at=NULL,availability_checked_revision=NULL,updated_at=clock_timestamp()
-        WHERE household_id=$1 AND revision=$8 RETURNING *`, [
+        WHERE household_id=$1 AND revision=$10 RETURNING *`, [
           householdId, patch.enabled ?? existing.enabled, provider, nextCiphertext, baseUrl,
           patch.defaultModel ?? existing.default_model, patch.strongModel ?? existing.strong_model,
+          patch.defaultReasoningEffort ?? existing.default_reasoning_effort,
+          patch.strongReasoningEffort ?? existing.strong_reasoning_effort,
           patch.expectedRevision
         ]);
       if (!result.rowCount) throw new DomainError('REVISION_CONFLICT', 409);
@@ -148,7 +169,7 @@ export class AiAdminService {
     const outcome = await this.run(householdId, settings, task, true, false);
     const model=task.modelTier==='strong'?settings.strong_model:settings.default_model;
     if (outcome.success) return {result:outcome.result,provider:settings.provider,model};
-    const status = outcome.failure.code === 'AI_CONFIGURATION_INVALID' ? 422 :
+    const status = ['AI_CONFIGURATION_INVALID','AI_DISABLED'].includes(outcome.failure.code) ? 422 :
       outcome.failure.code === 'AI_TIMEOUT' ? 504 : 502;
     throw new DomainError(outcome.failure.code, status);
   }
@@ -193,19 +214,17 @@ export class AiAdminService {
     const model = task.modelTier === 'strong' ? settings.strong_model : settings.default_model;
     let outcome: { success: true; result: AiResult } | { success: false; failure: AiProviderFailure };
     try {
-      if (requireEnabled && !settings.enabled) throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
+      if (requireEnabled && !settings.enabled) throw new AiProviderFailure('AI_DISABLED');
       const provider = this.providers[settings.provider];
       if (!provider) throw new AiProviderFailure('AI_PROVIDER_UNAVAILABLE');
-      if (!model || (settings.provider === 'openai' && !settings.api_key_ciphertext) ||
-          (settings.provider === 'openai_compatible' && !settings.base_url)) {
-        throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
-      }
       let apiKey: string | undefined;
       if (settings.api_key_ciphertext) {
         try { apiKey = await this.vault.decrypt(householdId, settings.api_key_ciphertext); }
         catch { throw new AiProviderFailure('AI_CONFIGURATION_INVALID'); }
       }
-      const configuration = { provider: settings.provider, model, apiKey, baseUrl: settings.base_url ?? undefined };
+      const reasoningEffort = connectionTest ? 'none' : task.modelTier === 'strong' ? settings.strong_reasoning_effort : settings.default_reasoning_effort;
+      const configuration = { provider: settings.provider, model, apiKey, baseUrl: settings.base_url ?? undefined, reasoningEffort };
+      validateAiProviderConfiguration(configuration);
       const result = connectionTest ? await provider.testConnection(configuration) : await provider.execute(task, configuration);
       outcome = { success: true, result };
     } catch (error) {
@@ -224,9 +243,7 @@ export class AiAdminService {
 
   private settingsDto(settings: SettingsRow): Record<string, unknown> {
     const runtimeSupported = Boolean(this.providers[settings.provider]);
-    const hasCompleteConfig = Boolean(settings.default_model && settings.strong_model &&
-      (settings.provider === 'openai' ? settings.api_key_ciphertext :
-        settings.provider === 'openai_compatible' ? settings.base_url : false));
+    const hasCompleteConfig = hasStoredProviderConfiguration(settings);
     let status: 'not_tested' | 'not_configured' | 'available' | 'unavailable' | 'error' =
       settings.availability_checked_revision === settings.revision ? settings.availability_status : 'not_tested';
     let errorCode = settings.availability_checked_revision === settings.revision ? settings.availability_error_code : null;
@@ -235,6 +252,7 @@ export class AiAdminService {
     return {
       enabled: settings.enabled, provider: settings.provider, hasApiKey: Boolean(settings.api_key_ciphertext),
       baseUrl: settings.base_url, defaultModel: settings.default_model, strongModel: settings.strong_model,
+      defaultReasoningEffort: settings.default_reasoning_effort, strongReasoningEffort: settings.strong_reasoning_effort,
       revision: settings.revision,
       availability: {
         status, available: status === 'available', errorCode,
