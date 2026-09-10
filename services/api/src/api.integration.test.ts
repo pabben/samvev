@@ -111,7 +111,7 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   const ownerEscalation=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(cookies(managerLogin),managerLogin.json().csrfToken),payload:{rolePreset:'limited',capabilities:['household.view'],displayIds:[],expectedRevision:1}});
   assert.equal(ownerEscalation.statusCode,403);
 
-  const ownerDemotion=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'household_admin',capabilities:['household.view','household.manage'],displayIds:[],expectedRevision:1}});
+  const ownerDemotion=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'household_admin',capabilities:['household.view','household.manage','people.manage','account.manage','capability.manage','message.create.household','message.publish.display','message.schedule','message.manage.household','display.manage'],displayIds:[],expectedRevision:1}});
   assert.equal(ownerDemotion.statusCode,409);
   assert.equal(ownerDemotion.json().error.details.reason,'last_installation_owner');
 
@@ -222,7 +222,19 @@ test('scheduler does not starve due rows behind active published rows and migrat
   assert.deepEqual(batch,{published:1,expired:0});
   assert.equal((await pool.query('SELECT state FROM messages WHERE id=$1',[due.rows[0]!.id])).rows[0].state,'published');
   await migrate();
-  assert.equal((await pool.query('SELECT count(*)::int AS count FROM schema_migrations')).rows[0].count,4);
+  assert.deepEqual((await pool.query<{version:string}>('SELECT version FROM schema_migrations ORDER BY version')).rows.map(row=>row.version),[
+    '001_m1.sql',
+    '002_demo_label.sql',
+    '003_idempotency_and_display_events.sql',
+    '004_rate_limit_cleanup.sql',
+    '005_ai_provider_foundation.sql',
+    '006_openai_compatible_provider.sql',
+    '007_monitor_tasks.sql',
+    '008_people_accounts_households.sql',
+    '009_invitation_rotation.sql',
+    '010_ai_reasoning_effort.sql',
+    '011_monitor_manual_runs.sql'
+  ]);
 });
 
 test('migration checksum mismatch fails closed without changing the isolated schema or application data', async()=>{

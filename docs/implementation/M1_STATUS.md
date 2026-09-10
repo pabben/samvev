@@ -1,7 +1,43 @@
 # M1 implementation status
 
-Updated: 2026-09-07. Branch: `feat/m1-first-runnable-slice`.
+Updated: 2026-09-10. Branch: `feat/m2-ai-provider-foundation`.
 Overall status: **PASS — local acceptance passed; Git delivery externally verified and sole blocker resolved**.
+
+## Post-M1 M2.3 issue #4 checkpoint — 2026-09-10
+
+The general Oppdrag flow now accepts one explicit domain or URL directly in a
+plain-language request, shows the normalized source and interpreted setup before
+approval, and supports side-effect-free testing plus manual active runs without
+moving the regular schedule. Standard and smarter execution remain internal
+choices expressed in user language; provider, model and reasoning details are
+absent from the ordinary Oppdrag surface. Current answers and dated events retain
+validated source evidence, while unchanged sources reuse the prior result without
+another AI call. Target permissions, display grants, approving authority,
+interpretation leases/rate limits and public-only source fetching are enforced
+server-side. Detailed behavior, migration and focused evidence are recorded in
+[M2_3.md](M2_3.md). This checkpoint does not replace or rerun the historical M1
+acceptance matrix.
+
+## Post-M1 local AI compatibility checkpoint — 2026-09-10
+
+The M2.2 OpenAI-compatible adapter now sends configurable reasoning effort per
+model tier, with `none` for routine work and `medium` for strong work by default.
+Connection tests always force `none`; timeout, upstream failure and invalid
+completed responses remain distinct. Targeted provider, migration, browser,
+typecheck and build checks passed without paid AI calls. Implementation details
+are recorded in [M2_2.md](M2_2.md), with one synthetic UI capture at
+[ai-reasoning-nb-synthetic.png](artifacts/m2-2/ai-reasoning-nb-synthetic.png).
+This checkpoint does not alter or rerun the historical M1 acceptance matrix.
+
+## Post-M1 person/account checkpoint — 2026-09-09
+
+An additive follow-up adds direct household-administrator creation, protected
+installation-owner succession, optional full birth dates with derived age,
+one-time account invitations, Norwegian Bokmål as the fresh-install default,
+an opt-in next-birthday dashboard card and a controlled synthetic-to-live local
+bootstrap. Existing explicit locales and synthetic history are retained.
+Targeted delivery evidence is recorded in the current task report; this did not
+rerun or replace the historical full M1 acceptance matrix.
 
 Current delivery and demo: [M1_DELIVERY.md](M1_DELIVERY.md),
 [M1_DEMO.md](M1_DEMO.md). The gate table and **Final execution and independent
@@ -355,3 +391,24 @@ are used. See [M1_RELEASE_GATE.md](M1_RELEASE_GATE.md).
 
 No secrets/private household data introduced. No parent/sibling project or
 host-global service modified. No merge, tag, release or production deployment.
+
+## Pangolin / reverse proxy hardening
+
+- The canonical origin now controls CSRF origin validation and `Secure` cookies;
+  trusted forwarding is opt-in for an explicit immediate proxy address.
+- Compose keeps PostgreSQL and worker private and keeps app port 4173 on
+  `127.0.0.1` by default. This deployment overrides only the app bind to
+  `0.0.0.0` so Synology Newt can target `192.168.0.144:4173`; PostgreSQL,
+  worker and local AI remain unpublished. Existing health and authenticated SSE
+  endpoints are retained without WebSocket or application redirect assumptions.
+- Public HTTPS startup fails closed for unclaimed or demo-seeded installations.
+  The exact Synology Newt target and proxy fields are documented in
+  [M1_OPERATIONS.md](M1_OPERATIONS.md#pangolin--reverse-proxy-deployment).
+
+## M2.3 general AI task/monitor checkpoint
+
+- Added an administrator-only draft, interpretation and explicit approval flow for general source-monitor tasks, with pause/resume/edit/delete and optimistic revisions.
+- The independent worker monitor loop fetches bounded public HTML/PDF sources, fingerprints normalized text before AI, and records source checks, AI calls and unchanged skips without prompts or output in usage metadata.
+- Validated events retain exact source evidence, confidence and uncertainty. Persistent event mappings reuse M1 messages and targets for idempotent create/update/withdraw behavior.
+- Provider policies gate the existing default, local-compatible or OpenAI provider configuration. No automatic paid fallback, browser automation, OCR or external AI test call is included.
+- Migration `007_monitor_tasks.sql` is additive. Security, source, integration, UI, build and targeted M1/M2 regression evidence is recorded in [M2_3.md](M2_3.md).

@@ -6,6 +6,7 @@ import { api, setCsrf } from "./api";
 import type { Me } from "./types";
 import {
   Brand,
+  AppErrorBoundary,
   ErrorNotice,
   Field,
   Icon,
@@ -21,15 +22,17 @@ import {
 import { MemberApp } from "./member";
 import { DisplayApp } from "./display";
 import { Workbench } from "./workbench";
+import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 import "../../../packages/design-tokens/tokens.css";
 import "./style.css";
 function App() {
-  const [prefs, setPrefs] = usePreferences();
+  const [prefs, setPrefs, hadStoredPreferences] = usePreferences();
   const [me, setMe] = useState<Me | null>(null);
   const [status, setStatus] = useState<{
     claimed: boolean;
     demo: boolean;
     demoAvailable: boolean;
+    locale: "en" | "nb";
   } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
@@ -40,8 +43,11 @@ function App() {
         claimed: boolean;
         demo: boolean;
         demoAvailable: boolean;
+        locale: "en" | "nb";
       }>("/setup/status");
       setStatus(status);
+      if (!hadStoredPreferences)
+        setPrefs((current) => ({ ...current, locale: status.locale }));
       if (status.claimed) {
         try {
           const me = await api<Me>("/me");
@@ -59,7 +65,7 @@ function App() {
     } finally {
       setLoading(false);
     }
-  }, [setPrefs]);
+  }, [hadStoredPreferences, setPrefs]);
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -84,6 +90,11 @@ function App() {
           >
             ↻
           </button>
+        </div>
+      ) : location.pathname === "/invitation" ? (
+        <div className="public-page">
+          <header className="public-header"><Brand /><PrefControls prefs={prefs} onChange={setPrefs} /></header>
+          <AcceptInvitation onSuccess={refresh} />
         </div>
       ) : me ? (
         <MemberApp
@@ -119,6 +130,35 @@ function App() {
         </div>
       )}
     </LocaleProvider>
+  );
+}
+function AcceptInvitation({ onSuccess }: { onSuccess: () => Promise<void> }) {
+  const { t } = useI18n();
+  const { busy, error, run } = useAction();
+  const token = new URLSearchParams(location.hash.slice(1)).get("token");
+  return (
+    <main className="auth-wrap" id="main">
+      <div className="auth-symbol"><Icon name="lock" size={38} /></div>
+      <h1>{t("invitationTitle")}</h1>
+      <p className="lead">{t("invitationBody")}</p>
+      {!token ? <p role="alert" className="notice error">{t("invitationMissing")}</p> : (
+        <form className="form-stack" onSubmit={(event) => {
+          event.preventDefault();
+          const data = new FormData(event.currentTarget);
+          void run(async () => {
+            await api("/auth/invitations/accept", "POST", { token, password: data.get("password") });
+            history.replaceState({}, "", "/");
+            await onSuccess();
+          });
+        }}>
+          <Field label={t("newPassword")} hint={t("passwordHint")}>
+            <input name="password" type="password" autoComplete="new-password" maxLength={PASSWORD_MAX_LENGTH} required autoFocus onInput={(event)=>validateNewPasswordInput(event.currentTarget,t("passwordPolicyError"))} />
+          </Field>
+          <ErrorNotice error={error} />
+          <Submit busy={busy} label={t("activateAccount")} />
+        </form>
+      )}
+    </main>
   );
 }
 function Welcome({
@@ -281,8 +321,8 @@ function Claim({
             type="password"
             autoComplete="new-password"
             required
-            minLength={12}
-            maxLength={128}
+            maxLength={PASSWORD_MAX_LENGTH}
+            onInput={(event)=>validateNewPasswordInput(event.currentTarget,t("passwordPolicyError"))}
           />
         </Field>
         <Field label={t("timezone")}>
@@ -360,11 +400,11 @@ function SignIn({ onSuccess }: { onSuccess: () => Promise<void> }) {
   );
 }
 createRoot(document.getElementById("root")!).render(
-  location.pathname === "/display" ? (
+  <AppErrorBoundary>{location.pathname === "/display" ? (
     <DisplayApp />
   ) : location.pathname === "/workbench" ? (
     <Workbench />
   ) : (
     <App />
-  ),
+  )}</AppErrorBoundary>,
 );

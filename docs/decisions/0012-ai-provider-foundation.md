@@ -1,0 +1,70 @@
+# ADR 0012: AI provider foundation
+
+Accepted for M2.1, 2026-09-08.
+
+Use the existing TypeScript API and PostgreSQL. A provider-neutral task carries
+an operation (`generate`, `extract`, `classify`, `plan`), purpose, input,
+requested routine/strong tier and source evidence. A normalized result carries
+output, generation time, uncertainty and optional token usage. Providers never
+authorize users, publish messages or activate schedules.
+
+Keep provider configuration and usage household-scoped. Require the existing
+`household.manage` capability and authenticated member session for all admin AI
+endpoints; reuse CSRF/origin checks. AI starts disabled. Model identifiers are
+admin configuration, with no model names in domain rules or automatic routing.
+
+OpenAI Responses is the first runtime adapter. Use bounded requests, no automatic
+retries and `store: false`. Connection tests make an explicit small inference,
+so they validate the configured model and record real returned usage. No live
+paid request runs during automated validation. Tests inject the HTTP transport.
+Future adapters receive model, optional API key and base URL through server-side
+configuration; M2.1 does not expose arbitrary endpoint URLs or implement local AI.
+
+Encrypt saved provider credentials with authenticated encryption using a
+server-only key outside Git. Return only a configured flag, never ciphertext,
+key fragments, raw upstream errors or prompts. Usage stores provider/model,
+time, purpose, success/failure and optional input/output counts, not content.
+
+ChatGPT feasibility remains PARTIAL from the completed spike: Tasks can use
+plugins, while a private MCP service needs a configured supported tunnel or a
+reachable authenticated HTTPS endpoint and account/workspace access. No Samvev
+connection is installed here. Reserve a bridge contract with source/time/
+uncertainty and idempotency; report subscription mode unavailable in this slice.
+Do not present the ChatGPT subscription as a server API credential, access web
+session cookies, create an unofficial bridge or add the weekly-plan monitor.
+
+Sources checked during the prior spike, 2026-09-07:
+[scheduled tasks](https://learn.chatgpt.com/docs/automations),
+[MCP connection requirements](https://developers.openai.com/plugins/deploy/connect-chatgpt),
+[Responses API](https://developers.openai.com/api/reference/resources/responses/methods/create).
+The missing account/connection validation is tracked in the M2.1 delivery note.
+
+Extended for M2.2, 2026-09-08: `openai_compatible` uses the existing provider
+contract through the OpenAI Chat Completions surface. Its admin-supplied base URL
+is stored per household and its optional credential uses the same vault. The API
+appends `/chat/completions`, preserves configured proxy paths and does not add
+Ollama-specific behavior. Local requests have a 30-second total timeout, bounded
+responses and normalized errors; returned prompt/completion usage maps to the
+provider-neutral usage fields.
+
+The endpoint policy intentionally permits loopback, private LAN and public
+HTTP(S) addresses. It rejects URL credentials, query/fragment components,
+known metadata hostnames, metadata addresses, link-local, unspecified and
+multicast targets. DNS answers are checked before every call and the accepted
+address is pinned into the actual HTTP/TLS connection; redirects are not
+followed. Changing provider or local base URL clears an existing credential
+unless the administrator supplies a replacement, preventing a cloud key from
+being forwarded to a different endpoint.
+
+Migration: additive AI settings/usage tables only; existing M1 schema remains
+unchanged. Older M1 code can ignore these tables. Back up the encryption key
+alongside the database; deleting the key requires re-entering API credentials.
+
+Extended for local reasoning compatibility, 2026-09-10: routine and strong
+tiers store explicit reasoning effort (`none`, `low`, `medium`, `high`), with
+defaults `none` and `medium`. OpenAI-compatible Chat Completions receives the
+flat `reasoning_effort` field. OpenAI Responses stays unchanged. A connection
+test always forces `none` so health checks do not incur reasoning work, while
+normal work uses its selected tier setting. The single local deadline covers
+DNS, transport and body consumption; timeout classification wins over a late
+provider failure.

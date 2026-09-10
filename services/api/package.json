@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc --noEmit",
     "check": "tsc --noEmit",
-    "test": "node --import tsx --test --test-concurrency=1 src/*.test.ts"
+    "test": "node --import tsx --test --test-concurrency=1 src/*.test.ts src/monitor/*.test.ts src/people/*.test.ts",
+    "bootstrap:local": "tsx src/local-bootstrap-cli.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.0.2",
@@ -14,6 +15,7 @@
     "@samvev/contracts": "0.1.0",
     "@samvev/core": "0.1.0",
     "fastify": "5.12.3",
+    "pdfjs-dist": "5.4.624",
     "pg": "8.16.3",
     "zod": "4.1.5"
   },

@@ -12,9 +12,16 @@ Samvev stores that as a durable task, monitors the source, uses an approved AI p
 
 ## Project status
 
-**M1 passes local acceptance and is ready for testing. Git delivery is blocked by read-only Git metadata; there is no production release.**
+**M1 passes acceptance with Git delivery verified. M2.3 adds administrator-approved AI tasks for public HTML/PDF monitoring and M1 notifications; there is no production release.**
 
-The first runnable slice includes household setup, people and roles, paired displays, immediate and scheduled messages, English and Norwegian Bokmål, and light and dark modes. Start with the [local demo](docs/implementation/M1_DEMO.md), [delivery evidence](docs/implementation/M1_DELIVERY.md) and [operations guide](docs/implementation/M1_OPERATIONS.md). The wider product vision below describes future capabilities; M1 does not implement external integrations, AI, native iOS, rewards or voice.
+The first runnable slice includes household setup, separate people and accounts,
+protected owner and household-administrator roles, optional birthdays, paired
+displays, immediate and scheduled messages, English and Norwegian Bokmål, and
+light and dark modes. New installations default to Norwegian Bokmål. Start with
+the [local demo](docs/implementation/M1_DEMO.md), [delivery evidence](docs/implementation/M1_DELIVERY.md)
+and [operations guide](docs/implementation/M1_OPERATIONS.md).
+
+M2.3 builds on those providers with general, reviewable tasks that monitor public HTML or text-based PDFs, skip AI when normalized content is unchanged, and reconcile future findings through the existing message/display lifecycle. AI starts disabled; paid fallback is absent. ChatGPT subscription feasibility remains partial and unavailable. See the [M2.3 delivery note](docs/implementation/M2_3.md), [M2.2 provider note](docs/implementation/M2_2.md) and [task architecture decision](docs/decisions/0013-general-ai-task-monitor.md).
 
 [Les introduksjonen på norsk](README.nb.md)
 

@@ -20,9 +20,10 @@ X-CSRF-Token: <value of samvev_csrf>
 ```
 
 `GET /api/v1/me` returns `csrfToken` again after a page reload. Unsafe requests
-with an `Origin` header must match `SAMVEV_PUBLIC_ORIGIN`, or the current local
-origin when that variable is absent. Member cookies are never accepted as
-display authority.
+with an `Origin` header must match the validated `SAMVEV_PUBLIC_ORIGIN`. Its
+safe local default is `http://127.0.0.1:4173`; a request Host header never
+defines the allowed origin. Public HTTPS also rejects unsafe requests that omit
+`Origin`. Member cookies are never accepted as display authority.
 
 Display authentication uses the independent opaque `samvev_display` cookie.
 It is `HttpOnly`, `SameSite=Strict`, scoped only to `/api/v1/display`, expires
@@ -32,7 +33,10 @@ generate at least 32 random bytes, encode base64url, send its SHA-256 hex digest
 to pairing start, and retain the verifier in the display page only until the
 one-use redemption completes.
 
-Production enables `Secure` on both credential cookies. M1 local HTTP does not.
+An HTTPS `SAMVEV_PUBLIC_ORIGIN` enables `Secure` on member, CSRF and display
+cookies. Local HTTP does not. `SAMVEV_TRUST_PROXY` is disabled by default and
+must name the exact immediate trusted proxy IP (`/32` for IPv4 or `/128` for
+IPv6) when forwarded headers are used.
 
 ## Errors and validation
 

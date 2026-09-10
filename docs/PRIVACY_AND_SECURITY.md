@@ -5,7 +5,10 @@ Samvev may process information about children, school, co-parenting, location, c
 ## Data minimization
 
 - Collect only fields needed for the chosen function.
-- Use age group rather than full birth date by default.
+- Birth date is optional. Use an age group when an exact date is unnecessary or unknown.
+- Return full birth dates only to authenticated members with person-management
+  permission. The signed-in family dashboard receives only the next birthday's
+  display name, occurrence date, days remaining and age being reached.
 - Do not import entire accounts when a selected calendar, note or folder is sufficient.
 - Avoid retaining complete source documents forever without a household policy.
 - Keep AI prompts and outputs out of generic logs.
@@ -40,6 +43,9 @@ Every query and mutation is scoped by installation, household, membership and ca
 - Clients receive short-lived or scoped credentials.
 - Public repository examples use placeholders.
 - Diagnostics redact tokens, cookies, private URLs and message content.
+- Account invitations are random, hashed at rest, expire, and can be accepted
+  only once. The clear token is shown or written to a mode-0600 ignored local
+  file once and is never written to audit metadata.
 
 ## Audit and retention
 

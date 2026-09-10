@@ -28,6 +28,10 @@ Language and time zone are separate settings.
 - `en`: English reference locale for developer-facing strings
 - `nb`: Norwegian Bokmål
 
+A fresh installation defaults to `nb`. Explicit installation, household,
+account and display choices remain authoritative and are not overwritten by
+later migrations.
+
 A missing translation falls back predictably and is detectable in CI or development mode.
 
 ## Design implications
