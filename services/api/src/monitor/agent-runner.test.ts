@@ -56,7 +56,7 @@ test('runner keeps one session through a premature final and closes it after its
 
 test('runner rejects credential-bearing root URLs before provider or fetch access',async()=>{
   const h=harness([{output:'must not run',toolCalls:[],generatedAt:at}]);
-  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:'https://example.test/?api_key=hidden'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_TOOL_INVALID');
+  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:'https://example.test/?api%5Fkey=hidden'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_TOOL_INVALID');
   assert.equal(h.fetches,0);assert.equal(h.results.length,0);
 });
 
@@ -101,7 +101,7 @@ test('runner rejects invalid args, duplicate ids, unknown tools and too many cal
     {toolCalls:[{id:'bad_args',name:'web.open',arguments:{url:root.finalUrl,method:'POST'}}],generatedAt:at},
     {toolCalls:[{id:'same',name:'web.open',arguments:{url:root.finalUrl}},{id:'same',name:'web.open',arguments:{url:root.finalUrl}}],generatedAt:at},
     {toolCalls:[{id:'unknown',name:'shell.exec',arguments:{url:root.finalUrl}}],generatedAt:at},
-    {toolCalls:[{id:'credential',name:'web.open',arguments:{url:'https://example.test/?api_key=hidden'}}],generatedAt:at},
+    {toolCalls:[{id:'credential',name:'web.open',arguments:{url:'https://example.test/?api%5Fkey=hidden'}}],generatedAt:at},
     {toolCalls:Array.from({length:7},(_,index)=>({id:`call_${index}`,name:'web.open',arguments:{url:root.finalUrl}})),generatedAt:at}
   ];
   for(const turn of cases){const h=harness([turn]);await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl}),(error:unknown)=>error instanceof DomainError&&['MONITOR_TOOL_INVALID','MONITOR_TOOL_LIMIT'].includes(error.code));assert.equal(h.fetches,0);}

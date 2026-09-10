@@ -58,7 +58,7 @@ test('evidence URLs accept only safe canonical equivalence and are rewritten to 
   assert.equal(answerFromAi(JSON.stringify(answer),root).evidence.sourceUrl,root.finalUrl);
   assert.equal(answerFromAi(JSON.stringify({...answer,evidence:{...answer.evidence,sourceUrl:'https://example.com:443/#section'}}),root).evidence.sourceUrl,root.finalUrl);
   const canonicalEvent={...event('2030-09-20'),evidence:{...event('2030-09-20').evidence,sourceUrl:'https://example.com'}};const extracted=extractionFromAi(JSON.stringify({version:1,events:[canonicalEvent]}),root,new Date('2026-09-08T00:00:00Z'));assert.equal(extracted.events[0]!.evidence.sourceUrl,root.finalUrl);
-  for(const sourceUrl of ['https://example.com/other','https://example.com/?day=1','https://other.example/','http://127.0.0.1/','https://example.com/?api_key=hidden']){
+  for(const sourceUrl of ['https://example.com/other','https://example.com/?day=1','https://other.example/','http://127.0.0.1/','https://example.com/?api%5Fkey=hidden']){
     assert.throws(()=>answerFromAi(JSON.stringify({...answer,evidence:{...answer.evidence,sourceUrl}}),root),(error:any)=>error.code==='AI_RESPONSE_INVALID',sourceUrl);
   }
 });
