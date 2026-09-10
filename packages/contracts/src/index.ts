@@ -22,7 +22,11 @@ export const roleCapabilityPresets: Record<(typeof rolePresets)[number], Capabil
 };
 
 export const emailSchema = z.string().trim().toLowerCase().email().max(254);
-export const passwordSchema = z.string().min(12).max(128);
+export const passwordSchema = z.string().max(128).transform((value)=>value.normalize('NFKC')).pipe(
+  z.string().min(8).max(128)
+    .regex(/\p{Lu}/u, 'password_uppercase_required')
+    .regex(/\p{Nd}/u, 'password_number_required')
+);
 export const uuidSchema = z.string().uuid();
 export const localeSchema = z.enum(locales);
 export const themeSchema = z.enum(themes);

@@ -23,6 +23,7 @@ import { PeoplePanel } from "./people";
 import { DisplaysPanel } from "./displays-admin";
 import { AiSettingsPanel } from "./ai-settings";
 import { MonitorsPanel } from "./monitors";
+import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 
 type MemberTab = "messages" | "people" | "displays" | "monitors" | "ai";
 
@@ -124,13 +125,22 @@ export function MemberApp({
     "displays",
     ...(can("household.manage") ? (["monitors", "ai"] as const) : []),
   ];
+  const goHome = () => {
+    setTab("messages");
+    setLane("now");
+    setCompose(undefined);
+    setWithdraw(null);
+    setSettings(false);
+    if (location.pathname !== "/" || location.search || location.hash) history.replaceState({}, "", "/");
+    requestAnimationFrame(() => document.getElementById("main")?.focus());
+  };
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">
         {t("skip")}
       </a>
       <aside className="sidebar">
-        <Brand />
+        <Brand onHome={goHome} />
         <div className="household-label">
           <span className="mini-label">{t("ownerStep")}</span>
           {me.memberships.length > 1 ? (
@@ -212,7 +222,7 @@ export function MemberApp({
             <Icon name="settings" />
           </button>
         </header>
-        <main id="main" className="member-main">
+        <main id="main" className="member-main" tabIndex={-1}>
           {demo && (
             <div className="demo-banner">
               <Icon name="spark" />
@@ -623,7 +633,7 @@ function PasswordEditor() {
   return <details className="password-editor"><summary>{t("changePassword")}</summary>
     <form className="form-stack" onSubmit={(event) => { event.preventDefault(); const form=event.currentTarget; const data=new FormData(form); setSaved(false); void run(async()=>{await api("/me/password","POST",{currentPassword:data.get("currentPassword"),newPassword:data.get("newPassword")});form.reset();setSaved(true);}); }}>
       <Field label={t("currentPassword")}><input name="currentPassword" type="password" autoComplete="current-password" required maxLength={128}/></Field>
-      <Field label={t("newPassword")} hint={t("passwordHint")}><input name="newPassword" type="password" autoComplete="new-password" required minLength={12} maxLength={128}/></Field>
+      <Field label={t("newPassword")} hint={t("passwordHint")}><input name="newPassword" type="password" autoComplete="new-password" required maxLength={PASSWORD_MAX_LENGTH} onInput={(event)=>validateNewPasswordInput(event.currentTarget,t("passwordPolicyError"))}/></Field>
       {saved && <p role="status" className="notice success">{t("passwordChanged")}</p>}<ErrorNotice error={error}/><Submit busy={busy} label={t("changePassword")}/>
     </form>
   </details>;

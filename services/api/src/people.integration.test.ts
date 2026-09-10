@@ -31,6 +31,8 @@ test('fresh locale defaults to nb while explicit account preference is retained'
 
 test('owner creates administrators, invitations and people while role and birthday privacy remain enforced',async()=>{
   const begin=await app.inject({method:'POST',url:'/api/v1/setup/begin'});
+  const weakClaim=await app.inject({method:'POST',url:'/api/v1/setup/claim',payload:{claimToken:begin.json().claimToken,owner:{displayName:'Synthetic Owner',email:'owner@people.test.invalid',password:'abcdefg1'},household:{name:'Synthetic household',timezone:'UTC',locale:'nb'},preferences:{locale:'nb',theme:'system'}}});
+  assert.equal(weakClaim.statusCode,400);
   const claim=await app.inject({method:'POST',url:'/api/v1/setup/claim',payload:{claimToken:begin.json().claimToken,owner:{displayName:'Synthetic Owner',email:'owner@people.test.invalid',password},household:{name:'Synthetic household',timezone:'UTC',locale:'nb'},preferences:{locale:'nb',theme:'system'}}});
   assert.equal(claim.statusCode,200,claim.body);
   const ownerCookie=cookies(claim),ownerCsrf=claim.json().csrfToken as string,householdId=claim.json().householdId as string;
@@ -52,6 +54,7 @@ test('owner creates administrators, invitations and people while role and birthd
   assert.equal(reissued.statusCode,201,reissued.body);assert.match(reissued.json().invitationToken,/^[A-Za-z0-9_-]{40,}$/);
   const revokedInvite=await app.inject({method:'POST',url:'/api/v1/auth/invitations/accept',payload:{token:adminCreate.json().invitationToken,password:'Synthetic-admin-password-42'}});
   assert.equal(revokedInvite.statusCode,410);assert.equal(revokedInvite.json().error.code,'INVITATION_INVALID');
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/invitations/accept',payload:{token:reissued.json().invitationToken,password:'abcdefgh1'}})).statusCode,400);
   assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/invitations/accept',payload:{token:reissued.json().invitationToken,password:'Synthetic-admin-password-42'}})).statusCode,200);
   const inviteAgain=await app.inject({method:'POST',url:'/api/v1/auth/invitations/accept',payload:{token:reissued.json().invitationToken,password:'Synthetic-admin-password-42'}});
   assert.equal(inviteAgain.statusCode,410);assert.equal(inviteAgain.json().error.code,'INVITATION_INVALID');
@@ -60,9 +63,9 @@ test('owner creates administrators, invitations and people while role and birthd
   const adminMe=await app.inject({method:'GET',url:'/api/v1/me',headers:{cookie:adminCookie}});
   assert.deepEqual(adminMe.json().memberships[0].capabilities,roleCapabilityPresets.household_admin);
 
-  const ordinary=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(ownerCookie,ownerCsrf),payload:{displayName:'Synthetic Ordinary',rolePreset:'member',displayIds:[],login:{email:'member@people.test.invalid',password:'Synthetic-member-password-42',locale:'nb',theme:'system'}}});
+  const ordinary=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(ownerCookie,ownerCsrf),payload:{displayName:'Synthetic Ordinary',rolePreset:'member',displayIds:[],login:{email:'member@people.test.invalid',password:'Memberpass1',locale:'nb',theme:'system'}}});
   assert.equal(ordinary.statusCode,201,ordinary.body);
-  const memberLogin=await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'member@people.test.invalid',password:'Synthetic-member-password-42'}});
+  const memberLogin=await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'member@people.test.invalid',password:'Memberpass1'}});
   const memberCookie=cookies(memberLogin),memberCsrf=memberLogin.json().csrfToken as string;
   const escalate=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ordinary.json().membershipId}`,headers:auth(memberCookie,memberCsrf),payload:{rolePreset:'household_admin',capabilities:roleCapabilityPresets.household_admin,displayIds:[],expectedRevision:1}});
   assert.equal(escalate.statusCode,403);
@@ -124,12 +127,21 @@ test('owner creates administrators, invitations and people while role and birthd
   const other=(await pool.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) SELECT installation_id,'Other synthetic','UTC','nb' FROM households WHERE id=$1 RETURNING id`,[householdId])).rows[0]!;
   assert.equal((await app.inject({method:'GET',url:`/api/v1/households/${other.id}/people`,headers:{cookie:ownerCookie}})).statusCode,404);
 
+  const legacyHash=await hashPassword('old');
+  await pool.query(`UPDATE accounts SET password_hash=$2 WHERE email_normalized=$1`,['restricted@people.test.invalid',legacyHash]);
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'restricted@people.test.invalid',password:'old'}})).statusCode,200,'legacy short passwords remain valid at sign-in');
+
   const secondSession=await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'owner@people.test.invalid',password}});
-  const changed=await app.inject({method:'POST',url:'/api/v1/me/password',headers:auth(ownerCookie,ownerCsrf),payload:{currentPassword:password,newPassword:'Synthetic-owner-new-password-84'}});
-  assert.equal(changed.statusCode,200,changed.body);assert.ok(changed.json().sessionsRevoked>=1);
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/me/password',headers:auth(ownerCookie,ownerCsrf),payload:{currentPassword:password,newPassword:'NoNumberHere'}})).statusCode,400);
+  const competingPasswords=['ConcurrentWinner1','ConcurrentWinner2'];
+  const changes=await Promise.all(competingPasswords.map((newPassword)=>app.inject({method:'POST',url:'/api/v1/me/password',headers:auth(ownerCookie,ownerCsrf),payload:{currentPassword:password,newPassword}})));
+  assert.deepEqual(changes.map((response)=>response.statusCode).sort(),[200,401]);
+  const winnerIndex=changes.findIndex((response)=>response.statusCode===200);const loserIndex=winnerIndex===0?1:0;
+  assert.ok(changes[winnerIndex]!.json().sessionsRevoked>=1);
   assert.equal((await app.inject({method:'GET',url:'/api/v1/me',headers:{cookie:cookies(secondSession)}})).statusCode,401);
   assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'owner@people.test.invalid',password}})).statusCode,401);
-  assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'owner@people.test.invalid',password:'Synthetic-owner-new-password-84'}})).statusCode,200);
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'owner@people.test.invalid',password:competingPasswords[winnerIndex]}})).statusCode,200);
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'owner@people.test.invalid',password:competingPasswords[loserIndex]}})).statusCode,401);
 
   // Household admins can manage people but cannot assign installation owner.
   const forbiddenOwner=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(adminCookie,adminCsrf),payload:{displayName:'Forbidden owner',rolePreset:'installation_admin',confirmInstallationOwner:true,displayIds:[],login:{email:'forbidden-owner@people.test.invalid',loginMethod:'invitation'}}});

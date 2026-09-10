@@ -1,5 +1,6 @@
 import {
   Children,
+  Component,
   cloneElement,
   isValidElement,
   type ReactElement,
@@ -11,6 +12,7 @@ import {
   useState,
   type ReactNode,
   type FormEvent,
+  type ErrorInfo,
 } from "react";
 import { en, type TranslationKey } from "./locales/en";
 import { nb } from "./locales/nb";
@@ -184,9 +186,14 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
     </svg>
   );
 }
-export function Brand() {
+export function Brand({ onHome }: { onHome?: () => void } = {}) {
   return (
-    <a className="brand" href="/" aria-label="Samvev">
+    <a className="brand" href="/" aria-label="Samvev" onClick={(event) => {
+      if (!onHome || event.defaultPrevented || event.button !== 0 ||
+          event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault();
+      onHome();
+    }}>
       <span className="brand-mark" aria-hidden="true">
         <i />
         <i />
@@ -198,6 +205,34 @@ export function Brand() {
       </span>
     </a>
   );
+}
+
+function RenderFailure() {
+  let locale: Locale = "nb";
+  try {
+    if (JSON.parse(localStorage.getItem("samvev.preferences") ?? "{}").locale === "en") locale = "en";
+  } catch { /* A storage failure must not break the recovery view. */ }
+  const text = locale === "en" ? en : nb;
+  useEffect(() => { document.documentElement.lang = locale; }, [locale]);
+  return (
+    <main id="main" className="auth-wrap" lang={locale}>
+      <Brand />
+      <h1>{text.pageLoadFailedTitle}</h1>
+      <p className="lead">{text.pageLoadFailedBody}</p>
+      <button className="button primary" onClick={() => location.reload()}>{text.pageLoadFailedRetry}</button>
+    </main>
+  );
+}
+
+export class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    if (import.meta.env.DEV || import.meta.env.MODE === "test") {
+      console.error("Samvev render failed", error, info.componentStack);
+    }
+  }
+  render() { return this.state.failed ? <RenderFailure /> : this.props.children; }
 }
 export function PrefControls({
   prefs,

@@ -175,7 +175,7 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; runtimeConfig?: RuntimeConfig } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; runtimeConfig?: RuntimeConfig; webRoot?: string } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
@@ -310,11 +310,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const session=await sessionAccount(request);
     const body=parse(passwordChangeSchema,request.body);
     await durableRateLimit('password_change',`${session.accountId}:${request.ip}`,10,900);
-    const account=(await pool.query<{password_hash:string|null}>(`SELECT password_hash FROM accounts WHERE id=$1`,[session.accountId])).rows[0];
-    const verified=await verifyLoginPassword(body.currentPassword,account?.password_hash??undefined,Boolean(account?.password_hash));
-    if(!verified)throw new DomainError('UNAUTHENTICATED',401);
     const passwordHash=await hashPassword(body.newPassword);
     return transaction(async(client)=>{
+      const account=(await client.query<{password_hash:string|null}>(`SELECT password_hash FROM accounts WHERE id=$1 FOR UPDATE`,[session.accountId])).rows[0];
+      const verified=await verifyLoginPassword(body.currentPassword,account?.password_hash??undefined,Boolean(account?.password_hash));
+      if(!verified)throw new DomainError('UNAUTHENTICATED',401);
       await client.query(`UPDATE accounts SET password_hash=$2,password_changed_at=clock_timestamp(),revision=revision+1 WHERE id=$1`,[session.accountId,passwordHash]);
       const revoked=await client.query(`UPDATE sessions SET revoked_at=clock_timestamp() WHERE account_id=$1 AND token_hash<>$2 AND revoked_at IS NULL RETURNING id`,[session.accountId,session.tokenHash]);
       return {sessionsRevoked:revoked.rowCount??0};
@@ -868,10 +868,15 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     response.once('close',cleanup);
   });
 
-  const webRoot=resolve(process.cwd(),'apps/web/dist');
+  const webRoot=options.webRoot??resolve(process.cwd(),'apps/web/dist');
   if(existsSync(webRoot)) {
-    await app.register(fastifyStatic,{root:webRoot,wildcard:false});
-    app.setNotFoundHandler((request,reply)=>{if(request.url.startsWith('/api/')) return reply.status(404).send({error:{code:'NOT_FOUND',requestId:request.id}});return reply.sendFile('index.html');});
+    await app.register(fastifyStatic,{root:webRoot});
+    app.setNotFoundHandler((request,reply)=>{
+      const pathname=request.url.split('?',1)[0]??request.url;
+      const reserved=pathname==='/api' || pathname.startsWith('/api/') || pathname==='/assets' || pathname.startsWith('/assets/');
+      if(reserved || !['GET','HEAD'].includes(request.method)) return reply.status(404).send({error:{code:'NOT_FOUND',requestId:request.id}});
+      return reply.sendFile('index.html');
+    });
   } else {
     app.setNotFoundHandler((request,reply)=>reply.status(404).send({error:{code:'NOT_FOUND',requestId:request.id}}));
   }

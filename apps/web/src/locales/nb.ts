@@ -1,5 +1,8 @@
 import type { TranslationKey } from "./en";
 export const nb: Record<TranslationKey, string> = {
+  pageLoadFailedTitle: "Samvev kunne ikke vise siden",
+  pageLoadFailedBody: "Det oppstod en uventet feil. Prøv å laste siden på nytt.",
+  pageLoadFailedRetry: "Prøv på nytt",
   preferencesSaved: "Innstillingene er lagret",
   previewInvalidTime: "Velg et gyldig tidspunkt for forhåndsvisningen.",
   messageActivity: "Beskjedaktivitet",
@@ -53,7 +56,9 @@ export const nb: Record<TranslationKey, string> = {
   email: "E-post",
   password: "Passord",
   passwordHint:
-    "Minst 12 tegn. Ta vare på passordet; gjenoppretting er ikke tilgjengelig ennå.",
+    "Bruk 8–128 tegn med minst én stor bokstav og ett tall. Spesialtegn er valgfritt.",
+  passwordPolicyError:
+    "Bruk minst 8 tegn, inkludert én stor bokstav og ett tall.",
   createHousehold: "Opprett husstand",
   continue: "Fortsett",
   back: "Tilbake",
@@ -441,7 +446,7 @@ export const nb: Record<TranslationKey, string> = {
   BAD_REQUEST:
     "Noe i forespørselen er ugyldig. Kontroller feltene og prøv igjen.",
   VALIDATION_FAILED:
-    "Kontroller obligatoriske felt, mottakere og passordlengde.",
+    "Kontroller obligatoriske felt, mottakere og passordkrav.",
   UNAUTHENTICATED: "Økten din er avsluttet. Logg inn igjen.",
   CSRF_REQUIRED: "Økten må oppdateres. Last siden på nytt og prøv igjen.",
   FORBIDDEN:

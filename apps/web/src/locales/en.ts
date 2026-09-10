@@ -1,4 +1,7 @@
 export const en = {
+  pageLoadFailedTitle: "Samvev could not display this page",
+  pageLoadFailedBody: "An unexpected error occurred. Try reloading the page.",
+  pageLoadFailedRetry: "Try again",
   preferencesSaved: "Preferences saved",
   previewInvalidTime: "Choose a valid time to preview it.",
   messageActivity: "Message activity",
@@ -52,7 +55,9 @@ export const en = {
   email: "Email",
   password: "Password",
   passwordHint:
-    "At least 12 characters. Keep this somewhere safe; password recovery is not yet available.",
+    "Use 8–128 characters with at least one uppercase letter and one number. Special characters are optional.",
+  passwordPolicyError:
+    "Use at least 8 characters, including one uppercase letter and one number.",
   createHousehold: "Create household",
   continue: "Continue",
   back: "Back",
@@ -439,7 +444,7 @@ export const en = {
   BAD_REQUEST:
     "Something in this request isn’t valid. Check the fields and try again.",
   VALIDATION_FAILED:
-    "Check the required fields, recipients, and password length.",
+    "Check the required fields, recipients, and password requirements.",
   UNAUTHENTICATED: "Your session has ended. Please sign in again.",
   CSRF_REQUIRED:
     "Your session needs refreshing. Reload this page and try again.",

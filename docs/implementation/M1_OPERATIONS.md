@@ -232,12 +232,10 @@ LAN requests cannot create an alternate insecure session path.
 - Browser tests deliberately use fictional owner/Robin fixtures. Runtime
   replay preserves existing people/history and creates test displays. See
   [the demo guide](M1_DEMO.md) before using these commands.
-- After a direct development asset rebuild, restart the scoped app so its
-  static asset routes reflect the new build:
-
-  ```bash
-  docker compose -p samvev-m1 -f compose.yaml restart app
-  ```
+- New hashed frontend assets written by a build are resolved dynamically; an
+  API restart is not needed merely for a new asset hash. Missing `/assets/*`
+  paths return JSON 404 responses, never the SPA HTML. Restart the scoped app
+  only when backend code changes must be loaded.
 
 - A migration checksum failure must be investigated; do not edit the migration
   ledger or an applied SQL file to suppress it. The QA helper resets only its

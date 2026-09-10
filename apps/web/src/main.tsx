@@ -6,6 +6,7 @@ import { api, setCsrf } from "./api";
 import type { Me } from "./types";
 import {
   Brand,
+  AppErrorBoundary,
   ErrorNotice,
   Field,
   Icon,
@@ -21,6 +22,7 @@ import {
 import { MemberApp } from "./member";
 import { DisplayApp } from "./display";
 import { Workbench } from "./workbench";
+import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 import "../../../packages/design-tokens/tokens.css";
 import "./style.css";
 function App() {
@@ -150,7 +152,7 @@ function AcceptInvitation({ onSuccess }: { onSuccess: () => Promise<void> }) {
           });
         }}>
           <Field label={t("newPassword")} hint={t("passwordHint")}>
-            <input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} required autoFocus />
+            <input name="password" type="password" autoComplete="new-password" maxLength={PASSWORD_MAX_LENGTH} required autoFocus onInput={(event)=>validateNewPasswordInput(event.currentTarget,t("passwordPolicyError"))} />
           </Field>
           <ErrorNotice error={error} />
           <Submit busy={busy} label={t("activateAccount")} />
@@ -319,8 +321,8 @@ function Claim({
             type="password"
             autoComplete="new-password"
             required
-            minLength={12}
-            maxLength={128}
+            maxLength={PASSWORD_MAX_LENGTH}
+            onInput={(event)=>validateNewPasswordInput(event.currentTarget,t("passwordPolicyError"))}
           />
         </Field>
         <Field label={t("timezone")}>
@@ -398,11 +400,11 @@ function SignIn({ onSuccess }: { onSuccess: () => Promise<void> }) {
   );
 }
 createRoot(document.getElementById("root")!).render(
-  location.pathname === "/display" ? (
+  <AppErrorBoundary>{location.pathname === "/display" ? (
     <DisplayApp />
   ) : location.pathname === "/workbench" ? (
     <Workbench />
   ) : (
     <App />
-  ),
+  )}</AppErrorBoundary>,
 );
