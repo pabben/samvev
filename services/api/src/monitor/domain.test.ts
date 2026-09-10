@@ -28,3 +28,51 @@ test('answer validation rejects fluent claims unsupported by exact evidence',()=
   assert.throws(()=>answerFromAi(JSON.stringify({...valid,answer:'Invented breaking headline'}),source));
   assert.throws(()=>answerFromAi(JSON.stringify({...valid,evidence:{...valid.evidence,quote:'Other text'}}),source));
 });
+
+test('opened document title, headings and displayed link labels are valid exact evidence',()=>{
+  const source={
+    finalUrl:'https://example.com/opened-story',contentType:'text/html' as const,text:'Unrelated compact body excerpt',fingerprint:'synthetic',
+    title:'Exact opened article title',headings:['Exact section heading','Trip day 2030-09-20 A Bring boots'],
+    links:[{url:'https://example.com/related',label:'Exact displayed related headline'}]
+  };
+  for(const value of [source.title,source.headings[0]!,source.links[0]!.label]){
+    const answer={version:1,answer:value,evidence:{quote:value,sourceUrl:source.finalUrl},confidence:0.9,uncertainty:null};
+    assert.equal(answerFromAi(JSON.stringify(answer),source).answer,value);
+  }
+  const headingEvent={...event('2030-09-20'),evidence:{...event('2030-09-20').evidence,sourceUrl:source.finalUrl}};
+  const extracted=extractionFromAi(JSON.stringify({version:1,events:[headingEvent]}),source,new Date('2026-09-08T00:00:00Z'));
+  assert.equal(extracted.events[0]!.evidence.sourceUrl,source.finalUrl);
+  const invented={version:1,answer:'Invented article title',evidence:{quote:'Invented article title',sourceUrl:source.finalUrl},confidence:0.9,uncertainty:null};
+  assert.throws(()=>answerFromAi(JSON.stringify(invented),source),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+});
+
+test('displayed link labels cite the opened page and unopened child URLs remain invalid',()=>{
+  const root={finalUrl:'https://example.com/',contentType:'text/html' as const,text:'Displayed editorial headline',fingerprint:'synthetic',links:[{url:'https://example.com/story',label:'Displayed editorial headline'}]};
+  const valid={version:1,answer:'Displayed editorial headline',evidence:{quote:'Displayed editorial headline',sourceUrl:root.finalUrl},confidence:0.9,uncertainty:null};assert.equal(answerFromAi(JSON.stringify(valid),root).answer,'Displayed editorial headline');
+  assert.throws(()=>answerFromAi(JSON.stringify({...valid,evidence:{...valid.evidence,sourceUrl:'https://example.com/story'}}),root),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+});
+
+test('evidence URLs accept only safe canonical equivalence and are rewritten to exact final URLs',()=>{
+  const root={finalUrl:'https://example.com/',contentType:'text/html' as const,text:'Canonical headline\nTrip day 2030-09-20 A Bring boots',fingerprint:'synthetic'};
+  const answer={version:1,answer:'Canonical headline',evidence:{quote:'Canonical headline',sourceUrl:'https://example.com'},confidence:0.9,uncertainty:null};
+  assert.equal(answerFromAi(JSON.stringify(answer),root).evidence.sourceUrl,root.finalUrl);
+  assert.equal(answerFromAi(JSON.stringify({...answer,evidence:{...answer.evidence,sourceUrl:'https://example.com:443/#section'}}),root).evidence.sourceUrl,root.finalUrl);
+  const canonicalEvent={...event('2030-09-20'),evidence:{...event('2030-09-20').evidence,sourceUrl:'https://example.com'}};const extracted=extractionFromAi(JSON.stringify({version:1,events:[canonicalEvent]}),root,new Date('2026-09-08T00:00:00Z'));assert.equal(extracted.events[0]!.evidence.sourceUrl,root.finalUrl);
+  for(const sourceUrl of ['https://example.com/other','https://example.com/?day=1','https://other.example/','http://127.0.0.1/','https://example.com/?api_key=hidden']){
+    assert.throws(()=>answerFromAi(JSON.stringify({...answer,evidence:{...answer.evidence,sourceUrl}}),root),(error:any)=>error.code==='AI_RESPONSE_INVALID',sourceUrl);
+  }
+});
+
+test('monitor answer parsing recovers the final strict object from bounded model noise',()=>{
+  const source={finalUrl:'https://example.com/news',contentType:'text/html' as const,text:'First valid headline\nFinal valid headline',fingerprint:'synthetic'};
+  const answer=(value:string)=>({version:1,answer:value,evidence:{quote:value,sourceUrl:source.finalUrl},confidence:0.9,uncertainty:null});
+  assert.equal(answerFromAi(JSON.stringify(answer('First valid headline')),source).answer,'First valid headline');
+  assert.equal(answerFromAi(`\`\`\`json\n${JSON.stringify(answer('First valid headline'))}\n\`\`\``,source).answer,'First valid headline');
+  const noisy=`abandoned {"version":1,"answer": "broken" </think> analysis with {escaped:"brace } in noise"}\n${JSON.stringify(answer('Final valid headline'))}`;
+  assert.equal(answerFromAi(noisy,source).answer,'Final valid headline');
+  const nested=`reasoning {"quote":"nested object is not an answer"}\n${JSON.stringify(answer('Final valid headline'))}`;
+  assert.equal(answerFromAi(nested,source).answer,'Final valid headline');
+  const multiple=`${JSON.stringify(answer('First valid headline'))}\nnoise\n${JSON.stringify(answer('Final valid headline'))}`;
+  assert.equal(answerFromAi(multiple,source).answer,'Final valid headline');
+  assert.throws(()=>answerFromAi('reasoning </think> {"answer":"unfinished" trailing noise',source),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+});

@@ -1,7 +1,32 @@
 # M1 implementation status
 
 Updated: 2026-09-10. Branch: `feat/m2-ai-provider-foundation`.
-Overall status: **PASS — local acceptance passed; Git delivery externally verified and sole blocker resolved**.
+Historical M1 status: **PASS — local acceptance passed; Git delivery externally verified**.
+
+Current issue #5 status: **implementation and QA PASS; Git delivery blocked by
+read-only `.git` in this workspace**. The candidate remains uncommitted on top
+of `89cb8fba7146eb5edb0b8f22a06cbbc4147e561a`; it has not been deployed.
+
+## Post-M1 M2.3 provider-independent web-tool checkpoint — 2026-09-10
+
+Issue #5 adds a bounded Samvev-owned `web.open` tool so AI tasks can inspect the
+approved public source and exact discovered same-origin links without granting
+the provider direct network access. Interpretation, Test now, Run now, stronger
+preview and scheduled runs share the same provider-neutral runner, provenance
+validation and 180-second execution deadline. Migration 012 additively records
+dependency manifests, actual provider-turn counts and compact source audit;
+unchanged dependency manifests cause zero provider calls. Oppdrag shows only
+sanitized source URLs and fetch times, with localized source errors and no
+provider/model/tool terminology. Credential-bearing source queries fail before
+provider or fetch, and failed tool attempts retain only safe compact audit data.
+Final QA passed the full workspace suite (65/65 API tests), the focused 64/64
+provider/tool/source/security set, fresh migrations 001–012, browser Axe and
+responsive smoke, and isolated app/worker/database health. A read-only live
+pilot completed both requested NRK headline prompts with exact source evidence.
+The implementation is not deployed. Detailed
+architecture, rollback and focused evidence are recorded in [ADR 0015](../decisions/0015-provider-independent-ai-web-tools.md)
+and [M2_3.md](M2_3.md). This checkpoint does not rerun or replace the historical
+M1 acceptance matrix.
 
 ## Post-M1 M2.3 issue #4 checkpoint — 2026-09-10
 

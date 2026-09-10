@@ -96,6 +96,7 @@ export interface MonitorRunResult {
   outcome:'changed'|'unchanged';resultKind:'events'|'answer'|null;
   result:{answer?:string;events?:MonitorTask['events'];evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
   sourceUrl:string;checkedAt:string;
+  sources?:{sourceUrl:string;fetchedAt:string}[];
 }
 export interface Card {
   id: string;

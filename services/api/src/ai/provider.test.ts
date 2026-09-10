@@ -10,7 +10,7 @@ import {
   OpenAiCompatibleProvider,
   resolveOpenAiCompatibleTarget
 } from './openai-compatible-provider.ts';
-import { AiProviderFailure, validateAiProviderConfiguration, validateAiResult, validateAiTask } from './provider.ts';
+import { AiProviderFailure, createAiToolNameAliases, validateAiProviderConfiguration, validateAiResult, validateAiTask } from './provider.ts';
 import { AiCredentialVault } from './credential-vault.ts';
 
 const task = {
@@ -25,6 +25,16 @@ test('provider configuration requires credentials only when the provider contrac
   assert.doesNotThrow(()=>validateAiProviderConfiguration({provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}));
   assert.throws(()=>validateAiProviderConfiguration({provider:'openai',model:'remote'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_CONFIGURATION_INVALID');
   assert.doesNotThrow(()=>validateAiProviderConfiguration({provider:'openai',model:'remote',apiKey:'synthetic'}));
+});
+
+test('provider tool aliases are deterministic, reversible and distinct',()=>{
+  const definition=(name:string)=>({name,description:`Synthetic ${name}`,inputSchema:{type:'object',additionalProperties:false}});
+  const first=createAiToolNameAliases([definition('web.open'),definition('calendar.read')]);
+  const second=createAiToolNameAliases([definition('calendar.read'),definition('web.open')]);
+  const webWire=first.toWire('web.open');const calendarWire=first.toWire('calendar.read');
+  assert.match(webWire,/^[A-Za-z0-9_-]{1,64}$/);assert.notEqual(webWire,calendarWire);assert.equal(second.toWire('web.open'),webWire);assert.equal(first.toInternal(webWire),'web.open');
+  assert.throws(()=>first.toInternal('unmapped_tool'),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID');
+  assert.throws(()=>createAiToolNameAliases([definition('INVALID') as any]),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_CONFIGURATION_INVALID');
 });
 
 test('provider-neutral task and result contracts are strict and preserve evidence', async () => {
@@ -48,11 +58,101 @@ test('provider-neutral task and result contracts are strict and preserve evidenc
   assert.equal(seenUrl, 'https://api.openai.com/v1/responses');
   assert.equal((seenInit?.headers as Record<string, string>).authorization, 'Bearer synthetic-api-key-for-tests');
   assert.deepEqual(JSON.parse(String(seenInit?.body)), {
-    model: 'configured-routine', input: task.input, max_output_tokens: 64, store: false
+    model: 'configured-routine', input: [{role:'user',content:[{type:'input_text',text:task.input}]}], max_output_tokens: 64, store: false
   });
   assert.equal(result.output, 'Synthetic normalized result');
   assert.deepEqual(result.sources, task.sources);
   assert.deepEqual(result.usage, { inputTokens: 12, outputTokens: 4 });
+});
+
+test('OpenAI Responses maps function calls and keeps opaque continuation request-local',async()=>{
+  const bodies:unknown[]=[];let call=0;let wireName='';
+  const provider=new OpenAiProvider(async(_url,init)=>{const body=JSON.parse(String(init.body));bodies.push(body);call++;
+    if(call===1)wireName=body.tools[0].name;
+    return new Response(JSON.stringify(call===1?{status:'completed',output:[
+      {type:'reasoning',id:'opaque-reasoning-item',summary:[],encrypted_content:'opaque-encrypted-reasoning'},
+      {type:'function_call',id:'fc_1',call_id:'call_1',name:wireName,arguments:'{"url":"https://example.invalid/"}'}
+    ],usage:{input_tokens:8,output_tokens:3}}:{status:'completed',output:[{type:'message',content:[{type:'output_text',text:'{"done":true}'}]}],usage:{input_tokens:11,output_tokens:4}}),{status:200});
+  });
+  const session=provider.createSession(task,{provider:'openai',model:'configured',apiKey:'synthetic-key'},[{
+    name:'web.open',description:'Open approved source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}
+  }]);
+  const first=await session.next([],'required');assert.equal(first.output,undefined);assert.deepEqual(first.toolCalls,[{id:'call_1',name:'web.open',arguments:{url:'https://example.invalid/'}}]);
+  const final=await session.next([{callId:'call_1',name:'web.open',output:'{"title":"Synthetic"}'}]);assert.equal(final.output,'{"done":true}');
+  const firstBody=bodies[0] as {store:boolean;include:string[];tool_choice:string;tools:Array<{name:string}>};assert.equal(firstBody.store,false);assert.deepEqual(firstBody.include,['reasoning.encrypted_content']);assert.equal(firstBody.tool_choice,'required');
+  assert.match(firstBody.tools[0]!.name,/^[A-Za-z0-9_-]{1,64}$/);assert.notEqual(firstBody.tools[0]!.name,'web.open');assert.equal(firstBody.tools[0]!.name,wireName);
+  const second=bodies[1] as {input:unknown[];tool_choice:string};assert.equal(second.tool_choice,'auto');assert.equal((second.input[1] as {type:string}).type,'reasoning');assert.equal((second.input[1] as {encrypted_content:string}).encrypted_content,'opaque-encrypted-reasoning');assert.equal((second.input.at(-1) as {type:string}).type,'function_call_output');
+  assert.equal((second.input.find((item)=>Boolean(item)&&typeof item==='object'&&(item as {type?:string}).type==='function_call') as {name:string}).name,wireName);
+  assert.equal(JSON.stringify(final).includes('opaque-encrypted-reasoning'),false);
+  assert.equal(JSON.stringify(bodies).includes('synthetic-key'),false);
+  session.close();
+});
+
+test('OpenAI-compatible maps one and multiple Chat Completions tool calls and tool results',async()=>{
+  const bodies:Array<Record<string,unknown>>=[];let turn=0;let wireName='';
+  const provider=new OpenAiCompatibleProvider(async(_url,init)=>{const body=JSON.parse(String(init.body)) as Record<string,unknown>;bodies.push(body);turn++;
+    if(turn===1)wireName=(((body.tools as Array<{function:{name:string}}>)[0]!).function.name);
+    const messages=turn===1?{choices:[{message:{role:'assistant',content:null,reasoning:'ignored-large-reasoning-trace',reasoning_content:'ignored-large-reasoning-content',provider_extension:{internal:'must-not-return'},tool_calls:[
+      {id:'call_a',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/"}'}},
+      {id:'call_b',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/news"}'}}
+    ]}}]}:{choices:[{message:{role:'assistant',content:'Synthetic final'}}]};return new Response(JSON.stringify(messages),{status:200});
+  },1000,async()=>[{address:'93.184.216.34',family:4}]);
+  const session=provider.createSession(task,{provider:'openai_compatible',model:'local',baseUrl:'http://provider.test/v1'},[{
+    name:'web.open',description:'Open approved source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}
+  }]);
+  const first=await session.next([],'required');assert.equal(first.toolCalls.length,2);
+  assert.deepEqual(first.toolCalls.map((item)=>item.name),['web.open','web.open']);assert.match(wireName,/^[A-Za-z0-9_-]{1,64}$/);assert.notEqual(wireName,'web.open');
+  const final=await session.next(first.toolCalls.map((item)=>({callId:item.id,name:item.name,output:'{"text":"Synthetic"}'})));assert.equal(final.output,'Synthetic final');
+  assert.equal(bodies[0]!.tool_choice,'required');assert.equal(bodies[1]!.tool_choice,'auto');
+  const sent=bodies[1]!.messages as Array<Record<string,unknown>>;assert.equal(sent.filter((message)=>message.role==='tool').length,2);
+  assert.deepEqual(sent[1],{role:'assistant',content:null,tool_calls:[
+    {id:'call_a',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/"}'}},
+    {id:'call_b',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/news"}'}}
+  ]});
+  assert.deepEqual(sent.filter((message)=>message.role==='tool').map((message)=>message.name),[wireName,wireName]);
+  assert.equal(JSON.stringify(sent).includes('ignored-large-reasoning'),false);assert.equal(JSON.stringify(sent).includes('provider_extension'),false);
+  session.close();
+});
+
+test('provider tool aliases fail closed for duplicate definitions and unmapped or duplicate returned calls',async()=>{
+  const tool={name:'web.open',description:'Open approved source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}};
+  for(const provider of [
+    new OpenAiProvider(async()=>new Response('{}')),
+    new OpenAiCompatibleProvider(async()=>new Response('{}'),1000,async()=>[{address:'93.184.216.34',family:4}])
+  ]){
+    assert.throws(()=>provider.createSession(task,provider.id==='openai'?{provider:'openai',model:'synthetic',apiKey:'synthetic'}:{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'},[tool,tool]),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_CONFIGURATION_INVALID');
+  }
+  const responses=new OpenAiProvider(async()=>new Response(JSON.stringify({status:'completed',output:[{type:'function_call',call_id:'call_1',name:'unmapped_tool',arguments:'{}'}]}),{status:200}));
+  await assert.rejects(responses.createSession(task,{provider:'openai',model:'synthetic',apiKey:'synthetic'},[tool]).next(),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID');
+  let alias='';const compatible=new OpenAiCompatibleProvider(async(_url,init)=>{const body=JSON.parse(String(init.body));alias=body.tools[0].function.name;return new Response(JSON.stringify({choices:[{message:{tool_calls:[
+    {id:'duplicate',type:'function',function:{name:alias,arguments:'{}'}},{id:'duplicate',type:'function',function:{name:alias,arguments:'{}'}}
+  ]}}]}),{status:200});},1000,async()=>[{address:'93.184.216.34',family:4}]);
+  await assert.rejects(compatible.createSession(task,{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'},[tool]).next(),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID');
+});
+
+test('terminal result validation closes both provider sessions before any retry transport',async()=>{
+  const tool={name:'web.open',description:'Open approved source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}};
+  for(const kind of ['openai','openai_compatible'] as const){
+    let calls=0;const transport=async(_url:string,init:RequestInit)=>{calls++;const body=JSON.parse(String(init.body));const wireName=kind==='openai'?body.tools[0].name:body.tools[0].function.name;
+      return kind==='openai'?new Response(JSON.stringify({status:'completed',output:[{type:'function_call',call_id:'call_1',name:wireName,arguments:'{}'}]}),{status:200}):new Response(JSON.stringify({choices:[{message:{tool_calls:[{id:'call_1',type:'function',function:{name:wireName,arguments:'{}'}}]}}]}),{status:200});};
+    const provider=kind==='openai'?new OpenAiProvider(transport):new OpenAiCompatibleProvider(transport,1000,async()=>[{address:'93.184.216.34',family:4}]);
+    const session=provider.createSession(task,kind==='openai'?{provider:'openai',model:'synthetic',apiKey:'synthetic'}:{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'},[tool]);
+    const first=await session.next();assert.equal(first.toolCalls[0]!.name,'web.open');
+    await assert.rejects(session.next([{callId:'call_1',name:'web.other',output:'synthetic mismatch'}]),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID');
+    await assert.rejects(session.next([{callId:'call_1',name:'web.open',output:'synthetic correct but too late'}]),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID');
+    assert.equal(calls,1,`${kind} must not call transport after terminal result validation`);session.close();session.close();
+  }
+});
+
+test('terminal provider response errors close both sessions before any retry transport',async()=>{
+  for(const kind of ['openai','openai_compatible'] as const){
+    let calls=0;const transport=async()=>{calls++;return kind==='openai'?new Response(JSON.stringify({status:'incomplete',output:[]}),{status:200}):new Response(JSON.stringify({choices:[]}),{status:200});};
+    const provider=kind==='openai'?new OpenAiProvider(transport):new OpenAiCompatibleProvider(transport,1000,async()=>[{address:'93.184.216.34',family:4}]);
+    const session=provider.createSession(task,kind==='openai'?{provider:'openai',model:'synthetic',apiKey:'synthetic'}:{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'});
+    await assert.rejects(session.next(),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID');
+    await assert.rejects(session.next(),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID');
+    assert.equal(calls,1,`${kind} must not call transport after terminal provider error`);session.close();session.close();
+  }
 });
 
 test('OpenAI adapter rejects incomplete, refusal and upstream responses with normalized failures', async () => {
@@ -85,6 +185,45 @@ test('OpenAI adapter bounds stalled response bodies and rejects non-object JSON'
     nonObject.execute(task, { provider: 'openai', model: 'configured-routine', apiKey: 'synthetic-api-key-for-tests' }),
     (error: unknown) => error instanceof AiProviderFailure && error.code === 'AI_RESPONSE_INVALID'
   );
+});
+
+test('request-local external deadlines replace shorter provider defaults for both adapters',async()=>{
+  const delayed=async(response:()=>Response)=>{await new Promise((resolve)=>setTimeout(resolve,35));return response();};
+  const openai=new OpenAiProvider(async()=>delayed(()=>new Response(JSON.stringify({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'OpenAI after default'}]}]}))),10);
+  const openaiController=new AbortController();const openaiTurn=await openai.createSession(task,{provider:'openai',model:'synthetic',apiKey:'synthetic'},[],openaiController.signal).next();assert.equal(openaiTurn.output,'OpenAI after default');
+  const compatible=new OpenAiCompatibleProvider(async()=>delayed(()=>new Response(JSON.stringify({choices:[{message:{content:'Compatible after default'}}]}))),10,async()=>[{address:'93.184.216.34',family:4}]);
+  const compatibleController=new AbortController();const compatibleTurn=await compatible.createSession(task,{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'},[],compatibleController.signal).next();assert.equal(compatibleTurn.output,'Compatible after default');
+});
+
+test('premature finals do not detach either provider session from its outer abort',async()=>{
+  const tool={name:'web.open',description:'Open approved source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}};
+  for(const kind of ['openai','openai_compatible'] as const){
+    let calls=0;const controller=new AbortController();
+    const response=()=>kind==='openai'?new Response(JSON.stringify({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'Premature final'}]}]}),{status:200}):new Response(JSON.stringify({choices:[{message:{content:'Premature final'}}]}),{status:200});
+    const transport=async()=>{calls++;if(calls===1)return response();await new Promise((resolve)=>setTimeout(resolve,80));return response();};
+    const provider=kind==='openai'?new OpenAiProvider(transport,1_000):new OpenAiCompatibleProvider(transport,1_000,async()=>[{address:'93.184.216.34',family:4}]);
+    const session=provider.createSession(task,kind==='openai'?{provider:'openai',model:'synthetic',apiKey:'synthetic'}:{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'},[tool],controller.signal);
+    try{
+      assert.equal((await session.next([],'required')).output,'Premature final');const started=Date.now();const pending=session.next([],'required');setTimeout(()=>controller.abort(),20);
+      await assert.rejects(pending,(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_TIMEOUT');assert.ok(Date.now()-started<60,`${kind} retry must retain the outer abort`);
+    }finally{session.close();}
+  }
+});
+
+test('OpenAI-compatible unmanaged session shares one timeout across DNS and response transport',async()=>{
+  const wait=(milliseconds:number)=>new Promise((resolve)=>setTimeout(resolve,milliseconds));const started=Date.now();
+  const provider=new OpenAiCompatibleProvider(async()=>{await wait(30);return new Response(JSON.stringify({choices:[{message:{content:'must not complete'}}]}),{status:200});},40,async()=>{await wait(30);return[{address:'93.184.216.34',family:4}];});
+  await assert.rejects(provider.execute(task,{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_TIMEOUT');
+  assert.ok(Date.now()-started<65,'DNS and HTTP must consume one provider deadline rather than independent timers');
+});
+
+test('external aborts during transport or body map to AI_TIMEOUT',async()=>{
+  const openaiController=new AbortController();const openai=new OpenAiProvider(async(_url,init)=>new Promise((_resolve,reject)=>init.signal?.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})),1_000);
+  const openaiPending=openai.createSession(task,{provider:'openai',model:'synthetic',apiKey:'synthetic'},[],openaiController.signal).next();setTimeout(()=>openaiController.abort(),15);
+  await assert.rejects(openaiPending,(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_TIMEOUT');
+  const compatibleController=new AbortController();const compatible=new OpenAiCompatibleProvider(async()=>new Response(new ReadableStream({start(){/* external abort bounds this body */}})),1_000,async()=>[{address:'93.184.216.34',family:4}]);
+  const compatiblePending=compatible.createSession(task,{provider:'openai_compatible',model:'synthetic',baseUrl:'http://provider.test/v1'},[],compatibleController.signal).next();setTimeout(()=>compatibleController.abort(),15);
+  await assert.rejects(compatiblePending,(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_TIMEOUT');
 });
 
 test('OpenAI-compatible adapter supports every operation, optional credentials and Chat Completions usage', async () => {
@@ -153,8 +292,8 @@ test('OpenAI-compatible default transport reaches a mocked local endpoint throug
   try {
     const address = server.address();
     assert.ok(address && typeof address === 'object');
-    const result = await new OpenAiCompatibleProvider().execute(task, {
-      provider: 'openai_compatible', model: 'local-test', baseUrl: `http://127.0.0.1:${address.port}/v1`
+    const result = await new OpenAiCompatibleProvider(undefined,1_000,async()=>[{address:'127.0.0.1',family:4}]).execute(task, {
+      provider: 'openai_compatible', model: 'local-test', baseUrl: `http://synthetic-provider.test:${address.port}/v1`
     });
     assert.equal(result.output, 'Pinned local response');
     assert.equal(seenPath, '/v1/chat/completions');
@@ -242,6 +381,8 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
     timeout.execute(task, { provider: 'openai_compatible', model: 'local', baseUrl: 'http://localhost:11434/v1' }),
     (error: unknown) => error instanceof AiProviderFailure && error.code === 'AI_TIMEOUT'
   );
+  const connectionTimeout=new OpenAiCompatibleProvider(async()=>new Promise(()=>undefined),20,resolver);
+  await assert.rejects(connectionTimeout.testConnection({provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_TIMEOUT');
 
   const transportTimeout = new OpenAiCompatibleProvider(
     async () => new Promise((_resolve,reject)=>setTimeout(()=>reject(new AiProviderFailure('AI_RESPONSE_INVALID')),60)),

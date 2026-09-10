@@ -47,10 +47,12 @@ const responses = {
 
 const base = `${householdBase}/monitors`;
 const sourceUrl = "https://example.com/news";
+const evidenceUrl = "https://example.com/news/library-reading-garden";
+const sources = [{ sourceUrl, fetchedAt: "2030-09-18T09:59:55.000Z" }, { sourceUrl: evidenceUrl, fetchedAt: "2030-09-18T09:59:58.000Z" }];
 const scheduledAt = "2030-09-19T10:00:00.000Z";
 const checkedAt = "2030-09-18T10:00:00.000Z";
 const taskId = "60000000-0000-4000-8000-000000000001";
-const answer = { version: 1, answer: "Biblioteket åpner en ny lesehage.", evidence: { quote: "Biblioteket åpner en ny lesehage.", sourceUrl }, confidence: 0.99, uncertainty: "Åpningsdatoen er ikke oppgitt." };
+const answer = { version: 1, answer: "Biblioteket åpner en ny lesehage.", evidence: { quote: "Biblioteket åpner en ny lesehage.", sourceUrl: evidenceUrl }, confidence: 0.99, uncertainty: "Åpningsdatoen er ikke oppgitt." };
 const rule = { resultKind: "answer", summary: "Finn den nyeste overskriften og vis svaret.", eventTypes: [], keywords: [], people: [], checkIntervalMinutes: 60, noticeDaysBefore: 1, noticeLocalTime: "18:00" };
 let tasks = [];
 let failNext;
@@ -97,7 +99,7 @@ async function mock(currentPage, restricted = false) {
           }
           if (action === "run") { task.lastCheckedAt = checkedAt; task.lastResult = answer.answer; task.stats = { checks: 14, aiCalls: 1, unchanged: 13 }; }
           const eventResult = task.interpretedRule.resultKind === "events";
-          task.latestResult = { resultKind: eventResult ? "events" : "answer", result: eventResult ? { version: 1, events: task.events } : answer, sourceUrl, checkedAt };
+          task.latestResult = { resultKind: eventResult ? "events" : "answer", result: eventResult ? { version: 1, events: task.events } : answer, sourceUrl, checkedAt, sources: eventResult ? [] : sources };
           return route.fulfill({ json: { outcome: "changed", ...task.latestResult } });
         }
         task = { ...task, revision: task.revision + 1 };
@@ -123,7 +125,7 @@ const panel = () => page.locator(".monitor-page");
 const card = () => panel().getByRole("article").first();
 const button = (name) => card().getByRole("button", { name, exact: true });
 const navigate = async () => { await page.getByRole("button", { name: "Oppdrag", exact: true }).click(); await expect(panel().getByRole("heading", { name: "Oppdrag", exact: true })).toBeVisible(); };
-const noTechnicalTerms = async () => { await expect(panel()).not.toContainText(/OpenAI|Ollama|provider|leverandør|modell|model|policy|reasoning|resonnering|API|KI-/i); };
+const noTechnicalTerms = async () => { await expect(panel()).not.toContainText(/OpenAI|Ollama|provider|leverandør|modell|model|policy|reasoning|resonnering|API|KI-|web[._]open|tool|verktøy|mangler nettilgang|lack web access/i); };
 const axe = async () => { const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze(); expect(result.violations.map(({ id }) => id)).toEqual([]); };
 const layout = async () => expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 try {
@@ -158,6 +160,18 @@ try {
   await expect(card().locator(".monitor-result")).toBeFocused();
   await expect(card()).toContainText(answer.answer);
   await expect(card()).toContainText("Dette er en prøve. Oppdragets plan og varsler er uendret.");
+  await expect(card().locator(".monitor-result-source")).toHaveAttribute("href", evidenceUrl);
+  const sourcesDisclosure = card().locator(".monitor-sources");
+  await expect(sourcesDisclosure.locator("summary")).toHaveText("Kilder brukt");
+  await sourcesDisclosure.locator("summary").focus(); await page.keyboard.press("Enter");
+  await expect(sourcesDisclosure).toHaveAttribute("open", "");
+  await expect(sourcesDisclosure.getByRole("link")).toHaveCount(2);
+  await expect(sourcesDisclosure.getByRole("link").last()).toHaveAttribute("href", evidenceUrl);
+  await expect(sourcesDisclosure.locator("time").last()).toHaveAttribute("datetime", sources[1].fetchedAt);
+  await expect(card().locator(".monitor-observed-at time")).toHaveAttribute("datetime", sources[1].fetchedAt);
+  await noTechnicalTerms(); await layout(); await axe();
+  const sourceHeights = await sourcesDisclosure.locator("summary, a").evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+  expect(sourceHeights.every((height) => height >= 44)).toBe(true);
   expect(tasks[0].state).toBe("draft"); expect(tasks[0].nextCheckAt).toBeNull();
   await button("Godkjenn og aktiver").click();
   await expect(card().locator(".monitor-state")).toHaveText("Aktiv");
@@ -170,8 +184,8 @@ try {
   await expect(card().locator(".monitor-result")).toContainText(answer.answer);
   await expect(card().locator(".monitor-result blockquote")).toHaveText(answer.evidence.quote);
   await expect(card().locator(".monitor-result")).toContainText(answer.uncertainty);
-  await expect(card().locator(".monitor-result a")).toHaveAttribute("href", sourceUrl);
-  await expect(card().locator(".monitor-result small")).toContainText("2030");
+  await expect(card().locator(".monitor-result-source")).toHaveAttribute("href", evidenceUrl);
+  await expect(card().locator(".monitor-observed-at")).toContainText("2030");
   await expect(card().locator(".monitor-result")).not.toContainText("Dette er en prøve");
   expect(tasks[0].nextCheckAt).toBe(scheduledAt);
   unchangedNext = true;
@@ -180,8 +194,8 @@ try {
   await expect(card().locator(".monitor-result")).toContainText(answer.answer);
   await expect(card().locator(".monitor-result blockquote")).toHaveText(answer.evidence.quote);
   await expect(card().locator(".monitor-result")).toContainText(answer.uncertainty);
-  await expect(card().locator(".monitor-result a")).toHaveAttribute("href", sourceUrl);
-  await expect(card().locator(".monitor-result small")).toContainText("12:00");
+  await expect(card().locator(".monitor-result-source")).toHaveAttribute("href", evidenceUrl);
+  await expect(card().locator(".monitor-observed-at time")).toHaveAttribute("datetime", sources[1].fetchedAt);
   await button("Prøv med smartere KI").click();
   await expect(card()).toContainText("Et smartere forslag");
   expect(tasks[0].modelTier).toBe("routine"); expect(tasks[0].nextCheckAt).toBe(scheduledAt);
@@ -194,7 +208,18 @@ try {
   await button("Kjør nå").click();
   await expect(card().getByRole("alert")).toContainText("Dette tok for lang tid");
   await expect(card().getByRole("alert")).toBeFocused();
-  await noTechnicalTerms();
+  for (const [code, message] of [
+    ["MONITOR_SOURCE_TIMEOUT", "Kilden svarte ikke i tide"],
+    ["MONITOR_TOOL_INVALID", "Samvev kunne ikke undersøke kilden videre"],
+    ["MONITOR_TOOL_LIMIT", "Samvev rakk ikke å finne et bekreftet svar"],
+    ["AI_ENDPOINT_BLOCKED", "Denne kilden kan ikke brukes"],
+    ["MONITOR_SOURCE_UNSUPPORTED", "Samvev kunne ikke lese kilden"],
+  ]) {
+    failNext = code; await button("Kjør nå").click();
+    await expect(card().getByRole("alert")).toContainText(message);
+    await expect(card().getByRole("alert")).toBeFocused();
+    await noTechnicalTerms();
+  }
   await button("Pause").click();
   await expect(card().locator(".monitor-state")).toHaveText("Pauset");
   await button("Test nå").click();
@@ -228,7 +253,7 @@ try {
   await expect(panel().getByRole("heading", { name: "Oppdrag", exact: true })).toBeFocused();
   await expect(panel()).toContainText("Ingen oppdrag ennå");
   const timeoutValues = await page.evaluate(() => window.taskTimeouts);
-  expect(timeoutValues).toContain(60000); expect(timeoutValues).toContain(12000);
+  expect(timeoutValues).toContain(210000); expect(timeoutValues).toContain(12000);
   // Persisted events and incomplete setup get distinct representations.
   tasks = [{ id: taskId, name: "Testtur", instruction: "Finn fremtidige turer fra https://example.com/news.", sourceUrl, state: "active", checkIntervalMinutes: 60, noticeDaysBefore: 1, noticeLocalTime: "18:00", providerPolicy: "local", modelTier: "routine", targets: { personIds: [], displayIds: ["50000000-0000-4000-8000-000000000001"] }, interpretedRule: { ...rule, resultKind: "events", summary: "Finn fremtidige turer.", eventTypes: ["tur"] }, events: [{ date: "2030-09-20", time: "10:00", type: "tur", description: "Tur til testparken", actions: ["Ta med vann"], who: ["Testprofil"], evidence: { quote: "2030-09-20 klokken 10:00: Tur til testparken. Ta med vann.", sourceUrl }, confidence: .99, uncertainty: null }], revision: 1, approvedRevision: 1, lastCheckedAt: checkedAt, nextCheckAt: scheduledAt, lastResult: "1 event(s)", lastChangedAt: checkedAt, errorCode: null, stats: { checks: 1, aiCalls: 1, unchanged: 0 } }];
   tasks.push({ ...tasks[0], id: "60000000-0000-4000-8000-000000000002", name: "Uferdig oppdrag", state: "draft", interpretedRule: null, events: [], nextCheckAt: null });
@@ -246,6 +271,21 @@ try {
   await expect(card().locator(".monitor-result")).toContainText("Source unchanged");
   await expect(card().locator(".monitor-result")).toContainText("Tur til testparken");
   await expect(card().locator(".monitor-result blockquote")).toContainText("2030-09-20");
+  await expect(card().locator(".monitor-sources")).toHaveCount(0);
+  for (const [code, message] of [
+    ["MONITOR_SOURCE_TIMEOUT", "The source did not respond in time"],
+    ["MONITOR_TOOL_INVALID", "Samvev could not explore the source further"],
+    ["MONITOR_TOOL_LIMIT", "Samvev could not find a confirmed answer in time"],
+  ]) {
+    failNext = code; await button("Run now").click();
+    await expect(card().getByRole("alert")).toContainText(message);
+    await expect(card().getByRole("alert")).toBeFocused();
+  }
+  // The same source disclosure is localized without exposing internal provenance fields.
+  tasks[0].latestResult = { resultKind: "answer", result: answer, sourceUrl, checkedAt, sources };
+  await page.reload(); await page.getByRole("button", { name: "Tasks", exact: true }).click();
+  await expect(card().locator(".monitor-sources summary")).toHaveText("Sources used");
+  await card().locator(".monitor-sources summary").click();
   await noTechnicalTerms(); await layout(); await axe();
   const actionHeights = await panel().locator(".card-actions button").evaluateAll((buttons) => buttons.map((button) => button.getBoundingClientRect().height));
   expect(actionHeights.every((height) => height >= 44)).toBe(true);
@@ -253,9 +293,11 @@ try {
   await page.setViewportSize({ width: 1280, height: 752 }); await page.reload();
   await page.getByRole("button", { name: "Tasks", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await card().locator(".monitor-sources summary").click();
   await noTechnicalTerms(); await layout(); await axe();
+  await page.setViewportSize({ width: 390, height: 844 }); await layout(); await axe();
   const limitedContext = await browser.newContext({ baseURL }); const limited = await limitedContext.newPage(); await mock(limited, true); await limited.goto("/");
   await expect(limited.getByRole("button", { name: "Tasks", exact: true })).toHaveCount(0); await limitedContext.close();
   expect(errors).toEqual([]); expect(unexpected).toEqual([]);
-  console.log("PASS synthetic prompt-first create/interpret; optional/ambiguous source errors; approval/test/manual/quality/pause/resume/edit/delete; answer/event evidence+time including persisted answer evidence/uncertainty after reload; unchanged retains answer/events; edited/reapproved setup clears stale results; preserved schedule representation; no technical controls; 60s actions; restricted navigation; keyboard/focus; 44px actions; nb/en mobile/XL/desktop and dark-theme layout/Axe; zero real requests");
+  console.log("PASS synthetic prompt-first create/interpret; optional/ambiguous source errors; approval/test/manual/quality/pause/resume/edit/delete; answer/event evidence+time including persisted answer evidence/uncertainty after reload; unchanged retains answer/events; edited/reapproved setup clears stale results; preserved schedule representation; no technical controls; 210s actions; source-specific nb/en errors; keyboard source disclosure with actual evidence URL/fetch time; restricted navigation; keyboard/focus; 44px actions; nb/en mobile/XL/desktop and dark-theme layout/Axe; zero real requests");
 } finally { if (gate) release(); await browser.close(); }
