@@ -31,7 +31,9 @@ const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'MONITOR_TOOL_LIMIT') return 'monitorErrorSourceLimit';
   if (code.includes('TIMEOUT') || code === 'OFFLINE') return 'monitorErrorTimeout';
   if (['AI_DISABLED', 'AI_CONFIGURATION_INVALID', 'AI_NOT_CONFIGURED', 'AI_PROVIDER_UNAVAILABLE', 'AI_PROVIDER_MISMATCH', 'AI_CREDENTIAL_INVALID'].includes(code)) return 'monitorErrorSetup';
-  if (code === 'AI_RESPONSE_INVALID' || code === 'MONITOR_INTERPRETATION_INVALID') return 'monitorErrorInterpretation';
+  if (code === 'AI_RESPONSE_INVALID') return 'monitorErrorVerification';
+  if (code === 'MONITOR_INTERPRETATION_SOURCE_REFUSAL') return 'monitorErrorSourceContext';
+  if (code === 'MONITOR_INTERPRETATION_SCHEMA_INVALID' || code === 'MONITOR_INTERPRETATION_INVALID') return 'monitorErrorInterpretation';
   if (code === 'REVISION_CONFLICT' || code === 'CONFLICT') return 'monitorErrorConflict';
   if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || code === 'MONITOR_OWNER_UNAUTHORIZED') return 'monitorErrorPermission';
   return 'monitorErrorGeneric';

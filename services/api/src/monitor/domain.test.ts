@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { answerFromAi, extractionFromAi, monitorTaskLifecycle } from './service.ts';
+import { answerFromAi, extractionFromAi, interpretationFromAi, monitorTaskLifecycle } from './service.ts';
 import { monitorEventKey, orderedMonitorEvents } from './event-identity.ts';
 
 const event=(date:string,description='Trip day')=>({date,time:null,type:'trip',description,actions:['Bring boots'],who:['A'],evidence:{quote:`Trip day ${date} A Bring boots`,sourceUrl:'https://example.com/plan'},confidence:0.9,uncertainty:null});
@@ -33,6 +33,7 @@ test('validated extraction rejects past and unsupported assertions',()=>{
   assert.throws(()=>extractionFromAi(JSON.stringify({version:1,events:[{...event('2030-09-20'),actions:['Bring invented item']}]}),source,new Date('2026-09-08T00:00:00Z')));
   assert.throws(()=>extractionFromAi(JSON.stringify({version:1,events:[{...event('2030-09-20'),description:'Fabricated school closure',evidence:{quote:'2030-09-20',sourceUrl:source.finalUrl}}]}),source,new Date('2026-09-08T00:00:00Z')));
   const negated={...event('2030-09-20'),type:'school',description:'School is open',actions:[],who:[],evidence:{quote:'School is not open 2030-09-20',sourceUrl:source.finalUrl}};assert.throws(()=>extractionFromAi(JSON.stringify({version:1,events:[negated]}),{...source,text:negated.evidence.quote},new Date('2026-09-08T00:00:00Z')));
+  const splitDate={...event('2030-09-20'),evidence:{quote:'Trip day A Bring boots',sourceUrl:source.finalUrl}};assert.throws(()=>extractionFromAi(JSON.stringify({version:1,events:[splitDate]}),source,new Date('2026-09-08T00:00:00Z')),(error:any)=>error.code==='AI_RESPONSE_INVALID');
 });
 
 test('answer validation rejects fluent claims unsupported by exact evidence',()=>{
@@ -41,6 +42,41 @@ test('answer validation rejects fluent claims unsupported by exact evidence',()=
   assert.equal(answerFromAi(JSON.stringify(valid),source).answer,'Verified source headline');
   assert.throws(()=>answerFromAi(JSON.stringify({...valid,answer:'Invented breaking headline'}),source));
   assert.throws(()=>answerFromAi(JSON.stringify({...valid,evidence:{...valid.evidence,quote:'Other text'}}),source));
+});
+
+test('server anchors omitted evidence URLs only to an opened document supporting the exact claim',()=>{
+  const first={finalUrl:'https://example.com/',contentType:'text/html' as const,text:'First editorial headline\nOther text',fingerprint:'root'};
+  const second={finalUrl:'https://example.com/story',contentType:'text/html' as const,text:'Story detail',fingerprint:'story'};
+  const withoutInternalId={version:1,answer:'First editorial headline',evidence:{quote:'First editorial headline'},confidence:0.9,uncertainty:null};
+  assert.equal(answerFromAi(JSON.stringify(withoutInternalId),[first,second]).evidence.sourceUrl,first.finalUrl);
+  const fabricated={...withoutInternalId,evidence:{...withoutInternalId.evidence,sourceUrl:'https://example.com/not-opened'}};
+  assert.throws(()=>answerFromAi(JSON.stringify(fabricated),[first,second]),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+  const irrelevant={...withoutInternalId,answer:'Invented headline',evidence:{quote:'Invented headline'}};
+  assert.throws(()=>answerFromAi(JSON.stringify(irrelevant),[first,second]),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+});
+
+test('missing model confidence metadata is conservatively normalized without weakening strict values',()=>{
+  const source={finalUrl:'https://example.com/',contentType:'text/html' as const,text:'Verified headline\nTrip day 2030-09-20 A Bring boots',fingerprint:'source'};
+  const answer=answerFromAi(JSON.stringify({version:1,answer:'Verified headline',evidence:{quote:'Verified headline'}}),source);assert.equal(answer.confidence,0);assert.equal(answer.uncertainty,null);assert.equal(answer.evidence.sourceUrl,source.finalUrl);
+  const missingEvent={date:'2030-09-20',time:null,type:'trip',description:'Trip day',actions:['Bring boots'],who:['A'],evidence:{quote:'Trip day 2030-09-20 A Bring boots'}};
+  const extracted=extractionFromAi(JSON.stringify({version:1,events:[missingEvent]}),source,new Date('2026-09-08T00:00:00Z'));assert.equal(extracted.events[0]!.confidence,0);assert.equal(extracted.events[0]!.uncertainty,null);assert.equal(extracted.events[0]!.evidence.sourceUrl,source.finalUrl);
+  for(const confidence of [-0.1,1.1,'high'])assert.throws(()=>answerFromAi(JSON.stringify({version:1,answer:'Verified headline',evidence:{quote:'Verified headline'},confidence,uncertainty:null}),source),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+  for(const uncertainty of [42,{value:'unknown'}])assert.throws(()=>extractionFromAi(JSON.stringify({version:1,events:[{...missingEvent,confidence:0.5,uncertainty}]}),source,new Date('2026-09-08T00:00:00Z')),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+  assert.throws(()=>answerFromAi(JSON.stringify({version:1,answer:'Verified headline',evidence:{quote:'Verified headline'},unexpected:true}),source),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+});
+
+test('server anchors event evidence without weakening date and claim validation',()=>{
+  const source={finalUrl:'https://example.com/plan',contentType:'text/html' as const,text:'Trip day 2030-09-20 A Bring boots',fingerprint:'plan'};
+  const withoutUrl={...event('2030-09-20'),evidence:{quote:'Trip day 2030-09-20 A Bring boots'}};
+  const result=extractionFromAi(JSON.stringify({version:1,events:[withoutUrl]}),source,new Date('2026-09-08T00:00:00Z'));
+  assert.equal(result.events[0]!.evidence.sourceUrl,source.finalUrl);
+  assert.throws(()=>extractionFromAi(JSON.stringify({version:1,events:[{...withoutUrl,description:'Invented closure'}]}),source,new Date('2026-09-08T00:00:00Z')),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+});
+
+test('interpretation validation exposes only sanitized schema and source-refusal stages',()=>{
+  assert.throws(()=>interpretationFromAi('{"summary":"missing fields"}'),(error:any)=>error.code==='MONITOR_INTERPRETATION_SCHEMA_INVALID'&&!error.details);
+  assert.throws(()=>interpretationFromAi(JSON.stringify({...rule,summary:'I cannot access or browse the website.'})),(error:any)=>error.code==='MONITOR_INTERPRETATION_SOURCE_REFUSAL'&&!error.details);
+  assert.equal(interpretationFromAi(JSON.stringify(rule)).resultKind,'answer');
 });
 
 test('opened document title, headings and displayed link labels are valid exact evidence',()=>{
@@ -75,6 +111,13 @@ test('evidence URLs accept only safe canonical equivalence and are rewritten to 
   for(const sourceUrl of ['https://example.com/other','https://example.com/?day=1','https://other.example/','http://127.0.0.1/','https://example.com/?api%5Fkey=hidden']){
     assert.throws(()=>answerFromAi(JSON.stringify({...answer,evidence:{...answer.evidence,sourceUrl}}),root),(error:any)=>error.code==='AI_RESPONSE_INVALID',sourceUrl);
   }
+});
+
+test('only server-recorded successful request aliases authorize redirected evidence URLs',()=>{
+  const redirected={finalUrl:'https://www.example.com/',contentType:'text/html' as const,text:'Redirected headline',fingerprint:'redirect',evidenceUrlAliases:['https://example.com/']};
+  const answer={version:1,answer:'Redirected headline',evidence:{quote:'Redirected headline',sourceUrl:'https://example.com/'},confidence:0.9,uncertainty:null};
+  assert.equal(answerFromAi(JSON.stringify(answer),redirected).evidence.sourceUrl,redirected.finalUrl);
+  assert.throws(()=>answerFromAi(JSON.stringify({...answer,evidence:{...answer.evidence,sourceUrl:'https://example.com/unopened'}}),redirected),(error:any)=>error.code==='AI_RESPONSE_INVALID');
 });
 
 test('monitor answer parsing recovers the final strict object from bounded model noise',()=>{

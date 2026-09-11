@@ -35,6 +35,7 @@ test('HTML is normalized and unchanged relevant content has a stable fingerprint
   let calls=0;const fetcher=new MonitorSourceFetcher(resolver,async()=>{calls++;return response('<html><head><title>Weekly plan</title></head><style>x</style><h1>Plan</h1><p>Trip 2030-09-20</p><a href="/details#today">Details</a></html>','text/html');});
   const first=await fetcher.fetch('https://example.com/plan');const second=await fetcher.fetch('https://example.com/plan');
   assert.equal(first.text,'Weekly plan\nPlan\nTrip 2030-09-20\nDetails');assert.equal(first.title,'Weekly plan');assert.deepEqual(first.headings,['Plan']);assert.deepEqual(first.links,[{url:'https://example.com/details',label:'Details'}]);assert.match(first.fetchedAt!,/^\d{4}-/);assert.equal(first.fingerprint,second.fingerprint);assert.equal(calls,2);
+  assert.equal(first.httpStatus,200);assert.ok(first.byteSize&&first.byteSize>0);
 });
 
 test('HTML extraction retains meaningful links beyond navigation-heavy page starts',async()=>{
@@ -54,6 +55,11 @@ test('semantic main content excludes global and nested navigation while retainin
   const fetcher=new MonitorSourceFetcher(resolver,async()=>response(html,'text/html'));const source=await fetcher.fetch('https://example.com/');
   assert.equal(source.title,'Public news');assert.deepEqual(source.headings,['Editorial headline']);assert.deepEqual(source.links,[{url:'https://example.com/story',label:'Read the full story'}]);
   assert.equal(source.text,'Editorial headline\nEditorial lead.\nRead the full story');assert.ok(!source.text.includes('Global heading'));assert.ok(!source.text.includes('Main menu'));assert.ok(!source.links?.[0]?.label.includes('hydration'));
+});
+
+test('HTML headings retain DOM order for deterministic first-headline semantics',async()=>{
+  const fetcher=new MonitorSourceFetcher(resolver,async()=>response('<main><h1>First editorial headline</h1><h2>Second editorial headline</h2></main>','text/html'));
+  const source=await fetcher.fetch('https://example.com/');assert.deepEqual(source.headings,['First editorial headline','Second editorial headline']);
 });
 
 test('link labels prefer the first semantic heading and plain anchors retain cleaned text',async()=>{

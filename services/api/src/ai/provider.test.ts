@@ -71,6 +71,7 @@ test('OpenAI Responses maps function calls and keeps opaque continuation request
     if(call===1)wireName=body.tools[0].name;
     return new Response(JSON.stringify(call===1?{status:'completed',output:[
       {type:'reasoning',id:'opaque-reasoning-item',summary:[],encrypted_content:'opaque-encrypted-reasoning'},
+      {type:'message',content:[{type:'output_text',text:'I will open the approved source.'}]},
       {type:'function_call',id:'fc_1',call_id:'call_1',name:wireName,arguments:'{"url":"https://example.invalid/"}'}
     ],usage:{input_tokens:8,output_tokens:3}}:{status:'completed',output:[{type:'message',content:[{type:'output_text',text:'{"done":true}'}]}],usage:{input_tokens:11,output_tokens:4}}),{status:200});
   });
@@ -92,7 +93,7 @@ test('OpenAI-compatible maps one and multiple Chat Completions tool calls and to
   const bodies:Array<Record<string,unknown>>=[];let turn=0;let wireName='';
   const provider=new OpenAiCompatibleProvider(async(_url,init)=>{const body=JSON.parse(String(init.body)) as Record<string,unknown>;bodies.push(body);turn++;
     if(turn===1)wireName=(((body.tools as Array<{function:{name:string}}>)[0]!).function.name);
-    const messages=turn===1?{choices:[{message:{role:'assistant',content:null,reasoning:'ignored-large-reasoning-trace',reasoning_content:'ignored-large-reasoning-content',provider_extension:{internal:'must-not-return'},tool_calls:[
+    const messages=turn===1?{choices:[{message:{role:'assistant',content:'I will inspect the approved source.',reasoning:'ignored-large-reasoning-trace',reasoning_content:'ignored-large-reasoning-content',provider_extension:{internal:'must-not-return'},tool_calls:[
       {id:'call_a',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/"}'}},
       {id:'call_b',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/news"}'}}
     ]}}]}:{choices:[{message:{role:'assistant',content:'Synthetic final'}}]};return new Response(JSON.stringify(messages),{status:200});
@@ -100,7 +101,7 @@ test('OpenAI-compatible maps one and multiple Chat Completions tool calls and to
   const session=provider.createSession(task,{provider:'openai_compatible',model:'local',baseUrl:'http://provider.test/v1'},[{
     name:'web.open',description:'Open approved source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}
   }]);
-  const first=await session.next([],'required');assert.equal(first.toolCalls.length,2);
+  const first=await session.next([],'required');assert.equal(first.toolCalls.length,2);assert.equal(first.output,undefined);
   assert.deepEqual(first.toolCalls.map((item)=>item.name),['web.open','web.open']);assert.match(wireName,/^[A-Za-z0-9_-]{1,64}$/);assert.notEqual(wireName,'web.open');
   const final=await session.next(first.toolCalls.map((item)=>({callId:item.id,name:item.name,output:'{"text":"Synthetic"}'})));assert.equal(final.output,'Synthetic final');
   assert.equal(bodies[0]!.tool_choice,'required');assert.equal(bodies[1]!.tool_choice,'auto');

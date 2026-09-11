@@ -70,6 +70,9 @@ export interface SourceLink { url:string; label:string; }
 export interface SourceDocument {
   finalUrl:string; contentType:'text/html'|'application/pdf'; text:string; fingerprint:string;
   title?:string; headings?:string[]; links?:SourceLink[]; fetchedAt?:string; etag?:string; lastModified?:string;
+  httpStatus?:number; byteSize?:number;
+  /** Server-only successful tool request aliases. Never sourced from model output. */
+  evidenceUrlAliases?:string[];
 }
 export type MonitorResolver=(hostname:string)=>Promise<Array<{address:string;family:4|6}>>;
 
@@ -170,7 +173,7 @@ export class MonitorSourceFetcher {
       }else if(kind==='application/pdf'){text=await pdfText(response.body,controller.signal);}else throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
       if(!text)throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
       if(controller.signal.aborted)throw new DomainError('MONITOR_SOURCE_TIMEOUT',504);const normalized=text.normalize('NFKC').replace(/\r/g,'').trim();
-      return {finalUrl,contentType:kind==='application/pdf'?'application/pdf':'text/html',text:normalized,fingerprint:createHash('sha256').update(normalized).digest('hex'),fetchedAt:new Date().toISOString(),...(structure??{}),...(metadata.headers.etag?{etag:metadata.headers.etag}:{}),...(metadata.headers['last-modified']?{lastModified:metadata.headers['last-modified']}:{})};
+      return {finalUrl,contentType:kind==='application/pdf'?'application/pdf':'text/html',text:normalized,fingerprint:createHash('sha256').update(normalized).digest('hex'),fetchedAt:new Date().toISOString(),httpStatus:metadata.status,byteSize:metadata.body.length,...(structure??{}),...(metadata.headers.etag?{etag:metadata.headers.etag}:{}),...(metadata.headers['last-modified']?{lastModified:metadata.headers['last-modified']}:{})};
     }catch(error){if(controller.signal.aborted)throw new DomainError('MONITOR_SOURCE_TIMEOUT',504);if(error instanceof DomainError)throw error;throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);}
     finally{clearTimeout(timeout);options.signal?.removeEventListener('abort',abort);}
   }

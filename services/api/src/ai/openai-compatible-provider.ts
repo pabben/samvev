@@ -191,12 +191,15 @@ export function chatCompletionTurn(payload: Record<string, unknown>): AiProvider
   if (!Array.isArray(payload.choices) || !payload.choices.length) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
   const message = (payload.choices[0] as { message?: unknown } | undefined)?.message;
   if (!message || typeof message !== 'object') throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
-  const row = message as Record<string, unknown>; const output = contentText(row);
+  const row = message as Record<string, unknown>;
   const toolCalls = Array.isArray(row.tool_calls) ? row.tool_calls.map((value) => {
     const call = value && typeof value === 'object' ? value as Record<string, unknown> : {};
     const fn = call.function && typeof call.function === 'object' ? call.function as Record<string, unknown> : {};
     return { id: String(call.id ?? ''), name: String(fn.name ?? ''), arguments: parsedArguments(fn.arguments) };
   }) : [];
+  // Treat assistant content accompanying function calls as intermediary text.
+  // This preserves the provider-neutral strict output/tool-call XOR.
+  const output = toolCalls.length ? '' : contentText(row);
   const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(), ...(usage ? { usage } : {}) });
   if (!parsed.success) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
   return parsed.data;

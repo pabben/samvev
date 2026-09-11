@@ -4,10 +4,11 @@ import type { AiProviderTurn, AiToolResult } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
 import { MONITOR_AGENT_DEADLINE_MS,MONITOR_LEASE_MS,MonitorAgentRunner,monitorWebTool } from './agent-runner.ts';
+import { answerFromAi } from './service.ts';
 import type { MonitorSourceFetcher, SourceDocument } from './source-fetcher.ts';
 
 const task={operation:'extract' as const,purpose:'synthetic_agent_test',input:'Use the approved source.',modelTier:'routine' as const,sources:[]};
-const root:SourceDocument={finalUrl:'https://example.test/',contentType:'text/html',title:'Synthetic front',headings:['Top'],text:'Top\nSynthetic headline',fingerprint:'root-v1',fetchedAt:'2026-09-10T10:00:00.000Z',links:[{url:'https://example.test/news','label':'News'}]};
+const root:SourceDocument={finalUrl:'https://example.test/',contentType:'text/html',title:'Synthetic front',headings:['Top'],text:'Top\nSynthetic headline',fingerprint:'root-v1',fetchedAt:'2026-09-10T10:00:00.000Z',httpStatus:200,byteSize:123,links:[{url:'https://example.test/news','label':'News'}]};
 const news:SourceDocument={finalUrl:'https://example.test/news',contentType:'text/html',title:'News',headings:['Story'],text:'Story\nSynthetic detail',fingerprint:'news-v1',fetchedAt:'2026-09-10T10:00:01.000Z',links:[]};
 
 function harness(turns:AiProviderTurn[],documents:Record<string,SourceDocument>={[root.finalUrl]:root,[news.finalUrl]:news}){
@@ -46,6 +47,12 @@ test('repeated premature required finals end at the provider-turn bound without 
   assert.deepEqual(h.choices,Array(7).fill('required'));assert.equal(h.fetches,0);assert.deepEqual(h.results,Array.from({length:7},()=>[]));
 });
 
+test('runner applies an explicit repair-turn ceiling inside the hard cap',async()=>{
+  const h=harness(Array.from({length:7},(_,index)=>({output:`Premature ${index}`,toolCalls:[],generatedAt:at})));
+  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true,maxTurns:6,maxToolExecutions:6}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_TOOL_LIMIT'&&error.details?.aiCalls===6);
+  assert.equal(h.results.length,6);assert.equal(h.fetches,0);
+});
+
 test('runner keeps one session through a premature final and closes it after its deadline aborts the retry',async()=>{
   let turns=0;let closed=0;
   const ai={createTaskSession:async(_household:string,_task:unknown,_policy:unknown,_tools:unknown,signal:AbortSignal)=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{closed++;},next:async()=>{turns++;if(turns===1)return{output:'Premature',toolCalls:[],generatedAt:at};return new Promise<never>((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DomainError('AI_TIMEOUT',504)),{once:true}));}})} as unknown as AiAdminService;
@@ -69,12 +76,12 @@ test('runner returns one and multiple web results to the provider and records co
   const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'local',rootUrl:root.finalUrl});
   assert.equal(result.aiCalls,3);assert.equal(h.fetches,2);assert.deepEqual(result.dependencies.map((item)=>item.url),[root.finalUrl,news.finalUrl]);
   assert.equal(h.results[1]![0]!.callId,'call_root');assert.match(h.results[1]![0]!.output,/Synthetic headline/);assert.match(h.results[1]![0]!.output,/https:\/\/example\.test\/news/);
-  const rootPayload=JSON.parse(h.results[1]![0]!.output) as {evidenceRule:string;url:string};assert.equal(rootPayload.url,root.finalUrl);assert.match(rootPayload.evidenceRule,/Listed link URLs are not opened sources/);assert.match(rootPayload.evidenceRule,/cite the payload url/);
+  const rootPayload=JSON.parse(h.results[1]![0]!.output) as {evidenceRule:string;url:string;headingOrder:string;linkOrder:string};assert.equal(rootPayload.url,root.finalUrl);assert.match(rootPayload.evidenceRule,/Listed link URLs are not opened sources/);assert.match(rootPayload.evidenceRule,/cite the payload url/);assert.equal(rootPayload.headingOrder,'document');assert.equal(rootPayload.linkOrder,'relevance-ranked');
   assert.match(monitorWebTool.description,/untrusted data/);assert.match(h.results[1]![0]!.output,/UNTRUSTED_SOURCE_DATA/);
   assert.equal(result.attemptedToolCount,2);assert.equal(result.provenance.length,2);assert.deepEqual(result.attempts,[
     {tool:'web.open',requestedUrl:root.finalUrl,outcome:'success',errorCode:null},
     {tool:'web.open',requestedUrl:news.finalUrl,outcome:'success',errorCode:null}
-  ]);assert.equal(JSON.stringify(result.provenance).includes('Synthetic headline'),false);
+  ]);assert.equal(JSON.stringify(result.provenance).includes('Synthetic headline'),false);assert.equal(result.provenance[0]!.httpStatus,200);assert.equal(result.provenance[0]!.byteSize,123);
 });
 
 test('runner validates an entire tool batch before any fetch',async()=>{
@@ -161,6 +168,9 @@ test('redirect final URL becomes an exact allowed cached target',async()=>{
     {output:'Final after redirect',toolCalls:[],generatedAt:at}
   ],{[requested]:redirected});
   const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:requested});assert.equal(result.output,'Final after redirect');assert.deepEqual(h.fetchedUrls,[requested]);
+  const claim='Synthetic headline';const modelEvidence={version:1,answer:claim,evidence:{quote:claim,sourceUrl:requested},confidence:0.9,uncertainty:null};
+  assert.deepEqual(result.evidenceDocuments[0]!.evidenceUrlAliases,[requested,redirected.finalUrl]);assert.equal(answerFromAi(JSON.stringify(modelEvidence),result.evidenceDocuments).evidence.sourceUrl,redirected.finalUrl);
+  assert.throws(()=>answerFromAi(JSON.stringify({...modelEvidence,evidence:{...modelEvidence.evidence,sourceUrl:'https://example.test/unopened'}}),result.evidenceDocuments),(error:any)=>error.code==='AI_RESPONSE_INVALID');
 });
 
 test('serialized tool payload applies compact per-document and per-field ceilings',async()=>{
@@ -173,6 +183,16 @@ test('serialized tool payload applies compact per-document and per-field ceiling
   assert.ok(payload.links.length<=24);assert.ok(payload.links.every((link)=>Buffer.byteLength(link.label)<=320));assert.ok(Buffer.byteLength(JSON.stringify(payload.links))<=5*1024);
   assert.equal(payload.url,root.finalUrl);assert.equal(payload.fingerprint,huge.fingerprint);assert.equal(payload.fetchedAt,huge.fetchedAt);
   assert.ok(output.indexOf('"links"')<output.indexOf('"headings"'));assert.ok(output.indexOf('"headings"')<output.indexOf('"text"'));
+});
+
+test('evidence validation is limited to the exact bounded fields shown to the model',async()=>{
+  const visible='Visible first editorial headline';const hiddenText='Hidden off-window body claim';const hiddenHeading='Hidden seventeenth heading';const hiddenLink='Hidden twenty-fifth link';
+  const bounded:SourceDocument={...root,text:`${visible}\n${'x'.repeat(12_000)}\n${hiddenText}`,headings:[visible,...Array.from({length:15},(_,index)=>`Visible heading ${index}`),hiddenHeading],links:[...Array.from({length:24},(_,index)=>({url:`https://example.test/story-${String(index).padStart(2,'0')}`,label:`Visible editorial link ${String(index).padStart(2,'0')}`})),{url:'https://example.test/story-99',label:hiddenLink}]};
+  const h=harness([{toolCalls:[{id:'root',name:'web.open',arguments:{url:root.finalUrl}}],generatedAt:at},{output:'done',toolCalls:[],generatedAt:at}],{[root.finalUrl]:bounded});
+  const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true});const evidence=result.evidenceDocuments[0]!;
+  assert.equal(answerFromAi(JSON.stringify({version:1,answer:visible,evidence:{quote:visible},confidence:0.9,uncertainty:null}),evidence).answer,visible);
+  for(const claim of [hiddenText,hiddenHeading,hiddenLink])assert.throws(()=>answerFromAi(JSON.stringify({version:1,answer:claim,evidence:{quote:claim},confidence:0.9,uncertainty:null}),evidence),(error:any)=>error.code==='AI_RESPONSE_INVALID',claim);
+  assert.ok(bounded.text.includes(hiddenText));assert.ok(bounded.headings!.includes(hiddenHeading));assert.ok(bounded.links!.some((link)=>link.label===hiddenLink));
 });
 
 test('compact root discovery and followed document retain useful evidence and provenance',async()=>{

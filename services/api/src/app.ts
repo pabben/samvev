@@ -181,7 +181,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
-  const monitors = new MonitorService(aiAdmin);
+  const monitors = new MonitorService(aiAdmin,options.monitorFetcher);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin);
   await app.register(cookie);
   const projectionEvents=new ProjectionEventFanout();

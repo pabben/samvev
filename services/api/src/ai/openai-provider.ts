@@ -59,7 +59,10 @@ export function responsesTurn(payload: OpenAiPayload): AiProviderTurn {
       if (content.type === 'output_text' && typeof content.text === 'string' && content.text.trim()) texts.push(content.text);
     }
   }
-  const output = texts.join('\n').trim();
+  // Some compatible model runtimes emit explanatory assistant text alongside a
+  // valid function call. Intermediary text is not a final answer: the internal
+  // contract deliberately remains a strict output/tool-call XOR.
+  const output = toolCalls.length ? '' : texts.join('\n').trim();
   const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(), ...(usage ? { usage } : {}) });
   if (!parsed.success) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
   return parsed.data;

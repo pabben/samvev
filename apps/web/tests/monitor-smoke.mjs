@@ -232,6 +232,7 @@ try {
   await expect(card().getByRole("alert")).toBeFocused();
   for (const [code, message] of [
     ["MONITOR_SOURCE_TIMEOUT", "Kilden svarte ikke i tide"],
+    ["AI_RESPONSE_INVALID", "Samvev kunne ikke bekrefte svaret mot kilden. Prøv igjen."],
     ["MONITOR_TOOL_INVALID", "Samvev kunne ikke undersøke kilden videre"],
     ["MONITOR_TOOL_LIMIT", "Samvev rakk ikke å finne et bekreftet svar"],
     ["AI_ENDPOINT_BLOCKED", "Denne kilden kan ikke brukes"],
@@ -386,6 +387,41 @@ try {
   await expect(panel().getByRole('alert')).toBeFocused(); await expect(panel().getByRole('article')).toHaveCount(0);
   const timeoutValues = await page.evaluate(() => window.taskTimeouts);
   expect(timeoutValues).toContain(210000); expect(timeoutValues).toContain(12000);
+  // Setup-format/source-context failures retain localized recovery, including after reload.
+  for (const copy of [
+    { locale: 'nb', nav: 'Oppdrag', create: 'Lag oppsett fra forespørselen', retry: 'Prøv å lage oppsett igjen', edit: 'Endre', delete: 'Slett', confirm: 'Ja, slett oppdraget', failed: 'Oppsettet kunne ikke lages', ready: 'Venter på din godkjenning', test: 'Test nå', approve: 'Godkjenn og aktiver', messages: ['Samvev kunne ikke lage et gyldig oppsett fra forespørselen. Prøv å lage oppsettet igjen.', 'Samvev fikk ikke laget oppsettet fra kilden. Prøv å lage oppsettet igjen.'] },
+    { locale: 'en', nav: 'Tasks', create: 'Create setup from request', retry: 'Retry setup', edit: 'Edit', delete: 'Delete', confirm: 'Yes, delete task', failed: 'Setup could not be created', ready: 'Waiting for your approval', test: 'Test now', approve: 'Approve and activate', messages: ['Samvev could not create valid setup from the request. Try creating setup again.', 'Samvev could not create setup from the source. Try creating setup again.'] },
+  ]) {
+    me.account.locale = copy.locale;
+    for (const [index, code] of ['MONITOR_INTERPRETATION_SCHEMA_INVALID', 'MONITOR_INTERPRETATION_SOURCE_REFUSAL'].entries()) {
+      tasks = [{ ...template, interpretedRule: null }];
+      await page.setViewportSize({ width: index === 0 ? 390 : 1280, height: index === 0 ? 844 : 752 });
+      await page.reload(); await page.getByRole('button', { name: copy.nav, exact: true }).click();
+      failNext = code; afterFailure = () => { tasks[0].errorCode = code; };
+      await button(copy.create).focus(); await page.keyboard.press('Enter');
+      await expect(card().locator('.monitor-state')).toHaveText(copy.failed);
+      await expect(card().getByRole('alert')).toHaveText(copy.messages[index]);
+      await expect(card().getByRole('alert')).toBeFocused();
+      for (const action of [copy.retry, copy.edit, copy.delete]) await expect(button(action)).toBeEnabled();
+      await expect(button(copy.test)).toHaveCount(0); await expect(button(copy.approve)).toHaveCount(0);
+      await noTechnicalTerms(); await layout(); await axe();
+      await page.reload(); await page.getByRole('button', { name: copy.nav, exact: true }).click();
+      await expect(card().locator('.monitor-state')).toHaveText(copy.failed);
+      await expect(card()).toContainText(copy.messages[index]);
+      if (index === 0) {
+        await button(copy.retry).focus(); await page.keyboard.press('Enter');
+        await expect(card().locator('.preview-panel')).toBeFocused();
+        await expect(card().locator('.monitor-state')).toHaveText(copy.ready);
+        await expect(button(copy.test)).toBeEnabled(); await expect(button(copy.approve)).toBeEnabled();
+      }
+      // Both a recovered draft and a persisted setup failure remain deletable by keyboard.
+      await button(copy.delete).focus(); await page.keyboard.press('Enter');
+      await expect(card().locator('.monitor-delete')).toBeFocused();
+      await button(copy.confirm).focus(); await page.keyboard.press('Enter');
+      await expect(panel().getByRole('article')).toHaveCount(0);
+      await expect(panel().getByRole('heading', { name: copy.nav, exact: true })).toBeFocused();
+    }
+  }
   // Persisted events and incomplete setup get distinct representations.
   tasks = [{ id: taskId, name: "Testtur", instruction: "Finn fremtidige turer fra https://example.com/news.", sourceUrl, state: "active", checkIntervalMinutes: 60, noticeDaysBefore: 1, noticeLocalTime: "18:00", providerPolicy: "local", modelTier: "routine", targets: { personIds: [], displayIds: ["50000000-0000-4000-8000-000000000001"] }, interpretedRule: { ...rule, resultKind: "events", summary: "Finn fremtidige turer.", eventTypes: ["tur"] }, events: [{ date: "2030-09-20", time: "10:00", type: "tur", description: "Tur til testparken", actions: ["Ta med vann"], who: ["Testprofil"], evidence: { quote: "2030-09-20 klokken 10:00: Tur til testparken. Ta med vann.", sourceUrl }, confidence: .99, uncertainty: null }], revision: 1, approvedRevision: 1, lastCheckedAt: checkedAt, nextCheckAt: scheduledAt, lastResult: "1 event(s)", lastChangedAt: checkedAt, errorCode: null, stats: { checks: 1, aiCalls: 1, unchanged: 0 } }];
   tasks.push({ ...tasks[0], id: "60000000-0000-4000-8000-000000000002", name: "Uferdig oppdrag", state: "draft", interpretedRule: null, events: [], nextCheckAt: null });
@@ -413,6 +449,7 @@ try {
   await expect(card().locator(".monitor-sources")).toHaveCount(0);
   for (const [code, message] of [
     ["MONITOR_SOURCE_TIMEOUT", "The source did not respond in time"],
+    ["AI_RESPONSE_INVALID", "Samvev could not verify the answer against the source. Try again."],
     ["REVISION_CONFLICT", "The task was changed elsewhere"],
     ["MONITOR_RUNNING", "The task is already working"],
     ["MONITOR_SETUP_REQUIRED", "Setup is incomplete"],
