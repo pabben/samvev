@@ -32,3 +32,31 @@ creation. Interpretation is durably rate limited and serialized by a task lease,
 so concurrent requests for one revision cannot multiply provider calls.
 
 Quality remains an internal routine/strong tier. A user may preview the stronger tier and explicitly retain it for the task without reopening an approved rule or exposing provider/model terminology in the task flow.
+
+## Lifecycle and actions
+
+The stored task state remains `draft`, `active` or `paused`. The API is the
+authority for a derived lifecycle and its permitted actions; clients must not
+infer readiness from a truthy compiled rule or from local request state.
+
+| Derived lifecycle | Meaning | Available actions |
+|---|---|---|
+| `incomplete` | The draft has no schema-valid setup or usable targets. | Create setup, edit, delete |
+| `setup_failed` | The most recent setup attempt failed. | Retry setup, edit, delete |
+| `ready_for_approval` | The draft has a schema-valid setup and usable targets. | Test now, approve and activate, smarter preview, edit, delete |
+| `active` | The approved task is scheduled and idle. | Run now, pause, smarter preview/quality choice, edit, delete |
+| `paused` | The task is retained without scheduled work. | Test now, resume when its authority remains valid, smarter preview/quality choice, edit, delete |
+| `running` | A non-expired task lease owns the current operation. | Refresh status |
+
+Testing is optional before approval. A live lease temporarily blocks mutations
+with `MONITOR_RUNNING`; the UI explains the state, refreshes automatically and
+restores actions after completion or lease expiry. An expired lease does not
+block deletion. Draft deletion never depends on provider availability, source
+availability, successful interpretation or a previous test. Revision conflicts,
+missing setup, invalid targets, active work and missing records use distinct API
+codes so the client can refresh stale state and give a concrete recovery action.
+
+Interpretation failures store only a normalized error code on the task. A retry
+clears it before work begins and a successful setup clears it permanently. The
+existing columns support these transitions, so this clarification needs no data
+migration or record-specific recovery.

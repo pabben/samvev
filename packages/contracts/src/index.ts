@@ -224,6 +224,9 @@ export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers)
 
 export const monitorProviderPolicies = ['default', 'local', 'openai'] as const;
 export const monitorStates = ['draft', 'active', 'paused'] as const;
+export const monitorLifecycleStatuses = ['incomplete', 'setup_failed', 'ready_for_approval', 'active', 'paused', 'running'] as const;
+export const monitorTaskActions = ['interpret', 'test', 'approve', 'edit', 'delete', 'run', 'pause', 'resume', 'smarter', 'quality', 'refresh'] as const;
+export const monitorActionBlockReasons = ['setup_required', 'setup_failed', 'running', 'state_not_allowed', 'targets_invalid', 'permission_denied'] as const;
 const monitorTargetsSchema = z.object({
   personIds: z.array(uuidSchema).max(50).default([]),
   displayIds: z.array(uuidSchema).max(50).default([])
@@ -313,6 +316,14 @@ export type AiModelTier = (typeof aiModelTiers)[number];
 export type AiReasoningEffort = (typeof aiReasoningEfforts)[number];
 export type AiProviderId = (typeof aiProviderIds)[number];
 export type MonitorProviderPolicy = (typeof monitorProviderPolicies)[number];
+export type MonitorLifecycleStatus = (typeof monitorLifecycleStatuses)[number];
+export type MonitorTaskAction = (typeof monitorTaskActions)[number];
+export type MonitorActionBlockReason = (typeof monitorActionBlockReasons)[number];
+export interface MonitorTaskLifecycle {
+  status: MonitorLifecycleStatus;
+  setupComplete: boolean;
+  actions: Record<MonitorTaskAction, { enabled: boolean; reason: MonitorActionBlockReason | null }>;
+}
 export type AiTask = z.infer<typeof aiTaskSchema>;
 export type AiResult = z.infer<typeof aiResultSchema>;
 export type AiToolDefinition = z.infer<typeof aiToolDefinitionSchema>;
@@ -328,7 +339,8 @@ export type ErrorCode =
   | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED'
   | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'
   | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_SOURCE_REQUIRED' | 'MONITOR_SOURCE_AMBIGUOUS'
-  | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_OWNER_UNAUTHORIZED'
+  | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_OWNER_UNAUTHORIZED' | 'MONITOR_RUNNING'
+  | 'MONITOR_SETUP_REQUIRED' | 'MONITOR_TARGET_INVALID'
   | 'MONITOR_TOOL_INVALID' | 'MONITOR_TOOL_LIMIT' | 'INTERNAL_ERROR';
 
 export interface ApiErrorBody { error: { code: ErrorCode; requestId: string; details?: Record<string, unknown> } }

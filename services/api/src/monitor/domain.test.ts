@@ -1,9 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { answerFromAi, extractionFromAi } from './service.ts';
+import { answerFromAi, extractionFromAi, monitorTaskLifecycle } from './service.ts';
 import { monitorEventKey, orderedMonitorEvents } from './event-identity.ts';
 
 const event=(date:string,description='Trip day')=>({date,time:null,type:'trip',description,actions:['Bring boots'],who:['A'],evidence:{quote:`Trip day ${date} A Bring boots`,sourceUrl:'https://example.com/plan'},confidence:0.9,uncertainty:null});
+const rule={version:1 as const,resultKind:'answer' as const,summary:'Read the current headline.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60};
+
+test('monitor lifecycle always exposes a recovery action and validates the compiled rule',()=>{
+  const base={state:'draft',interpreted_rule:null,targets_valid:true,lease_active:false,error_code:null,approved_revision:null};
+  const incomplete=monitorTaskLifecycle(base);assert.equal(incomplete.status,'incomplete');assert.equal(incomplete.actions.interpret.enabled,true);assert.equal(incomplete.actions.edit.enabled,true);assert.equal(incomplete.actions.delete.enabled,true);assert.equal(incomplete.actions.test.reason,'setup_required');assert.equal(incomplete.actions.approve.enabled,false);
+  const invalidTruthy=monitorTaskLifecycle({...base,interpreted_rule:{}});assert.equal(invalidTruthy.status,'incomplete');assert.equal(invalidTruthy.setupComplete,false);
+  const failed=monitorTaskLifecycle({...base,error_code:'AI_DISABLED'});assert.equal(failed.status,'setup_failed');assert.equal(failed.actions.interpret.enabled,true);assert.equal(failed.actions.delete.enabled,true);assert.equal(failed.actions.test.reason,'setup_failed');
+  const ready=monitorTaskLifecycle({...base,interpreted_rule:rule});assert.equal(ready.status,'ready_for_approval');assert.equal(ready.actions.test.enabled,true);assert.equal(ready.actions.approve.enabled,true);assert.equal(ready.actions.smarter.enabled,true);
+  const unauthorized=monitorTaskLifecycle({...base,interpreted_rule:rule},false);assert.equal(unauthorized.actions.test.enabled,true);assert.equal(unauthorized.actions.approve.reason,'permission_denied');
+  const active=monitorTaskLifecycle({...base,state:'active',interpreted_rule:rule,approved_revision:2});assert.equal(active.status,'active');assert.equal(active.actions.run.enabled,true);assert.equal(active.actions.pause.enabled,true);assert.equal(active.actions.delete.enabled,true);
+  const paused=monitorTaskLifecycle({...base,state:'paused',interpreted_rule:rule,approved_revision:2});assert.equal(paused.status,'paused');assert.equal(paused.actions.resume.enabled,true);assert.equal(paused.actions.test.enabled,true);
+  const running=monitorTaskLifecycle({...base,interpreted_rule:rule,lease_active:true});assert.equal(running.status,'running');assert.equal(running.actions.refresh.enabled,true);for(const [action,value] of Object.entries(running.actions))if(action!=='refresh'){assert.equal(value.enabled,false,action);assert.equal(value.reason,'running',action);}
+  for(const lifecycle of [incomplete,invalidTruthy,failed,ready,unauthorized,active,paused,running])assert.ok(Object.values(lifecycle.actions).some((action)=>action.enabled));
+});
 
 test('event identity keeps repeated dates distinct and survives date or description corrections',()=>{
   const repeated=orderedMonitorEvents([event('2030-09-20'),event('2030-09-27')]);

@@ -425,9 +425,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=parse(monitorTaskQualitySchema,request.body);return monitors.setQuality(auth,params(request).monitorId!,body.expectedRevision,body.quality);
   });
-  app.delete('/api/v1/households/:householdId/monitors/:monitorId',async (request) => {
+  app.delete('/api/v1/households/:householdId/monitors/:monitorId',async (request,reply) => {
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
-    const body=parse(monitorTaskRevisionSchema,request.body);await monitors.remove(auth,params(request).monitorId!,body.expectedRevision);return undefined;
+    const body=parse(monitorTaskRevisionSchema,request.body);await monitors.remove(auth,params(request).monitorId!,body.expectedRevision);return reply.status(204).send();
   });
 
   app.get('/api/v1/households/:householdId/people', async (request) => {

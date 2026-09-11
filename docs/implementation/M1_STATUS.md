@@ -1,11 +1,47 @@
 # M1 implementation status
 
-Updated: 2026-09-10. Branch: `feat/m2-ai-provider-foundation`.
+Updated: 2026-09-11. Branch: `feat/m2-agentic-web-tools`.
 Historical M1 status: **PASS — local acceptance passed; Git delivery externally verified**.
 
-Current issue #5 status: **implementation and QA PASS; Git delivery blocked by
-read-only `.git` in this workspace**. The candidate remains uncommitted on top
-of `89cb8fba7146eb5edb0b8f22a06cbbc4147e561a`; it has not been deployed.
+Current issue #5 status: **owner pilot FAIL / release-blocking**. The web-tool
+candidate at `f74341221e8b1b3134af8ce449832d432d24d361` is deployed, but PR #6
+must remain unmerged until the task lifecycle fix has passed review, QA and a
+controlled owner retest. The fix is not currently deployed.
+
+## Post-deploy owner-pilot blocker — 2026-09-11
+
+Read-only live evidence established two coupled defects. A single global browser
+busy flag disabled every task card while one interpretation request was pending,
+even though an older card retained its “Venter på din godkjenning” label. A
+successful DELETE then returned an empty HTTP 200 response; the browser tried to
+parse it as JSON, showed a generic error and retained the now-deleted card. Later
+retries correctly returned `NOT_FOUND`. Audit and request logs show that all
+affected monitor rows were deleted through the owner's normal UI before this
+investigation; no direct database recovery was performed. No pre-delete row
+snapshot remained, so former rule/revision/card details are reconstructed from
+the request/audit timeline and served code rather than directly inspected state.
+
+The candidate fix adds an API-derived lifecycle and action contract, explicit
+204 deletion, lease-specific and validation-specific errors, durable safe setup
+failure state, per-task UI activity, running-state polling and concrete NB/EN
+recovery text. Testing is not required before approval, and draft deletion does
+not depend on AI, source or setup success. No schema migration is required.
+Issue #5 and PR #6 are recorded as blocked. PR #6 remains unmerged and the fix
+is not currently deployed. Detailed behavior is in [ADR 0013](../decisions/0013-general-ai-task-monitor.md)
+and [M2_3.md](M2_3.md).
+
+Local review now passes security, requirements and UX. Final isolated QA passes
+84/84 workspace tests with zero failures/skips/todos, all five workspace
+typechecks, production build, monitor browser smoke with Axe/focus/responsive
+coverage, and fresh migration 001–012 checksum/idempotence replay. The live
+owner result remains FAIL until this separate fix is deployed through the normal
+gate and the supported owner flow is retested.
+
+One validation build briefly replaced the bind-mounted live static bundle for
+about seven minutes. The API and worker were not restarted. The public bundle
+was restored from exact deployed HEAD `f74341221e8b1b3134af8ce449832d432d24d361`,
+and direct/public index plus health were verified afterward. No live task,
+account, database, AI or source action was performed during the exposure.
 
 ## Post-M1 M2.3 provider-independent web-tool checkpoint — 2026-09-10
 

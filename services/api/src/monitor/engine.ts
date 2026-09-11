@@ -1,22 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import type { AiModelTier, MonitorProviderPolicy } from '@samvev/contracts';
+import { monitorInterpretationSchema, type AiModelTier, type MonitorProviderPolicy } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import { pool, transaction, type DbClient } from '../db.ts';
 import { AiAdminService } from '../ai/admin-service.ts';
 import { MONITOR_AGENT_DEADLINE_MS, MONITOR_LEASE_MS, MonitorAgentRunner, monitorDependencyFingerprint, type MonitorAgentResult, type MonitorDependency, type MonitorToolAttempt, type MonitorToolProvenance } from './agent-runner.ts';
 import { MonitorSourceFetcher, normalizeMonitorUrl, selectRelevantSource, type SourceDocument } from './source-fetcher.ts';
-import { answerFromAi, extractionFromAi, type MonitorActor, validateMonitorTargets, withdrawMonitorMessages } from './service.ts';
+import { answerFromAi, extractionFromAi, type MonitorActor, validateExistingMonitorTargets, withdrawMonitorMessages } from './service.ts';
 import { monitorEventKey, orderedMonitorEvents } from './event-identity.ts';
 
 type MonitorRunKind='scheduled'|'test'|'manual'|'smarter';
-interface ClaimedTask {id:string;household_id:string;owner_membership_id:string;initiating_membership_id?:string;instruction:string;source_url:string;state:'draft'|'active'|'paused';check_interval_minutes:number;notice_days_before:number;notice_local_time:string;provider_policy:MonitorProviderPolicy;model_tier:AiModelTier;interpreted_rule:any;revision:number;lease_token:string;last_processed_fingerprint:string|null;source_dependency_manifest:MonitorDependency[];next_check_at:Date|null;owner_authorized:boolean;}
+interface ClaimedTask {id:string;household_id:string;owner_membership_id:string;initiating_membership_id?:string;instruction:string;source_url:string;state:'draft'|'active'|'paused';check_interval_minutes:number;notice_days_before:number;notice_local_time:string;provider_policy:MonitorProviderPolicy;model_tier:AiModelTier;interpreted_rule:any;revision:number;lease_token:string;lease_active:boolean;last_processed_fingerprint:string|null;source_dependency_manifest:MonitorDependency[];next_check_at:Date|null;owner_authorized:boolean;}
 type Analysis={kind:'events';value:ReturnType<typeof extractionFromAi>}|{kind:'answer';value:ReturnType<typeof answerFromAi>};
 interface RunMeta {aiCalls:number;attemptedTools:number;provider:string|null;model:string|null;provenance:MonitorToolProvenance[];attempts:MonitorToolAttempt[];dependencies:MonitorDependency[];fingerprint:string;}
 export interface MonitorBatchResult {claimed:number;changed:number;unchanged:number;failed:number;}
 export interface MonitorRunResult {outcome:'changed'|'unchanged';resultKind:'events'|'answer'|null;result:unknown;sourceUrl:string;checkedAt:string;sources:Array<{sourceUrl:string;fetchedAt:string}>;}
 function publicSources(provenance:MonitorToolProvenance[]):Array<{sourceUrl:string;fetchedAt:string}>{const seen=new Set<string>();return provenance.filter((item)=>{if(seen.has(item.finalUrl))return false;seen.add(item.finalUrl);return true;}).map((item)=>({sourceUrl:item.finalUrl,fetchedAt:item.fetchedAt}));}
 
-const taskColumns=`t.id,t.household_id,t.owner_membership_id,t.instruction,t.source_url,t.state,t.check_interval_minutes,t.notice_days_before,t.notice_local_time::text,t.provider_policy,t.model_tier,t.interpreted_rule,t.revision,t.last_processed_fingerprint,t.source_dependency_manifest,t.next_check_at,EXISTS(SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id AND a.disabled_at IS NULL WHERE m.id=t.owner_membership_id AND m.household_id=t.household_id AND m.capabilities ? 'household.manage' AND m.capabilities ? 'message.create.household' AND m.capabilities ? 'message.schedule' AND (NOT EXISTS(SELECT 1 FROM monitor_task_display_targets d WHERE d.task_id=t.id) OR (m.capabilities ? 'message.publish.display' AND (m.capabilities ? 'display.manage' OR NOT EXISTS(SELECT 1 FROM monitor_task_display_targets d WHERE d.task_id=t.id AND NOT EXISTS(SELECT 1 FROM membership_display_grants g WHERE g.household_id=t.household_id AND g.membership_id=m.id AND g.display_id=d.display_id)))))) AS owner_authorized`;
+const taskColumns=`t.id,t.household_id,t.owner_membership_id,t.instruction,t.source_url,t.state,t.check_interval_minutes,t.notice_days_before,t.notice_local_time::text,t.provider_policy,t.model_tier,t.interpreted_rule,t.revision,(t.lease_token IS NOT NULL AND t.lease_expires_at>clock_timestamp()) AS lease_active,t.last_processed_fingerprint,t.source_dependency_manifest,t.next_check_at,EXISTS(SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id AND a.disabled_at IS NULL WHERE m.id=t.owner_membership_id AND m.household_id=t.household_id AND m.capabilities ? 'household.manage' AND m.capabilities ? 'message.create.household' AND m.capabilities ? 'message.schedule' AND (NOT EXISTS(SELECT 1 FROM monitor_task_display_targets d WHERE d.task_id=t.id) OR (m.capabilities ? 'message.publish.display' AND (m.capabilities ? 'display.manage' OR NOT EXISTS(SELECT 1 FROM monitor_task_display_targets d WHERE d.task_id=t.id AND NOT EXISTS(SELECT 1 FROM membership_display_grants g WHERE g.household_id=t.household_id AND g.membership_id=m.id AND g.display_id=d.display_id)))))) AS owner_authorized`;
 
 async function claimOne():Promise<ClaimedTask|undefined>{return transaction(async(client)=>{const row=(await client.query<Omit<ClaimedTask,'lease_token'>>(`SELECT ${taskColumns} FROM monitor_tasks t WHERE t.state='active' AND t.approved_revision=t.revision AND t.next_check_at<=clock_timestamp() AND (t.lease_expires_at IS NULL OR t.lease_expires_at<clock_timestamp()) ORDER BY t.next_check_at,t.id FOR UPDATE OF t SKIP LOCKED LIMIT 1`)).rows[0];if(!row)return undefined;const token=randomUUID();await client.query(`UPDATE monitor_tasks SET lease_token=$2,lease_expires_at=clock_timestamp()+($3::int*interval '1 millisecond') WHERE id=$1`,[row.id,token,MONITOR_LEASE_MS]);return {...row,lease_token:token};});}
 
@@ -24,11 +24,11 @@ async function claimManual(actor:MonitorActor,id:string,expectedRevision:number,
   return transaction(async(client)=>{
     const allowed=kind==='manual'?['active']:kind==='test'?['draft','paused']:['draft','active','paused'];
     const row=(await client.query<Omit<ClaimedTask,'lease_token'>>(`SELECT ${taskColumns} FROM monitor_tasks t WHERE t.id=$1 AND t.household_id=$2 FOR UPDATE OF t`,[id,actor.householdId])).rows[0];
-    if(!row)throw new DomainError('NOT_FOUND',404);if(row.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);if(!allowed.includes(row.state))throw new DomainError('CONFLICT',409);
-    if(kind==='manual'){const [people,displays]=await Promise.all([client.query<{person_id:string}>('SELECT person_id FROM monitor_task_person_targets WHERE task_id=$1',[id]),client.query<{display_id:string}>('SELECT display_id FROM monitor_task_display_targets WHERE task_id=$1',[id])]);await validateMonitorTargets(client,actor,{personIds:people.rows.map((item)=>item.person_id),displayIds:displays.rows.map((item)=>item.display_id)});}
-    if(!row.interpreted_rule)throw new DomainError('MONITOR_INTERPRETATION_INVALID',422);
+    if(!row)throw new DomainError('NOT_FOUND',404);if(row.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);if(row.lease_active)throw new DomainError('MONITOR_RUNNING',409);if(!allowed.includes(row.state))throw new DomainError('CONFLICT',409);
+    if(kind==='manual')await validateExistingMonitorTargets(client,actor,id);
+    if(!monitorInterpretationSchema.safeParse(row.interpreted_rule).success)throw new DomainError('MONITOR_SETUP_REQUIRED',422);
     const token=randomUUID();const claimed=await client.query(`UPDATE monitor_tasks SET lease_token=$3,lease_expires_at=clock_timestamp()+($4::int*interval '1 millisecond') WHERE id=$1 AND household_id=$2 AND (lease_expires_at IS NULL OR lease_expires_at<clock_timestamp()) RETURNING id`,[id,actor.householdId,token,MONITOR_LEASE_MS]);
-    if(!claimed.rowCount)throw new DomainError('CONFLICT',409);return {...row,lease_token:token,initiating_membership_id:kind==='manual'?actor.membershipId:undefined};
+    if(!claimed.rowCount)throw new DomainError('MONITOR_RUNNING',409);return {...row,lease_token:token,lease_active:true,initiating_membership_id:kind==='manual'?actor.membershipId:undefined};
   });
 }
 

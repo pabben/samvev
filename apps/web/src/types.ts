@@ -1,3 +1,4 @@
+import type { MonitorTaskLifecycle } from "@samvev/contracts";
 export type Locale = "en" | "nb";
 export type Theme = "light" | "dark" | "system";
 export interface Membership {
@@ -83,6 +84,7 @@ export interface Message {
   }[];
 }
 export interface MonitorTask {
+  lifecycle: MonitorTaskLifecycle;
   id:string;name:string;instruction:string;sourceUrl:string;state:'draft'|'active'|'paused';
   checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;providerPolicy:'default'|'local'|'openai';modelTier:'routine'|'strong';
   targets:{personIds:string[];displayIds:string[]};interpretedRule:{resultKind?:'events'|'answer';summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number}|null;
