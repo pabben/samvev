@@ -2,9 +2,16 @@ import { lookup } from 'node:dns/promises';
 import { request as httpRequest, type RequestOptions } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
-import { aiResultSchema, aiTaskSchema, type AiResult, type AiTask } from '@samvev/contracts';
-import { AiProviderFailure, type AiProvider, type AiProviderConfiguration } from './provider.ts';
+import {
+  aiProviderTurnSchema, aiResultSchema, aiTaskSchema,
+  type AiProviderTurn, type AiResult, type AiTask, type AiToolDefinition, type AiToolResult
+} from '@samvev/contracts';
+import {
+  AiProviderFailure, createAiToolNameAliases, internalizeAiProviderTurn, validateAiProviderConfiguration,
+  type AiProvider, type AiProviderConfiguration, type AiProviderSession, type AiToolChoice, type AiToolNameAliases
+} from './provider.ts';
 import type { AiHttpTransport, AiResolvedTarget } from './openai-provider.ts';
+import { createPinnedLookup } from '../pinned-lookup.ts';
 
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_STORED_TOKENS = 2_147_483_647;
@@ -120,9 +127,7 @@ const pinnedHttpTransport: AiHttpTransport = (urlText, init, target) => new Prom
     method: init.method,
     headers,
     signal: init.signal ?? undefined,
-    lookup: ((_hostname: string, _options: unknown, callback: (error: Error | null, address: string, family: number) => void) => {
-      callback(null, target.address, target.family);
-    }) as RequestOptions['lookup']
+    lookup: createPinnedLookup(target)
   };
   const request = requestFn(url, options, (response) => {
     const chunks: Buffer[] = [];
@@ -168,20 +173,87 @@ function normalizedUsage(value: unknown): { inputTokens?: number; outputTokens?:
   };
 }
 
-function outputText(payload: Record<string, unknown>, usage?: { inputTokens?: number; outputTokens?: number }): string {
-  if (!Array.isArray(payload.choices) || !payload.choices.length) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
-  const message = (payload.choices[0] as { message?: unknown } | undefined)?.message;
-  if (!message || typeof message !== 'object') {
-    throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
-  }
-  const content = (message as { content?: unknown }).content;
-  const text = typeof content === 'string' ? content : Array.isArray(content) ? content
+function contentText(message: Record<string, unknown>): string {
+  const content = message.content;
+  return (typeof content === 'string' ? content : Array.isArray(content) ? content
     .filter((part): part is { type: string; text: string } => Boolean(part) && typeof part === 'object' &&
       (part as { type?: unknown }).type === 'text' && typeof (part as { text?: unknown }).text === 'string')
-    .map((part) => part.text).join('\n') : '';
-  const normalized = text.trim();
-  if (!normalized || normalized.length > 32_000) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
-  return normalized;
+    .map((part) => part.text).join('\n') : '').trim();
+}
+
+function parsedArguments(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  try { return JSON.parse(value); } catch { return value; }
+}
+
+export function chatCompletionTurn(payload: Record<string, unknown>): AiProviderTurn {
+  const usage = normalizedUsage(payload.usage);
+  if (!Array.isArray(payload.choices) || !payload.choices.length) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
+  const message = (payload.choices[0] as { message?: unknown } | undefined)?.message;
+  if (!message || typeof message !== 'object') throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
+  const row = message as Record<string, unknown>;
+  const toolCalls = Array.isArray(row.tool_calls) ? row.tool_calls.map((value) => {
+    const call = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+    const fn = call.function && typeof call.function === 'object' ? call.function as Record<string, unknown> : {};
+    return { id: String(call.id ?? ''), name: String(fn.name ?? ''), arguments: parsedArguments(fn.arguments) };
+  }) : [];
+  // Treat assistant content accompanying function calls as intermediary text.
+  // This preserves the provider-neutral strict output/tool-call XOR.
+  const output = toolCalls.length ? '' : contentText(row);
+  const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(), ...(usage ? { usage } : {}) });
+  if (!parsed.success) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
+  return parsed.data;
+}
+
+function normalizedAssistantContinuation(turn:AiProviderTurn,aliases:AiToolNameAliases):Record<string,unknown>{
+  if(turn.toolCalls.length){
+    return{role:'assistant',content:null,tool_calls:turn.toolCalls.map((call)=>{
+      const argumentsText=JSON.stringify(call.arguments);if(typeof argumentsText!=='string')throw new AiProviderFailure('AI_RESPONSE_INVALID',turn.usage);
+      return{id:call.id,type:'function',function:{name:aliases.toWire(call.name),arguments:argumentsText}};
+    })};
+  }
+  return{role:'assistant',content:turn.output!};
+}
+
+function combinedSignal(external: AbortSignal | undefined, timeoutMs: number): {signal:AbortSignal;close:(abort?:boolean)=>void} {
+  const controller=new AbortController();const abort=()=>controller.abort();
+  if(external?.aborted)controller.abort();else external?.addEventListener('abort',abort,{once:true});
+  const timeout=external?undefined:setTimeout(abort,timeoutMs);return{signal:controller.signal,close:(cancel=false)=>{if(timeout)clearTimeout(timeout);external?.removeEventListener('abort',abort);if(cancel)controller.abort();}};
+}
+
+class ChatCompletionSession implements AiProviderSession {
+  private readonly messages:Array<Record<string,unknown>>;
+  private pending=new Map<string,string>();
+  private closed=false;
+  constructor(
+    private readonly task:AiTask,private readonly configuration:AiProviderConfiguration,
+    private readonly aliases:AiToolNameAliases,private readonly transport:AiHttpTransport,
+    private readonly timeoutMs:number,private readonly target:{baseUrl:string;target:AiResolvedTarget},
+    private readonly externalSignal?:AbortSignal,private readonly closeSession:()=>void=()=>{}
+  ){this.messages=[{role:'user',content:task.input}];}
+  close():void{if(this.closed)return;this.closed=true;this.closeSession();}
+  async next(toolResults:AiToolResult[]=[],toolChoice:AiToolChoice='auto'):Promise<AiProviderTurn>{
+    if(this.closed)throw new AiProviderFailure('AI_RESPONSE_INVALID');
+    if(this.pending.size!==toolResults.length||toolResults.some((result)=>this.pending.get(result.callId)!==result.name)){this.close();throw new AiProviderFailure('AI_RESPONSE_INVALID');}
+    if(toolResults.length){this.messages.push(...toolResults.map((result)=>({role:'tool',tool_call_id:result.callId,name:this.aliases.toWire(result.name),content:result.output})));this.pending.clear();}
+    const active=combinedSignal(this.externalSignal,this.timeoutMs);
+    const aborted=new Promise<never>((_resolve,reject)=>active.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}));
+    try{
+      const headers:Record<string,string>={'content-type':'application/json'};if(this.configuration.apiKey)headers.authorization=`Bearer ${this.configuration.apiKey}`;
+      const response=await Promise.race([this.transport(completionUrl(this.target.baseUrl),{method:'POST',headers,body:JSON.stringify({
+        model:this.configuration.model,messages:this.messages,max_tokens:this.task.maxOutputTokens??64,
+        reasoning_effort:this.configuration.reasoningEffort??'none',stream:false,
+        ...(this.aliases.wireTools.length?{tools:this.aliases.wireTools.map((tool)=>({type:'function',function:{name:tool.name,description:tool.description,parameters:tool.inputSchema,strict:true}})),tool_choice:toolChoice}:{})
+      }),signal:active.signal},this.target.target),aborted]);
+      const text=await Promise.race([response.text(),aborted]);if(Buffer.byteLength(text)>MAX_RESPONSE_BYTES)throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR');
+      let parsed:unknown;try{parsed=JSON.parse(text);}catch{throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR');}
+      if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR');
+      const payload=parsed as Record<string,unknown>;const usage=normalizedUsage(payload.usage);if(!response.ok)throw new AiProviderFailure('AI_UPSTREAM_ERROR',usage);
+      const turn=internalizeAiProviderTurn(chatCompletionTurn(payload),this.aliases);
+      this.messages.push(normalizedAssistantContinuation(turn,this.aliases));this.pending=new Map(turn.toolCalls.map((call)=>[call.id,call.name]));return turn;
+    }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR');}
+    finally{active.close();}
+  }
 }
 
 export class OpenAiCompatibleProvider implements AiProvider {
@@ -193,54 +265,19 @@ export class OpenAiCompatibleProvider implements AiProvider {
     private readonly resolver: AiHostnameResolver = defaultResolver
   ) {}
 
+  createSession(rawTask:AiTask,configuration:AiProviderConfiguration,tools:AiToolDefinition[]=[],signal?:AbortSignal):AiProviderSession{
+    const task=aiTaskSchema.parse(rawTask);validateAiProviderConfiguration(configuration);
+    if(configuration.provider!==this.id||!configuration.baseUrl)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
+    const aliases=createAiToolNameAliases(tools);let resolved:Promise<{baseUrl:string;target:AiResolvedTarget}>|undefined;let lifetime:ReturnType<typeof combinedSignal>|undefined;let session:ChatCompletionSession|undefined;let closed=false;
+    const close=()=>{if(closed)return;closed=true;if(session)session.close();else lifetime?.close(true);};
+    const lazy:AiProviderSession={close,next:async(results=[],toolChoice='auto')=>{if(closed)throw new AiProviderFailure('AI_RESPONSE_INVALID');lifetime??=combinedSignal(signal,this.timeoutMs);const active=lifetime;try{resolved??=resolveOpenAiCompatibleTarget(configuration.baseUrl!,this.resolver);const target=await Promise.race([resolved,new Promise<never>((_resolve,reject)=>active.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}))]);session=new ChatCompletionSession(task,configuration,aliases,this.transport,this.timeoutMs,target,active.signal,()=>active.close(true));lazy.next=session.next.bind(session);return lazy.next(results,toolChoice);}catch(error){const timedOut=active.signal.aborted;active.close(true);closed=true;if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR');}}};
+    return lazy;
+  }
+
   async execute(rawTask: AiTask, configuration: AiProviderConfiguration): Promise<AiResult> {
-    const task = aiTaskSchema.parse(rawTask);
-    if (configuration.provider !== this.id || !configuration.model.trim() || !configuration.baseUrl) {
-      throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
-    }
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
-    const abort = new Promise<never>((_resolve, reject) => {
-      controller.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')), { once: true });
-    });
-    const request = async (): Promise<AiResult> => {
-      const { baseUrl, target } = await resolveOpenAiCompatibleTarget(configuration.baseUrl!, this.resolver);
-      const headers: Record<string, string> = { 'content-type': 'application/json' };
-      if (configuration.apiKey) headers.authorization = `Bearer ${configuration.apiKey}`;
-      const response = await this.transport(completionUrl(baseUrl), {
-        method: 'POST', headers,
-        body: JSON.stringify({
-          model: configuration.model,
-          messages: [{ role: 'user', content: task.input }],
-          max_tokens: task.maxOutputTokens ?? 64,
-          reasoning_effort: configuration.reasoningEffort ?? 'none',
-          stream: false
-        }),
-        signal: controller.signal
-      }, target);
-      const text = await response.text();
-      if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES) throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR');
-      let parsed: unknown;
-      try { parsed = JSON.parse(text); }
-      catch { throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR'); }
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR');
-      }
-      const payload = parsed as Record<string, unknown>;
-      const usage = normalizedUsage(payload.usage);
-      if (!response.ok) throw new AiProviderFailure('AI_UPSTREAM_ERROR', usage);
-      return aiResultSchema.parse({
-        output: outputText(payload, usage), generatedAt: new Date().toISOString(), uncertainty: 'unknown',
-        sources: task.sources, ...(usage ? { usage } : {})
-      });
-    };
-    try {
-      return await Promise.race([request(),abort]);
-    } catch (error) {
-      if (controller.signal.aborted) throw new AiProviderFailure('AI_TIMEOUT');
-      if (error instanceof AiProviderFailure) throw error;
-      throw new AiProviderFailure('AI_UPSTREAM_ERROR');
-    } finally { clearTimeout(timeout); }
+    const task=aiTaskSchema.parse(rawTask);const session=this.createSession(task,configuration);
+    try{const turn=await session.next();if(!turn.output)throw new AiProviderFailure('AI_RESPONSE_INVALID',turn.usage);return aiResultSchema.parse({output:turn.output,generatedAt:turn.generatedAt,uncertainty:'unknown',sources:task.sources,...(turn.usage?{usage:turn.usage}:{})});}
+    finally{session.close();}
   }
 
   testConnection(configuration: AiProviderConfiguration): Promise<AiResult> {

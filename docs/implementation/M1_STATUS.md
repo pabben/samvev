@@ -1,7 +1,103 @@
 # M1 implementation status
 
-Updated: 2026-09-10. Branch: `feat/m2-ai-provider-foundation`.
-Overall status: **PASS — local acceptance passed; Git delivery externally verified and sole blocker resolved**.
+Updated: 2026-09-11. Branch: `feat/m2-agentic-web-tools`.
+Historical M1 status: **PASS — local acceptance passed; Git delivery externally verified**.
+
+Current issue #5 status: **state-machine owner pilot PASS; agent/provenance
+owner pilot FAIL / release-blocking**. Exact candidate
+`43de94edb47da047c7680304eda739597148fd04` was deployed on 2026-09-11 from an
+immutable Git archive image. PR #6 remains unmerged, and Issue #5 remains
+blocked. The provenance correction described below is not deployed.
+
+## Post-deploy agent/provenance blocker — 2026-09-11
+
+The controlled owner retest confirmed the state-machine recovery behavior: a
+failed setup showed a specific failure state plus retry, edit and delete actions,
+without a locked approval card. The requested NRK setup still failed before
+source exploration, so Issue #5 remains release-blocking.
+
+Sanitized live audit proves the setup attempt made one successful provider call
+and zero tool attempts. No `web.open` URL, HTTP response, MIME type, byte count or
+HTML tool result therefore existed for this run. The response was rejected by
+setup interpretation before answer provenance validation. The deployed code
+collapsed invalid setup JSON and source-access refusal into the same error, and
+raw provider output is intentionally not retained, so the historical response's
+exact invalid form cannot be recovered safely.
+
+The local correction performs one bounded source-required retry only for those
+two setup failures and records distinct sanitized error codes. Provider adapters
+also accept explanatory intermediary text accompanying valid tool calls. Final
+answers may omit an internal source URL: Samvev anchors the exact quote and claim
+to an actually opened document and stores its canonical URL. A supplied
+requested URL is accepted only when the same successful tool record redirected
+it to the stored canonical URL; fabricated or unopened URLs and unsupported
+content are still rejected. Missing model confidence metadata is normalized
+conservatively without changing the strict stored contract. No migration is
+required. Synthetic QA and read-only local-provider NRK pilots pass; the
+correction is not deployed. Final focused QA passes 73/73 backend checks, 4/4
+migration/API checks, all workspace typechecks/build, 12/12 web tests and the
+NB/EN Axe browser smoke. It still requires the independent release gate and a
+later controlled owner retest.
+
+## Post-deploy owner-pilot blocker — 2026-09-11
+
+Read-only live evidence established two coupled defects. A single global browser
+busy flag disabled every task card while one interpretation request was pending,
+even though an older card retained its “Venter på din godkjenning” label. A
+successful DELETE then returned an empty HTTP 200 response; the browser tried to
+parse it as JSON, showed a generic error and retained the now-deleted card. Later
+retries correctly returned `NOT_FOUND`. Audit and request logs show that all
+affected monitor rows were deleted through the owner's normal UI before this
+investigation; no direct database recovery was performed. No pre-delete row
+snapshot remained, so former rule/revision/card details are reconstructed from
+the request/audit timeline and served code rather than directly inspected state.
+
+The candidate fix adds an API-derived lifecycle and action contract, explicit
+204 deletion, lease-specific and validation-specific errors, durable safe setup
+failure state, per-task UI activity, running-state polling and concrete NB/EN
+recovery text. Testing is not required before approval, and draft deletion does
+not depend on AI, source or setup success. No schema migration is required.
+Issue #5 and PR #6 are recorded as blocked. PR #6 remains unmerged. The fix is
+technically deployed from the exact candidate without runtime source bind mounts;
+the owner confirmed the state-machine behavior. Detailed behavior is in [ADR 0013](../decisions/0013-general-ai-task-monitor.md)
+and [M2_3.md](M2_3.md).
+
+Local review now passes security, requirements and UX. Final isolated QA passes
+84/84 workspace tests with zero failures/skips/todos, all five workspace
+typechecks, production build, monitor browser smoke with Axe/focus/responsive
+coverage, and fresh migration 001–012 checksum/idempotence replay. This evidence
+covers the state-machine correction; the separate agent/provenance blocker above
+keeps Issue #5 open.
+
+One validation build briefly replaced the bind-mounted live static bundle for
+about seven minutes. The API and worker were not restarted. The public bundle
+was restored from exact deployed HEAD `f74341221e8b1b3134af8ce449832d432d24d361`,
+and direct/public index plus health were verified afterward. No live task,
+account, database, AI or source action was performed during the exposure.
+
+## Post-M1 M2.3 provider-independent web-tool checkpoint — 2026-09-10
+
+Issue #5 adds a bounded Samvev-owned `web.open` tool so AI tasks can inspect the
+approved public source and exact discovered same-origin links without granting
+the provider direct network access. Interpretation, Test now, Run now, stronger
+preview and scheduled runs share the same provider-neutral runner, provenance
+validation and 180-second execution deadline. Migration 012 additively records
+dependency manifests, actual provider-turn counts and compact source audit;
+unchanged dependency manifests cause zero provider calls. Oppdrag shows only
+sanitized source URLs and fetch times, with localized source errors and no
+provider/model/tool terminology. Credential-bearing source queries fail before
+provider or fetch, and failed tool attempts retain only safe compact audit data.
+Final QA passed the full workspace suite (65/65 API tests), the focused 64/64
+provider/tool/source/security set, fresh migrations 001–012, browser Axe and
+responsive smoke, and isolated app/worker/database health. A read-only live
+pilot completed both requested NRK headline prompts with exact source evidence.
+The implementation and the state-machine correction are now technically deployed
+at exact candidate `43de94edb47da047c7680304eda739597148fd04`. The state recovery
+retest passed, while the agent/provenance result failed and remains
+release-blocking. Detailed
+architecture, rollback and focused evidence are recorded in [ADR 0015](../decisions/0015-provider-independent-ai-web-tools.md)
+and [M2_3.md](M2_3.md). This checkpoint does not rerun or replace the historical
+M1 acceptance matrix.
 
 ## Post-M1 M2.3 issue #4 checkpoint — 2026-09-10
 

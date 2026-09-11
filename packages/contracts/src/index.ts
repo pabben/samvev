@@ -180,6 +180,34 @@ export const aiResultSchema = z.object({
   usage: aiUsageSchema.optional()
 }).strict();
 
+/** Provider-neutral function tools. Providers translate these to their wire format. */
+export const aiToolDefinitionSchema = z.object({
+  name: z.string().regex(/^[a-z][a-z0-9_.-]{0,63}$/),
+  description: z.string().trim().min(1).max(500),
+  inputSchema: z.record(z.string(), z.unknown())
+}).strict();
+
+export const aiToolCallSchema = z.object({
+  id: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  name: z.string().regex(/^[a-z][a-z0-9_.-]{0,63}$/),
+  arguments: z.unknown()
+}).strict();
+
+export const aiToolResultSchema = z.object({
+  callId: z.string().regex(/^[A-Za-z0-9_-]{1,128}$/),
+  name: z.string().regex(/^[a-z][a-z0-9_.-]{0,63}$/),
+  output: z.string().min(1).max(64_000)
+}).strict();
+
+export const aiProviderTurnSchema = z.object({
+  output: z.string().trim().min(1).max(32_000).optional(),
+  toolCalls: z.array(aiToolCallSchema).max(8).default([]),
+  generatedAt: isoInstant,
+  usage: aiUsageSchema.optional()
+}).strict().refine((value) => Boolean(value.output) !== (value.toolCalls.length > 0), {
+  message: 'exactly_one_of_output_or_tool_calls'
+});
+
 export const aiSettingsUpdateSchema = z.object({
   enabled: z.boolean().optional(),
   provider: z.enum(aiProviderIds).optional(),
@@ -196,6 +224,9 @@ export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers)
 
 export const monitorProviderPolicies = ['default', 'local', 'openai'] as const;
 export const monitorStates = ['draft', 'active', 'paused'] as const;
+export const monitorLifecycleStatuses = ['incomplete', 'setup_failed', 'ready_for_approval', 'active', 'paused', 'running'] as const;
+export const monitorTaskActions = ['interpret', 'test', 'approve', 'edit', 'delete', 'run', 'pause', 'resume', 'smarter', 'quality', 'refresh'] as const;
+export const monitorActionBlockReasons = ['setup_required', 'setup_failed', 'running', 'state_not_allowed', 'targets_invalid', 'permission_denied'] as const;
 const monitorTargetsSchema = z.object({
   personIds: z.array(uuidSchema).max(50).default([]),
   displayIds: z.array(uuidSchema).max(50).default([])
@@ -285,8 +316,20 @@ export type AiModelTier = (typeof aiModelTiers)[number];
 export type AiReasoningEffort = (typeof aiReasoningEfforts)[number];
 export type AiProviderId = (typeof aiProviderIds)[number];
 export type MonitorProviderPolicy = (typeof monitorProviderPolicies)[number];
+export type MonitorLifecycleStatus = (typeof monitorLifecycleStatuses)[number];
+export type MonitorTaskAction = (typeof monitorTaskActions)[number];
+export type MonitorActionBlockReason = (typeof monitorActionBlockReasons)[number];
+export interface MonitorTaskLifecycle {
+  status: MonitorLifecycleStatus;
+  setupComplete: boolean;
+  actions: Record<MonitorTaskAction, { enabled: boolean; reason: MonitorActionBlockReason | null }>;
+}
 export type AiTask = z.infer<typeof aiTaskSchema>;
 export type AiResult = z.infer<typeof aiResultSchema>;
+export type AiToolDefinition = z.infer<typeof aiToolDefinitionSchema>;
+export type AiToolCall = z.infer<typeof aiToolCallSchema>;
+export type AiToolResult = z.infer<typeof aiToolResultSchema>;
+export type AiProviderTurn = z.infer<typeof aiProviderTurnSchema>;
 
 export type ErrorCode =
   | 'BAD_REQUEST' | 'VALIDATION_FAILED' | 'UNAUTHENTICATED' | 'CSRF_REQUIRED' | 'FORBIDDEN'
@@ -296,6 +339,9 @@ export type ErrorCode =
   | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED'
   | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'
   | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_SOURCE_REQUIRED' | 'MONITOR_SOURCE_AMBIGUOUS'
-  | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_OWNER_UNAUTHORIZED' | 'INTERNAL_ERROR';
+  | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_INTERPRETATION_SCHEMA_INVALID'
+  | 'MONITOR_INTERPRETATION_SOURCE_REFUSAL' | 'MONITOR_OWNER_UNAUTHORIZED' | 'MONITOR_RUNNING'
+  | 'MONITOR_SETUP_REQUIRED' | 'MONITOR_TARGET_INVALID'
+  | 'MONITOR_TOOL_INVALID' | 'MONITOR_TOOL_LIMIT' | 'INTERNAL_ERROR';
 
 export interface ApiErrorBody { error: { code: ErrorCode; requestId: string; details?: Record<string, unknown> } }

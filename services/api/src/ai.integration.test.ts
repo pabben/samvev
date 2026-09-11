@@ -287,7 +287,7 @@ test('reasoning migration preserves existing provider configuration and adds onl
       'synthetic-encrypted-credential','http://127.0.0.1:11434/v1','synthetic-routine','synthetic-strong'
     )`);
     const before=(await client.query(`SELECT household_id,enabled,provider,api_key_ciphertext,base_url,default_model,strong_model FROM ai_settings`)).rows[0];
-    const migration=await fs.readFile(resolve(process.cwd(),'services/api/migrations/010_ai_reasoning_effort.sql'),'utf8');
+    const migration=await fs.readFile(new URL('../migrations/010_ai_reasoning_effort.sql',import.meta.url),'utf8');
     await client.query(migration);
     const after=(await client.query(`SELECT household_id,enabled,provider,api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort FROM ai_settings`)).rows[0];
     assert.deepEqual({
