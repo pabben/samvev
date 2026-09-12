@@ -26,6 +26,11 @@ test('runner accepts a normal final turn without inventing a tool call',async()=
   assert.equal(result.output,'Synthetic final');assert.equal(result.aiCalls,1);assert.equal(result.documents.length,0);assert.equal(h.fetches,0);assert.deepEqual(h.choices,['auto']);
 });
 
+test('runner enforces a pinned provider before an escalation sends any task turn',async()=>{
+  let turns=0;let closed=0;const ai={createTaskSession:async()=>({provider:'openai' as const,model:'synthetic',close:()=>{closed++;},next:async()=>{turns++;return{output:'must not run',toolCalls:[],generatedAt:at};}})} as unknown as AiAdminService;
+  await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,expectedProvider:'openai_compatible'}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_PROVIDER_UNAVAILABLE');assert.equal(turns,0);assert.equal(closed,1);
+});
+
 test('runner uses required until a source opens and auto afterward',async()=>{
   const h=harness([{toolCalls:[{id:'root',name:'web.open',arguments:{url:root.finalUrl}}],generatedAt:at},{output:'Evidence-backed final',toolCalls:[],generatedAt:at}]);
   const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true});assert.equal(result.output,'Evidence-backed final');assert.deepEqual(h.choices,['required','auto']);assert.equal(result.documents.length,1);

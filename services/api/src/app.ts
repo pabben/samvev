@@ -27,6 +27,7 @@ import { loadRuntimeConfig, type RuntimeConfig } from './runtime-config.ts';
 import { MonitorService } from './monitor/service.ts';
 import { MonitorEngine } from './monitor/engine.ts';
 import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
+import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
 
 const SESSION_COOKIE = 'samvev_session';
@@ -177,12 +178,12 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; monitorFetcher?: MonitorSourceFetcher; runtimeConfig?: RuntimeConfig; webRoot?: string } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
-  const monitors = new MonitorService(aiAdmin,options.monitorFetcher);
-  const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin);
+  const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
+  const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
   await app.register(cookie);
   const projectionEvents=new ProjectionEventFanout();
   await projectionEvents.start();
