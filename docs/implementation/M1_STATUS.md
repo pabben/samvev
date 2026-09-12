@@ -508,3 +508,27 @@ host-global service modified. No merge, tag, release or production deployment.
 - Validated events retain exact source evidence, confidence and uncertainty. Persistent event mappings reuse M1 messages and targets for idempotent create/update/withdraw behavior.
 - Provider policies gate the existing default, local-compatible or OpenAI provider configuration. No automatic paid fallback, browser automation, OCR or external AI test call is included.
 - Migration `007_monitor_tasks.sql` is additive. Security, source, integration, UI, build and targeted M1/M2 regression evidence is recorded in [M2_3.md](M2_3.md).
+
+## M2.4 structured weather and adaptive quality candidate
+
+- Issues #7 and #8 track the provider-independent `weather.forecast` tool,
+  verified Kartverket place resolution and internal quality routing.
+- Migration `013_monitor_typed_tools_and_quality.sql` is additive except for
+  relaxing `monitor_tasks.source_url` to support weather-only tasks. Existing
+  tasks retain `web.open` through the column default.
+- MET Norway Locationforecast is accessed through fixed server-owned HTTPS
+  endpoints with identification, response limits, conditional process-local
+  caching and attribution. Coordinates remain inside the weather client.
+- Multi-source and person schedule tasks start with the stronger internal tier
+  during setup interpretation as well as execution.
+  Conditional alerts such as rain or below-zero thresholds also start there.
+  A routine result gets at most one provider-pinned escalation for invalid
+  schema, failed composition or explicit low confidence, within the unchanged
+  180-second deadline.
+- Final local verification passed 124 workspace tests, all workspace
+  typechecks, production build and focused NB/EN browser smoke with keyboard,
+  focus, Axe, mobile and 1280×752 layouts. A read-only Kartverket/MET pilot
+  completed in 259.8 ms without an AI call or Samvev production data.
+- The candidate is not deployed or merged. Current verification evidence and
+  rollback constraints are recorded in
+  [M2_4_WEATHER_AND_QUALITY.md](M2_4_WEATHER_AND_QUALITY.md) and ADR 0016.

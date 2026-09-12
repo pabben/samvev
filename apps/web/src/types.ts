@@ -85,20 +85,24 @@ export interface Message {
 }
 export interface MonitorTask {
   lifecycle: MonitorTaskLifecycle;
-  id:string;name:string;instruction:string;sourceUrl:string;state:'draft'|'active'|'paused';
-  checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;providerPolicy:'default'|'local'|'openai';modelTier:'routine'|'strong';
-  targets:{personIds:string[];displayIds:string[]};interpretedRule:{resultKind?:'events'|'answer';summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number}|null;
-  events:{date:string;time:string|null;type:string;description:string;actions:string[];who:string[];evidence:{quote:string;sourceUrl:string};confidence:number;uncertainty:string|null}[];
+  id:string;name:string;instruction:string;sourceUrl:string|null;state:'draft'|'active'|'paused';
+  checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;sourceKinds?:Array<'web'|'weather'>;usesSmarterAi:boolean;
+  targets:{personIds:string[];displayIds:string[]};interpretedRule:{resultKind?:'events'|'answer';summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number;location?:{query:string;canonicalName?:string;municipality?:string;region?:string;country?:string}}|null;
+  events:{date:string;time:string|null;type:string;description:string;actions:string[];who:string[];evidence:{quote:string;sourceUrl:string;claims?:string[];sources?:Array<{quote:string;sourceUrl:string;claims:string[]}>};confidence:number;uncertainty:string|null}[];
   revision:number;approvedRevision:number|null;lastCheckedAt:string|null;nextCheckAt:string|null;lastResult:string|null;lastChangedAt:string|null;errorCode:string|null;
   stats:{checks:number;aiCalls:number;unchanged:number};
   source?:{finalUrl:string|null};
   latestResult?:Omit<MonitorRunResult,'outcome'>|null;
 }
+export interface MonitorSource {
+  sourceUrl:string;fetchedAt:string;kind?:'web'|'weather';label?:string;attribution?:string;
+  canonicalLocation?:string;validFrom?:string;validTo?:string;forecastUpdatedAt?:string;
+}
 export interface MonitorRunResult {
   outcome:'changed'|'unchanged';resultKind:'events'|'answer'|null;
   result:{answer?:string;events?:MonitorTask['events'];evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
-  sourceUrl:string;checkedAt:string;
-  sources?:{sourceUrl:string;fetchedAt:string}[];
+  sourceUrl:string|null;checkedAt:string;
+  sources?:MonitorSource[];
 }
 export interface Card {
   id: string;

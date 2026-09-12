@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
-import type { Display, MonitorRunResult, MonitorTask, Person } from "./types";
+import type { Display, MonitorRunResult, MonitorSource, MonitorTask, Person } from "./types";
 import type { TranslationKey } from "./locales/en";
 import { Field, Icon, Loading, useI18n } from "./ui";
 import { formatDate } from "./time";
+import { isWeatherSource, locationCandidates, placeLabel, taskErrorKey } from "./monitor-presentation";
 
 interface Draft {
   name: string; instruction: string; sourceUrl: string;
@@ -13,31 +14,8 @@ interface Draft {
 type Action = 'interpret' | 'approve' | 'pause' | 'resume' | 'test' | 'run' | 'smarter' | 'quality';
 const actionOptions = { timeoutMs: 210000 };
 const empty = (displays: Display[]): Draft => ({ name: '', instruction: '', sourceUrl: '', checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: '18:00', personIds: [], displayIds: displays[0] ? [displays[0].id] : [] });
-const fromTask = (task: MonitorTask): Draft => ({ name: task.name, instruction: task.instruction, sourceUrl: task.sourceUrl, checkIntervalMinutes: task.checkIntervalMinutes, noticeDaysBefore: task.noticeDaysBefore, noticeLocalTime: task.noticeLocalTime, ...task.targets });
-const taskErrorKey = (error: unknown): TranslationKey => {
-  const code = error instanceof ApiError ? error.code : typeof error === 'string' ? error : '';
-  if (code === 'MONITOR_RUNNING') return 'monitorErrorRunning';
-  if (code === 'MONITOR_SETUP_REQUIRED') return 'monitorErrorSetupRequired';
-  if (code === 'MONITOR_TARGET_INVALID') return 'monitorErrorTargets';
-  if (code === 'NOT_FOUND') return 'monitorErrorNotFound';
-  if (code === 'AI_DISABLED') return 'monitorErrorAiDisabled';
-  if (code === 'MONITOR_SOURCE_REQUIRED') return 'monitorErrorSourceRequired';
-  if (code === 'MONITOR_SOURCE_AMBIGUOUS') return 'monitorErrorSourceAmbiguous';
-  if (code === 'AI_ENDPOINT_BLOCKED' || code === 'AI_ENDPOINT_INVALID') return 'monitorErrorSourceBlocked';
-  if (code === 'MONITOR_SOURCE_UNSUPPORTED' || code === 'MONITOR_SOURCE_TOO_LARGE') return 'monitorErrorSourceFormat';
-  if (code === 'MONITOR_SOURCE_UNAVAILABLE') return 'monitorErrorSourceUnavailable';
-  if (code === 'MONITOR_SOURCE_TIMEOUT') return 'monitorErrorSourceTimeout';
-  if (code === 'MONITOR_TOOL_INVALID') return 'monitorErrorSourceExplore';
-  if (code === 'MONITOR_TOOL_LIMIT') return 'monitorErrorSourceLimit';
-  if (code.includes('TIMEOUT') || code === 'OFFLINE') return 'monitorErrorTimeout';
-  if (['AI_DISABLED', 'AI_CONFIGURATION_INVALID', 'AI_NOT_CONFIGURED', 'AI_PROVIDER_UNAVAILABLE', 'AI_PROVIDER_MISMATCH', 'AI_CREDENTIAL_INVALID'].includes(code)) return 'monitorErrorSetup';
-  if (code === 'AI_RESPONSE_INVALID') return 'monitorErrorVerification';
-  if (code === 'MONITOR_INTERPRETATION_SOURCE_REFUSAL') return 'monitorErrorSourceContext';
-  if (code === 'MONITOR_INTERPRETATION_SCHEMA_INVALID' || code === 'MONITOR_INTERPRETATION_INVALID') return 'monitorErrorInterpretation';
-  if (code === 'REVISION_CONFLICT' || code === 'CONFLICT') return 'monitorErrorConflict';
-  if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || code === 'MONITOR_OWNER_UNAUTHORIZED') return 'monitorErrorPermission';
-  return 'monitorErrorGeneric';
-};
+const fromTask = (task: MonitorTask): Draft => ({ name: task.name, instruction: task.instruction, sourceUrl: task.sourceUrl ?? '', checkIntervalMinutes: task.checkIntervalMinutes, noticeDaysBefore: task.noticeDaysBefore, noticeLocalTime: task.noticeLocalTime, ...task.targets });
+
 
 export function MonitorsPanel({ householdId, timezone, people, displays }: { householdId: string; timezone: string; people: Person[]; displays: Display[] }) {
   const { t, locale } = useI18n();
@@ -100,7 +78,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
     const editingId = editing?.id;
     if (editingId) markBusy(editingId, true);
     try {
-      const body = { instruction: draft.instruction, ...(draft.name.trim() ? { name: draft.name.trim() } : {}), ...(draft.sourceUrl.trim() ? { sourceUrl: draft.sourceUrl.trim() } : {}), checkIntervalMinutes: draft.checkIntervalMinutes, noticeDaysBefore: draft.noticeDaysBefore, noticeLocalTime: draft.noticeLocalTime, targets: { personIds: draft.personIds, displayIds: draft.displayIds } };
+      const body = { instruction: draft.instruction, ...(draft.name.trim() ? { name: draft.name.trim() } : {}), ...(editing || draft.sourceUrl.trim() ? { sourceUrl: draft.sourceUrl.trim() } : {}), checkIntervalMinutes: draft.checkIntervalMinutes, noticeDaysBefore: draft.noticeDaysBefore, noticeLocalTime: draft.noticeLocalTime, targets: { personIds: draft.personIds, displayIds: draft.displayIds } };
       saved = editing ? await api<MonitorTask>(`${base}/${editing.id}`, 'PATCH', { ...body, expectedRevision: editing.revision }, actionOptions) : await api<MonitorTask>(base, 'POST', body, actionOptions);
       upsert(saved); markBusy(saved.id, true);
       setResults((current) => { const next = { ...current }; delete next[saved!.id]; return next; });
@@ -142,8 +120,28 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
   const toggle = (key: 'personIds' | 'displayIds', id: string) => setDraft((value) => ({ ...value, [key]: value[key].includes(id) ? value[key].filter((item) => item !== id) : [...value[key], id] }));
   const names = (task: MonitorTask) => [...people.filter((p) => task.targets.personIds.includes(p.id)).map((p) => p.display_name), ...displays.filter((d) => task.targets.displayIds.includes(d.id)).map((d) => d.name)].join(', ') || t('monitorRuleNone');
   const list = (values: string[]) => values.join(', ') || t('monitorRuleNone');
-  const errorNotice = (taskId?: string) => error && error.taskId === taskId ? <div className="notice error monitor-error" id={taskId ? `monitor-error-${taskId}` : 'monitor-error'} tabIndex={-1} role="alert">{t(taskErrorKey(error.value))}</div> : null;
-  const findings = (events: MonitorTask['events']) => events.length ? events.map((event, index) => <div className="monitor-finding" key={`${event.date}:${index}`}><strong>{event.date}{event.time ? ` ${event.time.slice(0, 5)}` : ''} · {event.description}</strong>{event.actions.length > 0 && <p>{event.actions.join(' · ')}</p>}{event.who.length > 0 && <p>{event.who.join(', ')}</p>}<blockquote>{event.evidence.quote}</blockquote><a href={event.evidence.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a>{event.uncertainty && <p>{t('monitorUncertainty')}: {event.uncertainty}</p>}</div>) : <p>{t('monitorNoEvents')}</p>;
+  const errorNotice = (taskId?: string) => {
+    if (!error || error.taskId !== taskId) return null;
+    const candidates = locationCandidates(error.value);
+    const task = taskId ? tasks?.find((item) => item.id === taskId) : undefined;
+    return <div className="notice error monitor-error" id={taskId ? `monitor-error-${taskId}` : 'monitor-error'} tabIndex={-1} role="alert">
+      <p>{t(taskErrorKey(error.value))}</p>
+      {candidates.length > 0 && <ul className="monitor-location-options">{candidates.map((place) => <li key={place}>
+        {task && task.lifecycle.actions.edit.enabled && task.instruction.length + t('monitorLocationClarification', { place }).length < 2000 ? <button type="button" disabled={formBusy || Boolean(taskBusy[task.id])} onClick={() => {
+          beginEdit(task);
+          setDraft({ ...fromTask(task), instruction: `${t('monitorLocationClarification', { place })}\n${task.instruction}` });
+        }}>{t('monitorChooseLocation', { place })}</button> : place}
+      </li>)}</ul>}
+    </div>;
+  };
+  const sourceName = (source: MonitorSource) => isWeatherSource(source) ? t('monitorWeatherSource') : source.label || source.sourceUrl;
+  const sourceDetails = (source: MonitorSource, includeFetched = true) => <>
+    {source.canonicalLocation && <p>{t('monitorLocation')}: {source.canonicalLocation}</p>}
+    {includeFetched && <small>{t('monitorSourceChecked')} <time dateTime={source.fetchedAt}>{formatDate(source.fetchedAt, locale, timezone)}</time></small>}
+    {source.forecastUpdatedAt && <small>{t('monitorForecastUpdated')} <time dateTime={source.forecastUpdatedAt}>{formatDate(source.forecastUpdatedAt, locale, timezone)}</time></small>}
+    {source.validFrom && <small>{t('monitorForecastValid')} <time dateTime={source.validFrom}>{formatDate(source.validFrom, locale, timezone)}</time>{source.validTo && <> – <time dateTime={source.validTo}>{formatDate(source.validTo, locale, timezone)}</time></>}</small>}
+  </>;
+  const findings = (events: MonitorTask['events']) => events.length ? events.map((event, index) => <div className="monitor-finding" key={`${event.date}:${index}`}><strong>{event.date}{event.time ? ` ${event.time.slice(0, 5)}` : ''} · {event.description}</strong>{event.actions.length > 0 && <p>{event.actions.join(' · ')}</p>}{event.who.length > 0 && <p>{event.who.join(', ')}</p>}<blockquote>{event.evidence.quote}</blockquote><a href={event.evidence.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a>{event.evidence.sources?.map((source, sourceIndex)=><div className="monitor-supporting-evidence" key={`${source.sourceUrl}:${sourceIndex}`}><small>{t('monitorSupportingEvidence')}</small><blockquote>{source.quote}</blockquote><a href={source.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a></div>)}{event.uncertainty && <p>{t('monitorUncertainty')}: {event.uncertainty}</p>}</div>) : <p>{t('monitorNoEvents')}</p>;
   if (!tasks) return <section className="monitor-page">{errorNotice()}{error ? <button className="button" onClick={() => void load().then(() => setError(undefined)).catch((value) => fail(value))}>{t('retry')}</button> : <Loading />}</section>;
   return <section className="monitor-page" aria-labelledby="monitor-title">
     <header className="section-heading"><div><p className="eyebrow">{t('monitorEyebrow')}</p><h1 id="monitor-title" tabIndex={-1}>{t('monitors')}</h1><p>{t('monitorBody')}</p></div><button className="button primary" disabled={formBusy} onClick={() => beginEdit(null)}><Icon name="plus" />{t('monitorNew')}</button></header>
@@ -170,19 +168,26 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
       const working = Boolean(taskBusy[task.id]) || lifecycle.status === 'running';
       const can = (name: keyof typeof lifecycle.actions) => !working && lifecycle.actions[name].enabled;
       const rule = lifecycle.setupComplete ? task.interpretedRule : null;
-      const statusKey: TranslationKey = working ? 'monitorStateRunning' : ({ incomplete: 'monitorStateIncomplete', setup_failed: 'monitorStateSetupFailed', ready_for_approval: 'monitorStateDraft', active: 'monitorStateActive', paused: 'monitorStatePaused', running: 'monitorStateRunning' } as const)[lifecycle.status];
+      const statusKey: TranslationKey = working ? 'monitorStateRunning' : lifecycle.status === 'setup_failed' && ['MONITOR_LOCATION_REQUIRED', 'MONITOR_LOCATION_AMBIGUOUS', 'MONITOR_LOCATION_NOT_FOUND'].includes(task.errorCode ?? '') ? 'monitorStateLocationNeeded' : ({ incomplete: 'monitorStateIncomplete', setup_failed: 'monitorStateSetupFailed', ready_for_approval: 'monitorStateDraft', active: 'monitorStateActive', paused: 'monitorStatePaused', running: 'monitorStateRunning' } as const)[lifecycle.status];
       const blockedReason = (reason: string | null): TranslationKey => reason === 'permission_denied' ? 'monitorErrorPermission' : reason === 'targets_invalid' ? 'monitorErrorTargets' : reason === 'running' ? 'monitorErrorRunning' : 'monitorErrorSetupRequired';
       const resultSourceUrl = visibleResult?.result?.evidence?.sourceUrl ?? visibleResult?.sourceUrl ?? preview?.value.sourceUrl;
       const resultSources = [...new Map((visibleResult?.sources ?? []).map((source) => [source.sourceUrl, source])).values()];
+      const resultSource = resultSources.find((source) => source.sourceUrl === resultSourceUrl);
+      const weatherTask = task.sourceKinds?.includes('weather') ?? (!task.sourceUrl || Boolean(rule?.location));
       const observedAt = resultSources.find((source) => source.sourceUrl === resultSourceUrl)?.fetchedAt ?? visibleResult?.checkedAt ?? preview?.value.checkedAt;
       return <article className="surface-card monitor-card" key={task.id} id={`monitor-card-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-name-${task.id}`} aria-busy={working}>
         <div className="card-top"><h2 id={`monitor-name-${task.id}`}>{task.name}</h2><span className={`monitor-state ${task.state}`}>{t(statusKey)}</span></div>
-        <p>{task.instruction}</p><a className="monitor-source" href={task.sourceUrl} target="_blank" rel="noreferrer">{task.sourceUrl}</a>
-        {rule && <div className="preview-panel" id={`monitor-preview-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-preview-title-${task.id}`}><p className="eyebrow" id={`monitor-preview-title-${task.id}`}>{t('monitorInterpretation')}</p><strong>{rule.summary}</strong><dl className="monitor-rule"><div><dt>{t('monitorResultType')}</dt><dd>{t(rule.resultKind === 'answer' ? 'monitorAnswer' : 'monitorEvents')}</dd></div>{rule.resultKind !== 'answer' && <div><dt>{t('monitorRuleEventTypes')}</dt><dd>{list(rule.eventTypes)}</dd></div>}<div><dt>{t('monitorRuleSchedule')}</dt><dd>{t('monitorRuleScheduleValue', { minutes: task.checkIntervalMinutes })}</dd></div>{rule.resultKind !== 'answer' && <div><dt>{t('monitorRuleNotice')}</dt><dd>{t('monitorRuleNoticeValue', { days: task.noticeDaysBefore, time: task.noticeLocalTime, timezone })}</dd></div>}<div><dt>{t('monitorRuleTargets')}</dt><dd>{names(task)}</dd></div></dl>{task.state === 'draft' && <p>{t('monitorApprovalHint')}</p>}</div>}
-        {preview && <section className="monitor-result" id={`monitor-result-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-result-title-${task.id}`}><h3 id={`monitor-result-title-${task.id}`}>{t(preview.action === 'smarter' ? 'monitorSmarterResult' : preview.action === 'test' ? 'monitorTestResult' : 'monitorLastResult')}</h3><>{preview.action !== 'saved' && <p className="field-hint">{t(preview.action === 'run' ? 'monitorRunPreservesSchedule' : 'monitorPreviewHint')}</p>}</>{preview.value.outcome === 'unchanged' && <p>{t('monitorResultUnchanged')}</p>}{visibleResult?.resultKind === 'answer' ? <><p className="monitor-answer">{visibleResult.result?.answer}</p>{visibleResult.result?.evidence && <blockquote>{visibleResult.result.evidence.quote}</blockquote>}{visibleResult.result?.uncertainty && <p>{t('monitorUncertainty')}: {visibleResult.result.uncertainty}</p>}</> : visibleResult?.resultKind === 'events' ? findings(visibleResult.result?.events ?? []) : null}<a className="monitor-result-source" href={resultSourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a><small className="monitor-observed-at">{t('monitorSourceChecked')} <time dateTime={observedAt}>{formatDate(observedAt!, locale, timezone)}</time></small>{resultSources.length > 1 && <details className="monitor-sources"><summary>{t('monitorSourcesUsed')}</summary><ul>{resultSources.map((source) => <li key={source.sourceUrl}><a href={source.sourceUrl} target="_blank" rel="noreferrer">{source.sourceUrl}</a><small>{t('monitorSourceChecked')} <time dateTime={source.fetchedAt}>{formatDate(source.fetchedAt, locale, timezone)}</time></small></li>)}</ul></details>}{preview.action === 'smarter' && task.state !== 'draft' && <><p>{t('monitorSmarterChoice')}</p><div className="card-actions"><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'smarter')}>{t('monitorKeepSmarter')}</button><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'standard')}>{t('monitorKeepStandard')}</button></div></>}</section>}
+        <p>{task.instruction}</p>
+        {task.usesSmarterAi && <p className="monitor-quality-preference">{t('monitorUsesSmarterAi')}</p>}
+        <div className="monitor-source-list">
+          {task.sourceUrl && <a className="monitor-source" href={task.sourceUrl} target="_blank" rel="noreferrer">{weatherTask ? `${t('monitorWebSource')}: ${new URL(task.sourceUrl).hostname}` : task.sourceUrl}</a>}
+          {weatherTask && <a className="monitor-source" href="https://www.met.no/" target="_blank" rel="noreferrer">{t('monitorWeatherSource')}</a>}
+        </div>
+        {rule && <div className="preview-panel" id={`monitor-preview-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-preview-title-${task.id}`}><p className="eyebrow" id={`monitor-preview-title-${task.id}`}>{t('monitorInterpretation')}</p><strong>{rule.summary}</strong><dl className="monitor-rule">{rule.location?.canonicalName && <div><dt>{t('monitorLocation')}</dt><dd>{placeLabel(rule.location)}<small><a href="https://www.kartverket.no/" target="_blank" rel="noreferrer">{t('monitorLocationCredit')}</a></small></dd></div>}<div><dt>{t('monitorResultType')}</dt><dd>{t(rule.resultKind === 'answer' ? 'monitorAnswer' : 'monitorEvents')}</dd></div>{rule.resultKind !== 'answer' && <div><dt>{t('monitorRuleEventTypes')}</dt><dd>{list(rule.eventTypes)}</dd></div>}<div><dt>{t('monitorRuleSchedule')}</dt><dd>{t('monitorRuleScheduleValue', { minutes: task.checkIntervalMinutes })}</dd></div>{rule.resultKind !== 'answer' && <div><dt>{t('monitorRuleNotice')}</dt><dd>{t('monitorRuleNoticeValue', { days: task.noticeDaysBefore, time: task.noticeLocalTime, timezone })}</dd></div>}<div><dt>{t('monitorRuleTargets')}</dt><dd>{names(task)}</dd></div></dl>{task.state === 'draft' && <p>{t('monitorApprovalHint')}</p>}</div>}
+        {preview && <section className="monitor-result" id={`monitor-result-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-result-title-${task.id}`}><h3 id={`monitor-result-title-${task.id}`}>{t(preview.action === 'smarter' ? 'monitorSmarterResult' : preview.action === 'test' ? 'monitorTestResult' : 'monitorLastResult')}</h3><>{preview.action !== 'saved' && <p className="field-hint">{t(preview.action === 'run' ? 'monitorRunPreservesSchedule' : 'monitorPreviewHint')}</p>}</>{preview.value.outcome === 'unchanged' && <p>{t('monitorResultUnchanged')}</p>}{visibleResult?.resultKind === 'answer' ? <><p className="monitor-answer">{visibleResult.result?.answer}</p>{visibleResult.result?.evidence && <blockquote>{visibleResult.result.evidence.quote}</blockquote>}{visibleResult.result?.uncertainty && <p>{t('monitorUncertainty')}: {visibleResult.result.uncertainty}</p>}</> : visibleResult?.resultKind === 'events' ? findings(visibleResult.result?.events ?? []) : null}{resultSourceUrl && <a className="monitor-result-source" href={resultSourceUrl} target="_blank" rel="noreferrer">{resultSource && isWeatherSource(resultSource) ? t('monitorWeatherSource') : t('monitorOpenSource')}</a>}{observedAt && <small className="monitor-observed-at">{t('monitorSourceChecked')} <time dateTime={observedAt}>{formatDate(observedAt, locale, timezone)}</time></small>}{resultSource && resultSources.length === 1 && isWeatherSource(resultSource) && <div className="monitor-forecast-details">{sourceDetails(resultSource, false)}</div>}{resultSources.length > 1 && <details className="monitor-sources"><summary>{t('monitorSourcesUsed')}</summary><ul>{resultSources.map((source) => <li key={source.sourceUrl}><a href={source.sourceUrl} target="_blank" rel="noreferrer">{sourceName(source)}</a>{sourceDetails(source)}</li>)}</ul></details>}{preview.action === 'smarter' && task.state !== 'draft' && <><p>{t('monitorSmarterChoice')}</p><div className="card-actions"><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'smarter')}>{t('monitorKeepSmarter')}</button><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'standard')}>{t('monitorKeepStandard')}</button></div></>}</section>}
         {!preview && task.state !== 'draft' && task.events.length > 0 && <details className="monitor-findings"><summary>{t('monitorFindings', { count: task.events.length })}</summary>{findings(task.events)}</details>}
-        {!preview && task.state !== 'draft' && task.lastResult && !/^(\d+) event\(s\)$|^unchanged$|^failed$/.test(task.lastResult) && <section className="monitor-result"><h3>{t('monitorLastResult')}</h3><p className="monitor-answer">{task.lastResult}</p><a href={task.source?.finalUrl || task.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a></section>}
-        <dl className="monitor-meta"><div><dt>{t('monitorNext')}</dt><dd>{task.nextCheckAt ? formatDate(task.nextCheckAt, locale, timezone) : '—'}</dd></div><div><dt>{t('monitorLastCheck')}</dt><dd>{task.lastCheckedAt ? formatDate(task.lastCheckedAt, locale, timezone) : '—'}</dd></div><div><dt>{t('monitorQuality')}</dt><dd>{t(task.modelTier === 'strong' ? 'monitorSmarter' : 'monitorStandard')}</dd></div></dl>
+        {!preview && task.state !== 'draft' && task.lastResult && !/^(\d+) event\(s\)$|^unchanged$|^failed$/.test(task.lastResult) && <section className="monitor-result"><h3>{t('monitorLastResult')}</h3><p className="monitor-answer">{task.lastResult}</p>{(task.source?.finalUrl || task.sourceUrl) && <a href={task.source?.finalUrl || task.sourceUrl!} target="_blank" rel="noreferrer">{weatherTask ? t('monitorWeatherSource') : t('monitorOpenSource')}</a>}</section>}
+        <dl className="monitor-meta"><div><dt>{t('monitorNext')}</dt><dd>{task.nextCheckAt ? formatDate(task.nextCheckAt, locale, timezone) : '—'}</dd></div><div><dt>{t('monitorLastCheck')}</dt><dd>{task.lastCheckedAt ? formatDate(task.lastCheckedAt, locale, timezone) : '—'}</dd></div></dl>
         <p className="monitor-stats">{t('monitorStats', { checks: task.stats.checks, ai: task.stats.aiCalls })}</p>
         {errorNotice(task.id)}{task.errorCode && error?.taskId !== task.id && <p className="notice error">{t(taskErrorKey(task.errorCode))}</p>}
         {working && <p className="notice" id={`monitor-working-${task.id}`} role="status">{t('monitorRunningHint')}</p>}

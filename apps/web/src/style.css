@@ -2652,6 +2652,8 @@ details[open] > summary:before {
 .monitor-result{padding:18px;border:1px solid var(--line);border-radius:18px;background:var(--canvas);overflow-wrap:anywhere}
 .monitor-result h3{font-size:17px;margin:0 0 12px}.monitor-result p{margin:10px 0}.monitor-result a,.monitor-finding a{color:var(--teal);font-size:13px}
 .monitor-result blockquote,.monitor-finding blockquote{margin:12px 0;padding-left:12px;border-left:3px solid var(--line);font-size:13px;color:var(--muted)}
+.monitor-supporting-evidence{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.monitor-supporting-evidence small{font-weight:700}
+.monitor-quality-preference{color:var(--muted);font-size:.875rem;font-weight:650}
 .monitor-result small{margin-top:10px}.monitor-answer{white-space:pre-wrap}.monitor-finding{padding:12px 0;border-bottom:1px solid var(--line)}
 .monitor-delete{display:block}.monitor-delete p{margin-top:0}.monitor-card .card-actions button{min-height:44px;white-space:normal;text-align:left}.monitor-form .card-actions{display:flex;flex-wrap:wrap;gap:10px}
 .monitor-card .monitor-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-card[aria-busy=true]{opacity:.8}
@@ -2666,3 +2668,9 @@ details[open] > summary:before {
 .monitor-sources li{padding:8px 0}
 .monitor-sources a,.monitor-result-source{display:inline-flex;align-items:center;min-height:44px;overflow-wrap:anywhere;max-width:100%}
 .monitor-sources small,.monitor-result .monitor-observed-at{max-width:none;overflow:visible;text-overflow:clip}
+
+/* Task sources remain readable on compact screens without exposing raw location coordinates. */
+.monitor-source-list { display: flex; flex-wrap: wrap; gap: .5rem 1rem; }
+.monitor-rule dd small, .monitor-forecast-details small { display: block; margin-top: .35rem; }
+.monitor-location-options { display: grid; gap: .5rem; padding-left: 1.25rem; }
+.monitor-location-options button { max-width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; text-align: start; }
