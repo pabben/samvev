@@ -40,7 +40,7 @@ test('durable enqueue returns one stable run, survives request completion and ke
   const queue=new MonitorExecutionQueue(monitors as any,engine as any,profile,()=>now);
   const enqueued=await queue.enqueue(actor,taskId,1,'interpretation');assert.equal(enqueued.status,'queued');assert.equal(enqueued.usesLocalAi,true);assert.equal(enqueued.expectedDurationSeconds,300);
   const duplicate=await queue.enqueue(actor,taskId,1,'interpretation');assert.equal(duplicate.id,enqueued.id,'double click must join the active execution');
-  const runningPromise=queue.runOne();for(let attempt=0;attempt<20;attempt++){const current=await queue.get(actor,taskId,enqueued.id);if(current.status==='running')break;await new Promise((resolve)=>setTimeout(resolve,5));}
+  const runningPromise=queue.runOne();for(let attempt=0;attempt<100;attempt++){const current=await queue.get(actor,taskId,enqueued.id);if(current.status==='running'&&current.progress.stage==='analyzing')break;await new Promise((resolve)=>setTimeout(resolve,5));}
   const running=await queue.get(actor,taskId,enqueued.id);assert.equal(running.status,'running');assert.equal(running.progress.stage,'analyzing');
   const lease=(await pool.query<{remaining:number;max_runtime_ms:number}>(`SELECT (extract(epoch from (worker_lease_expires_at-started_at))*1000)::int AS remaining,max_runtime_ms FROM monitor_executions WHERE id=$1`,[enqueued.id])).rows[0]!;assert.ok(lease.remaining>=lease.max_runtime_ms+59_000);
   assert.equal((await queue.get(actor,taskId,enqueued.id)).id,enqueued.id,'polling after a page refresh does not enqueue work');resolveWork();assert.equal(await runningPromise,'succeeded');
