@@ -543,3 +543,31 @@ host-global service modified. No merge, tag, release or production deployment.
 - The candidate is not deployed or merged. Current verification evidence and
   rollback constraints are recorded in
   [M2_4_WEATHER_AND_QUALITY.md](M2_4_WEATHER_AND_QUALITY.md) and ADR 0016.
+
+### M2.4 owner-pilot blocker: durable local-AI execution
+
+- Plain weather passed. `via yr` timed out once and passed on retry. A combined
+  week-plan and weather task failed three times at the fixed 180-second server
+  deadline. PR #9 and Issues #7/#8 therefore remain blocked; Issue #10 tracks
+  the execution fix.
+- ADR 0017 defines a PostgreSQL-backed execution queue for interpretation,
+  test, manual, smarter and scheduled work. API actions return a stable run ID
+  quickly; the worker owns the bounded job and the UI reconnects by polling.
+- Provider/task-aware bounds are 180 seconds for hosted work, 300 seconds for
+  simple local work and 600 seconds for local multi-tool, schedule-like or
+  stronger-quality work. The execution lease is always 60 seconds longer.
+- Migration 014 adds the execution queue, single-flight constraint, sanitized
+  progress/timing and audit links without rewriting existing monitor data.
+- Production action routes now have direct `202`/stable-run integration
+  coverage. Worker recovery preserves a matching committed result and source
+  provenance, scheduled configuration failures are isolated, and final
+  requester authorization is rechecked before persisted AI output or messages.
+- Full synthetic tests pass 141/141, including a real service/agent fake-clock
+  provider result after four minutes and complete dependency-fetch timing. All
+  typechecks and production build pass, and focused NB/EN responsive/Axe browser
+  smoke passes. The broader historical
+  M1 browser script still stops at its display-pairing response wait after its
+  people checks; the monitor smoke itself is green.
+- This follow-up is not deployed. A local-provider pilot, final release gate and
+  owner-authorized deploy/pilot remain required before M2.4 can be marked
+  complete.

@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { AiProviderTurn, AiTask, AiToolResult } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
-import { MONITOR_AGENT_DEADLINE_MS,MONITOR_LEASE_MS,MonitorAgentRunner,monitorWebTool } from './agent-runner.ts';
+import { MONITOR_AGENT_DEADLINE_MS,MONITOR_LEASE_MS,MonitorAgentRunner,monitorWebTool,type MonitorExecutionObserver } from './agent-runner.ts';
 import { answerFromAi } from './service.ts';
 import type { MonitorSourceFetcher, SourceDocument } from './source-fetcher.ts';
 
@@ -227,7 +227,8 @@ test('runner reuses a fetched URL but still bounds tool executions',async()=>{
 });
 
 test('dependency refresh compares every followed document without an AI call',async()=>{
-  const h=harness([]);const unchanged=await h.runner.refreshDependencies([{url:root.finalUrl,fingerprint:root.fingerprint,contentType:'text/html'},{url:news.finalUrl,fingerprint:news.fingerprint,contentType:'text/html'}]);assert.equal(unchanged.changed,false);assert.equal(h.fetches,2);
+  const observed:string[]=[];const observer:MonitorExecutionObserver={progress:async(stage)=>{observed.push(stage);},providerTurn:()=>{},tool:(name)=>{observed.push(name);}};
+  const h=harness([]);const unchanged=await h.runner.refreshDependencies([{url:root.finalUrl,fingerprint:root.fingerprint,contentType:'text/html'},{url:news.finalUrl,fingerprint:news.fingerprint,contentType:'text/html'}],undefined,{observer});assert.equal(unchanged.changed,false);assert.equal(h.fetches,2);assert.deepEqual(observed,['fetching_source','web.open','fetching_source','web.open']);
   const changedHarness=harness([],{[root.finalUrl]:{...root,fingerprint:'root-v2'},[news.finalUrl]:news});assert.equal((await changedHarness.runner.refreshDependencies([{url:root.finalUrl,fingerprint:root.fingerprint,contentType:'text/html'},{url:news.finalUrl,fingerprint:news.fingerprint,contentType:'text/html'}])).changed,true);
 });
 

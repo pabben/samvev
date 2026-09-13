@@ -114,7 +114,7 @@ text or person data.
 
 The mocked full database integration still covers interpretation, approval, a
 relevant notification, a changed dry forecast and withdrawal. No paid AI call
-was made, and the global 180-second deadline remains unchanged.
+was made.
 
 The post-pilot candidate passed all **128** workspace tests: web 15, contracts
 3, core 3 and API 107. All five workspace typechecks and the production build
@@ -125,3 +125,57 @@ The focused browser smoke passed NB/EN, keyboard/focus, Axe, mobile, desktop,
 1280×752 wall-panel and dark mode with zero real browser requests and no new
 screenshots. Compose validation, isolated QA health, whitespace and
 secret/private-data scans passed.
+
+## Owner pilot blocker and durable execution follow-up
+
+The live owner pilot on 2026-09-13 passed the plain weather request. The
+`via yr` variant timed out once and then passed on retry. The combined week-plan
+and weather task failed three times at the former 180-second server deadline.
+That is a release blocker for PR #9 and Issues #7/#8, tracked separately in
+Issue #10. M2.4 is not accepted or merge-ready on this evidence.
+
+The follow-up replaces synchronous monitor actions with the persistent
+execution model in ADR 0017. Setup interpretation, Test now, Run now,
+smarter-quality previews and scheduled runs enqueue a stable execution and are
+processed by the worker. Local simple work has a bounded five-minute maximum;
+local multi-tool, schedule-like or stronger-quality work has a bounded
+ten-minute maximum. Hosted work retains the three-minute maximum. Leases add a
+60-second completion margin.
+
+Migration `014_monitor_durable_executions.sql` is additive. It introduces the
+queue, sanitized progress/timing fields, single-flight index and execution
+links for run/tool/quality audit. The task projection restores the active run
+and latest current-revision preview after reload. Browser transport failures no
+longer become AI timeouts.
+
+The release evidence below describes the previous M2.4 candidate. A new full
+release gate and isolated local-provider pilot are required for the durable
+execution candidate before deployment.
+
+The durable candidate's focused and full synthetic validation now passes. The
+production HTTP contract returns `202` for interpretation, Test now, Run now
+and smarter previews and exposes the stable execution through an authenticated,
+household-scoped read endpoint. The worker rechecks requester authority and the
+AI settings revision, isolates a misconfigured scheduled task from the rest of
+the queue, and fairly claims work across households. If a worker stops after a
+domain result committed but before queue finalization, lease recovery reconciles
+the matching task/revision/kind run or interpretation audit and restores its
+server-anchored public provenance rather than misreporting an interruption.
+
+The current migration 014 checksum is
+`027ca591ee806b468b0efbb33776402b733e8f4db44386fddda17b2cad4b0eea`
+and matches fresh and repeated isolated test/QA ledgers. Full workspace tests
+pass **141/141**: web 16, contracts 3, core 3
+and API 119. All workspace typechecks and the production build pass. The
+focused durable suite passes **12/12**, including stable IDs, duplicate starts,
+a fake-clock four-minute provider result through the real interpretation
+service and agent runner, true server timeout, scheduled execution,
+configuration-failure isolation, interrupted-worker recovery, crash-window
+reconciliation and escalation telemetry on failed runs. Deterministic
+dependency refreshes contribute their actual web, location and weather timings
+even when no AI call is needed. Focused NB/EN browser smoke passes keyboard,
+focus, Axe, mobile, desktop and 1280×752 checks with zero real requests; two
+synthetic progress screenshots were inspected for the new running state. The broader M1
+browser scenario still stops at its pre-existing display-pairing response wait;
+no monitor assertion fails, and this unrelated smoke issue is not hidden as a
+pass. No local-provider pilot or live deploy has been run for this candidate.

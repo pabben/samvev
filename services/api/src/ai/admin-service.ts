@@ -89,6 +89,16 @@ export class AiAdminService {
     return this.settingsDto(await this.rawSettings(householdId));
   }
 
+  /** A sanitized queue-time fence. It deliberately contains no endpoint, model or credential. */
+  async executionProfile(householdId:string,policy:MonitorProviderPolicy='default'):Promise<{provider:AiProviderId;settingsRevision:number}> {
+    const settings=await this.rawSettings(householdId);
+    if((policy==='local'&&settings.provider!=='openai_compatible')||(policy==='openai'&&settings.provider!=='openai'))throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
+    if(!settings.enabled)throw new DomainError('AI_DISABLED',422);
+    if(!this.providers[settings.provider])throw new DomainError('AI_PROVIDER_UNAVAILABLE',502);
+    if(!hasStoredProviderConfiguration(settings))throw new DomainError('AI_CONFIGURATION_INVALID',422);
+    return{provider:settings.provider,settingsRevision:settings.revision};
+  }
+
   async updateSettings(householdId: string, patch: AiSettingsPatch): Promise<Record<string, unknown>> {
     const ciphertext = typeof patch.apiKey === 'string' ? await this.vault.encrypt(householdId, patch.apiKey) : patch.apiKey;
     const updated = await transaction(async (client) => {

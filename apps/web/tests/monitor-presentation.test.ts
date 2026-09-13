@@ -34,3 +34,15 @@ test('canonical place and weather source labels never need raw coordinates', () 
   assert.equal(shouldShowAnswerEvidence([{sourceUrl:'https://example.com/news',fetchedAt:'2030-01-01T00:00:00Z',kind:'web'}]),true);
   assert.equal(shouldShowAnswerEvidence([]),true);
 });
+
+
+test('transport errors remain distinct from bounded server timeout in both locales', () => {
+  assert.equal(taskErrorKey(new ApiError('OFFLINE')), 'monitorConnectionLost');
+  assert.equal(taskErrorKey('AI_TIMEOUT'), 'monitorErrorTimeout');
+  assert.equal(taskErrorKey('MONITOR_WORKER_INTERRUPTED'), 'monitorErrorInterrupted');
+  for (const messages of [nb,en]) {
+    assert.notEqual(messages.monitorConnectionLost,messages.monitorErrorTimeout);
+    assert.ok(messages.monitorLeavePage);
+    assert.ok(messages.monitorStillWorking);
+  }
+});

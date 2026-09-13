@@ -3,7 +3,7 @@ import test from 'node:test';
 import type { AiProviderTurn, AiTask, AiToolResult } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
-import { MonitorAgentRunner } from './agent-runner.ts';
+import { MonitorAgentRunner, type MonitorExecutionObserver } from './agent-runner.ts';
 import type { MonitorSourceFetcher, SourceDocument } from './source-fetcher.ts';
 import { monitorToolRegistry } from './tool-registry.ts';
 import { KartverketPlaceResolver, MetWeatherClient, norwegianWeatherDate, weatherTargetDate, type FixedHttpRequest, type FixedHttpResponse, type FixedHttpTransport, type WeatherForecastArgs } from './weather.ts';
@@ -119,7 +119,7 @@ test('weather client stops an oversized chunked response before buffering it all
 
 test('MET status and configuration errors remain distinct and retry metadata is bounded',async()=>{
   const resolver=new KartverketPlaceResolver(async()=>response(200,{navn:[places.navn[0]]}));
-  const partial=new MetWeatherClient(resolver,async()=>response(203,forecast));assert.equal((await partial.forecast({location:'Birkeland Birkenes',period:'tomorrow'})).httpStatus,203);
+  const partial=new MetWeatherClient(resolver,async()=>response(203,forecast),10_000,()=>new Date('2026-09-12T08:00:00Z'));assert.equal((await partial.forecast({location:'Birkeland Birkenes',period:'tomorrow'})).httpStatus,203);
   const forbidden=new MetWeatherClient(resolver,async()=>response(403,{}));await assert.rejects(forbidden.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:any)=>error.code==='MONITOR_WEATHER_FORBIDDEN');
   const limited=new MetWeatherClient(resolver,async()=>response(429,{}, {'content-type':'application/json','retry-after':'999999'}));await assert.rejects(limited.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:any)=>error.code==='MONITOR_WEATHER_RATE_LIMITED'&&error.details.retryAfterSeconds===3600);
   const previous=process.env.SAMVEV_WEATHER_USER_AGENT;process.env.SAMVEV_WEATHER_USER_AGENT='invalid';try{await assert.rejects(new KartverketPlaceResolver(async()=>response(200,{navn:[]})).resolve('Oslo'),(error:any)=>error.code==='MONITOR_WEATHER_CONFIGURATION_INVALID');}finally{if(previous===undefined)delete process.env.SAMVEV_WEATHER_USER_AGENT;else process.env.SAMVEV_WEATHER_USER_AGENT=previous;}
@@ -154,9 +154,10 @@ test('runner preserves only safe ambiguity candidates from the weather resolver'
 
 test('dependency refresh detects a changed forecast while web evidence stays unchanged',async()=>{
   const root:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',text:'Trip day',fingerprint:'web-v1'};const fetcher={fetch:async()=>root} as unknown as MonitorSourceFetcher;
-  const weather={forecast:async()=>({sourceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=58.3312&lon=8.2325',attribution:'MET Norway Locationforecast' as const,retrievedAt:'2026-09-12T08:00:00Z',updatedAt:null,validFrom:'2026-09-13T06:00:00Z',validTo:'2026-09-13T06:00:00Z',location:{query:'Birkeland',canonicalName:'Birkeland',municipality:'Birkenes',region:'Agder',country:'Norge' as const,latitude:58.3312,longitude:8.2325,placeId:'1'},points:[{at:'2026-09-13T06:00:00Z',temperatureC:12,precipitationMm:2,windSpeedMps:3,symbolCode:'rain'}],fingerprint:'weather-v2',httpStatus:200 as const,cacheStatus:'miss' as const})} as unknown as MetWeatherClient;
-  const result=await new MonitorAgentRunner({} as AiAdminService,fetcher,1000,weather).refreshDependencies([{tool:'web.open',url:root.finalUrl,fingerprint:'web-v1',contentType:'text/html'},{tool:'weather.forecast',url:'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=58.3312&lon=8.2325',fingerprint:'weather-v1',contentType:'application/vnd.met.no.locationforecast+json',weatherRequest:{location:'Birkeland',period:'tomorrow',timeWindow:'all'}}]);
-  assert.equal(result.changed,true);assert.equal(result.documents.length,2);
+  const weather={forecast:async()=>({sourceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=58.3312&lon=8.2325',attribution:'MET Norway Locationforecast' as const,retrievedAt:'2026-09-12T08:00:00Z',updatedAt:null,validFrom:'2026-09-13T06:00:00Z',validTo:'2026-09-13T06:00:00Z',location:{query:'Birkeland',canonicalName:'Birkeland',municipality:'Birkenes',region:'Agder',country:'Norge' as const,latitude:58.3312,longitude:8.2325,placeId:'1'},points:[{at:'2026-09-13T06:00:00Z',temperatureC:12,precipitationMm:2,windSpeedMps:3,symbolCode:'rain'}],fingerprint:'weather-v2',httpStatus:200 as const,cacheStatus:'miss' as const,timing:{locationMs:7,forecastMs:11,totalMs:18}})} as unknown as MetWeatherClient;
+  const tools:Array<{name:string;details?:{locationMs?:number;weatherMs?:number}}>=[];const observer:MonitorExecutionObserver={progress:async()=>{},providerTurn:()=>{},tool:(name,_duration,details)=>{tools.push({name,details});}};
+  const result=await new MonitorAgentRunner({} as AiAdminService,fetcher,1000,weather).refreshDependencies([{tool:'web.open',url:root.finalUrl,fingerprint:'web-v1',contentType:'text/html'},{tool:'weather.forecast',url:'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=58.3312&lon=8.2325',fingerprint:'weather-v1',contentType:'application/vnd.met.no.locationforecast+json',weatherRequest:{location:'Birkeland',period:'tomorrow',timeWindow:'all'}}],undefined,{observer});
+  assert.equal(result.changed,true);assert.equal(result.documents.length,2);assert.deepEqual(tools.map((item)=>item.name),['web.open','weather.forecast']);assert.deepEqual(tools[1]!.details,{locationMs:7,weatherMs:11});
 });
 
 test('changed web evidence skips an obsolete dynamic weather date so the agent can choose the new evidenced date',async()=>{

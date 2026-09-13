@@ -58,6 +58,9 @@ let tasks = [];
 let failNext;
 let failDetails;
 let weatherScenario = false;
+let durableMode = false;
+let failPollOnce = false;
+let executionSequence = 0;
 let unchangedNext = false;
 let gate;
 let gateAction;
@@ -68,7 +71,7 @@ let afterFailure;
 let release;
 // Synthetic server lifecycle contract. The UI must not infer readiness from rule truthiness.
 function presented(task) {
-  const status = task.lifecycleStatus ?? (task.state === 'draft' ? task.interpretedRule ? 'ready_for_approval' : task.errorCode ? 'setup_failed' : 'incomplete' : task.state);
+  const status = task.activeExecution ? 'running' : task.lifecycleStatus ?? (task.state === 'draft' ? task.interpretedRule ? 'ready_for_approval' : task.errorCode ? 'setup_failed' : 'incomplete' : task.state);
   const setupComplete = !['incomplete', 'setup_failed'].includes(status) && Boolean(task.interpretedRule);
   const allowed = status === 'running' ? ['refresh'] : ['edit', 'delete',
     ...(status === 'incomplete' || status === 'setup_failed' ? ['interpret'] : []),
@@ -102,7 +105,10 @@ async function mock(currentPage, restricted = false) {
   await currentPage.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
-    if (request.method() === "GET" && path === base) return route.fulfill({ json: { tasks: tasks.map(presented) } });
+    if (request.method() === "GET" && path === base) {
+      if (failPollOnce) { failPollOnce = false; return route.abort('failed'); }
+      return route.fulfill({ json: { tasks: tasks.map(presented) } });
+    }
     if (path.startsWith(base) && request.method() !== "GET") {
       const body = request.postDataJSON();
       calls.push({ path, method: request.method(), body });
@@ -115,6 +121,15 @@ async function mock(currentPage, restricted = false) {
       }
       let task = tasks.find((entry) => path.includes(entry.id));
       expect(body.expectedRevision).toBe(task.revision);
+      const requestedAction = path.split('/').at(-1);
+      if (durableMode && ['interpret', 'test', 'run', 'smarter'].includes(requestedAction)) {
+        const run = task.activeExecution ?? { id: `execution-${++executionSequence}`, taskId: task.id, taskRevision: task.revision,
+          kind: requestedAction === 'interpret' ? 'interpretation' : requestedAction === 'run' ? 'manual' : requestedAction,
+          status: 'queued', progress: { stage: 'queued', updatedAt: new Date().toISOString() }, usesLocalAi: true,
+          expectedDurationSeconds: task.sourceKinds?.length > 1 ? 300 : 120, queuedAt: new Date().toISOString(), startedAt: null, completedAt: null, errorCode: null };
+        task.activeExecution = run; task.latestExecution = run;
+        return route.fulfill({ status: 202, json: { run } });
+      }
       if (request.method() === "DELETE") { tasks = tasks.filter((entry) => entry.id !== task.id); return route.fulfill({ status: 204 }); }
       if (request.method() === "PATCH") {
         task = { ...task, ...body, ...(weatherScenario && body.sourceUrl === "" ? { sourceUrl: null } : {}), revision: task.revision + 1, state: "draft", interpretedRule: null, nextCheckAt: null, latestResult: null, events: [], lastResult: null };
@@ -241,7 +256,7 @@ try {
   await expect(card().locator(".monitor-meta")).not.toContainText(/Smartere|Standard|Utførelse/);
   failNext = "AI_TIMEOUT";
   await button("Kjør nå").click();
-  await expect(card().getByRole("alert")).toContainText("Dette tok for lang tid");
+  await expect(card().getByRole("alert")).toContainText("Samvev klarte ikke å fullføre innen maksimal behandlingstid");
   await expect(card().getByRole("alert")).toBeFocused();
   for (const [code, message] of [
     ["MONITOR_SOURCE_TIMEOUT", "Kilden svarte ikke i tide"],
@@ -311,7 +326,8 @@ try {
   gateAction = 'interpret'; gate = new Promise((resolve) => { release = resolve; });
   await button('Lag oppsett fra forespørselen').click();
   await expect(card().locator('.monitor-state')).toHaveText('Arbeider nå');
-  await expect(card()).toContainText('resten av handlingene blir tilgjengelige');
+  await expect(card().locator('.monitor-progress')).toContainText('Starter oppdraget');
+  await expect(card()).not.toContainText('Du kan forlate siden');
   await expect(button('Oppdater status')).toBeEnabled();
   const other = panel().getByRole('article').nth(1);
   await expect(other.getByRole('button', { name: 'Test nå', exact: true })).toBeEnabled();
@@ -399,7 +415,7 @@ try {
   await expect(panel().getByRole('alert')).toContainText('Oppdraget finnes ikke lenger. Listen er oppdatert.');
   await expect(panel().getByRole('alert')).toBeFocused(); await expect(panel().getByRole('article')).toHaveCount(0);
   const timeoutValues = await page.evaluate(() => window.taskTimeouts);
-  expect(timeoutValues).toContain(210000); expect(timeoutValues).toContain(12000);
+  expect(timeoutValues).not.toContain(210000); expect(timeoutValues).toContain(12000);
   // Setup-format/source-context failures retain localized recovery, including after reload.
   for (const copy of [
     { locale: 'nb', nav: 'Oppdrag', create: 'Lag oppsett fra forespørselen', retry: 'Prøv å lage oppsett igjen', edit: 'Endre', delete: 'Slett', confirm: 'Ja, slett oppdraget', failed: 'Oppsettet kunne ikke lages', ready: 'Venter på din godkjenning', test: 'Test nå', approve: 'Godkjenn og aktiver', messages: ['Samvev kunne ikke lage et gyldig oppsett fra forespørselen. Prøv å lage oppsettet igjen.', 'Samvev fikk ikke laget oppsettet fra kilden. Prøv å lage oppsettet igjen.'] },
@@ -580,8 +596,71 @@ try {
     }
   }
   failDetails = undefined;
+  // Durable jobs return 202 immediately; reload/polling only observe the same job.
+  durableMode = true; weatherScenario = true;
+  for (const [locale, nav, create, starting, working, still, queued, leave, connection, testNow, approve, remove, confirm] of [
+    ['nb', 'Oppdrag', 'Lag oppsett fra forespørselen', 'Starter oppdraget', 'Arbeider nå', 'Fortsatt i arbeid', 'Venter på tur', 'Du kan forlate siden.', 'Samvev kunne ikke oppdatere status', 'Test nå', 'Godkjenn og aktiver', 'Slett', 'Ja, slett oppdraget'],
+    ['en', 'Tasks', 'Create setup from request', 'Starting the task', 'Working now', 'Still working', 'Waiting to start', 'You can leave this page.', 'Samvev could not update the status', 'Test now', 'Approve and activate', 'Delete', 'Yes, delete task'],
+  ]) {
+    me.account.locale = locale;
+    await page.setViewportSize(locale === 'nb' ? {width:390,height:844} : {width:1280,height:752});
+    tasks = [{ ...template, sourceKinds: ['web', 'weather'], interpretedRule: null, latestResult: null, errorCode: null, lifecycleStatus: undefined }];
+    await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
+    gateAction='interpret';gate=new Promise((resolve)=>{release=resolve;});await button(create).focus(); await page.keyboard.press('Enter');
+    await expect(card().locator('.monitor-progress')).toContainText(starting);await expect(card()).not.toContainText(leave);release();gate=undefined;gateAction=undefined;
+    await expect(card().locator('.monitor-state')).toHaveText(queued);
+    await expect(card()).toContainText(leave);
+    await expect(card().locator('.monitor-progress')).toContainText('5');
+    const queuedId = tasks[0].activeExecution.id;
+    const initiated = calls.length;
+    await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
+    expect(calls.length).toBe(initiated); expect(tasks[0].activeExecution.id).toBe(queuedId);
+    await expect(card()).not.toHaveAttribute('aria-busy','true');await expect(card().locator('.monitor-actions')).toHaveAttribute('aria-busy','true');
+    await expect(button(testNow)).toHaveCount(0);
+    tasks[0].activeExecution = {...tasks[0].activeExecution,status:'running',startedAt:new Date(Date.now()-90_000).toISOString(),progress:{stage:'fetching_weather',updatedAt:new Date().toISOString()}};
+    tasks[0].latestExecution = tasks[0].activeExecution;
+    await expect(card().locator('.monitor-state')).toHaveText(still,{timeout:7000});
+    await expect(card().locator('.monitor-progress')).toContainText(locale==='nb'?'Henter vær':'Fetching the forecast');
+    if (process.env.DURABLE_SCREENSHOT_DIR) {
+      await mkdir(process.env.DURABLE_SCREENSHOT_DIR, { recursive: true });
+      await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+      await card().screenshot({ path: `${process.env.DURABLE_SCREENSHOT_DIR}/durable-running-${locale}-${locale==='nb'?'mobile':'desktop'}-synthetic.png` });
+    }
+    const refreshStatus=button(locale==='nb'?'Oppdater status':'Refresh status');await refreshStatus.scrollIntoViewIfNeeded();await refreshStatus.focus();await expect(refreshStatus).toBeFocused();await refreshStatus.click();
+    failPollOnce = true;
+    await expect(panel()).toContainText(connection,{timeout:7000});
+    await expect(card().locator('.monitor-state')).toHaveText(still);
+    await expect(panel()).not.toContainText(locale==='nb'?'maksimal behandlingstid':'maximum processing time');
+    await expect(panel()).not.toContainText(connection,{timeout:7000});
+    await noTechnicalTerms(); await layout(); await axe();
+    tasks[0].activeExecution = null;
+    tasks[0].latestExecution = {...tasks[0].latestExecution,status:'succeeded',completedAt:new Date().toISOString()};
+    tasks[0].interpretedRule = weatherRule; tasks[0].revision++;
+    await expect(button(testNow)).toBeEnabled({timeout:7000}); await expect(button(approve)).toBeEnabled();
+    await button(testNow).focus(); await page.keyboard.press('Enter');
+    await expect(card().locator('.monitor-actions')).toHaveAttribute('aria-busy','true');
+    const testId = tasks[0].activeExecution.id;
+    const testCalls = calls.length;
+    await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
+    expect(calls.length).toBe(testCalls); expect(tasks[0].activeExecution.id).toBe(testId);
+    tasks[0].activeExecution = null;
+    tasks[0].latestExecution = {...tasks[0].latestExecution,status:'succeeded',completedAt:new Date().toISOString(),resultSummary:{outcome:'changed',resultKind:'answer',result:weatherAnswer,sourceUrl:weatherUrl,checkedAt,sources:weatherSources}};
+    await expect(card().locator('.monitor-result')).toContainText('6 °C',{timeout:7000});
+    expect(tasks[0].state).toBe('draft'); expect(tasks[0].nextCheckAt).toBeNull();
+    await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
+    await expect(card().locator('.monitor-result')).toContainText('6 °C');
+    expect(calls.length).toBe(testCalls);
+    await expect(button(approve)).toBeEnabled();
+    await button(remove).click(); await button(confirm).click(); await expect(panel().getByRole('article')).toHaveCount(0);
+    // A persisted worker failure is recoverable after reload, with no generic timeout substitution.
+    tasks = [{...template,interpretedRule:null,latestResult:null,errorCode:null,latestExecution:{id:'failed-execution',kind:'interpretation',status:'failed',errorCode:'MONITOR_WORKER_INTERRUPTED'}}];
+    await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
+    await expect(card().getByRole('alert')).toContainText(locale==='nb'?'Arbeidet ble avbrutt':'Processing was interrupted');
+    await button(remove).click(); await button(confirm).click(); await expect(panel().getByRole('article')).toHaveCount(0);
+  }
+  durableMode = false;
   const limitedContext = await browser.newContext({ baseURL }); const limited = await limitedContext.newPage(); await mock(limited, true); await limited.goto("/");
   await expect(limited.getByRole("button", { name: "Tasks", exact: true })).toHaveCount(0); await limitedContext.close();
   expect(errors).toEqual([]); expect(unexpected).toEqual([]);
-  console.log("PASS lifecycle actions/recovery, optional testing before approval, per-card busy, immediate draft display, running refresh/poll, stale revision and deleted-task refresh, draft/failed/AI-disabled/source-failed UI deletion; synthetic prompt-first create/interpret; optional/ambiguous source errors; approval/test/manual/quality/pause/resume/edit/delete; answer/event evidence+time including persisted answer evidence/uncertainty after reload; unchanged retains answer/events; edited/reapproved setup clears stale results; preserved schedule representation; no technical controls; 210s actions; source-specific nb/en errors; keyboard source disclosure with actual evidence URL/fetch time; restricted navigation; keyboard/focus; 44px actions; nb/en mobile/XL/desktop and dark-theme layout/Axe; zero real requests");
+  console.log("PASS lifecycle actions/recovery, optional testing before approval, per-card busy, immediate draft display, running refresh/poll, stale revision and deleted-task refresh, draft/failed/AI-disabled/source-failed UI deletion; synthetic prompt-first create/interpret; optional/ambiguous source errors; approval/test/manual/quality/pause/resume/edit/delete; answer/event evidence+time including persisted answer evidence/uncertainty after reload; unchanged retains answer/events; edited/reapproved setup clears stale results; preserved schedule representation; no technical controls; quick enqueue requests; source-specific nb/en errors; keyboard source disclosure with actual evidence URL/fetch time; restricted navigation; keyboard/focus; 44px actions; nb/en mobile/XL/desktop and dark-theme layout/Axe; zero real requests");
 } finally { if (gate) release(); if (saveGate) releaseSave(); await browser.close(); }

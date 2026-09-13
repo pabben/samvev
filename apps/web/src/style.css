@@ -2654,6 +2654,7 @@ details[open] > summary:before {
 .monitor-result blockquote,.monitor-finding blockquote{margin:12px 0;padding-left:12px;border-left:3px solid var(--line);font-size:13px;color:var(--muted)}
 .monitor-supporting-evidence{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.monitor-supporting-evidence small{font-weight:700}
 .monitor-quality-preference{color:var(--muted);font-size:.875rem;font-weight:650}
+.monitor-progress{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:start}.monitor-progress p{min-width:0;margin:0;overflow-wrap:anywhere}
 .monitor-result small{margin-top:10px}.monitor-answer{white-space:pre-wrap}.monitor-finding{padding:12px 0;border-bottom:1px solid var(--line)}
 .monitor-delete{display:block}.monitor-delete p{margin-top:0}.monitor-card .card-actions button{min-height:44px;white-space:normal;text-align:left}.monitor-form .card-actions{display:flex;flex-wrap:wrap;gap:10px}
 .monitor-card .monitor-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-card[aria-busy=true]{opacity:.8}

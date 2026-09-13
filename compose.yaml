@@ -235,6 +235,7 @@ services:
       HOST: 0.0.0.0
       PORT: "4173"
       SAMVEV_DEMO_MODE: "true"
+      SAMVEV_PUBLIC_ORIGIN: http://qa-app:4173
     depends_on:
       qa-migrate:
         condition: service_completed_successfully

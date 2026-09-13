@@ -83,6 +83,16 @@ export interface Message {
     revision: number | null;
   }[];
 }
+export interface MonitorExecution {
+  id: string; taskId: string; taskRevision: number;
+  kind: 'interpretation' | 'test' | 'manual' | 'smarter' | 'scheduled';
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'superseded';
+  progress: { stage: 'queued' | 'preparing' | 'fetching_source' | 'fetching_weather' | 'analyzing' | 'validating' | 'finalizing'; updatedAt: string };
+  usesLocalAi: boolean; expectedDurationSeconds: number;
+  queuedAt: string; startedAt: string | null; completedAt: string | null;
+  resultSummary?: MonitorRunResult | null; errorCode: string | null;
+  errorDetails?: Record<string, unknown> | null;
+}
 export interface MonitorTask {
   lifecycle: MonitorTaskLifecycle;
   id:string;name:string;instruction:string;sourceUrl:string|null;state:'draft'|'active'|'paused';
@@ -93,6 +103,8 @@ export interface MonitorTask {
   stats:{checks:number;aiCalls:number;unchanged:number};
   source?:{finalUrl:string|null};
   latestResult?:Omit<MonitorRunResult,'outcome'>|null;
+  activeExecution?: MonitorExecution | null;
+  latestExecution?: MonitorExecution | null;
 }
 export interface MonitorSource {
   sourceUrl:string;fetchedAt:string;kind?:'web'|'weather';label?:string;attribution?:string;

@@ -26,6 +26,7 @@ export interface WeatherPoint {at:string;temperatureC:number|null;precipitationM
 export interface WeatherForecast {
   sourceUrl:string;attribution:'MET Norway Locationforecast';retrievedAt:string;updatedAt:string|null;validFrom:string;validTo:string;
   location:ResolvedPlace;points:WeatherPoint[];fingerprint:string;httpStatus:200|203|304;cacheStatus:'hit'|'miss'|'revalidated';
+  timing?:{locationMs:number;forecastMs:number};
 }
 
 export interface FixedHttpRequest {url:string;headers:Record<string,string>;signal:AbortSignal;}
@@ -132,13 +133,13 @@ export class MetWeatherClient {
   constructor(private readonly resolver=new KartverketPlaceResolver(),private readonly transport:FixedHttpTransport=defaultTransport,private readonly timeoutMs=DEFAULT_TIMEOUT_MS,private readonly now=()=>new Date()){}
   async forecast(raw:unknown,signal?:AbortSignal):Promise<WeatherForecast>{
     const args=weatherForecastArgsSchema.parse(raw);const deadline=withDeadline(signal,this.timeoutMs);
-    try{const place=await this.resolver.resolve(args.location,deadline.signal);const date=weatherTargetDate(args,this.now());const key=`${place.latitude.toFixed(4)},${place.longitude.toFixed(4)}`;let rawForecast=this.inFlight.get(key);
+    try{const locationStarted=Date.now();const place=await this.resolver.resolve(args.location,deadline.signal);const locationMs=Math.max(0,Date.now()-locationStarted);const date=weatherTargetDate(args,this.now());const key=`${place.latitude.toFixed(4)},${place.longitude.toFixed(4)}`;let rawForecast=this.inFlight.get(key);const forecastStarted=Date.now();
       if(!rawForecast){rawForecast=this.fetchForecast(place,key,deadline.signal);this.inFlight.set(key,rawForecast);}
       let source:RawForecast;try{source=await rawForecast;}finally{if(this.inFlight.get(key)===rawForecast)this.inFlight.delete(key);}
       const points=source.points.filter((item)=>norwegianWeatherDate(new Date(item.at))===date&&inWindow(item.at,args.timeWindow)).slice(0,24);
       if(!points.length)throw new DomainError('MONITOR_WEATHER_DATE_UNAVAILABLE',422,{earliestDate:norwegianWeatherDate(new Date(source.points[0]?.at??this.now())),latestDate:norwegianWeatherDate(new Date(source.points.at(-1)?.at??this.now()))});
       const fingerprint=createHash('sha256').update(JSON.stringify({place:{lat:place.latitude,lon:place.longitude},date,window:args.timeWindow,points})).digest('hex');
-      return{sourceUrl:source.sourceUrl,attribution:'MET Norway Locationforecast',retrievedAt:source.retrievedAt,updatedAt:source.updatedAt,validFrom:points[0]!.at,validTo:points.at(-1)!.at,location:place,points,fingerprint,httpStatus:source.httpStatus,cacheStatus:source.cacheStatus};}
+      return{sourceUrl:source.sourceUrl,attribution:'MET Norway Locationforecast',retrievedAt:source.retrievedAt,updatedAt:source.updatedAt,validFrom:points[0]!.at,validTo:points.at(-1)!.at,location:place,points,fingerprint,httpStatus:source.httpStatus,cacheStatus:source.cacheStatus,timing:{locationMs,forecastMs:Math.max(0,Date.now()-forecastStarted)}};}
     finally{deadline.close();}
   }
   private async fetchForecast(place:ResolvedPlace,key:string,parent?:AbortSignal):Promise<RawForecast>{

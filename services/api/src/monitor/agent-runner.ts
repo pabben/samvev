@@ -34,6 +34,11 @@ export interface MonitorAgentResult {
   output:string;provider:AiProviderId;model:string;aiCalls:number;attemptedToolCount:number;documents:SourceDocument[];evidenceDocuments:SourceDocument[];
   provenance:MonitorToolProvenance[];attempts:MonitorToolAttempt[];dependencies:MonitorDependency[];
 }
+export interface MonitorExecutionObserver {
+  progress(stage:'preparing'|'fetching_source'|'fetching_weather'|'analyzing'|'validating'|'finalizing'):void|Promise<void>;
+  providerTurn(durationMs:number):void;
+  tool(name:MonitorToolName,durationMs:number,details?:{locationMs?:number;weatherMs?:number}):void;
+}
 
 function fail(code:'MONITOR_TOOL_INVALID'|'MONITOR_TOOL_LIMIT',status=502):never{throw new DomainError(code,status);}
 function canonical(value:string):string{try{return normalizeMonitorUrl(value);}catch{fail('MONITOR_TOOL_INVALID',422);}}
@@ -112,7 +117,7 @@ export class MonitorAgentRunner {
 
   async run(input:{
     householdId:string;task:AiTask;policy:MonitorProviderPolicy;rootUrl?:string;toolNames?:MonitorToolName[];requiredTools?:MonitorToolName[];expectedProvider?:AiProviderId;approvedWeatherScope?:ApprovedWeatherScope;
-    seedDocuments?:SourceDocument[];preloadSeedDocuments?:boolean;signal?:AbortSignal;requireTool?:boolean;maxTurns?:number;maxToolExecutions?:number;
+    seedDocuments?:SourceDocument[];preloadSeedDocuments?:boolean;signal?:AbortSignal;requireTool?:boolean;maxTurns?:number;maxToolExecutions?:number;observer?:MonitorExecutionObserver;
   }):Promise<MonitorAgentResult>{
     const rootUrl=input.rootUrl?canonical(input.rootUrl):undefined;const toolNames=input.toolNames??(rootUrl?['web.open']:[]);if(!toolNames.length)fail('MONITOR_TOOL_INVALID',422);if(toolNames.includes('web.open')&&!rootUrl)fail('MONITOR_TOOL_INVALID',422);const contracts=monitorToolRegistry.select(toolNames);if(contracts.length!==new Set(toolNames).size)fail('MONITOR_TOOL_INVALID',422);const requiredTools=new Set(input.requiredTools??(input.requireTool?toolNames:[]));
     const controller=new AbortController();const abort=()=>controller.abort();if(input.signal?.aborted)controller.abort();else input.signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(abort,this.deadlineMs);
@@ -129,8 +134,9 @@ export class MonitorAgentRunner {
         const scope=input.approvedWeatherScope;const prepared=monitorToolRegistry.prepare('weather.forecast',{location:scope.location,period:scope.period,...(scope.date?{date:scope.date}:{}),timeWindow:scope.timeWindow},{approvedUrls:allowed,taskText:input.task.input,approvedWeatherScope:scope});const weatherRequest=prepared.arguments as WeatherForecastArgs;
         attemptedToolCount++;toolExecutions++;
         let forecast:WeatherForecast;
-        try{forecast=await this.weather.forecast(weatherRequest,controller.signal);}
+        const started=Date.now();let weatherTiming:WeatherForecast['timing'];try{await input.observer?.progress('fetching_weather');forecast=await this.weather.forecast(weatherRequest,controller.signal);weatherTiming=forecast.timing;}
         catch(error){const code=error instanceof DomainError&&/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_WEATHER_UNAVAILABLE';attempts.push({tool:'weather.forecast',requestedUrl:'weather.forecast',outcome:'failed',errorCode:code});throw error;}
+        finally{input.observer?.tool('weather.forecast',Date.now()-started,{locationMs:weatherTiming?.locationMs,weatherMs:weatherTiming?.forecastMs});}
         const payload=weatherPayload(forecast);aggregateBytes=Buffer.byteLength(payload.output);if(aggregateBytes>MAX_AGGREGATE_TOOL_BYTES)fail('MONITOR_TOOL_LIMIT',413);
         documents.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);evidenceDocuments.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);usedTools.add('weather.forecast');
         const dependency:MonitorDependency={tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest};dependencies.set(`weather:${JSON.stringify(weatherRequest)}`,dependency);
@@ -148,7 +154,10 @@ export class MonitorAgentRunner {
       for(let turnNumber=1;turnNumber<=maxTurns;turnNumber++){
         if(controller.signal.aborted)throw new DomainError('AI_TIMEOUT',504);
         const sourceRequired=[...requiredTools].some((name)=>!usedTools.has(name));
-        aiCalls++;const turn=await session.next(results,sourceRequired?'required':'auto');results=[];
+        await input.observer?.progress('analyzing');aiCalls++;const providerStarted=Date.now();const turn=await (async()=>{
+          try{return await session.next(results,sourceRequired?'required':'auto');}finally{input.observer?.providerTurn(Date.now()-providerStarted);}
+        })();
+        results=[];
         if(turn.output){if(sourceRequired)throw new DomainError('AI_RESPONSE_INVALID',502);return {output:turn.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};}
         if(!turn.toolCalls.length)fail('MONITOR_TOOL_INVALID');
         attemptedToolCount+=turn.toolCalls.length;
@@ -179,8 +188,9 @@ export class MonitorAgentRunner {
           if(contract.outputKind==='weather_forecast'){
             const weatherRequest=rawArguments as WeatherForecastArgs;
             let forecast:WeatherForecast;
-            try{forecast=await this.weather.forecast(weatherRequest,controller.signal);}
+            const started=Date.now();let weatherTiming:WeatherForecast['timing'];try{await input.observer?.progress('fetching_weather');forecast=await this.weather.forecast(weatherRequest,controller.signal);weatherTiming=forecast.timing;}
             catch(error){const code=error instanceof DomainError&&/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_WEATHER_UNAVAILABLE';attempts.push({tool:'weather.forecast',requestedUrl:requested,outcome:'failed',errorCode:code});throw error;}
+            finally{input.observer?.tool('weather.forecast',Date.now()-started,{locationMs:weatherTiming?.locationMs,weatherMs:weatherTiming?.forecastMs});}
             const payload=weatherPayload(forecast);documents.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);evidenceDocuments.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);usedTools.add('weather.forecast');
             aggregateBytes+=Buffer.byteLength(payload.output);if(aggregateBytes>MAX_AGGREGATE_TOOL_BYTES)fail('MONITOR_TOOL_LIMIT',413);
             const dependency:MonitorDependency={tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest};dependencies.set(`weather:${JSON.stringify(weatherRequest)}`,dependency);
@@ -188,7 +198,7 @@ export class MonitorAgentRunner {
             attempts.push({tool:'weather.forecast',requestedUrl:requested,outcome:'success',errorCode:null});completedCalls.set(completionKey,{tool:'weather.forecast',requested});results.push({callId:call.id,name:call.name,output:payload.output});continue;
           }
           let source=cache.get(requested);
-          try{if(!source){source=await this.fetcher.fetch(requested,{followLinkedPdf:false,signal:controller.signal,...(rootOpened?{redirectOrigin:rootOrigin}:{})});cache.set(requested,source);}}
+          try{if(!source){await input.observer?.progress('fetching_source');const started=Date.now();try{source=await this.fetcher.fetch(requested,{followLinkedPdf:false,signal:controller.signal,...(rootOpened?{redirectOrigin:rootOrigin}:{})});cache.set(requested,source);}finally{input.observer?.tool('web.open',Date.now()-started);}}}
           catch(error){const code=error instanceof DomainError&&/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_SOURCE_UNAVAILABLE';attempts.push({tool:'web.open',requestedUrl:requested,outcome:'failed',errorCode:code});throw error;}
           if(!rootOpened){if(requested!==rootUrl)fail('MONITOR_TOOL_INVALID',422);rootOrigin=new URL(source.finalUrl).origin;rootOpened=true;}
           if(!sameOrigin(source.finalUrl,rootOrigin))fail('MONITOR_TOOL_INVALID',422);
@@ -214,7 +224,7 @@ export class MonitorAgentRunner {
     throw new DomainError('MONITOR_TOOL_LIMIT',502);
   }
 
-  async refreshDependencies(dependencies:MonitorDependency[],signal?:AbortSignal,options:{dynamicWeatherDate?:boolean}={}):Promise<{changed:boolean;documents:SourceDocument[];fingerprint:string}>{
+  async refreshDependencies(dependencies:MonitorDependency[],signal?:AbortSignal,options:{dynamicWeatherDate?:boolean;observer?:MonitorExecutionObserver}={}):Promise<{changed:boolean;documents:SourceDocument[];fingerprint:string}>{
     const controller=new AbortController();const abort=()=>controller.abort();if(signal?.aborted)controller.abort();else signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(abort,Math.min(this.deadlineMs,90_000));
     try{
       if(!dependencies.length)return{changed:true,documents:[],fingerprint:''};
@@ -224,10 +234,11 @@ export class MonitorAgentRunner {
         if(dependency.tool==='weather.forecast'){
           if(options.dynamicWeatherDate&&changedWebEvidence)continue;
           if(!dependency.weatherRequest)throw new DomainError('MONITOR_WEATHER_INVALID',502);
-          try{const forecast=await this.weather.forecast(dependency.weatherRequest,controller.signal);const payload=weatherPayload(forecast);documents.push(payload.evidenceDocument);current.push({tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest:dependency.weatherRequest});}
-          catch(error){if(error instanceof DomainError)throw new DomainError(error.code,error.status,{...(error.details??{}),attempts:[{tool:'weather.forecast',requestedUrl:'weather.forecast',outcome:'failed',errorCode:error.code}]});throw error;}continue;
+          const started=Date.now();let weatherTiming:WeatherForecast['timing'];try{await options.observer?.progress('fetching_weather');const forecast=await this.weather.forecast(dependency.weatherRequest,controller.signal);weatherTiming=forecast.timing;const payload=weatherPayload(forecast);documents.push(payload.evidenceDocument);current.push({tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest:dependency.weatherRequest});}
+          catch(error){if(error instanceof DomainError)throw new DomainError(error.code,error.status,{...(error.details??{}),attempts:[{tool:'weather.forecast',requestedUrl:'weather.forecast',outcome:'failed',errorCode:error.code}]});throw error;}
+          finally{options.observer?.tool('weather.forecast',Date.now()-started,{locationMs:weatherTiming?.locationMs,weatherMs:weatherTiming?.forecastMs});}continue;
         }
-        const requested=canonical(dependency.url);try{const source=await this.fetcher.fetch(requested,{followLinkedPdf:false,signal:controller.signal,redirectOrigin:new URL(requested).origin});documents.push(source);current.push({url:source.finalUrl,fingerprint:source.fingerprint,contentType:source.contentType});if(source.finalUrl!==dependency.url||source.fingerprint!==dependency.fingerprint)changedWebEvidence=true;}catch(error){if(error instanceof DomainError){const code=/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_SOURCE_UNAVAILABLE';throw new DomainError(error.code,error.status,{...(error.details??{}),attempts:[{tool:'web.open',requestedUrl:requested,outcome:'failed',errorCode:code}]});}throw error;}
+        const requested=canonical(dependency.url);const started=Date.now();try{await options.observer?.progress('fetching_source');const source=await this.fetcher.fetch(requested,{followLinkedPdf:false,signal:controller.signal,redirectOrigin:new URL(requested).origin});documents.push(source);current.push({url:source.finalUrl,fingerprint:source.fingerprint,contentType:source.contentType});if(source.finalUrl!==dependency.url||source.fingerprint!==dependency.fingerprint)changedWebEvidence=true;}catch(error){if(error instanceof DomainError){const code=/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_SOURCE_UNAVAILABLE';throw new DomainError(error.code,error.status,{...(error.details??{}),attempts:[{tool:'web.open',requestedUrl:requested,outcome:'failed',errorCode:code}]});}throw error;}finally{options.observer?.tool('web.open',Date.now()-started);}
       }
       return{changed:dependencyKey(current)!==dependencyKey(dependencies),documents,fingerprint:dependencyKey(current)};
     }finally{clearTimeout(timeout);signal?.removeEventListener('abort',abort);controller.abort();}

@@ -224,6 +224,9 @@ export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers)
 
 export const monitorProviderPolicies = ['default', 'local', 'openai'] as const;
 export const monitorToolNames = ['web.open', 'weather.forecast'] as const;
+export const monitorExecutionKinds = ['interpretation', 'test', 'manual', 'smarter', 'scheduled'] as const;
+export const monitorExecutionStatuses = ['queued', 'running', 'succeeded', 'failed', 'superseded'] as const;
+export const monitorExecutionProgressStages = ['queued', 'preparing', 'fetching_source', 'fetching_weather', 'analyzing', 'validating', 'finalizing'] as const;
 export const monitorStates = ['draft', 'active', 'paused'] as const;
 export const monitorLifecycleStatuses = ['incomplete', 'setup_failed', 'ready_for_approval', 'active', 'paused', 'running'] as const;
 export const monitorTaskActions = ['interpret', 'test', 'approve', 'edit', 'delete', 'run', 'pause', 'resume', 'smarter', 'quality', 'refresh'] as const;
@@ -349,6 +352,9 @@ export type AiReasoningEffort = (typeof aiReasoningEfforts)[number];
 export type AiProviderId = (typeof aiProviderIds)[number];
 export type MonitorProviderPolicy = (typeof monitorProviderPolicies)[number];
 export type MonitorToolName = (typeof monitorToolNames)[number];
+export type MonitorExecutionKind = (typeof monitorExecutionKinds)[number];
+export type MonitorExecutionStatus = (typeof monitorExecutionStatuses)[number];
+export type MonitorExecutionProgressStage = (typeof monitorExecutionProgressStages)[number];
 export type MonitorLifecycleStatus = (typeof monitorLifecycleStatuses)[number];
 export type MonitorTaskAction = (typeof monitorTaskActions)[number];
 export type MonitorActionBlockReason = (typeof monitorActionBlockReasons)[number];
@@ -374,6 +380,7 @@ export type ErrorCode =
   | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_SOURCE_REQUIRED' | 'MONITOR_SOURCE_AMBIGUOUS'
   | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_INTERPRETATION_SCHEMA_INVALID'
   | 'MONITOR_INTERPRETATION_SOURCE_REFUSAL' | 'MONITOR_OWNER_UNAUTHORIZED' | 'MONITOR_RUNNING'
+  | 'MONITOR_WORKER_INTERRUPTED'
   | 'MONITOR_SETUP_REQUIRED' | 'MONITOR_TARGET_INVALID'
   | 'MONITOR_TOOL_INVALID' | 'MONITOR_TOOL_LIMIT'
   | 'MONITOR_LOCATION_REQUIRED' | 'MONITOR_LOCATION_AMBIGUOUS' | 'MONITOR_LOCATION_NOT_FOUND'

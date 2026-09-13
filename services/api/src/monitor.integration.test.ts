@@ -20,7 +20,7 @@ let source:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text
 const fetcher={fetch:async()=>{if(fetchFailureCode)throw new DomainError(fetchFailureCode as any,fetchFailureCode==='MONITOR_SOURCE_TIMEOUT'?504:422);return source;}} as unknown as MonitorSourceFetcher;
 function auth(token:string,csrf:string){return {cookie:`samvev_session=${token}`,'x-csrf-token':csrf};}
 
-before(async()=>{await migrate();await fs.rm(keyDir,{recursive:true,force:true});ai=new AiAdminService({keyFile,transport});app=await buildApp({aiKeyFile:keyFile,aiTransport:transport,monitorFetcher:fetcher});});
+before(async()=>{await migrate();await fs.rm(keyDir,{recursive:true,force:true});ai=new AiAdminService({keyFile,transport});app=await buildApp({aiKeyFile:keyFile,aiTransport:transport,monitorFetcher:fetcher,synchronousMonitorActionsForLegacyTests:true});});
 after(async()=>{await app.close();await pool.end();await fs.rm(keyDir,{recursive:true,force:true});});
 
 test('admin-approved monitor uses change detection and reconciles durable M1 messages',async()=>{
