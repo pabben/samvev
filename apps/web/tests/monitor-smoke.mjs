@@ -493,7 +493,9 @@ try {
   }
   // The same source disclosure is localized without exposing internal provenance fields.
   tasks[0].latestResult = { resultKind: "answer", result: answer, sourceUrl, checkedAt, sources };
+  tasks[0].latestExecution = { id: "scheduled-result", taskId, taskRevision: tasks[0].revision, kind: "scheduled", status: "succeeded", latencyClass: "local_simple", maxRuntimeMs: 300000, expectedDurationSeconds: 120, usesLocalAi: true, progress: { stage: "finalizing", updatedAt: checkedAt }, resultSummary: { outcome: "changed" }, errorCode: null, errorDetails: null, timeoutReason: null, timing: null, queuedAt: checkedAt, startedAt: checkedAt, completedAt: checkedAt };
   await page.reload(); await page.getByRole("button", { name: "Tasks", exact: true }).click();
+  await expect(card().locator(".monitor-result")).toContainText(answer.answer);
   await expect(card().locator(".monitor-sources summary")).toHaveText("Sources used");
   await card().locator(".monitor-sources summary").click();
   await noTechnicalTerms(); await layout(); await axe();

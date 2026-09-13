@@ -190,7 +190,9 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
     </form>}
     <div className="monitor-grid">{tasks.map((task) => {
       const completedRun = task.latestExecution;
-      const persistedPreview = completedRun?.status === 'succeeded' && completedRun.kind !== 'interpretation' && completedRun.resultSummary?.outcome ? { action: completedRun.kind === 'manual' ? 'run' as const : completedRun.kind === 'scheduled' ? 'saved' as const : completedRun.kind, value: completedRun.resultSummary } : undefined;
+      const completedSummary = completedRun?.resultSummary;
+      const summaryCanRender = completedSummary?.outcome === 'unchanged' || Boolean(completedSummary?.resultKind && completedSummary.result);
+      const persistedPreview = completedRun?.status === 'succeeded' && completedRun.kind !== 'interpretation' && completedSummary?.outcome && summaryCanRender ? { action: completedRun.kind === 'manual' ? 'run' as const : completedRun.kind === 'scheduled' ? 'saved' as const : completedRun.kind, value: completedSummary } : undefined;
       const preview = persistedPreview ?? results[task.id] ?? (task.state !== 'draft' && task.latestResult ? { action: 'saved' as const, value: { ...task.latestResult, outcome: 'changed' as const } } : undefined);
       const visibleResult = preview?.value.outcome === 'unchanged' ? (task.state !== 'draft' ? task.latestResult : null) : preview?.value;
       const lifecycle = task.lifecycle;
