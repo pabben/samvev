@@ -4,7 +4,7 @@ export type MonitorQualityReason='saved_preference'|'multi_tool'|'person_schedul
 export interface MonitorQualityRoute {tier:AiModelTier;reason:MonitorQualityReason|null;}
 
 export function isScheduleLikeInstruction(instruction:string):boolean{return /\b(?:ukeplan(?:en|er)?|timeplan(?:en|er)?|weekly\s+plan|school\s+schedule|calendar)\b/i.test(instruction.normalize('NFKC'));}
-export function isConditionalInstruction(instruction:string):boolean{return /\b(?:hvis|dersom|bare\s+(?:når|om)|if|only\s+if|when)\b/i.test(instruction.normalize('NFKC'));}
+export function isConditionalInstruction(instruction:string):boolean{return /\b(?:hvis|dersom|bare\s+(?:når|om|ved)|if|only\s+if|when)\b/i.test(instruction.normalize('NFKC'));}
 
 /** Deterministic routing uses approved structured task properties, never prompt length or provider identity. */
 export function routeMonitorQuality(input:{savedTier:AiModelTier;tools:MonitorToolName[];people:string[];resultKind:'answer'|'events';scheduleLike?:boolean;conditionalNotification?:boolean}):MonitorQualityRoute{

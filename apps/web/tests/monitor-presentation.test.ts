@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/api.ts';
-import { isWeatherSource, locationCandidates, placeLabel, taskErrorKey } from '../src/monitor-presentation.ts';
+import { isWeatherSource, locationCandidates, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
 import { en } from '../src/locales/en.ts';
 import { nb } from '../src/locales/nb.ts';
 
@@ -30,4 +30,7 @@ test('canonical place and weather source labels never need raw coordinates', () 
   assert.equal(isWeatherSource({sourceUrl:'https://example.com',fetchedAt:'2030-01-01T00:00:00Z',kind:'weather'}),true);
   assert.equal(isWeatherSource({sourceUrl:'https://example.com',fetchedAt:'2030-01-01T00:00:00Z',attribution:'MET Norway Locationforecast'}),true);
   assert.equal(isWeatherSource({sourceUrl:'https://example.com',fetchedAt:'2030-01-01T00:00:00Z'}),false);
+  assert.equal(shouldShowAnswerEvidence([{sourceUrl:'https://example.com/weather',fetchedAt:'2030-01-01T00:00:00Z',kind:'weather'}]),false);
+  assert.equal(shouldShowAnswerEvidence([{sourceUrl:'https://example.com/news',fetchedAt:'2030-01-01T00:00:00Z',kind:'web'}]),true);
+  assert.equal(shouldShowAnswerEvidence([]),true);
 });

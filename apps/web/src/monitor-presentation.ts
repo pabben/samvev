@@ -49,6 +49,9 @@ export function locationCandidates(error: unknown): string[] {
 export function isWeatherSource(source: MonitorSource): boolean {
   return source.kind === 'weather' || source.attribution === 'MET Norway Locationforecast';
 }
+export function shouldShowAnswerEvidence(sources: MonitorSource[]): boolean {
+  return sources.length !== 1 || !isWeatherSource(sources[0]!);
+}
 export function placeLabel(place?: { canonicalName?: string; municipality?: string | null; region?: string | null; country?: string | null } | null): string {
   return [...new Set([place?.canonicalName, place?.municipality, place?.region, place?.country].filter(Boolean))].join(', ');
 }

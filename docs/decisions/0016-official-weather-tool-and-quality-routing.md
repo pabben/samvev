@@ -45,10 +45,20 @@ result attributes “MET Norway Locationforecast” and stores retrieval and
 validity timestamps.
 
 After approval, weather arguments are bound to the reviewed place, period and
-daypart. A combined task may select only an exact calendar date found in a
-successfully opened web document. The registry validates a complete provider
-tool-call batch before any network request, and invalid or out-of-scope calls
-fail closed within the existing bounded loop.
+daypart. Model paraphrases cannot change this scope or add household context to
+an upstream request. For a fixed weather-only task, Samvev executes the
+registered weather contract once and gives the model the bounded, verified
+result. The provider is called without the completed tool, which avoids
+duplicate calls from OpenAI-compatible models while retaining the same audit
+and provenance path. Identical successful calls are also deduplicated inside a
+run.
+
+A combined task may select only an exact calendar date found in a successfully
+opened web document. If a provider emits `web.open` and a dependent weather call
+in the same batch, Samvev validates every name and argument first, executes the
+approved web call, and then authorizes the weather date against the resulting
+evidence. A date still absent from the evidence fails closed. Other invalid or
+out-of-scope batches remain side-effect free.
 
 Monitor source URL is nullable. A weather-only task has no fabricated web URL;
 its approved `tool_plan` contains `weather.forecast`. A mixed source task may
@@ -59,6 +69,19 @@ must contain the event date, and weather evidence must cover that same date.
 The model never supplies audit identifiers. Fabricated or unopened URLs and
 unsupported claims fail closed. A verified false condition returns an empty
 event list, so the existing message reconciler creates no notification.
+
+Weather points also produce a deterministic evidence summary. A single-source
+weather answer may fall back to a localized server-generated presentation of
+that summary when a provider returns invalid formatting; the exact machine
+summary remains provenance and is not presented as ordinary UI copy. A valid,
+evidence-backed focused answer from the provider is retained, while a raw copy
+of the machine summary is presentation-normalized. For a
+two-source web-and-weather conditional task, a narrow server fallback handles
+only an explicit rain/precipitation or temperature threshold whose date and
+operands occur in both verified sources. Unsupported conditions fail closed. A
+bounded one-turn format repair may reuse already-opened evidence without new
+network calls, tool calls or a quality-tier change. These paths do not relax
+evidence validation for arbitrary web or multi-source claims.
 
 Quality selection is deterministic and server-side. A saved strong preference
 always wins. Multi-tool tasks, person-specific schedules, conditional
@@ -84,6 +107,13 @@ Automatic routing remains invisible in the ordinary task view. When a user
 explicitly saves “smarter AI for this task”, the task card shows only that
 plain-language preference and offers the existing standard-quality choice; it
 still exposes no tier, model, provider or reasoning setting.
+
+If a provider cannot format a combined setup after both approved tools have
+succeeded, Samvev can create a minimal editable rule from only the original
+instruction, configured schedule and server-approved tool plan. It imports no
+model-produced source facts. Conditional wording such as “bare ved” is
+normalized to an events rule, so execution can produce either a verified event
+or no notification. The user still reviews this rule before activation.
 
 ## Migration and rollback
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { answerFromAi, extractionFromAi, interpretationFromAi, monitorSourcePlan, monitorTaskLifecycle } from './service.ts';
+import { answerFromAi, extractionFromAi, interpretationFromAi, monitorSourcePlan, monitorTaskLifecycle, weatherScopeFromInstruction } from './service.ts';
 import { monitorEventKey, orderedMonitorEvents } from './event-identity.ts';
 
 const event=(date:string,description='Trip day')=>({date,time:null,type:'trip',description,actions:['Bring boots'],who:['A'],evidence:{quote:`Trip day ${date} A Bring boots`,sourceUrl:'https://example.com/plan'},confidence:0.9,uncertainty:null});
@@ -16,6 +16,25 @@ test('weather intent uses the domain tool without inventing or scraping a web so
   assert.deepEqual(monitorSourcePlan('Varsle meg dersom temperaturen går under null'),{sourceUrl:null,tools:['weather.forecast']});
   assert.deepEqual(monitorSourcePlan('Sjekk været i Birkeland 20. september 2030'),{sourceUrl:null,tools:['weather.forecast']});
   assert.throws(()=>monitorSourcePlan('Følg med på noe uten noen kilde'),(error:any)=>error.code==='MONITOR_SOURCE_REQUIRED');
+});
+
+test('weather scope is pinned to the reviewed instruction instead of model-selected text',()=>{
+  assert.deepEqual(weatherScopeFromInstruction('Sjekk været på Birkeland i morgen'),{location:'Birkeland',period:'tomorrow',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Sjekk været på Birkeland i Birkenes i morgen via yr'),{location:'Birkeland, Birkenes',period:'tomorrow',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Sted for værvarselet: Birkeland, Birkenes, Agder.\nSjekk været på Birkeland i morgen'),{location:'Birkeland, Birkenes, Agder',period:'tomorrow',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Forecast location: Birkeland, Birkenes, Agder.\nCheck the weather in Birkeland tomorrow'),{location:'Birkeland, Birkenes, Agder',period:'tomorrow',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Sjekk været i morgen i Birkeland'),{location:'Birkeland',period:'tomorrow',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Check the weather tomorrow in Oslo'),{location:'Oslo',period:'tomorrow',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Varsle ved regn i morgen på Tromsø.'),{location:'Tromsø',period:'tomorrow',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Hvor kaldt blir det i Oslo i morgen tidlig?'),{location:'Oslo',period:'tomorrow',timeWindow:'morning'});
+  assert.deepEqual(weatherScopeFromInstruction('Check the weather in Tromsø today'),{location:'Tromsø',period:'today',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction('Sjekk ukeplanen og været i Oslo. Aktiviteten er 2030-09-20.',true),{location:'Oslo',period:'date',timeWindow:'all',dynamicDateFromEvidence:true});
+  assert.deepEqual(weatherScopeFromInstruction('Sjekk været i Bergen 20. september 2030'),{location:'Bergen',period:'date',date:'2030-09-20',timeWindow:'all'});
+  assert.equal(weatherScopeFromInstruction('Sjekk været i morgen tidlig'),undefined);
+});
+
+test('setup normalizes a single model classification label into the strict stored list shape',()=>{
+  const value=interpretationFromAi(JSON.stringify({...rule,eventTypes:'weather',keywords:'rain',people:'Synthetic member'}));assert.deepEqual(value.eventTypes,['weather']);assert.deepEqual(value.keywords,['rain']);assert.deepEqual(value.people,['Synthetic member']);
 });
 
 test('monitor lifecycle always exposes a recovery action and validates the compiled rule',()=>{
@@ -54,6 +73,27 @@ test('answer validation rejects fluent claims unsupported by exact evidence',()=
   assert.equal(answerFromAi(JSON.stringify(valid),source).answer,'Verified source headline');
   assert.throws(()=>answerFromAi(JSON.stringify({...valid,answer:'Invented breaking headline'}),source));
   assert.throws(()=>answerFromAi(JSON.stringify({...valid,evidence:{...valid.evidence,quote:'Other text'}}),source));
+});
+
+test('a single structured weather source falls back to its server-generated verified summary',()=>{
+  const summary='Forecast summary 2030-09-20: location Synthetic place, Test region, Norge; minimum temperature 5 C; maximum temperature 9 C; total precipitation 3 mm; maximum wind 4 m/s; conditions rain';
+  const nbPresentation='Vær for Synthetic place, Test region, Norge 20. september 2030: 5–9 °C, 3 mm nedbør, vind opptil 4 m/s.';const enPresentation='Weather for Synthetic place, Test region, Norge on 20 September 2030: 5–9 °C, 3 mm precipitation, wind up to 4 m/s.';
+  const source={finalUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',publicEvidenceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',contentType:'application/vnd.met.no.locationforecast+json' as const,evidenceKind:'weather' as const,text:`${summary}\nNorwegian presentation: ${nbPresentation}\nEnglish presentation: ${enPresentation}\nForecast 2030-09-20T08:00:00Z: temperature 5 C; precipitation 3 mm; wind 4 m/s; symbol rain`,fingerprint:'weather'};
+  const validNb={version:1,answer:nbPresentation,evidence:{quote:nbPresentation},confidence:0.9,uncertainty:null};assert.equal(answerFromAi(JSON.stringify(validNb),source).answer,nbPresentation);
+  const validEn={version:1,answer:enPresentation,evidence:{quote:enPresentation},confidence:0.9,uncertainty:null};assert.equal(answerFromAi(JSON.stringify(validEn),source,{locale:'en'}).answer,enPresentation);
+  const model={version:1,answer:'Det blir regn og kjølig.',evidence:{quote:'En naturlig parafrase modellen laget.',sourceUrl:source.finalUrl},confidence:0.7,uncertainty:'Oppsummert'};const result=answerFromAi(JSON.stringify(model),source);
+  assert.equal(result.answer,nbPresentation);assert.equal(result.evidence.quote,summary);assert.equal(result.evidence.sourceUrl,source.finalUrl);assert.deepEqual(result.confidence,1);
+  assert.equal(answerFromAi('formatteringsstøy fra modellen',source,{locale:'en'}).answer,enPresentation);
+  assert.equal(answerFromAi(JSON.stringify({...model,answer:summary,evidence:{quote:summary}}),source).answer,nbPresentation,'raw machine evidence is normalized before ordinary presentation');
+  const second={...source,finalUrl:'https://example.com/other',publicEvidenceUrl:'https://example.com/other'};assert.throws(()=>answerFromAi(JSON.stringify(model),[source,second]),(error:any)=>error.code==='AI_RESPONSE_INVALID');
+});
+
+test('a malformed conditional multi-source result can only fall back to a server-verifiable weather threshold',()=>{
+  const web={finalUrl:'https://example.com/plan',contentType:'text/html' as const,evidenceKind:'web' as const,text:'2030-09-20: Outdoor activity.',headings:['Outdoor activity'],fingerprint:'web',evidenceDates:['2030-09-20']};const summary='Forecast summary 2030-09-20: location Synthetic place, Norge; minimum temperature 5 C; maximum temperature 9 C; total precipitation 3 mm; maximum wind 4 m/s; conditions rain';const weather={finalUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',publicEvidenceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',contentType:'application/vnd.met.no.locationforecast+json' as const,evidenceKind:'weather' as const,text:summary,fingerprint:'weather',evidenceDates:['2030-09-20']};const now=new Date('2030-09-19T08:00:00Z');
+  const relevant=extractionFromAi('not json',[web,weather],now,{instruction:'Gi bare beskjed dersom temperaturen er under 6 grader.',locale:'nb'});assert.equal(relevant.events.length,1);assert.equal(relevant.events[0]!.date,'2030-09-20');assert.equal(relevant.events[0]!.description,'Outdoor activity; minimumstemperatur 5 °C');assert.equal(relevant.events[0]!.evidence.sources?.[0]?.sourceUrl,weather.publicEvidenceUrl);
+  assert.equal(extractionFromAi('not json',[web,weather],now,{instruction:'Notify me only if the temperature is under 6 degrees.',locale:'en'}).events[0]!.description,'Outdoor activity; minimum temperature 5 °C');
+  assert.equal(extractionFromAi('not json',[web,weather],now,{instruction:'Gi bare beskjed dersom temperaturen er under 4 grader.'}).events.length,0);
+  assert.throws(()=>extractionFromAi('not json',[web,weather],now,{instruction:'Gi bare beskjed dersom forholdene er spesielle.'}),(error:any)=>error.code==='AI_RESPONSE_INVALID');
 });
 
 test('server anchors omitted evidence URLs only to an opened document supporting the exact claim',()=>{

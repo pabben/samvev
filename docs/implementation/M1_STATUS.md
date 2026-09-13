@@ -525,10 +525,21 @@ host-global service modified. No merge, tag, release or production deployment.
   A routine result gets at most one provider-pinned escalation for invalid
   schema, failed composition or explicit low confidence, within the unchanged
   180-second deadline.
-- Final local verification passed 124 workspace tests, all workspace
-  typechecks, production build and focused NB/EN browser smoke with keyboard,
-  focus, Axe, mobile and 1280×752 layouts. A read-only Kartverket/MET pilot
-  completed in 259.8 ms without an AI call or Samvev production data.
+- The configured local OpenAI-compatible provider passed isolated QA for
+  weather-only, `via yr`, and synthetic combined schedule-and-weather tasks.
+  Ambiguous `Birkeland` required an explicit municipality choice; after that,
+  weather-only runs stayed on the routine tier while both combined cases
+  selected the stronger tier. The relevant case created one message and the
+  normal case created none. No automatic escalation occurred.
+- The runner pins reviewed weather scope, deduplicates completed calls and can
+  sequence a same-batch web result before authorizing a dependent weather date.
+  Narrow localized evidence fallbacks handle a structured weather summary and
+  explicit rain/temperature conditions without relaxing arbitrary web evidence
+  validation or the 180-second deadline.
+- Post-pilot QA passed 128/128 workspace tests, all typechecks, production
+  build, repeat migration 001–013 with matching checksum, and focused NB/EN
+  browser smoke with keyboard, focus, Axe and responsive layouts. Security,
+  requirements and UX rechecks passed.
 - The candidate is not deployed or merged. Current verification evidence and
   rollback constraints are recorded in
   [M2_4_WEATHER_AND_QUALITY.md](M2_4_WEATHER_AND_QUALITY.md) and ADR 0016.

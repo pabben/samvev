@@ -36,9 +36,8 @@ const weatherForecast:MonitorToolContract<'weather.forecast'>={
   authorize(input,context){
     const scope=context.approvedWeatherScope;
     if(scope){
-      if(normalizedWords(input.location).join(' ')!==normalizedWords(scope.location).join(' ')||input.timeWindow!==scope.timeWindow)throw new DomainError('MONITOR_TOOL_INVALID',422);
-      if(scope.dynamicDateFromEvidence){if(input.period!=='date'||!input.date||!context.evidenceDates?.has(input.date))throw new DomainError('MONITOR_TOOL_SCOPE',422);return input;}
-      if(input.period!==scope.period||(input.date??null)!==(scope.date??null))throw new DomainError('MONITOR_TOOL_INVALID',422);return input;
+      if(scope.dynamicDateFromEvidence){if(input.period!=='date'||!input.date||!context.evidenceDates?.has(input.date))throw new DomainError('MONITOR_TOOL_SCOPE',422);return{...input,location:scope.location,timeWindow:scope.timeWindow};}
+      return{location:scope.location,period:scope.period,...(scope.date?{date:scope.date}:{}),timeWindow:scope.timeWindow};
     }
     const taskWords=new Set(normalizedWords(context.taskText));const locationWords=normalizedWords(input.location);if(!locationWords.length||locationWords.some((word)=>!taskWords.has(word)))throw new DomainError('MONITOR_LOCATION_REQUIRED',422);return input;
   },

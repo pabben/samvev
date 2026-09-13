@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AiProviderTurn, AiToolResult } from '@samvev/contracts';
+import type { AiProviderTurn, AiTask, AiToolResult } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
 import { MonitorAgentRunner } from './agent-runner.ts';
 import type { MonitorSourceFetcher, SourceDocument } from './source-fetcher.ts';
 import { monitorToolRegistry } from './tool-registry.ts';
-import { KartverketPlaceResolver, MetWeatherClient, norwegianWeatherDate, weatherTargetDate, type FixedHttpRequest, type FixedHttpResponse, type FixedHttpTransport } from './weather.ts';
+import { KartverketPlaceResolver, MetWeatherClient, norwegianWeatherDate, weatherTargetDate, type FixedHttpRequest, type FixedHttpResponse, type FixedHttpTransport, type WeatherForecastArgs } from './weather.ts';
 
 function response(status:number,value:unknown,headers:Record<string,string>={'content-type':'application/json'}):FixedHttpResponse{
   const body=Buffer.from(JSON.stringify(value));const normalized=new Map(Object.entries({...headers,'content-length':headers['content-length']??String(body.length)}).map(([key,item])=>[key.toLowerCase(),item]));
@@ -31,10 +31,9 @@ test('typed registry exposes only bounded provider-neutral web and weather contr
 test('approved weather scope pins place and time while combined dates must come from opened evidence',()=>{
   const exact={approvedUrls:new Set<string>(),taskText:'irrelevant after approval',approvedWeatherScope:{location:'Birkeland',period:'tomorrow' as const,timeWindow:'morning' as const}};
   assert.equal(monitorToolRegistry.prepare('weather.forecast',{location:'Birkeland',period:'tomorrow',timeWindow:'morning'},exact).authorized,true);
-  assert.throws(()=>monitorToolRegistry.prepare('weather.forecast',{location:'Another place',period:'tomorrow',timeWindow:'morning'},exact),(error:any)=>error.code==='MONITOR_TOOL_INVALID');
-  assert.throws(()=>monitorToolRegistry.prepare('weather.forecast',{location:'Birkeland',period:'today',timeWindow:'morning'},exact),(error:any)=>error.code==='MONITOR_TOOL_INVALID');
+  assert.deepEqual(monitorToolRegistry.prepare('weather.forecast',{location:'private household text',period:'today',timeWindow:'night'},exact).arguments,{location:'Birkeland',period:'tomorrow',timeWindow:'morning'});
   const dynamic={approvedUrls:new Set<string>(),taskText:'combined',approvedWeatherScope:{location:'Birkeland',period:'date' as const,timeWindow:'all' as const,dynamicDateFromEvidence:true},evidenceDates:new Set(['2030-09-20'])};
-  assert.equal(monitorToolRegistry.prepare('weather.forecast',{location:'Birkeland',period:'date',date:'2030-09-20',timeWindow:'all'},dynamic).authorized,true);
+  assert.deepEqual(monitorToolRegistry.prepare('weather.forecast',{location:'model paraphrase',period:'date',date:'2030-09-20',timeWindow:'evening'},dynamic).arguments,{location:'Birkeland',period:'date',date:'2030-09-20',timeWindow:'all'});
   assert.equal(monitorToolRegistry.prepare('weather.forecast',{location:'Birkeland',period:'date',date:'2030-09-21',timeWindow:'all'},dynamic).authorized,false);
 });
 
@@ -131,7 +130,15 @@ test('agent runner returns weather tool data to the same provider loop with type
   const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(items:AiToolResult[]=[])=>{results.push(items);return turns.shift()!;}})} as unknown as AiAdminService;
   const client={forecast:async()=>({sourceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=58.3312&lon=8.2325',attribution:'MET Norway Locationforecast' as const,retrievedAt:'2026-09-12T08:00:00Z',updatedAt:null,validFrom:'2026-09-13T06:00:00Z',validTo:'2026-09-13T06:00:00Z',location:{query:'Birkeland',canonicalName:'Birkeland',municipality:'Birkenes',region:'Agder',country:'Norge' as const,latitude:58.3312,longitude:8.2325,placeId:'1'},points:[{at:'2026-09-13T06:00:00Z',temperatureC:12,precipitationMm:0,windSpeedMps:3,symbolCode:'fair_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const})} as unknown as MetWeatherClient;
   const runner=new MonitorAgentRunner(ai,undefined,1000,client);const outcome=await runner.run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'weather_test',input:'weather for Birkeland',modelTier:'routine',sources:[]},policy:'default',toolNames:['weather.forecast'],requiredTools:['weather.forecast']});
-  assert.equal(outcome.aiCalls,2);assert.match(results[1]![0]!.output,/MET Norway Locationforecast/);assert.equal(outcome.provenance[0]!.tool,'weather.forecast');assert.equal(outcome.provenance[0]!.canonicalLocation,'Birkeland');assert.deepEqual(outcome.dependencies[0]!.weatherRequest,{location:'Birkeland',period:'tomorrow',timeWindow:'all'});assert.equal(JSON.stringify(outcome.provenance).includes('points'),false);
+  assert.equal(outcome.aiCalls,2);assert.match(results[1]![0]!.output,/MET Norway Locationforecast/);assert.match(results[1]![0]!.output,/Norwegian presentation: Vær for Birkeland/);assert.match(results[1]![0]!.output,/English presentation: Weather for Birkeland/);assert.equal(outcome.provenance[0]!.tool,'weather.forecast');assert.equal(outcome.provenance[0]!.canonicalLocation,'Birkeland');assert.deepEqual(outcome.dependencies[0]!.weatherRequest,{location:'Birkeland',period:'tomorrow',timeWindow:'all'});assert.equal(JSON.stringify(outcome.provenance).includes('points'),false);
+});
+
+test('a fixed reviewed weather scope is fetched once and preloaded for providers with unreliable required-tool calls',async()=>{
+  let weatherCalls=0;let receivedInput='';let receivedChoice='required';
+  const ai={createTaskSession:async(_household:string,task:AiTask)=>{receivedInput=task.input;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(_results:AiToolResult[]=[],choice:'auto'|'required'='auto')=>{receivedChoice=choice;return{output:'final',toolCalls:[],generatedAt:'2026-09-12T08:00:00Z'};}};}} as unknown as AiAdminService;
+  const client={forecast:async(input:WeatherForecastArgs)=>{weatherCalls++;assert.deepEqual(input,{location:'Birkeland, Birkenes',period:'tomorrow',timeWindow:'all'});return{sourceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=58.3312&lon=8.2325',attribution:'MET Norway Locationforecast' as const,retrievedAt:'2026-09-12T08:00:00Z',updatedAt:null,validFrom:'2026-09-13T06:00:00Z',validTo:'2026-09-13T06:00:00Z',location:{query:input.location,canonicalName:'Birkeland',municipality:'Birkenes',region:'Agder',country:'Norge' as const,latitude:58.3312,longitude:8.2325,placeId:'1'},points:[{at:'2026-09-13T06:00:00Z',temperatureC:12,precipitationMm:0,windSpeedMps:3,symbolCode:'fair_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const};}} as unknown as MetWeatherClient;
+  const scope={location:'Birkeland, Birkenes',period:'tomorrow' as const,timeWindow:'all' as const};const outcome=await new MonitorAgentRunner(ai,undefined,1000,client).run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'weather_test',input:'weather tomorrow',modelTier:'routine',sources:[]},policy:'default',toolNames:['weather.forecast'],requiredTools:['weather.forecast'],approvedWeatherScope:scope});
+  assert.equal(outcome.output,'final');assert.equal(outcome.aiCalls,1);assert.equal(outcome.attemptedToolCount,1);assert.equal(weatherCalls,1);assert.equal(receivedChoice,'auto');assert.match(receivedInput,/already executed the approved weather\.forecast/);assert.match(receivedInput,/Forecast summary 2026-09-13/);assert.equal(outcome.provenance[0]!.canonicalLocation,'Birkeland');
 });
 
 test('weather tool rejects a model-invented place that was not approved in task context',async()=>{

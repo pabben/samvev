@@ -15,6 +15,7 @@ test('setup interpretation uses the same structured quality signals',()=>{
   assert.deepEqual(routeMonitorInterpretationQuality({savedTier:'routine',tools:['weather.forecast'],instruction:'Sjekk temperaturen i morgen.'}),{tier:'routine',reason:null});
   assert.equal(routeMonitorInterpretationQuality({savedTier:'routine',tools:['web.open'],instruction:'Sjekk ukeplanen for neste uke.'}).reason,'schedule_semantics');
   assert.equal(routeMonitorInterpretationQuality({savedTier:'routine',tools:['weather.forecast'],instruction:'Varsle dersom det blir frost.'}).reason,'conditional_notification');
+  assert.equal(routeMonitorInterpretationQuality({savedTier:'routine',tools:['weather.forecast'],instruction:'Varsle bare ved regn.'}).reason,'conditional_notification');
   assert.equal(routeMonitorInterpretationQuality({savedTier:'routine',tools:['web.open','weather.forecast'],instruction:'Sammenstill kildene.'}).reason,'multi_tool');
 });
 

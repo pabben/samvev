@@ -50,6 +50,28 @@ claim must occur in the bounded quote the model received, and supplied URLs must
 match successful tool history. A false condition is represented as an empty
 event list and therefore creates no message.
 
+After the user reviews a fixed weather place and period, the server pins that
+scope. It ignores model paraphrases of place or time and sends only reviewed
+values upstream. Fixed weather-only tasks execute the registered tool once
+before the provider turn and pass its bounded verified result to the model.
+Completed tools are removed from the provider tool list and identical
+successful calls are deduplicated. For a combined batch, an approved `web.open`
+call can establish the exact date needed by a declared weather call; the latter
+is re-authorized only after the evidence exists.
+
+MET points produce a deterministic evidence summary. A single-source weather
+fallback presents it as localized user copy while keeping the exact summary as
+source evidence. Valid evidence-backed focused answers remain intact; only raw
+machine-summary copies are presentation-normalized. A combined conditional fallback is narrower: it can evaluate
+only an explicit rain/precipitation or temperature threshold for a date present
+in both verified sources. It creates a validated event when true and no event
+when false. Other conditions fail closed. A one-turn same-tier format repair can
+reuse verified evidence without fetching or changing the saved quality
+preference. If combined setup formatting still fails after both tools succeed,
+the preview uses a minimal editable rule containing only the original
+instruction, schedule and approved tool plan; no model-produced fact is
+accepted by that fallback.
+
 Focused fixtures cover place ambiguity, deterministic municipality selection,
 Oslo calendar boundaries, coordinate rounding, cache reuse and revalidation,
 `200`/`203`/`304` handling, bounded `429` metadata, timeout/MIME/streaming-size
@@ -67,25 +89,39 @@ provider redirects.
 
 ## Verification snapshot
 
-The final read-only provider pilot on 2026-09-12 resolved a synthetic public query for
-`Birkeland, Birkenes` and fetched tomorrow morning's forecast in **259.8 ms**
-total: Kartverket **140.0 ms**, MET **44.6 ms**, with six bounded forecast
-points. The request returned HTTP 200 from both services. This pilot used the
-real weather client and no Samvev production data or AI provider.
+The actual configured local OpenAI-compatible provider was exercised in
+isolated QA on 2026-09-12 without recording its endpoint, model name or
+credentials. The exact query `Sjekk været på Birkeland i morgen` produced five
+plausible Kartverket matches and correctly required clarification. After the
+supported clarification to `Birkeland, Birkenes`, setup used one routine turn in
+**82.7 s** and Test now used one routine turn in **73.2 s**. Location resolution
+took **234 ms** and MET took **44 ms**. The draft remained inactive and created
+no message. The wording `via yr` used the same weather tool, never opened Yr,
+and completed setup and Test now in **88.1 s** and **76.2 s**, one routine turn
+per phase.
 
-The synthetic combined schedule-and-rain integration uses three provider turns
-and two tool calls (`web.open`, followed by `weather.forecast`) for analysis.
-The full database integration test, including interpretation, approval, a
-relevant notification, a changed dry forecast and withdrawal, completes in
-about 0.2 seconds with mocked providers. Real model inference is deliberately
-not claimed by this local gate; no external or paid AI call was made, and the
-global 180-second deadline remains unchanged.
+The synthetic non-personal combined schedule-and-weather pilot selected the
+stronger internal tier for `multi_tool`. Each phase opened the fixture and
+called weather once, retained both provenance entries and used no automatic
+escalation. A verified relevant condition created one message; the normal case
+returned no event and created no message. Setup and execution together took
+**247.8 s** for the relevant case (longest provider turn **83.5 s**) and **212.8
+s** for the normal case. Each independent phase stayed below the unchanged
+180-second deadline. Location and weather calls were below **143 ms** and **47
+ms** respectively; model inference dominated. Instrumented transports confirmed
+that only place and forecast time reached Kartverket/MET, never fixture plan
+text or person data.
 
-The final workspace run passed all **124** unit and integration tests. It
-includes migrations through 013, scheduled invalid-schema escalation, a
-conditional freezing alert, cache concurrency, Issue #4/#5 monitor regressions,
-provider behavior, authentication and household isolation. All five workspace
-typechecks and the production build passed. The focused browser smoke passed in
-NB and EN at mobile, desktop and 1280×752 wall-panel widths with keyboard,
-focus and Axe checks, two synthetic screenshots, and zero unmocked browser
-requests.
+The mocked full database integration still covers interpretation, approval, a
+relevant notification, a changed dry forecast and withdrawal. No paid AI call
+was made, and the global 180-second deadline remains unchanged.
+
+The post-pilot candidate passed all **128** workspace tests: web 15, contracts
+3, core 3 and API 107. All five workspace typechecks and the production build
+passed. A fresh isolated database applied migrations 001–013 twice; ledger and
+file checksum for migration 013 both equal
+`72c615d27b7349313e7ede7bc179f8190182264c28ba594688aabb98b81ddd5f`.
+The focused browser smoke passed NB/EN, keyboard/focus, Axe, mobile, desktop,
+1280×752 wall-panel and dark mode with zero real browser requests and no new
+screenshots. Compose validation, isolated QA health, whitespace and
+secret/private-data scans passed.
