@@ -96,20 +96,20 @@ function boundedPayload(source:SourceDocument,rootOrigin:string):{output:string;
     toolStatus:'success',nextAction:'Use this successful result and return the required final JSON. Do not repeat the same tool call.',
     evidenceRule:'The payload url is the only opened source for this result. Listed link URLs are not opened sources. If you answer from a listed label, quote that exact label and cite the payload url; to cite a link URL, call web.open on it first.',
     url:source.finalUrl,contentType:source.contentType,title:source.title?truncateUtf8(source.title,MAX_TOOL_TITLE_BYTES):null,
-    links,headings:selectToolHeadings(source),headingOrder:'document',linkOrder:'relevance-ranked',text:'',
+    links,headings:selectToolHeadings(source),headingOrder:'document',linkOrder:'relevance-ranked',contentComplete:false,text:'',
     fingerprint:source.fingerprint,fetchedAt:source.fetchedAt??new Date().toISOString()
   };
   const text=truncateUtf8(source.text,MAX_TOOL_TEXT_BYTES);let low=0;let high=text.length;let output=JSON.stringify(base);
   while(low<=high){const middle=Math.floor((low+high)/2);const candidate=JSON.stringify({...base,text:text.slice(0,middle)});if(Buffer.byteLength(candidate)<=MAX_TOOL_PAYLOAD_BYTES){output=candidate;low=middle+1;}else high=middle-1;}
   if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
-  const visible=JSON.parse(output) as typeof base;
-  return{output,links,evidenceDocument:{finalUrl:visible.url,contentType:visible.contentType,text:visible.text,fingerprint:visible.fingerprint,fetchedAt:visible.fetchedAt,...(visible.title?{title:visible.title}:{}),headings:visible.headings,links:visible.links}};
+  const visible=JSON.parse(output) as typeof base;visible.contentComplete=visible.text===source.text;output=JSON.stringify(visible);if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
+  return{output,links,evidenceDocument:{finalUrl:visible.url,contentType:visible.contentType,text:visible.text,fingerprint:visible.fingerprint,fetchedAt:visible.fetchedAt,evidenceComplete:visible.contentComplete,...(visible.title?{title:visible.title}:{}),headings:visible.headings,links:visible.links}};
 }
 
 function weatherPayload(forecast:WeatherForecast):{output:string;evidenceDocument:SourceDocument}{
   const text=weatherEvidenceText(forecast);const value={securityNotice:'VERIFIED_OFFICIAL_WEATHER_DATA',toolStatus:'success',nextAction:'Use this successful result and return the required final JSON. Do not repeat the same tool call.',url:MET_PUBLIC_FORECAST_URL,attribution:forecast.attribution,retrievedAt:forecast.retrievedAt,validFrom:forecast.validFrom,validTo:forecast.validTo,location:{name:forecast.location.canonicalName,municipality:forecast.location.municipality,region:forecast.location.region,country:forecast.location.country},forecast:forecast.points,evidenceText:text,fingerprint:forecast.fingerprint};
   const output=JSON.stringify(value);if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
-  return{output,evidenceDocument:{finalUrl:MET_PUBLIC_FORECAST_URL,publicEvidenceUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',text,fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(output),evidenceKind:'weather',evidenceDates:[...new Set(forecast.points.map((point)=>norwegianWeatherDate(new Date(point.at))))]}};
+  return{output,evidenceDocument:{finalUrl:MET_PUBLIC_FORECAST_URL,publicEvidenceUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',text,fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(output),evidenceKind:'weather',evidenceDates:[...new Set(forecast.points.map((point)=>norwegianWeatherDate(new Date(point.at))))],evidenceComplete:true}};
 }
 
 export class MonitorAgentRunner {
@@ -130,7 +130,8 @@ export class MonitorAgentRunner {
     let session:Awaited<ReturnType<AiAdminService['createTaskSession']>>|undefined;
     try{
       let sessionTask=input.task;
-      if(toolNames.length===1&&toolNames[0]==='weather.forecast'&&input.approvedWeatherScope&&!input.approvedWeatherScope.dynamicDateFromEvidence){
+      const reusableWeatherSeed=input.preloadSeedDocuments&&input.seedDocuments?.some((source)=>(source.evidenceKind==='weather'||source.contentType==='application/vnd.met.no.locationforecast+json')&&source.evidenceComplete===true);
+      if(toolNames.includes('weather.forecast')&&input.approvedWeatherScope&&!input.approvedWeatherScope.dynamicDateFromEvidence&&!reusableWeatherSeed){
         const scope=input.approvedWeatherScope;const prepared=monitorToolRegistry.prepare('weather.forecast',{location:scope.location,period:scope.period,...(scope.date?{date:scope.date}:{}),timeWindow:scope.timeWindow},{approvedUrls:allowed,taskText:input.task.input,approvedWeatherScope:scope});const weatherRequest=prepared.arguments as WeatherForecastArgs;
         attemptedToolCount++;toolExecutions++;
         let forecast:WeatherForecast;
@@ -187,6 +188,7 @@ export class MonitorAgentRunner {
           }
           if(contract.outputKind==='weather_forecast'){
             const weatherRequest=rawArguments as WeatherForecastArgs;
+            if([...dependencies.values()].some((dependency)=>dependency.tool==='weather.forecast'))fail('MONITOR_TOOL_INVALID',422);
             let forecast:WeatherForecast;
             const started=Date.now();let weatherTiming:WeatherForecast['timing'];try{await input.observer?.progress('fetching_weather');forecast=await this.weather.forecast(weatherRequest,controller.signal);weatherTiming=forecast.timing;}
             catch(error){const code=error instanceof DomainError&&/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_WEATHER_UNAVAILABLE';attempts.push({tool:'weather.forecast',requestedUrl:requested,outcome:'failed',errorCode:code});throw error;}

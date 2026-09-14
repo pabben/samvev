@@ -562,6 +562,20 @@ try {
   await expect(panel()).not.toContainText(/60\.1234|10\.4321|weather[._]forecast|routine|strong|Quality/);
   await noTechnicalTerms(); await layout(); await axe();
   if (process.env.WEATHER_SCREENSHOT_DIR) await panel().screenshot({ path: `${process.env.WEATHER_SCREENSHOT_DIR}/weather-en-desktop-synthetic.png` });
+  // A successful combined check with no notification remains a result with both sources.
+  tasks[0].events = [];
+  tasks[0].latestResult = { ...tasks[0].latestResult, result: { version: 1, events: [] } };
+  for (const [locale, nav, empty] of [
+    ['nb', 'Oppdrag', 'Ingen forhold som krever varsel ble funnet i kildene for denne perioden.'],
+    ['en', 'Tasks', 'No conditions requiring a notification were found in the sources for this period.'],
+  ]) {
+    me.account.locale = locale;
+    await page.reload(); await page.getByRole('button', { name: nav, exact: true }).click();
+    await expect(card().locator('.monitor-result')).toContainText(empty);
+    await expect(card().getByRole('alert')).toHaveCount(0);
+    await card().locator('.monitor-sources summary').click();
+    await expect(card().locator('.monitor-sources li')).toHaveCount(2);
+  }
   // An explicit cleared override is sent on edit, so old web sources cannot stick to weather-only setup.
   await button('Edit').click();
   await page.getByLabel('Source (optional)', { exact: true }).fill('');
@@ -604,14 +618,28 @@ try {
     ['nb', 'Oppdrag', 'Lag oppsett fra forespørselen', 'Starter oppdraget', 'Arbeider nå', 'Fortsatt i arbeid', 'Venter på tur', 'Du kan forlate siden.', 'Samvev kunne ikke oppdatere status', 'Test nå', 'Godkjenn og aktiver', 'Slett', 'Ja, slett oppdraget'],
     ['en', 'Tasks', 'Create setup from request', 'Starting the task', 'Working now', 'Still working', 'Waiting to start', 'You can leave this page.', 'Samvev could not update the status', 'Test now', 'Approve and activate', 'Delete', 'Yes, delete task'],
   ]) {
-    me.account.locale = locale;
+    me.account.locale = locale; me.account.theme = locale === 'nb' ? 'light' : 'dark';
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.setViewportSize(locale === 'nb' ? {width:390,height:844} : {width:1280,height:752});
+    // A server lease proves work, but only a persisted execution ID proves resumable background work.
+    tasks = [{ ...template, activeExecution: null, latestExecution: null, lifecycleStatus: 'running' }];
+    await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
+    await expect(card().locator('.monitor-state')).toHaveText(working);
+    await expect(card().locator('.monitor-progress-spinner')).toBeVisible();
+    await expect(card().locator('.monitor-progress-stage')).toContainText(locale === 'nb' ? 'Forbereder oppdraget' : 'Preparing the task');
+    await expect(card()).not.toContainText(leave);
     tasks = [{ ...template, sourceKinds: ['web', 'weather'], interpretedRule: null, latestResult: null, errorCode: null, lifecycleStatus: undefined }];
     await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
     gateAction='interpret';gate=new Promise((resolve)=>{release=resolve;});await button(create).focus(); await page.keyboard.press('Enter');
-    await expect(card().locator('.monitor-progress')).toContainText(starting);await expect(card()).not.toContainText(leave);release();gate=undefined;gateAction=undefined;
+    await expect(card().locator('.monitor-progress')).toContainText(starting);
+    const spinner = card().locator('.monitor-progress-spinner');
+    await expect(spinner).toBeVisible(); await expect(spinner).toHaveAttribute('aria-hidden', 'true');
+    await expect(spinner).toHaveCSS('animation-name', 'spin');
+    await expect(card()).not.toContainText(leave);release();gate=undefined;gateAction=undefined;
     await expect(card().locator('.monitor-state')).toHaveText(queued);
     await expect(card()).toContainText(leave);
+    await expect(spinner).toHaveCount(1);
+    await expect(card().locator('.monitor-progress')).toHaveAttribute('role', 'status');
     await expect(card().locator('.monitor-progress')).toContainText('5');
     const queuedId = tasks[0].activeExecution.id;
     const initiated = calls.length;
@@ -623,6 +651,13 @@ try {
     tasks[0].latestExecution = tasks[0].activeExecution;
     await expect(card().locator('.monitor-state')).toHaveText(still,{timeout:7000});
     await expect(card().locator('.monitor-progress')).toContainText(locale==='nb'?'Henter vær':'Fetching the forecast');
+    await expect(spinner).toHaveCSS('animation-name', 'spin');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(spinner).toHaveCSS('animation-name', 'none');
+    await expect(spinner).toBeVisible();
+    await expect(card().locator('.monitor-progress')).not.toContainText(/%/);
+    tasks[0].activeExecution.progress = {stage:'analyzing',updatedAt:new Date().toISOString()};
+    await expect(card().locator('.monitor-progress-stage')).toContainText(locale==='nb'?'Analyserer og sammenstiller kildene':'Analysing and combining the sources',{timeout:7000});
     if (process.env.DURABLE_SCREENSHOT_DIR) {
       await mkdir(process.env.DURABLE_SCREENSHOT_DIR, { recursive: true });
       await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
@@ -639,6 +674,8 @@ try {
     tasks[0].latestExecution = {...tasks[0].latestExecution,status:'succeeded',completedAt:new Date().toISOString()};
     tasks[0].interpretedRule = weatherRule; tasks[0].revision++;
     await expect(button(testNow)).toBeEnabled({timeout:7000}); await expect(button(approve)).toBeEnabled();
+    await expect(card().locator('.monitor-progress')).toHaveCount(0);
+    await expect(spinner).toHaveCount(0);
     await button(testNow).focus(); await page.keyboard.press('Enter');
     await expect(card().locator('.monitor-actions')).toHaveAttribute('aria-busy','true');
     const testId = tasks[0].activeExecution.id;
@@ -658,6 +695,8 @@ try {
     tasks = [{...template,interpretedRule:null,latestResult:null,errorCode:null,latestExecution:{id:'failed-execution',kind:'interpretation',status:'failed',errorCode:'MONITOR_WORKER_INTERRUPTED'}}];
     await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
     await expect(card().getByRole('alert')).toContainText(locale==='nb'?'Arbeidet ble avbrutt':'Processing was interrupted');
+    await expect(card().locator('.monitor-progress')).toHaveCount(0);
+    await expect(card().locator('.monitor-progress-spinner')).toHaveCount(0);
     await button(remove).click(); await button(confirm).click(); await expect(panel().getByRole('article')).toHaveCount(0);
   }
   durableMode = false;

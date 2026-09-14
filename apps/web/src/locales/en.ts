@@ -211,7 +211,7 @@ export const en = {
   monitorStandard: "Standard",
   monitorUncertainty: "Uncertainty",
   monitorSupportingEvidence: "Supporting source evidence",
-  monitorNoEvents: "No relevant events found in the source.",
+  monitorNoEvents: "No conditions requiring a notification were found in the sources for this period.",
   monitorDeleteConfirm: "Delete this task? Its future and active notifications will be withdrawn.",
   monitorDeleteYes: "Yes, delete task",
   monitorErrorSourceRequired: "Samvev needs a source. Include a web address in the request or enter Source under other options.",

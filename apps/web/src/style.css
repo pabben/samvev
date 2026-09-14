@@ -2675,3 +2675,7 @@ details[open] > summary:before {
 .monitor-rule dd small, .monitor-forecast-details small { display: block; margin-top: .35rem; }
 .monitor-location-options { display: grid; gap: .5rem; padding-left: 1.25rem; }
 .monitor-location-options button { max-width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; text-align: start; }
+
+.monitor-progress { border-inline-start: 3px solid var(--teal); }
+.monitor-progress-stage { display: flex; align-items: center; gap: 10px; }
+.monitor-progress-spinner { display: inline-block; flex: 0 0 22px; }

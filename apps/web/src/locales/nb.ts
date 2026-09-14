@@ -212,7 +212,7 @@ export const nb: Record<TranslationKey, string> = {
   monitorStandard: "Standard",
   monitorUncertainty: "Usikkert",
   monitorSupportingEvidence: "Støttende kildebevis",
-  monitorNoEvents: "Ingen relevante hendelser funnet i kilden.",
+  monitorNoEvents: "Ingen forhold som krever varsel ble funnet i kildene for denne perioden.",
   monitorDeleteConfirm: "Slette oppdraget? Fremtidige og aktive varsler fra oppdraget trekkes tilbake.",
   monitorDeleteYes: "Ja, slett oppdraget",
   monitorErrorSourceRequired: "Samvev trenger en kilde. Ta med en nettadresse i forespørselen, eller fyll inn Kilde under andre valg.",

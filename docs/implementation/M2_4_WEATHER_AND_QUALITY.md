@@ -179,3 +179,48 @@ synthetic progress screenshots were inspected for the new running state. The bro
 browser scenario still stops at its pre-existing display-pairing response wait;
 no monitor assertion fails, and this unrelated smoke issue is not hidden as a
 pass. No local-provider pilot or live deploy has been run for this candidate.
+
+## Post-deploy combined-source correction candidate
+
+The first live M2.5 owner run exposed a separate setup defect for a task that
+combined an explicit week-plan URL with weather for tomorrow. Both attempts
+opened the approved web source successfully, but made no weather request. The
+setup code had classified every `web.open` plus `weather.forecast` task as if
+its forecast date had to be discovered from web evidence, even when the
+instruction already said `tomorrow`. The model could therefore finish after
+`web.open`; the required-tool guard correctly rejected that incomplete result
+as `AI_RESPONSE_INVALID` before combined provenance was created.
+
+The correction keeps explicit `today`, `tomorrow` and calendar dates as fixed,
+reviewed weather scope. Samvev resolves and fetches that approved forecast
+server-side before asking the model to perform the remaining web work. A date
+is dynamic only when it really must come from the opened source. The model
+still decides whether the verified plan and forecast merit an event. A
+successful `events: []` is accepted only when complete, date-aligned web and
+weather evidence exists, so an unavailable or truncated source cannot become a
+false all-clear.
+
+For a positive combined result, source quotes and atomic claims remain verbatim
+and are anchored to both tool results. Samvev renders the user-facing frame in
+the task locale from those validated facts, rather than requiring translated
+presentation text to occur verbatim in an English weather payload. Setup and
+execution prompts also state the resolved `nb` or `en` output language. The
+normal Oppdrag UI now presents a successful empty result as no condition
+requiring a notification for the checked period.
+
+The durable progress panel retains its server-reported stages and adds a
+decorative activity spinner and running accent. It shows no percentage,
+disappears on terminal state and is static under `prefers-reduced-motion`.
+
+This is an application-only correction on top of migration 014. It adds no
+migration and does not change the durable HTTP 202, timeout, lease,
+single-flight or stale-revision contracts. It remains undeployed pending a new
+candidate gate and owner pilot.
+
+The final local gate passed with 144/144 workspace tests and 82/82 focused
+monitor, weather and durable-execution tests. Workspace typechecks, the
+production build, synthetic browser smoke (including Axe, focus, responsive
+layouts and reduced motion), fresh migrations 001-014 applied twice, isolated
+Compose health, diff validation and the private-data/secret scan also passed.
+The current correction is not deployed; a committed candidate, CI and a new
+controlled deploy plus owner pilot are still required.

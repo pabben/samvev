@@ -4,7 +4,7 @@ import type { AiProviderTurn, AiTask, AiToolResult } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
 import { MONITOR_AGENT_DEADLINE_MS,MONITOR_LEASE_MS,MonitorAgentRunner,monitorWebTool,type MonitorExecutionObserver } from './agent-runner.ts';
-import { answerFromAi } from './service.ts';
+import { answerFromAi, extractionFromAi } from './service.ts';
 import type { MonitorSourceFetcher, SourceDocument } from './source-fetcher.ts';
 
 const task={operation:'extract' as const,purpose:'synthetic_agent_test',input:'Use the approved source.',modelTier:'routine' as const,sources:[]};
@@ -172,7 +172,7 @@ test('redirect final URL becomes an exact allowed cached target',async()=>{
     {output:'Final after redirect',toolCalls:[],generatedAt:at}
   ],{[requested]:redirected});
   const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:requested});assert.equal(result.output,'Final after redirect');assert.deepEqual(h.fetchedUrls,[requested]);
-  const claim='Synthetic headline';const modelEvidence={version:1,answer:claim,evidence:{quote:claim,sourceUrl:requested},confidence:0.9,uncertainty:null};
+  const claim='Synthetic headline';const modelEvidence={version:1,outputLocale:'nb',answer:claim,evidence:{quote:claim,sourceUrl:requested},confidence:0.9,uncertainty:null};
   assert.deepEqual(result.evidenceDocuments[0]!.evidenceUrlAliases,[requested,redirected.finalUrl]);assert.equal(answerFromAi(JSON.stringify(modelEvidence),result.evidenceDocuments).evidence.sourceUrl,redirected.finalUrl);
   assert.throws(()=>answerFromAi(JSON.stringify({...modelEvidence,evidence:{...modelEvidence.evidence,sourceUrl:'https://example.test/unopened'}}),result.evidenceDocuments),(error:any)=>error.code==='AI_RESPONSE_INVALID');
 });
@@ -190,13 +190,15 @@ test('serialized tool payload applies compact per-document and per-field ceiling
 });
 
 test('evidence validation is limited to the exact bounded fields shown to the model',async()=>{
-  const visible='Visible first editorial headline';const hiddenText='Hidden off-window body claim';const hiddenHeading='Hidden seventeenth heading';const hiddenLink='Hidden twenty-fifth link';
+  const visible='Visible first editorial headline';const hiddenText='2030-09-20: Outdoor activity';const hiddenHeading='Hidden seventeenth heading';const hiddenLink='Hidden twenty-fifth link';
   const bounded:SourceDocument={...root,text:`${visible}\n${'x'.repeat(12_000)}\n${hiddenText}`,headings:[visible,...Array.from({length:15},(_,index)=>`Visible heading ${index}`),hiddenHeading],links:[...Array.from({length:24},(_,index)=>({url:`https://example.test/story-${String(index).padStart(2,'0')}`,label:`Visible editorial link ${String(index).padStart(2,'0')}`})),{url:'https://example.test/story-99',label:hiddenLink}]};
   const h=harness([{toolCalls:[{id:'root',name:'web.open',arguments:{url:root.finalUrl}}],generatedAt:at},{output:'done',toolCalls:[],generatedAt:at}],{[root.finalUrl]:bounded});
   const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true});const evidence=result.evidenceDocuments[0]!;
-  assert.equal(answerFromAi(JSON.stringify({version:1,answer:visible,evidence:{quote:visible},confidence:0.9,uncertainty:null}),evidence).answer,visible);
-  for(const claim of [hiddenText,hiddenHeading,hiddenLink])assert.throws(()=>answerFromAi(JSON.stringify({version:1,answer:claim,evidence:{quote:claim},confidence:0.9,uncertainty:null}),evidence),(error:any)=>error.code==='AI_RESPONSE_INVALID',claim);
+  assert.equal(evidence.evidenceComplete,false);
+  assert.equal(answerFromAi(JSON.stringify({version:1,outputLocale:'nb',answer:visible,evidence:{quote:visible},confidence:0.9,uncertainty:null}),evidence).answer,visible);
+  for(const claim of [hiddenText,hiddenHeading,hiddenLink])assert.throws(()=>answerFromAi(JSON.stringify({version:1,outputLocale:'nb',answer:claim,evidence:{quote:claim},confidence:0.9,uncertainty:null}),evidence),(error:any)=>error.code==='AI_RESPONSE_INVALID',claim);
   assert.ok(bounded.text.includes(hiddenText));assert.ok(bounded.headings!.includes(hiddenHeading));assert.ok(bounded.links!.some((link)=>link.label===hiddenLink));
+  const date='2030-09-20';const incomplete={...evidence,text:`${date}: Ordinary lessons\n${evidence.text}`,evidenceDates:[date],evidenceComplete:false};const summary=`Forecast summary ${date}: location Synthetic place, Norge; minimum temperature 8 C; maximum temperature 14 C; total precipitation 0 mm; maximum wind 3 m/s; conditions fair_day`;const weather:SourceDocument={finalUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',contentType:'application/vnd.met.no.locationforecast+json',evidenceKind:'weather',text:summary,fingerprint:'weather',evidenceDates:[date],evidenceComplete:true};assert.throws(()=>extractionFromAi('{"version":1,"outputLocale":"en","events":[]}',[incomplete,weather],new Date('2030-09-19T08:00:00Z'),{instruction:'Notify me only if something special requires attention.',locale:'en'}),(error:any)=>error.code==='AI_COMPOSITION_INVALID','a relevant activity outside the 8 KiB visible window cannot become a false all-clear');
 });
 
 test('compact root discovery and followed document retain useful evidence and provenance',async()=>{
