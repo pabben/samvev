@@ -26,11 +26,65 @@ test('runner accepts a normal final turn without inventing a tool call',async()=
   assert.equal(result.output,'Synthetic final');assert.equal(result.aiCalls,1);assert.equal(result.documents.length,0);assert.equal(h.fetches,0);assert.deepEqual(h.choices,['auto']);
 });
 
+test('runner tags an invalid provider response with sanitized diagnostics',async()=>{
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_RESPONSE_INVALID',502,{rawOutput:'must not escape'});}})} as unknown as AiAdminService;
+  await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='invalid_provider_response'&&error.details?.aiCalls===1&&!('rawOutput' in (error.details??{})));
+});
+
+test('runner preserves an allowlisted provider response reason without raw provider details',async()=>{
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_RESPONSE_INVALID',502,{providerResponseReason:'empty_content',rawOutput:'must not escape',reasoning:'must not escape'});}})} as unknown as AiAdminService;
+  await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='empty_content'&&!('providerResponseReason' in (error.details??{}))&&!('rawOutput' in (error.details??{}))&&!('reasoning' in (error.details??{})));
+});
+
+test('runner preserves only a safe upstream category',async()=>{
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_UPSTREAM_ERROR',502,{providerResponseReason:'upstream_http_5xx',body:'must not escape'});}})} as unknown as AiAdminService;
+  await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_UPSTREAM_ERROR'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='upstream_http_5xx'&&!('providerResponseReason' in (error.details??{}))&&!('body' in (error.details??{})));
+});
+
+test('runner repairs one invalid terminal response after required evidence succeeds',async()=>{
+  const created:Array<{input:string;tools:number;mode:unknown}>=[];let sessions=0;
+  const ai={createTaskSession:async(_household:string,received:AiTask,_policy:unknown,tools:unknown[],_signal:unknown,mode:unknown)=>{const current=sessions++;created.push({input:received.input,tools:tools.length,mode});return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{
+    if(current===0)throw new DomainError('AI_RESPONSE_INVALID',502);
+    return{output:'{"answer":"Synthetic headline"}',toolCalls:[],generatedAt:at};
+  }};}} as unknown as AiAdminService;
+  const fetcher={fetch:async()=>root} as unknown as MonitorSourceFetcher;
+  const weather={forecast:async()=>({sourceUrl:'https://api.met.no/private-coordinates',attribution:'MET Norway Locationforecast' as const,retrievedAt:at,updatedAt:at,validFrom:'2026-09-11T00:00:00.000Z',validTo:'2026-09-11T23:00:00.000Z',location:{query:'Oslo',canonicalName:'Oslo',municipality:'Oslo',region:'Oslo',country:'Norge' as const,latitude:59.9,longitude:10.7,placeId:'synthetic'},points:[{at:'2026-09-11T12:00:00.000Z',temperatureC:12,precipitationMm:0,windSpeedMps:2,symbolCode:'clearsky_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const})};
+  const responseSchema={name:'synthetic_result',schema:{type:'object',properties:{answer:{type:'string'}},required:['answer'],additionalProperties:false}};
+  const result=await new MonitorAgentRunner(ai,fetcher,1000,weather as never).run({householdId:'00000000-0000-4000-8000-000000000001',task:{...task,responseSchema},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open','weather.forecast'],requiredTools:['web.open','weather.forecast'],approvedWeatherScope:{location:'Oslo',period:'tomorrow',timeWindow:'all'}});
+  assert.equal(result.output,'{"answer":"Synthetic headline"}');assert.equal(result.aiCalls,2);assert.equal(result.attemptedToolCount,2);assert.equal(result.provenance.length,2);assert.ok(result.attempts.every((item)=>item.outcome==='success'));
+  assert.deepEqual(created.map((item)=>item.tools),[1,0]);assert.match(created[1]!.input,/required tools already succeeded/);assert.match(created[1]!.input,/Synthetic headline/);
+  assert.deepEqual(created.map((item)=>item.mode),['analysis','format_repair']);
+});
+
+test('terminal repair includes verified evidence once and remains a valid bounded AiTask',async()=>{
+  const inputs:string[]=[];let sessions=0;const sentinel='UNIQUE_VERIFIED_EVIDENCE_SENTINEL';
+  const ai={createTaskSession:async(_household:string,received:AiTask)=>{inputs.push(received.input);const current=sessions++;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{
+    if(current===0)throw new DomainError('AI_RESPONSE_INVALID',502);
+    return{output:'{"answer":"ok"}',toolCalls:[],generatedAt:at};
+  }};}} as unknown as AiAdminService;
+  const largeRoot:SourceDocument={...root,headings:['Synthetic heading'],text:`${sentinel}\n${'Synthetic source context. '.repeat(1_500)}`};
+  const weather={forecast:async()=>({sourceUrl:'https://api.met.no/private-coordinates',attribution:'MET Norway Locationforecast' as const,retrievedAt:at,updatedAt:at,validFrom:'2026-09-11T00:00:00.000Z',validTo:'2026-09-11T23:00:00.000Z',location:{query:'Oslo',canonicalName:'Oslo',municipality:'Oslo',region:'Oslo',country:'Norge' as const,latitude:59.9,longitude:10.7,placeId:'synthetic'},points:[{at:'2026-09-11T12:00:00.000Z',temperatureC:12,precipitationMm:0,windSpeedMps:2,symbolCode:'clearsky_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const})};
+  const responseSchema={name:'synthetic_result',schema:{type:'object',properties:{answer:{type:'string'}},required:['answer'],additionalProperties:false}};
+  await new MonitorAgentRunner(ai,{fetch:async()=>largeRoot} as unknown as MonitorSourceFetcher,1000,weather as never).run({householdId:'00000000-0000-4000-8000-000000000001',task:{...task,input:`${'Contract context. '.repeat(1_100)}\nUser instruction tail.`,responseSchema},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open','weather.forecast'],requiredTools:['web.open','weather.forecast'],approvedWeatherScope:{location:'Oslo',period:'tomorrow',timeWindow:'all'}});
+  assert.equal(inputs.length,2);assert.ok(inputs[1]!.length<=32_000);assert.equal(inputs[1]!.match(new RegExp(sentinel,'g'))?.length,1);assert.match(inputs[1]!,/User instruction tail/);
+});
+
+test('runner allows only one provider-response repair attempt',async()=>{
+  let sessions=0;
+  const ai={createTaskSession:async()=>{sessions++;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{
+    throw new DomainError('AI_RESPONSE_INVALID',502);
+  }};}} as unknown as AiAdminService;
+  const weather={forecast:async()=>({sourceUrl:'https://api.met.no/private-coordinates',attribution:'MET Norway Locationforecast' as const,retrievedAt:at,updatedAt:at,validFrom:'2026-09-11T00:00:00.000Z',validTo:'2026-09-11T23:00:00.000Z',location:{query:'Oslo',canonicalName:'Oslo',municipality:'Oslo',region:'Oslo',country:'Norge' as const,latitude:59.9,longitude:10.7,placeId:'synthetic'},points:[{at:'2026-09-11T12:00:00.000Z',temperatureC:12,precipitationMm:0,windSpeedMps:2,symbolCode:'clearsky_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const})};
+  const responseSchema={name:'synthetic_result',schema:{type:'object',properties:{answer:{type:'string'}},required:['answer'],additionalProperties:false}};
+  await assert.rejects(new MonitorAgentRunner(ai,{fetch:async()=>root} as unknown as MonitorSourceFetcher,1000,weather as never).run({householdId:'00000000-0000-4000-8000-000000000001',task:{...task,responseSchema},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open','weather.forecast'],requiredTools:['web.open','weather.forecast'],approvedWeatherScope:{location:'Oslo',period:'tomorrow',timeWindow:'all'}}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.aiCalls===2&&error.details?.validationReason==='invalid_provider_response');
+  assert.equal(sessions,2);
+});
+
 test('one format repair can reuse server-validated seed evidence without network or tool access',async()=>{
-  let toolCount=-1;let input='';let fetches=0;const root:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',text:'Outdoor activity 2030-09-20',headings:['Outdoor activity'],links:[],fingerprint:'seed',evidenceDates:['2030-09-20']};
-  const ai={createTaskSession:async(_household:string,task:AiTask,_policy:unknown,tools:unknown[])=>{toolCount=tools.length;input=task.input;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>({output:'repaired final',toolCalls:[],generatedAt:'2026-09-12T08:00:00Z'})};}} as unknown as AiAdminService;
+  let toolCount=-1;let input='';let mode:unknown;let fetches=0;const root:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',text:'Outdoor activity 2030-09-20',headings:['Outdoor activity'],links:[],fingerprint:'seed',evidenceDates:['2030-09-20']};
+  const ai={createTaskSession:async(_household:string,task:AiTask,_policy:unknown,tools:unknown[],_signal:unknown,receivedMode:unknown)=>{toolCount=tools.length;input=task.input;mode=receivedMode;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>({output:'repaired final',toolCalls:[],generatedAt:'2026-09-12T08:00:00Z'})};}} as unknown as AiAdminService;
   const fetcher={fetch:async()=>{fetches++;throw new Error('must not fetch');}} as unknown as MonitorSourceFetcher;const result=await new MonitorAgentRunner(ai,fetcher).run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'repair',input:'Return strict JSON',modelTier:'strong',sources:[]},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open'],requiredTools:['web.open'],seedDocuments:[root],preloadSeedDocuments:true,maxTurns:1});
-  assert.equal(result.output,'repaired final');assert.equal(result.aiCalls,1);assert.equal(result.attemptedToolCount,0);assert.equal(toolCount,0);assert.equal(fetches,0);assert.match(input,/already fetched and validated/);assert.equal(result.evidenceDocuments[0]!.finalUrl,root.finalUrl);
+  assert.equal(result.output,'repaired final');assert.equal(result.aiCalls,1);assert.equal(result.attemptedToolCount,0);assert.equal(toolCount,0);assert.equal(mode,'format_repair');assert.equal(fetches,0);assert.match(input,/already fetched and validated/);assert.equal(result.evidenceDocuments[0]!.finalUrl,root.finalUrl);
 });
 
 test('runner enforces a pinned provider before an escalation sends any task turn',async()=>{
@@ -61,8 +115,27 @@ test('runner deduplicates an identical successful domain-tool call and asks for 
 
 test('runner rejects a final answer that omits a required tool so the caller can escalate once',async()=>{
   const h=harness([{output:'Premature unsupported source answer',toolCalls:[],generatedAt:at}]);
-  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.aiCalls===1&&error.details?.provider==='openai_compatible');
+  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.aiCalls===1&&error.details?.provider==='openai_compatible'&&error.details?.validationStage==='required_tools'&&error.details?.validationReason==='missing_required_tool');
   assert.deepEqual(h.choices,['required']);assert.equal(h.fetches,0);assert.deepEqual(h.results,[[]]);
+});
+
+test('multi-tool runs preexecute the approved root so a provider cannot omit required web evidence',async()=>{
+  let weatherCalls=0;let fetches=0;let disclosedTools:string[]=[];const choices:Array<'auto'|'required'>=[];
+  const ai={createTaskSession:async(_household:string,_task:AiTask,_policy:unknown,tools:Array<{name:string}>)=>{disclosedTools=tools.map((item)=>item.name);return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(_results:AiToolResult[]=[],choice:'auto'|'required'='auto')=>{choices.push(choice);return{output:'provider final without tool call',toolCalls:[],generatedAt:at};}};}} as unknown as AiAdminService;
+  const fetcher={fetch:async(url:string)=>{fetches++;assert.equal(url,root.finalUrl);return root;}} as unknown as MonitorSourceFetcher;
+  const weather={forecast:async()=>{weatherCalls++;return{sourceUrl:'https://api.met.no/private-coordinates',attribution:'MET Norway Locationforecast' as const,retrievedAt:at,updatedAt:at,validFrom:'2026-09-11T00:00:00.000Z',validTo:'2026-09-11T23:00:00.000Z',location:{query:'Oslo',canonicalName:'Oslo',municipality:'Oslo',region:'Oslo',country:'Norge' as const,latitude:59.9,longitude:10.7,placeId:'synthetic'},points:[{at:'2026-09-11T12:00:00.000Z',temperatureC:12,precipitationMm:0,windSpeedMps:2,symbolCode:'clearsky_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const};}};
+  const result=await new MonitorAgentRunner(ai,fetcher,1000,weather as never).run({householdId:'00000000-0000-4000-8000-000000000001',task:{...task,input:'Combine the approved schedule with Oslo weather tomorrow.',modelTier:'strong'},policy:'local',rootUrl:root.finalUrl,toolNames:['web.open','weather.forecast'],requiredTools:['web.open','weather.forecast'],approvedWeatherScope:{location:'Oslo',period:'tomorrow',timeWindow:'all'}});
+  assert.equal(result.output,'provider final without tool call');assert.equal(result.aiCalls,1);assert.equal(result.attemptedToolCount,2);assert.equal(fetches,1);assert.equal(weatherCalls,1);assert.deepEqual(disclosedTools,['web.open'],'the model may still follow exact links surfaced by the preopened root');assert.deepEqual(choices,['auto']);assert.deepEqual(new Set(result.provenance.map((item)=>item.tool)),new Set(['web.open','weather.forecast']));assert.deepEqual(new Set(result.dependencies.map((item)=>item.tool??'web.open')),new Set(['web.open','weather.forecast']));assert.equal(result.evidenceDocuments.length,2);
+});
+
+test('multi-tool follow-up finalizes in one isolated structured session',async()=>{
+  const modes:unknown[]=[];const toolCounts:number[]=[];let sessions=0;
+  const ai={createTaskSession:async(_household:string,_task:AiTask,_policy:unknown,tools:Array<{name:string}>,_signal:unknown,mode:unknown)=>{const current=sessions++;modes.push(mode);toolCounts.push(tools.length);return{provider:'openai_compatible' as const,model:'synthetic-strong',close:()=>{},next:async()=>current===0?{toolCalls:[{id:'call_follow',name:'web.open',arguments:{url:news.finalUrl}}],generatedAt:at}:{output:'{"version":1,"events":[]}',toolCalls:[],generatedAt:at}};}} as unknown as AiAdminService;
+  const fetcher={fetch:async(url:string)=>url===root.finalUrl?root:news} as unknown as MonitorSourceFetcher;
+  const weather={forecast:async()=>({sourceUrl:'https://api.met.no/private-coordinates',attribution:'MET Norway Locationforecast' as const,retrievedAt:at,updatedAt:at,validFrom:'2026-09-11T00:00:00.000Z',validTo:'2026-09-11T23:00:00.000Z',location:{query:'Oslo',canonicalName:'Oslo',municipality:'Oslo',region:'Oslo',country:'Norge' as const,latitude:59.9,longitude:10.7,placeId:'synthetic'},points:[{at:'2026-09-11T12:00:00.000Z',temperatureC:12,precipitationMm:0,windSpeedMps:2,symbolCode:'clearsky_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const})};
+  const responseSchema={name:'synthetic_result',schema:{type:'object',properties:{version:{type:'integer'},events:{type:'array'}},required:['version','events'],additionalProperties:false}};
+  const result=await new MonitorAgentRunner(ai,fetcher,1000,weather as never).run({householdId:'00000000-0000-4000-8000-000000000001',task:{...task,modelTier:'strong',responseSchema},policy:'local',rootUrl:root.finalUrl,toolNames:['web.open','weather.forecast'],requiredTools:['web.open','weather.forecast'],approvedWeatherScope:{location:'Oslo',period:'tomorrow',timeWindow:'all'}});
+  assert.equal(result.output,'{"version":1,"events":[]}');assert.equal(result.aiCalls,2);assert.equal(result.attemptedToolCount,3);assert.deepEqual(modes,['analysis','format_repair']);assert.deepEqual(toolCounts,[1,0]);assert.deepEqual(new Set(result.provenance.map((item)=>item.tool)),new Set(['web.open','weather.forecast']));assert.deepEqual(result.evidenceDocuments.map((item)=>item.finalUrl).sort(),[root.finalUrl,news.finalUrl,'https://api.met.no/weatherapi/locationforecast/2.0/documentation'].sort());
 });
 
 test('runner rejects credential-bearing root URLs before provider or fetch access',async()=>{

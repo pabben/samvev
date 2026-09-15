@@ -169,15 +169,17 @@ SAMVEV_BIND_ADDRESS=0.0.0.0
 SAMVEV_PORT=4173
 SAMVEV_DEMO_MODE=false
 SAMVEV_PUBLIC_ORIGIN=https://samvev.pabben.org
-SAMVEV_TRUST_PROXY=192.168.0.188/32
+# Set to the verified immediate Newt IPv4 peer followed by /32.
+# Keep empty until that peer has been verified.
+SAMVEV_TRUST_PROXY=
 ```
 
-The bind makes port 4173 reachable on every IPv4 interface of `claude`,
+The bind makes port 4173 reachable on every IPv4 interface of the Samvev VM,
 including its LAN interface. Do not add a router/NAT port-forward for 4173.
 If only Newt should reach it, enforce a host or network firewall allow-rule for
-source `192.168.0.188` and deny other sources to TCP 4173. The trusted proxy is
-only the verified Synology host `nas.lan.pabben.no` at `192.168.0.188`; direct traffic from other
-LAN addresses cannot supply trusted forwarding headers. Confirm the immediate
+the verified Newt host as the source and deny other sources to TCP 4173. Set
+`SAMVEV_TRUST_PROXY` only to that immediate peer address with a `/32` mask;
+direct traffic from other LAN addresses cannot supply trusted forwarding headers. Confirm the immediate
 peer after the first tunneled request and after network changes; never trust an
 entire LAN subnet or set proxy trust to `true` or `*`. The app does not redirect
 internal HTTP to HTTPS. Pangolin terminates TLS, so this avoids a redirect loop
@@ -189,7 +191,7 @@ Configure the existing Pangolin/Newt resource on the Synology as follows:
 | --- | --- |
 | Public hostname | `samvev.pabben.org` |
 | Target protocol | `HTTP` |
-| Target host | `192.168.0.144` |
+| Target host | `<SAMVEV_VM_LAN_IP>` (verified by the administrator) |
 | Target port | `4173` |
 | Health path | `/api/v1/health` |
 | Pangolin authentication | `Off` |
@@ -212,9 +214,10 @@ after the change. Open `https://samvev.pabben.org/display` and pair each display
 again after moving from localhost because host-scoped cookies do not transfer
 between origins. The localhost browser URL is only for the initial private setup.
 
-`claude.lan.pabben.no` resolved to the same address during deployment, but use
-the numeric target unless the Synology resolver also confirms that hostname.
-Direct `http://192.168.0.144:4173` is an internal reachability and health target,
+Record the actual VM and Newt addresses only in ignored local deployment
+configuration. Replace `<SAMVEV_VM_LAN_IP>` with the verified VM address; a LAN
+hostname is also suitable if the Newt host resolves it reliably.
+Direct `http://<SAMVEV_VM_LAN_IP>:4173` is an internal reachability and health target,
 not an authenticated browser origin. Its HTTP Origin is rejected for mutations,
 and HTTPS-configured session/display cookies remain `Secure`; users
 continue to sign in through `https://samvev.pabben.org`. This also means direct

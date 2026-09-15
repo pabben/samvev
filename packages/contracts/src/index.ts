@@ -157,6 +157,13 @@ export const aiSourceEvidenceSchema = z.object({
   uncertainty: z.enum(aiUncertaintyLevels)
 }).strict();
 
+export const aiResponseSchemaSchema = z.object({
+  name: z.string().regex(/^[A-Za-z][A-Za-z0-9_-]{0,63}$/),
+  schema: z.record(z.string(), z.unknown()).refine((value) => {
+    try { return JSON.stringify(value).length <= 8_000; } catch { return false; }
+  })
+}).strict();
+
 /** Provider-neutral work: provider and concrete model are deliberately absent. */
 export const aiTaskSchema = z.object({
   operation: z.enum(aiOperations),
@@ -164,6 +171,7 @@ export const aiTaskSchema = z.object({
   input: z.string().min(1).max(32_000),
   modelTier: z.enum(aiModelTiers),
   maxOutputTokens: z.number().int().min(16).max(8192).optional(),
+  responseSchema: aiResponseSchemaSchema.optional(),
   sources: z.array(aiSourceEvidenceSchema).max(20).default([])
 }).strict();
 

@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
-import type { AiModelTier, AiProviderId, AiTask, AiToolResult, MonitorProviderPolicy, MonitorToolName } from '@samvev/contracts';
+import type { AiModelTier, AiProviderId, AiProviderTurn, AiTask, AiToolResult, MonitorProviderPolicy, MonitorToolName } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
 import { MonitorSourceFetcher, normalizeMonitorUrl, type SourceDocument } from './source-fetcher.ts';
 import { monitorToolRegistry, monitorWebTool, webOpenArgsSchema, type ApprovedWeatherScope } from './tool-registry.ts';
 import { MET_PUBLIC_FORECAST_URL, MetWeatherClient, norwegianWeatherDate, weatherEvidenceText, type WeatherForecast, type WeatherForecastArgs } from './weather.ts';
+import { sanitizedValidationDetails, validationError } from './validation-diagnostics.ts';
 
 const MAX_TOOL_EXECUTIONS=6;
 const MAX_PROVIDER_TURNS=7;
@@ -18,6 +19,8 @@ const MAX_TOOL_LINKS=24;
 const MAX_TOOL_LINK_LABEL_BYTES=320;
 const MAX_TOOL_LINKS_BYTES=5*1024;
 const MAX_AGGREGATE_TOOL_BYTES=MAX_TOOL_PAYLOAD_BYTES*MAX_TOOL_EXECUTIONS;
+const MAX_REPAIR_EVIDENCE_BYTES=16*1024;
+const MAX_AI_TASK_INPUT_CHARS=32_000;
 export const MONITOR_AGENT_DEADLINE_MS=180_000;
 export const MONITOR_LEASE_MS=240_000;
 const TOOL_SCOPE_ERROR=JSON.stringify({
@@ -28,7 +31,7 @@ const TOOL_SCOPE_ERROR=JSON.stringify({
 export { monitorWebTool } from './tool-registry.ts';
 
 export interface MonitorDependency {tool?:MonitorToolName;url:string;fingerprint:string;contentType:SourceDocument['contentType'];weatherRequest?:WeatherForecastArgs;}
-export interface MonitorToolProvenance {tool:MonitorToolName;requestedUrl:string;finalUrl:string;contentType:SourceDocument['contentType'];fingerprint:string;fetchedAt:string;httpStatus?:number;byteSize?:number;label?:string;attribution?:string;validFrom?:string;validTo?:string;forecastUpdatedAt?:string;requestedLocation?:string;canonicalLocation?:string;municipality?:string|null;region?:string|null;country?:string;}
+export interface MonitorToolProvenance {tool:MonitorToolName;requestedUrl:string;finalUrl:string;contentType:SourceDocument['contentType'];fingerprint:string;fetchedAt:string;httpStatus?:number;byteSize?:number;cacheStatus?:'hit'|'miss'|'revalidated';label?:string;attribution?:string;validFrom?:string;validTo?:string;forecastUpdatedAt?:string;requestedLocation?:string;canonicalLocation?:string;municipality?:string|null;region?:string|null;country?:string;}
 export interface MonitorToolAttempt {tool:MonitorToolName;requestedUrl:string;outcome:'success'|'failed';errorCode:string|null;}
 export interface MonitorAgentResult {
   output:string;provider:AiProviderId;model:string;aiCalls:number;attemptedToolCount:number;documents:SourceDocument[];evidenceDocuments:SourceDocument[];
@@ -112,6 +115,20 @@ function weatherPayload(forecast:WeatherForecast):{output:string;evidenceDocumen
   return{output,evidenceDocument:{finalUrl:MET_PUBLIC_FORECAST_URL,publicEvidenceUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',text,fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(output),evidenceKind:'weather',evidenceDates:[...new Set(forecast.points.map((point)=>norwegianWeatherDate(new Date(point.at))))],evidenceComplete:true}};
 }
 
+function verifiedEvidenceContext(documents:Iterable<SourceDocument>):string{
+  const values=[...documents].slice(0,MAX_TOOL_EXECUTIONS);const perDocument=Math.floor(MAX_REPAIR_EVIDENCE_BYTES/Math.max(1,values.length));
+  return values.map((source)=>{
+    const base={tool:source.evidenceKind==='weather'||source.contentType==='application/vnd.met.no.locationforecast+json'?'weather.forecast':'web.open',toolStatus:'success',url:source.publicEvidenceUrl??source.finalUrl,...(source.title?{title:truncateUtf8(source.title,MAX_TOOL_TITLE_BYTES)}:{}),headings:(source.headings??[]).slice(0,MAX_TOOL_HEADINGS).map((value)=>truncateUtf8(value,MAX_TOOL_HEADING_BYTES))};
+    let low=0;let high=source.text.length;let output=JSON.stringify({...base,text:''});while(low<=high){const middle=Math.floor((low+high)/2);const candidate=JSON.stringify({...base,text:source.text.slice(0,middle)});if(Buffer.byteLength(candidate)<=perDocument){output=candidate;low=middle+1;}else high=middle-1;}return output;
+  }).join('\n');
+}
+
+function boundedRepairInput(base:string,evidence:string):string{
+  const instruction="\nThe provider's previous terminal response was invalid. The required tools already succeeded. Use only the server-verified evidence below and return one JSON object matching the response schema. Do not call tools.\n";
+  const available=Math.max(0,MAX_AI_TASK_INPUT_CHARS-instruction.length-evidence.length);if(base.length<=available)return`${base}${instruction}${evidence}`;
+  const head=Math.ceil(available/2);const tail=Math.floor(available/2);return`${base.slice(0,head)}${base.slice(base.length-tail)}${instruction}${evidence}`;
+}
+
 export class MonitorAgentRunner {
   constructor(private readonly ai:AiAdminService,private readonly fetcher=new MonitorSourceFetcher(),private readonly deadlineMs=MONITOR_AGENT_DEADLINE_MS,private readonly weather=new MetWeatherClient()){}
 
@@ -141,25 +158,63 @@ export class MonitorAgentRunner {
         const payload=weatherPayload(forecast);aggregateBytes=Buffer.byteLength(payload.output);if(aggregateBytes>MAX_AGGREGATE_TOOL_BYTES)fail('MONITOR_TOOL_LIMIT',413);
         documents.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);evidenceDocuments.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);usedTools.add('weather.forecast');
         const dependency:MonitorDependency={tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest};dependencies.set(`weather:${JSON.stringify(weatherRequest)}`,dependency);
-        provenance.push({tool:'weather.forecast',requestedUrl:'weather.forecast',finalUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(payload.output),label:forecast.location.canonicalName,attribution:forecast.attribution,validFrom:forecast.validFrom,validTo:forecast.validTo,...(forecast.updatedAt?{forecastUpdatedAt:forecast.updatedAt}:{}),requestedLocation:weatherRequest.location,canonicalLocation:forecast.location.canonicalName,municipality:forecast.location.municipality,region:forecast.location.region,country:forecast.location.country});
+        provenance.push({tool:'weather.forecast',requestedUrl:'weather.forecast',finalUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(payload.output),cacheStatus:forecast.cacheStatus,label:forecast.location.canonicalName,attribution:forecast.attribution,validFrom:forecast.validFrom,validTo:forecast.validTo,...(forecast.updatedAt?{forecastUpdatedAt:forecast.updatedAt}:{}),requestedLocation:weatherRequest.location,canonicalLocation:forecast.location.canonicalName,municipality:forecast.location.municipality,region:forecast.location.region,country:forecast.location.country});
         attempts.push({tool:'weather.forecast',requestedUrl:'weather.forecast',outcome:'success',errorCode:null});completedCalls.set(`weather.forecast:${JSON.stringify(weatherRequest)}`,{tool:'weather.forecast',requested:'weather.forecast'});
         sessionTask={...input.task,input:`${input.task.input}\nSamvev already executed the approved weather.forecast call. Use this verified result and return the required final JSON without repeating the call:\n${payload.output}`};
+      }
+      // A provider may ignore a required tool choice and return a premature final
+      // answer. For an explicitly approved multi-tool source, open only the
+      // already-normalized root before the first model turn. This keeps network
+      // authority in Samvev, preserves the normal fetch limits, and guarantees
+      // that the required web evidence exists without trusting provider-specific
+      // tool-choice behaviour.
+      const preopenApprovedRoot=Boolean(rootUrl&&toolNames.length>1&&toolNames.includes('web.open')&&requiredTools.has('web.open'));
+      if(preopenApprovedRoot&&rootUrl&&!usedTools.has('web.open')){
+        if(toolExecutions>=maxToolExecutions)fail('MONITOR_TOOL_LIMIT');
+        attemptedToolCount++;toolExecutions++;
+        let source=cache.get(rootUrl);
+        const started=Date.now();
+        try{
+          if(!source){await input.observer?.progress('fetching_source');source=await this.fetcher.fetch(rootUrl,{followLinkedPdf:false,signal:controller.signal});cache.set(rootUrl,source);}
+        }catch(error){const code=error instanceof DomainError&&/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_SOURCE_UNAVAILABLE';attempts.push({tool:'web.open',requestedUrl:rootUrl,outcome:'failed',errorCode:code});throw error;}
+        finally{input.observer?.tool('web.open',Date.now()-started);}
+        rootOrigin=new URL(source.finalUrl).origin;rootOpened=true;
+        cache.set(canonical(source.finalUrl),source);documents.set(source.finalUrl,source);usedTools.add('web.open');allowed.add(canonical(source.finalUrl));
+        const payload=boundedPayload(source,rootOrigin);for(const link of payload.links)allowed.add(link.url);
+        evidenceDocuments.set(source.finalUrl,{...payload.evidenceDocument,evidenceKind:'web',evidenceUrlAliases:[...new Set([rootUrl,source.finalUrl])]});
+        aggregateBytes+=Buffer.byteLength(payload.output);if(aggregateBytes>MAX_AGGREGATE_TOOL_BYTES)fail('MONITOR_TOOL_LIMIT',413);
+        provenance.push({tool:'web.open',requestedUrl:rootUrl,finalUrl:source.finalUrl,contentType:source.contentType,fingerprint:source.fingerprint,fetchedAt:source.fetchedAt??new Date().toISOString(),label:new URL(source.finalUrl).hostname,...(source.httpStatus===undefined?{}:{httpStatus:source.httpStatus}),...(source.byteSize===undefined?{}:{byteSize:source.byteSize})});
+        attempts.push({tool:'web.open',requestedUrl:rootUrl,outcome:'success',errorCode:null});completedCalls.set(`web.open:${JSON.stringify({url:rootUrl})}`,{tool:'web.open',requested:rootUrl});dependencies.set(`web:${source.finalUrl}`,{url:source.finalUrl,fingerprint:source.fingerprint,contentType:source.contentType});
+        sessionTask={...sessionTask,input:`${sessionTask.input}\nSamvev already opened and validated the explicitly approved root source. Use this evidence and return the required final JSON without repeating the root call:\n${payload.output}`};
       }
       if(input.preloadSeedDocuments&&input.seedDocuments?.length){const contexts:string[]=[];for(const source of input.seedDocuments){
         if((source.evidenceKind==='weather'||source.contentType==='application/vnd.met.no.locationforecast+json')&&toolNames.includes('weather.forecast')){documents.set(source.finalUrl,source);evidenceDocuments.set(source.finalUrl,source);usedTools.add('weather.forecast');contexts.push(JSON.stringify({tool:'weather.forecast',toolStatus:'success',url:source.publicEvidenceUrl??source.finalUrl,text:truncateUtf8(source.text,MAX_TOOL_PAYLOAD_BYTES)}));continue;}
         if(toolNames.includes('web.open')&&rootUrl&&sameOrigin(source.finalUrl,new URL(rootUrl).origin)){const payload=boundedPayload(source,new URL(rootUrl).origin);documents.set(source.finalUrl,source);evidenceDocuments.set(source.finalUrl,{...payload.evidenceDocument,evidenceKind:'web',evidenceUrlAliases:[rootUrl,source.finalUrl]});usedTools.add('web.open');contexts.push(JSON.stringify({tool:'web.open',toolStatus:'success',url:source.finalUrl,payload:JSON.parse(payload.output)}));}
       }if(contexts.length)sessionTask={...sessionTask,input:`${sessionTask.input}\nSamvev already fetched and validated the approved source evidence below. Do not call tools again. Repair the response and return only the required final JSON:\n${contexts.join('\n')}`};}
-      session=await this.ai.createTaskSession(input.householdId,sessionTask,input.policy,contracts.filter((item)=>!usedTools.has(item.name)).map((item)=>item.definition),controller.signal);
+      const allowFollowLinks=preopenApprovedRoot&&!input.preloadSeedDocuments;
+      session=await this.ai.createTaskSession(
+        input.householdId,sessionTask,input.policy,
+        contracts.filter((item)=>(item.name==='web.open'&&allowFollowLinks)||!usedTools.has(item.name)).map((item)=>item.definition),
+        controller.signal,input.preloadSeedDocuments?'format_repair':'analysis'
+      );
       if(input.expectedProvider&&session.provider!==input.expectedProvider)throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
-      let results:AiToolResult[]=[];
+      let results:AiToolResult[]=[];let terminalRepairAttempted=false;
       for(let turnNumber=1;turnNumber<=maxTurns;turnNumber++){
         if(controller.signal.aborted)throw new DomainError('AI_TIMEOUT',504);
         const sourceRequired=[...requiredTools].some((name)=>!usedTools.has(name));
-        await input.observer?.progress('analyzing');aiCalls++;const providerStarted=Date.now();const turn=await (async()=>{
-          try{return await session.next(results,sourceRequired?'required':'auto');}finally{input.observer?.providerTurn(Date.now()-providerStarted);}
-        })();
+        await input.observer?.progress('analyzing');aiCalls++;const providerStarted=Date.now();let turn:AiProviderTurn;
+        try{turn=await (async()=>{try{return await session.next(results,sourceRequired?'required':'auto');}finally{input.observer?.providerTurn(Date.now()-providerStarted);}})();}
+        catch(error){
+          const provider=session.provider;const canRepair=error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&!sourceRequired&&requiredTools.size>1&&evidenceDocuments.size>1&&!terminalRepairAttempted&&!input.preloadSeedDocuments&&turnNumber<maxTurns&&Boolean(input.task.responseSchema);
+          if(!canRepair)throw error;
+          terminalRepairAttempted=true;session.close();results=[];
+          const repairTask={...input.task,input:boundedRepairInput(input.task.input,verifiedEvidenceContext(evidenceDocuments.values()))};
+          session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair');
+          if(session.provider!==provider||(input.expectedProvider&&session.provider!==input.expectedProvider)){session.close();throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);}
+          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();try{turn=await session.next([],'auto');}finally{input.observer?.providerTurn(Date.now()-repairStarted);}
+        }
         results=[];
-        if(turn.output){if(sourceRequired)throw new DomainError('AI_RESPONSE_INVALID',502);return {output:turn.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};}
+        if(turn.output){if(sourceRequired)throw validationError('AI_RESPONSE_INVALID',502,'required_tools','missing_required_tool');return {output:turn.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};}
         if(!turn.toolCalls.length)fail('MONITOR_TOOL_INVALID');
         attemptedToolCount+=turn.toolCalls.length;
         if(toolExecutions+turn.toolCalls.length>maxToolExecutions)fail('MONITOR_TOOL_LIMIT');
@@ -196,7 +251,7 @@ export class MonitorAgentRunner {
             const payload=weatherPayload(forecast);documents.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);evidenceDocuments.set(MET_PUBLIC_FORECAST_URL,payload.evidenceDocument);usedTools.add('weather.forecast');
             aggregateBytes+=Buffer.byteLength(payload.output);if(aggregateBytes>MAX_AGGREGATE_TOOL_BYTES)fail('MONITOR_TOOL_LIMIT',413);
             const dependency:MonitorDependency={tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest};dependencies.set(`weather:${JSON.stringify(weatherRequest)}`,dependency);
-            provenance.push({tool:'weather.forecast',requestedUrl:requested,finalUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(payload.output),label:forecast.location.canonicalName,attribution:forecast.attribution,validFrom:forecast.validFrom,validTo:forecast.validTo,...(forecast.updatedAt?{forecastUpdatedAt:forecast.updatedAt}:{}),requestedLocation:weatherRequest.location,canonicalLocation:forecast.location.canonicalName,municipality:forecast.location.municipality,region:forecast.location.region,country:forecast.location.country});
+            provenance.push({tool:'weather.forecast',requestedUrl:requested,finalUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(payload.output),cacheStatus:forecast.cacheStatus,label:forecast.location.canonicalName,attribution:forecast.attribution,validFrom:forecast.validFrom,validTo:forecast.validTo,...(forecast.updatedAt?{forecastUpdatedAt:forecast.updatedAt}:{}),requestedLocation:weatherRequest.location,canonicalLocation:forecast.location.canonicalName,municipality:forecast.location.municipality,region:forecast.location.region,country:forecast.location.country});
             attempts.push({tool:'weather.forecast',requestedUrl:requested,outcome:'success',errorCode:null});completedCalls.set(completionKey,{tool:'weather.forecast',requested});results.push({callId:call.id,name:call.name,output:payload.output});continue;
           }
           let source=cache.get(requested);
@@ -217,32 +272,53 @@ export class MonitorAgentRunner {
           dependencies.set(`web:${source.finalUrl}`,{url:source.finalUrl,fingerprint:source.fingerprint,contentType:source.contentType});
           results.push({callId:call.id,name:call.name,output:payload.output});
         }
+        // Once an approved multi-source run has every required evidence kind,
+        // one model-selected follow-up call is enough to refine the evidence
+        // window. Finalize from the complete server-held evidence in a fresh,
+        // tool-free structured session. This avoids carrying provider-specific
+        // tool protocol state and a duplicated source window into another turn.
+        if(preopenApprovedRoot&&!terminalRepairAttempted&&turnNumber<maxTurns&&
+          [...requiredTools].every((name)=>usedTools.has(name))&&evidenceDocuments.size>1){
+          terminalRepairAttempted=true;const provider=session.provider;session.close();results=[];
+          const repairTask={...input.task,input:boundedRepairInput(input.task.input,verifiedEvidenceContext(evidenceDocuments.values()))};
+          session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair');
+          if(session.provider!==provider||(input.expectedProvider&&session.provider!==input.expectedProvider)){session.close();throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);}
+          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();let repaired:AiProviderTurn;
+          try{repaired=await session.next([],'auto');}finally{input.observer?.providerTurn(Date.now()-repairStarted);}
+          if(!repaired.output||repaired.toolCalls.length)throw validationError('AI_RESPONSE_INVALID',502,'provider_response','invalid_turn_shape');
+          return{output:repaired.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};
+        }
       }
       fail('MONITOR_TOOL_LIMIT');
     }catch(error){
-      if(error instanceof DomainError)throw new DomainError(error.code,error.status,{...(error.details??{}),aiCalls,attemptedToolCount,provenance,attempts,dependencies:[...dependencies.values()],...(session?{provider:session.provider}:{})});
+      const providerReasons=['invalid_json_body','missing_choices','missing_message','invalid_tool_calls','empty_content','invalid_turn_shape','response_too_large','upstream_http_4xx','upstream_http_5xx','upstream_http_other','upstream_invalid_json','upstream_response_too_large','upstream_context_limit','upstream_rate_limited','upstream_format_unsupported','upstream_tool_unsupported','network_error'] as const;
+      const providerReason=error instanceof DomainError&&typeof error.details?.providerResponseReason==='string'&&providerReasons.includes(error.details.providerResponseReason as typeof providerReasons[number])?error.details.providerResponseReason as typeof providerReasons[number]:undefined;
+      const diagnosed=error instanceof DomainError&&((error.code==='AI_RESPONSE_INVALID')||(error.code==='AI_UPSTREAM_ERROR'&&providerReason))&&!sanitizedValidationDetails(error.details)
+        ?validationError(error.code,error.status,'provider_response',providerReason??'invalid_provider_response')
+        :error;
+      if(diagnosed instanceof DomainError)throw new DomainError(diagnosed.code,diagnosed.status,{...(diagnosed.details??{}),aiCalls,attemptedToolCount,provenance,attempts,dependencies:[...dependencies.values()],...(session?{provider:session.provider}:{})});
       throw error;
     }finally{session?.close();clearTimeout(timeout);input.signal?.removeEventListener('abort',abort);controller.abort();}
     throw new DomainError('MONITOR_TOOL_LIMIT',502);
   }
 
-  async refreshDependencies(dependencies:MonitorDependency[],signal?:AbortSignal,options:{dynamicWeatherDate?:boolean;observer?:MonitorExecutionObserver}={}):Promise<{changed:boolean;documents:SourceDocument[];fingerprint:string}>{
+  async refreshDependencies(dependencies:MonitorDependency[],signal?:AbortSignal,options:{dynamicWeatherDate?:boolean;observer?:MonitorExecutionObserver}={}):Promise<{changed:boolean;documents:SourceDocument[];fingerprint:string;provenance:MonitorToolProvenance[];attempts:MonitorToolAttempt[];dependencies:MonitorDependency[]}>{
     const controller=new AbortController();const abort=()=>controller.abort();if(signal?.aborted)controller.abort();else signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(abort,Math.min(this.deadlineMs,90_000));
     try{
-      if(!dependencies.length)return{changed:true,documents:[],fingerprint:''};
-      const documents:SourceDocument[]=[];const current:MonitorDependency[]=[];let changedWebEvidence=false;
+      if(!dependencies.length)return{changed:true,documents:[],fingerprint:'',provenance:[],attempts:[],dependencies:[]};
+      const documents:SourceDocument[]=[];const current:MonitorDependency[]=[];const provenance:MonitorToolProvenance[]=[];const attempts:MonitorToolAttempt[]=[];let changedWebEvidence=false;
       const ordered=options.dynamicWeatherDate?[...dependencies].sort((left,right)=>(left.tool==='weather.forecast'?1:0)-(right.tool==='weather.forecast'?1:0)):dependencies;
       for(const dependency of ordered){
         if(dependency.tool==='weather.forecast'){
           if(options.dynamicWeatherDate&&changedWebEvidence)continue;
           if(!dependency.weatherRequest)throw new DomainError('MONITOR_WEATHER_INVALID',502);
-          const started=Date.now();let weatherTiming:WeatherForecast['timing'];try{await options.observer?.progress('fetching_weather');const forecast=await this.weather.forecast(dependency.weatherRequest,controller.signal);weatherTiming=forecast.timing;const payload=weatherPayload(forecast);documents.push(payload.evidenceDocument);current.push({tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest:dependency.weatherRequest});}
+          const started=Date.now();let weatherTiming:WeatherForecast['timing'];try{await options.observer?.progress('fetching_weather');const forecast=await this.weather.forecast(dependency.weatherRequest,controller.signal);weatherTiming=forecast.timing;const payload=weatherPayload(forecast);documents.push(payload.evidenceDocument);current.push({tool:'weather.forecast',url:MET_PUBLIC_FORECAST_URL,fingerprint:forecast.fingerprint,contentType:'application/vnd.met.no.locationforecast+json',weatherRequest:dependency.weatherRequest});provenance.push({tool:'weather.forecast',requestedUrl:'weather.forecast',finalUrl:MET_PUBLIC_FORECAST_URL,contentType:'application/vnd.met.no.locationforecast+json',fingerprint:forecast.fingerprint,fetchedAt:forecast.retrievedAt,httpStatus:forecast.httpStatus,byteSize:Buffer.byteLength(payload.output),cacheStatus:forecast.cacheStatus,label:forecast.location.canonicalName,attribution:forecast.attribution,validFrom:forecast.validFrom,validTo:forecast.validTo,canonicalLocation:forecast.location.canonicalName});attempts.push({tool:'weather.forecast',requestedUrl:'weather.forecast',outcome:'success',errorCode:null});}
           catch(error){if(error instanceof DomainError)throw new DomainError(error.code,error.status,{...(error.details??{}),attempts:[{tool:'weather.forecast',requestedUrl:'weather.forecast',outcome:'failed',errorCode:error.code}]});throw error;}
           finally{options.observer?.tool('weather.forecast',Date.now()-started,{locationMs:weatherTiming?.locationMs,weatherMs:weatherTiming?.forecastMs});}continue;
         }
-        const requested=canonical(dependency.url);const started=Date.now();try{await options.observer?.progress('fetching_source');const source=await this.fetcher.fetch(requested,{followLinkedPdf:false,signal:controller.signal,redirectOrigin:new URL(requested).origin});documents.push(source);current.push({url:source.finalUrl,fingerprint:source.fingerprint,contentType:source.contentType});if(source.finalUrl!==dependency.url||source.fingerprint!==dependency.fingerprint)changedWebEvidence=true;}catch(error){if(error instanceof DomainError){const code=/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_SOURCE_UNAVAILABLE';throw new DomainError(error.code,error.status,{...(error.details??{}),attempts:[{tool:'web.open',requestedUrl:requested,outcome:'failed',errorCode:code}]});}throw error;}finally{options.observer?.tool('web.open',Date.now()-started);}
+        const requested=canonical(dependency.url);const started=Date.now();try{await options.observer?.progress('fetching_source');const source=await this.fetcher.fetch(requested,{followLinkedPdf:false,signal:controller.signal,redirectOrigin:new URL(requested).origin});documents.push(source);current.push({url:source.finalUrl,fingerprint:source.fingerprint,contentType:source.contentType});provenance.push({tool:'web.open',requestedUrl:requested,finalUrl:source.finalUrl,contentType:source.contentType,fingerprint:source.fingerprint,fetchedAt:source.fetchedAt??new Date().toISOString(),httpStatus:source.httpStatus,byteSize:source.byteSize,label:new URL(source.finalUrl).hostname});attempts.push({tool:'web.open',requestedUrl:requested,outcome:'success',errorCode:null});if(source.finalUrl!==dependency.url||source.fingerprint!==dependency.fingerprint)changedWebEvidence=true;}catch(error){if(error instanceof DomainError){const code=/^[A-Z][A-Z0-9_]{1,63}$/.test(error.code)?error.code:'MONITOR_SOURCE_UNAVAILABLE';throw new DomainError(error.code,error.status,{...(error.details??{}),attempts:[{tool:'web.open',requestedUrl:requested,outcome:'failed',errorCode:code}]});}throw error;}finally{options.observer?.tool('web.open',Date.now()-started);}
       }
-      return{changed:dependencyKey(current)!==dependencyKey(dependencies),documents,fingerprint:dependencyKey(current)};
+      return{changed:dependencyKey(current)!==dependencyKey(dependencies),documents,fingerprint:dependencyKey(current),provenance,attempts,dependencies:current};
     }finally{clearTimeout(timeout);signal?.removeEventListener('abort',abort);controller.abort();}
   }
 }

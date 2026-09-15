@@ -494,11 +494,11 @@ host-global service modified. No merge, tag, release or production deployment.
   trusted forwarding is opt-in for an explicit immediate proxy address.
 - Compose keeps PostgreSQL and worker private and keeps app port 4173 on
   `127.0.0.1` by default. This deployment overrides only the app bind to
-  `0.0.0.0` so Synology Newt can target `192.168.0.144:4173`; PostgreSQL,
+  `0.0.0.0` so Synology Newt can target `<SAMVEV_VM_LAN_IP>:4173`; PostgreSQL,
   worker and local AI remain unpublished. Existing health and authenticated SSE
   endpoints are retained without WebSocket or application redirect assumptions.
 - Public HTTPS startup fails closed for unclaimed or demo-seeded installations.
-  The exact Synology Newt target and proxy fields are documented in
+  The required Synology Newt target and proxy fields are documented in
   [M1_OPERATIONS.md](M1_OPERATIONS.md#pangolin--reverse-proxy-deployment).
 
 ## M2.3 general AI task/monitor checkpoint
@@ -571,3 +571,43 @@ host-global service modified. No merge, tag, release or production deployment.
 - This follow-up is not deployed. A local-provider pilot, final release gate and
   owner-authorized deploy/pilot remain required before M2.4 can be marked
   complete.
+
+### Supported synthetic deployed-runtime E2E candidate
+
+- ADR 0018 and [LIVE_E2E.md](LIVE_E2E.md) define a registered synthetic account
+  and household, normal password/session/CSRF authentication and fail-closed
+  marker attestation before browser navigation or test mutations. The account
+  has an exact least-privilege capability set, and the public synthetic fixture
+  has its own durable per-IP rate limit.
+- `npm run e2e:live` covers repeatability, duplicate execution reuse, refresh,
+  execution-scoped provenance/cache evidence, no-notification draft previews,
+  normal DELETE and cleanup. The 3/3/3/2 weather/via-Yr/combined/negative matrix
+  uses only disposable synthetic tasks and separate ignored credentials.
+- The helper suite passes 10/10 and the shared browser driver passes NB/EN,
+  desktop/mobile, light/dark, Axe/focus and reduced-motion checks. Migration 015
+  is additive; migration 016 adds bounded validation diagnostics; 014 is
+  unchanged.
+- Isolated QA with the configured local OpenAI-compatible provider passed
+  weather 3/3, weather phrased as «via yr» 3/3, public-reference web + weather
+  3/3 and negative `events: []` 2/2. Every run used normal authentication,
+  execution-scoped audit/provenance and normal cleanup. Representative active
+  setup/Test-now requests verified same-run deduplication, and reload verified
+  reconnect without enqueue. This is actual-model candidate evidence, not a claim that the
+  older deployed live image exposes the new E2E routes.
+- No deployment or merge is performed by this change. A separately authorized
+  infrastructure gate is necessary before the older live runtime can expose
+  the supported registration and evidence contracts.
+
+- E2E review follow-up: the weather matrix now includes real browser form
+  create/setup, button Test now, running reload without enqueue, populated
+  running/result checks and Delete with confirmation plus reload persistence.
+  The shared driver passed a synthetic intercepted-API browser regression with
+  NB/EN, actual light/dark theme, mobile/desktop, Axe/focus and reduced motion.
+  A controlled immutable deployment of migrations 015–016 and the candidate is
+  still required before the same supported command can establish live PASS.
+- Final current-tree gate: full `npm test` passed 160 tests; all workspace
+  typechecks, production build and lint passed. Focused provider/domain checks
+  also cover OpenAI strict-schema compatibility and conflicting NB/EN source
+  dates. Migrations 001–016 passed a two-run fresh-database gate. The older broad
+  M1 browser matrix still has a stale onboarding assertion outside this harness,
+  so its historical full-matrix result is not claimed here.

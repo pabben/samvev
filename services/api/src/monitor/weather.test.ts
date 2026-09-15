@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AiProviderTurn, AiTask, AiToolResult } from '@samvev/contracts';
+import type { AiProviderTurn, AiTask, AiToolDefinition, AiToolResult } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
 import { MonitorAgentRunner, type MonitorExecutionObserver } from './agent-runner.ts';
@@ -170,10 +170,9 @@ test('changed web evidence skips an obsolete dynamic weather date so the agent c
 
 test('one bounded provider-neutral loop can combine approved web and official weather evidence',async()=>{
   const root:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',text:'Outdoor event tomorrow',headings:['Outdoor event'],links:[],fingerprint:'web-v1',fetchedAt:'2026-09-12T08:00:00Z'};
-  const turns:AiProviderTurn[]=[{toolCalls:[{id:'web',name:'web.open',arguments:{url:root.finalUrl}},{id:'weather',name:'weather.forecast',arguments:{location:'Birkeland',period:'tomorrow'}}],generatedAt:'2026-09-12T08:00:00Z'},{output:'combined final',toolCalls:[],generatedAt:'2026-09-12T08:00:01Z'}];
-  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>turns.shift()!})} as unknown as AiAdminService;
+  let exposedTools:string[]=[];const ai={createTaskSession:async(_household:string,_task:AiTask,_policy:unknown,tools:AiToolDefinition[])=>{exposedTools=tools.map((item)=>item.name);return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>({output:'combined final',toolCalls:[],generatedAt:'2026-09-12T08:00:01Z'})};}} as unknown as AiAdminService;
   const fetcher={fetch:async()=>root} as unknown as MonitorSourceFetcher;
   const weather={forecast:async()=>({sourceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/compact?lat=58.3312&lon=8.2325',attribution:'MET Norway Locationforecast' as const,retrievedAt:'2026-09-12T08:00:00Z',updatedAt:null,validFrom:'2026-09-13T06:00:00Z',validTo:'2026-09-13T06:00:00Z',location:{query:'Birkeland',canonicalName:'Birkeland',municipality:'Birkenes',region:'Agder',country:'Norge' as const,latitude:58.3312,longitude:8.2325,placeId:'1'},points:[{at:'2026-09-13T06:00:00Z',temperatureC:12,precipitationMm:0,windSpeedMps:3,symbolCode:'fair_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const})} as unknown as MetWeatherClient;
-  const outcome=await new MonitorAgentRunner(ai,fetcher,1000,weather).run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'multi_tool_test',input:'combine with Birkeland weather',modelTier:'strong',sources:[]},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open','weather.forecast'],requiredTools:['web.open','weather.forecast']});
-  assert.equal(outcome.output,'combined final');assert.deepEqual(outcome.provenance.map((item)=>item.tool),['web.open','weather.forecast']);assert.deepEqual(outcome.dependencies.map((item)=>item.tool??'web.open'),['web.open','weather.forecast']);assert.equal(outcome.aiCalls,2);assert.equal(outcome.attemptedToolCount,2);
+  const outcome=await new MonitorAgentRunner(ai,fetcher,1000,weather).run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'multi_tool_test',input:'combine with Birkeland weather tomorrow',modelTier:'strong',sources:[]},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open','weather.forecast'],requiredTools:['web.open','weather.forecast'],approvedWeatherScope:{location:'Birkeland',period:'tomorrow',timeWindow:'all'}});
+  assert.equal(outcome.output,'combined final');assert.deepEqual(new Set(outcome.provenance.map((item)=>item.tool)),new Set(['web.open','weather.forecast']));assert.deepEqual(new Set(outcome.dependencies.map((item)=>item.tool??'web.open')),new Set(['web.open','weather.forecast']));assert.equal(outcome.aiCalls,1);assert.equal(outcome.attemptedToolCount,2);assert.deepEqual(exposedTools,['web.open']);
 });

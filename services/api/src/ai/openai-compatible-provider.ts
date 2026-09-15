@@ -186,12 +186,25 @@ function parsedArguments(value: unknown): unknown {
   try { return JSON.parse(value); } catch { return value; }
 }
 
+function upstreamReason(status:number,payload:Record<string,unknown>){
+  if(status===429)return'upstream_rate_limited' as const;
+  const error=payload.error;let rawMessage='';
+  if(typeof error==='string')rawMessage=error;
+  else if(error&&typeof error==='object'){const value=(error as Record<string,unknown>).message;if(typeof value==='string')rawMessage=value;}
+  const message=rawMessage.slice(0,2_000).toLowerCase();
+  if(/context|token|input.{0,20}(length|long)|prompt.{0,20}(length|long)|sequence.{0,20}(length|long)/.test(message))return'upstream_context_limit' as const;
+  if(/response.?format|json.?schema|structured.?output/.test(message))return'upstream_format_unsupported' as const;
+  if(/tool/.test(message)&&/(support|invalid|unknown|not allowed)/.test(message))return'upstream_tool_unsupported' as const;
+  return status>=400&&status<500?'upstream_http_4xx' as const:status>=500?'upstream_http_5xx' as const:'upstream_http_other' as const;
+}
+
 export function chatCompletionTurn(payload: Record<string, unknown>): AiProviderTurn {
   const usage = normalizedUsage(payload.usage);
-  if (!Array.isArray(payload.choices) || !payload.choices.length) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
+  if (!Array.isArray(payload.choices) || !payload.choices.length) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage, 'missing_choices');
   const message = (payload.choices[0] as { message?: unknown } | undefined)?.message;
-  if (!message || typeof message !== 'object') throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
+  if (!message || typeof message !== 'object') throw new AiProviderFailure('AI_RESPONSE_INVALID', usage, 'missing_message');
   const row = message as Record<string, unknown>;
+  if(row.tool_calls!==undefined&&!Array.isArray(row.tool_calls))throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,'invalid_tool_calls');
   const toolCalls = Array.isArray(row.tool_calls) ? row.tool_calls.map((value) => {
     const call = value && typeof value === 'object' ? value as Record<string, unknown> : {};
     const fn = call.function && typeof call.function === 'object' ? call.function as Record<string, unknown> : {};
@@ -200,8 +213,9 @@ export function chatCompletionTurn(payload: Record<string, unknown>): AiProvider
   // Treat assistant content accompanying function calls as intermediary text.
   // This preserves the provider-neutral strict output/tool-call XOR.
   const output = toolCalls.length ? '' : contentText(row);
+  if(!toolCalls.length&&!output)throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,'empty_content');
   const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(), ...(usage ? { usage } : {}) });
-  if (!parsed.success) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
+  if (!parsed.success) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage,toolCalls.length?'invalid_tool_calls':'invalid_turn_shape');
   return parsed.data;
 }
 
@@ -240,18 +254,25 @@ class ChatCompletionSession implements AiProviderSession {
     const aborted=new Promise<never>((_resolve,reject)=>active.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}));
     try{
       const headers:Record<string,string>={'content-type':'application/json'};if(this.configuration.apiKey)headers.authorization=`Bearer ${this.configuration.apiKey}`;
+      const structuredOutput=this.aliases.wireTools.length===0&&this.pending.size===0&&['plan','extract','classify'].includes(this.task.operation);
+      // OpenAI-compatible servers vary in which JSON-Schema dialect and
+      // constrained-decoding backend they accept. Request a JSON object on the
+      // wire and keep the complete provider-neutral schema authoritative in
+      // Samvev's server-side validation.
+      const responseFormat=structuredOutput?{type:'json_object'}:undefined;
       const response=await Promise.race([this.transport(completionUrl(this.target.baseUrl),{method:'POST',headers,body:JSON.stringify({
         model:this.configuration.model,messages:this.messages,max_tokens:this.task.maxOutputTokens??64,
         reasoning_effort:this.configuration.reasoningEffort??'none',stream:false,
+        ...(responseFormat?{response_format:responseFormat}:{}),
         ...(this.aliases.wireTools.length?{tools:this.aliases.wireTools.map((tool)=>({type:'function',function:{name:tool.name,description:tool.description,parameters:tool.inputSchema,strict:true}})),tool_choice:toolChoice}:{})
       }),signal:active.signal},this.target.target),aborted]);
-      const text=await Promise.race([response.text(),aborted]);if(Buffer.byteLength(text)>MAX_RESPONSE_BYTES)throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR');
-      let parsed:unknown;try{parsed=JSON.parse(text);}catch{throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR');}
-      if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR');
-      const payload=parsed as Record<string,unknown>;const usage=normalizedUsage(payload.usage);if(!response.ok)throw new AiProviderFailure('AI_UPSTREAM_ERROR',usage);
+      const text=await Promise.race([response.text(),aborted]);if(Buffer.byteLength(text)>MAX_RESPONSE_BYTES)throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR',undefined,response.ok?'response_too_large':'upstream_response_too_large');
+      let parsed:unknown;try{parsed=JSON.parse(text);}catch{throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR',undefined,response.ok?'invalid_json_body':'upstream_invalid_json');}
+      if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR',undefined,response.ok?'invalid_json_body':'upstream_invalid_json');
+      const payload=parsed as Record<string,unknown>;const usage=normalizedUsage(payload.usage);if(!response.ok)throw new AiProviderFailure('AI_UPSTREAM_ERROR',usage,upstreamReason(response.status,payload));
       const turn=internalizeAiProviderTurn(chatCompletionTurn(payload),this.aliases);
       this.messages.push(normalizedAssistantContinuation(turn,this.aliases));this.pending=new Map(turn.toolCalls.map((call)=>[call.id,call.name]));return turn;
-    }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR');}
+    }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error');}
     finally{active.close();}
   }
 }
@@ -270,7 +291,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
     if(configuration.provider!==this.id||!configuration.baseUrl)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
     const aliases=createAiToolNameAliases(tools);let resolved:Promise<{baseUrl:string;target:AiResolvedTarget}>|undefined;let lifetime:ReturnType<typeof combinedSignal>|undefined;let session:ChatCompletionSession|undefined;let closed=false;
     const close=()=>{if(closed)return;closed=true;if(session)session.close();else lifetime?.close(true);};
-    const lazy:AiProviderSession={close,next:async(results=[],toolChoice='auto')=>{if(closed)throw new AiProviderFailure('AI_RESPONSE_INVALID');lifetime??=combinedSignal(signal,this.timeoutMs);const active=lifetime;try{resolved??=resolveOpenAiCompatibleTarget(configuration.baseUrl!,this.resolver);const target=await Promise.race([resolved,new Promise<never>((_resolve,reject)=>active.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}))]);session=new ChatCompletionSession(task,configuration,aliases,this.transport,this.timeoutMs,target,active.signal,()=>active.close(true));lazy.next=session.next.bind(session);return lazy.next(results,toolChoice);}catch(error){const timedOut=active.signal.aborted;active.close(true);closed=true;if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR');}}};
+    const lazy:AiProviderSession={close,next:async(results=[],toolChoice='auto')=>{if(closed)throw new AiProviderFailure('AI_RESPONSE_INVALID');lifetime??=combinedSignal(signal,this.timeoutMs);const active=lifetime;try{resolved??=resolveOpenAiCompatibleTarget(configuration.baseUrl!,this.resolver);const target=await Promise.race([resolved,new Promise<never>((_resolve,reject)=>active.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}))]);session=new ChatCompletionSession(task,configuration,aliases,this.transport,this.timeoutMs,target,active.signal,()=>active.close(true));lazy.next=session.next.bind(session);return lazy.next(results,toolChoice);}catch(error){const timedOut=active.signal.aborted;active.close(true);closed=true;if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error');}}};
     return lazy;
   }
 

@@ -85,6 +85,41 @@ session and is never stored or logged. OpenAI-compatible DNS resolution, HTTP
 transport and response-body parsing share one provider timeout budget when no
 outer monitor deadline is supplied.
 
+Structured monitor work carries an optional, bounded provider-neutral response
+schema. The OpenAI Responses adapter maps it to its strict native text format.
+That wire mapping recursively marks every declared object property as required,
+expresses provider-neutral optional fields as nullable, and removes only those
+adapter-introduced nulls before Samvev's authoritative validation. Required
+nullable fields remain present. Wire-only removal of unsupported `uri` format
+and array uniqueness constraints does not mutate or weaken the provider-neutral
+schema used for server validation.
+The broader OpenAI-compatible contract requests a JSON object and relies on
+Samvev's authoritative server-side schema validation; compatible servers vary
+in accepted JSON-Schema dialects and constrained-decoding backends. Active
+tool-call turns remain unchanged. If a multi-tool provider returns an invalid
+terminal response after every required tool has succeeded, the runner may open
+exactly one same-provider, no-tool repair session. That session receives one
+bounded copy of the already validated evidence and the same response schema,
+deadline, quality tier, concrete model and cancellation signal. The repair is
+declared internally as format-only work, so the AI service uses minimal
+reasoning and reserves the bounded output budget for the required JSON. The
+preceding semantic analysis still uses the task's configured reasoning level.
+The repair cannot fetch again, change provider/model or relax source validation.
+A second invalid response remains terminal.
+
+Conditional `web.open + weather.forecast` work uses a smaller provider-neutral
+decision schema. The model decides whether a relevant event exists and selects
+an exact web excerpt and an exact weather excerpt. Samvev binds those excerpts
+to the current execution's server-held documents, assigns source URLs and builds
+the localized event text. The model does not reproduce presentation fields,
+internal audit identifiers or source URLs. Fabricated excerpts, dates and
+sources still fail closed. An empty event list is accepted only with complete
+web and weather evidence. When the reviewed instruction explicitly fixes the
+weather period as today, tomorrow or a date, that server-approved period may
+anchor an otherwise undated activity excerpt. An explicit date inside that
+excerpt must still match the approved event/weather date; a contradictory date
+fails closed. Dynamically derived dates must occur in the opened web evidence.
+
 The caller owns the provider session lifetime explicitly. A premature final
 answer can therefore be retried with the same cancellation signal when a source
 tool was required. The runner closes the session once after the complete loop;
@@ -108,6 +143,12 @@ a URL that passed syntactic and credential checks, the outcome and a normalized
 error code. It excludes raw page content, prompts, model output, reasoning,
 arbitrary arguments and credentials. Public monitor responses use successful
 provenance only and expose just source URL and fetch time.
+
+Migration `016_monitor_failure_diagnostics.sql` permits failed runs to retain
+the same bounded provenance/dependency metadata and an allowlisted validation
+stage/reason. It never stores provider output, prompts, reasoning or raw source
+content. This separates source/tool failures from provider-response, final-schema
+and evidence-validation failures without exposing sensitive diagnostics.
 
 ## Security consequences
 

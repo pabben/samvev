@@ -1,10 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { answerFromAi, extractionFromAi, interpretationFromAi, monitorSetupSummary, monitorSourcePlan, monitorTaskLifecycle, weatherScopeFromInstruction } from './service.ts';
+import { DomainError } from '@samvev/core';
+import { answerFromAi, compositeDecisionFromAi, extractionFromAi, interpretationFromAi, monitorSetupSummary, monitorSourcePlan, monitorTaskLifecycle, weatherScopeFromInstruction } from './service.ts';
 import { monitorEventKey, orderedMonitorEvents } from './event-identity.ts';
+import { sanitizedMonitorErrorDetails } from './service.ts';
 
 const event=(date:string,description='Trip day')=>({date,time:null,type:'trip',description,actions:['Bring boots'],who:['A'],evidence:{quote:`Trip day ${date} A Bring boots`,sourceUrl:'https://example.com/plan'},confidence:0.9,uncertainty:null});
 const rule={version:1 as const,resultKind:'answer' as const,summary:'Read the current headline.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60};
+
+test('validation diagnostics expose only bounded reason tokens and safe ambiguity fields',()=>{
+  const safe=sanitizedMonitorErrorDetails(new DomainError('AI_RESPONSE_INVALID',502,{validationStage:'evidence_anchor',validationReason:'claim',prompt:'secret',model:'private',provenance:[{raw:'not public'}]}));
+  assert.deepEqual(safe,{validationStage:'evidence_anchor',validationReason:'claim'});
+  assert.deepEqual(sanitizedMonitorErrorDetails(new DomainError('AI_RESPONSE_INVALID',502,{validationStage:'made_up',validationReason:'raw secret'})),{validationStage:'provider_response',validationReason:'invalid_response'});
+  assert.equal(sanitizedMonitorErrorDetails(new Error('raw provider detail')),null);
+});
 
 test('weather intent uses the domain tool without inventing or scraping a web source',()=>{
   assert.deepEqual(monitorSourcePlan('Sjekk været i Birkeland i morgen'),{sourceUrl:null,tools:['weather.forecast']});
@@ -141,6 +150,28 @@ test('generic special-weather conditions use server-anchored facts and localized
   const unseen=JSON.stringify({version:1,outputLocale:'en',events:[{...enEvent,evidence:{...enEvent.evidence,sourceUrl:'https://example.com/unopened'}}]});assert.throws(()=>extractionFromAi(unseen,[root,web,weather],now,{instruction:'Notify me only if there is something special because of the weather.',locale:'en'}),(error:any)=>error.code==='AI_COMPOSITION_INVALID');
 });
 
+test('compact composite decisions bind exact excerpts to server-owned provenance',()=>{
+  const date='2030-09-20';const activity=`${date}: Outdoor activity.`;const web={finalUrl:'https://example.com/plan',contentType:'text/html' as const,evidenceKind:'web' as const,text:activity,headings:['Outdoor activity'],fingerprint:'web',evidenceDates:[date],evidenceComplete:true};
+  const summary=`Forecast summary ${date}: location Synthetic place, Norge; minimum temperature 5 C; maximum temperature 9 C; total precipitation 3 mm; maximum wind 4 m/s; conditions rain`;const weather={finalUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',publicEvidenceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',contentType:'application/vnd.met.no.locationforecast+json' as const,evidenceKind:'weather' as const,text:`${summary}\nForecast ${date}T08:00:00Z: temperature 5 C; precipitation 3 mm; wind 4 m/s; symbol rain`,fingerprint:'weather',evidenceDates:[date],evidenceComplete:true};const now=new Date('2030-09-19T08:00:00Z');
+  const output=JSON.stringify({version:1,outputLocale:'nb',events:[{date,time:null,activityQuote:activity,weatherQuote:summary,confidence:0.9,uncertainty:null}]});const result=compositeDecisionFromAi(output,[web,weather],now,'nb');
+  assert.equal(result.events[0]!.description,'Aktivitet fra planen: «2030-09-20: Outdoor activity.». Vær for Synthetic place, Norge 20. september 2030: 5–9 °C, 3 mm nedbør, vind opptil 4 m/s.');assert.equal(result.events[0]!.evidence.sourceUrl,web.finalUrl);assert.equal(result.events[0]!.evidence.sources?.[0]?.sourceUrl,weather.finalUrl);assert.deepEqual(result.events[0]!.who,[]);
+  const none=compositeDecisionFromAi(JSON.stringify({version:1,outputLocale:'nb',events:[]}),[web,weather],now,'nb');assert.deepEqual(none.events,[]);
+  const undated={...web,text:'Outdoor activity.',headings:['Outdoor activity'],evidenceDates:[]};const explicitPeriod=compositeDecisionFromAi(JSON.stringify({version:1,outputLocale:'nb',events:[{date,time:null,activityQuote:'Outdoor activity.',weatherQuote:summary,confidence:0.9,uncertainty:null}]}),[undated,weather],now,'nb',{allowUndatedWebDate:true});assert.equal(explicitPeriod.events.length,1);assert.deepEqual(compositeDecisionFromAi(JSON.stringify({version:1,outputLocale:'nb',events:[]}),[undated,weather],now,'nb',{allowUndatedWebDate:true}).events,[]);
+  for(const localizedActivity of ['20.09.2030: Outdoor activity.','20/09/2030: Outdoor activity.','20. september 2030: Outdoor activity.','20 September 2030: Outdoor activity.','September 20, 2030: Outdoor activity.']){
+    const localizedWeb={...web,text:localizedActivity,evidenceDates:[date]};const localizedOutput=JSON.stringify({version:1,outputLocale:'nb',events:[{date,time:null,activityQuote:localizedActivity,weatherQuote:summary,confidence:0.9,uncertainty:null}]});
+    assert.equal(compositeDecisionFromAi(localizedOutput,[localizedWeb,weather],now,'nb').events.length,1);
+  }
+  for(const conflictingActivity of ['2030-09-21: Outdoor activity.','21.09.2030: Outdoor activity.','21. september 2030: Outdoor activity.','21 September 2030: Outdoor activity.','September 21, 2030: Outdoor activity.']){
+    const conflictingWeb={...web,text:conflictingActivity,evidenceDates:['2030-09-21']};const conflictingOutput=JSON.stringify({version:1,outputLocale:'nb',events:[{date,time:null,activityQuote:conflictingActivity,weatherQuote:summary,confidence:0.9,uncertainty:null}]});
+    assert.throws(()=>compositeDecisionFromAi(conflictingOutput,[conflictingWeb,weather],now,'nb',{allowUndatedWebDate:true}),(error:any)=>error.code==='AI_COMPOSITION_INVALID'&&error.details?.validationReason==='date');
+  }
+  assert.throws(()=>compositeDecisionFromAi(JSON.stringify({version:1,outputLocale:'nb',events:[{date,time:null,activityQuote:'Outdoor activity.',weatherQuote:summary,confidence:0.9,uncertainty:null}]}),[undated,weather],now,'nb'),(error:any)=>error.code==='AI_COMPOSITION_INVALID'&&error.details?.validationReason==='date','dynamic dates still require exact web grounding');
+  for(const invalid of [
+    {version:1,outputLocale:'nb',events:[{date,time:null,activityQuote:'Fabricated activity',weatherQuote:summary,confidence:0.9,uncertainty:null}]},
+    {version:1,outputLocale:'nb',events:[{date,time:null,activityQuote:activity,weatherQuote:'Fabricated forecast',confidence:0.9,uncertainty:null}]}
+  ])assert.throws(()=>compositeDecisionFromAi(JSON.stringify(invalid),[web,weather],now,'nb'),(error:any)=>['AI_RESPONSE_INVALID','AI_COMPOSITION_INVALID'].includes(error.code));
+});
+
 test('server anchors omitted evidence URLs only to an opened document supporting the exact claim',()=>{
   const first={finalUrl:'https://example.com/',contentType:'text/html' as const,text:'First editorial headline\nOther text',fingerprint:'root'};
   const second={finalUrl:'https://example.com/story',contentType:'text/html' as const,text:'Story detail',fingerprint:'story'};
@@ -188,7 +219,7 @@ test('composite events are anchored to dated web and weather evidence',()=>{
 });
 
 test('interpretation validation exposes only sanitized schema and source-refusal stages',()=>{
-  assert.throws(()=>interpretationFromAi('{"summary":"missing fields"}'),(error:any)=>error.code==='MONITOR_INTERPRETATION_SCHEMA_INVALID'&&!error.details);
+  assert.throws(()=>interpretationFromAi('{"summary":"missing fields"}'),(error:any)=>error.code==='MONITOR_INTERPRETATION_SCHEMA_INVALID'&&error.details?.validationStage==='final_schema'&&error.details?.validationReason==='invalid_json_or_schema');
   assert.throws(()=>interpretationFromAi(JSON.stringify({...rule,location:{query:'Testvik',latitude:60,longitude:10}})),(error:any)=>error.code==='MONITOR_INTERPRETATION_SCHEMA_INVALID');
   assert.throws(()=>interpretationFromAi(JSON.stringify({...rule,summary:'I cannot access or browse the website.'})),(error:any)=>error.code==='MONITOR_INTERPRETATION_SOURCE_REFUSAL'&&!error.details);
   assert.equal(interpretationFromAi(JSON.stringify(rule)).resultKind,'answer');

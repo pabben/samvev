@@ -39,6 +39,7 @@ test('durable enqueue returns one stable run, survives request completion and ke
   const engine={runManual:async()=>{throw new Error('unused');},runScheduled:async()=>{throw new Error('unused');}};
   const queue=new MonitorExecutionQueue(monitors as any,engine as any,profile,()=>now);
   const enqueued=await queue.enqueue(actor,taskId,1,'interpretation');assert.equal(enqueued.status,'queued');assert.equal(enqueued.usesLocalAi,true);assert.equal(enqueued.expectedDurationSeconds,300);
+  const normalAudit=(await pool.query<{metadata:Record<string,unknown>}>(`SELECT metadata FROM audit_events WHERE subject_type='monitor_execution' AND subject_id=$1`,[enqueued.id])).rows[0]!;assert.equal(Object.hasOwn(normalAudit.metadata,'synthetic'),false,'normal households must not be labelled as live E2E');
   const duplicate=await queue.enqueue(actor,taskId,1,'interpretation');assert.equal(duplicate.id,enqueued.id,'double click must join the active execution');
   const runningPromise=queue.runOne();for(let attempt=0;attempt<100;attempt++){const current=await queue.get(actor,taskId,enqueued.id);if(current.status==='running'&&current.progress.stage==='analyzing')break;await new Promise((resolve)=>setTimeout(resolve,5));}
   const running=await queue.get(actor,taskId,enqueued.id);assert.equal(running.status,'running');assert.equal(running.progress.stage,'analyzing');

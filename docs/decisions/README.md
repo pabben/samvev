@@ -21,3 +21,4 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0015](0015-provider-independent-ai-web-tools.md) | Bounded provider-independent web tools with server-owned network access and source provenance | Accepted for the M2.3 follow-up |
 | [0016](0016-official-weather-tool-and-quality-routing.md) | Official weather and location tools with adaptive internal AI quality routing | Accepted for M2.4 |
 | [0017](0017-durable-asynchronous-monitor-executions.md) | Persistent background monitor runs with bounded local-AI latency classes | Accepted for the M2.4 follow-up |
+| [0018](0018-synthetic-live-e2e-identity.md) | Registered synthetic household, normal authentication and execution-scoped deployed-runtime E2E | Accepted for implementation; live gate pending |
