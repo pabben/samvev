@@ -116,6 +116,41 @@ The mocked full database integration still covers interpretation, approval, a
 relevant notification, a changed dry forecast and withdrawal. No paid AI call
 was made.
 
+## Daily conditional weather correction candidate
+
+Synthetic live reproduction on the deployed `e1cce66…` runtime confirmed a
+later owner-reported Lillesand failure as deterministic: three independent
+setups failed in 61–70 ms with zero provider turns, one failed weather tool call
+and no provenance. The parser had passed the complete schedule and condition
+tail as the place query. The qualified form reached Kartverket but the resolver
+gave equal rank to several different Lillesand records in Agder. This was not a
+MET outage or a model failure.
+
+The correction follows ADR 0019. It stores an optional daily 08:00
+Europe/Oslo schedule and a typed rain OR maximum-wind condition in the existing
+rule JSON. All scheduled terminal paths calculate the next local wall-clock
+occurrence through the same DST-aware helper. Weather-only conditional runs
+evaluate verified MET data server-side and return a valid empty event list when
+neither condition is met. The UI previews the exact schedule, strict threshold,
+period and no-notification case in NB/EN and separates place-service failures
+from forecast-service failures.
+
+No migration is added. Existing rules retain interval behavior and are not
+reinterpreted. The permanent live-E2E matrix adds simple Lillesand 3× and daily
+conditional Lillesand 3×. The correction is not deployed; its live matrix needs
+a new explicit deploy gate.
+
+The current-tree gate passes all **170/170** workspace tests (including **146/146** API tests), all workspace
+typechecks and the production build. Focused weather/domain/E2E-helper tests
+pass **66/66**, database weather/durable-execution integration passes **16/16**,
+and the shared browser smoke passes NB/EN, Axe, keyboard/focus, mobile/desktop,
+dark/light and reduced-motion checks with only intercepted synthetic traffic.
+A fresh synthetic database applied migrations 001–016 twice and retained an
+exact 16-entry ledger. Isolated app, worker and database health, diff validation
+and the private-data/secret scan pass. This is local candidate evidence only:
+the post-fix Lillesand 3× matrix remains blocked until a separately authorized
+immutable deployment.
+
 The post-pilot candidate passed all **128** workspace tests: web 15, contracts
 3, core 3 and API 107. All five workspace typechecks and the production build
 passed. A fresh isolated database applied migrations 001–013 twice; ledger and

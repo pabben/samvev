@@ -147,6 +147,8 @@ async function main() {
       { name: 'via-yr', count: 3, tools: ['weather.forecast'], prompt: 'Sjekk været på Birkeland, Birkenes i morgen via yr.' },
       { name: 'web+weather', count: 3, tools: ['web.open', 'weather.forecast'], mode: 'positive', prompt: `${combined}Gi en beskjed om passende klær hvis temperaturen er under 100 grader Celsius. Dette er en eksplisitt syntetisk testterskel.` },
       { name: 'negative', count: 2, tools: ['web.open', 'weather.forecast'], mode: 'negative', prompt: `${combined}Gi bare beskjed hvis temperaturen er over 100 grader Celsius. Ellers skal resultatet være ingen relevant beskjed og ingen hendelser. Dette er en eksplisitt syntetisk testterskel.` },
+      { name: 'lillesand', count: 3, tools: ['weather.forecast'], prompt: 'Sjekk været i Lillesand i morgen.' },
+      { name: 'lillesand-daily', count: 3, tools: ['weather.forecast'], prompt: 'Sjekk været i Lillesand og gi beskjed hver dag 08:00 dersom det er meldt regn eller vind over 10m/s i løpet av dagen.', expectedDailyRule: true },
     ];
     for (const scenario of cases.filter((scenario) => selection.names.includes(scenario.name))) {
       let task;
@@ -164,6 +166,14 @@ async function main() {
         }
         const prior = new Set();
         task = await execute(task, 'interpret', `${scenario.name} setup`, scenario.tools, prior, undefined, uiSetup);
+        if (scenario.expectedDailyRule) {
+          const rule = task.interpretedRule;
+          check(rule?.schedule?.kind === 'daily' && rule.schedule.localTime === '08:00' && rule.schedule.timezone === 'Europe/Oslo', 'DAILY_SCHEDULE_MISSING');
+          check(task.checkIntervalMinutes === 1440 && task.noticeLocalTime === '08:00' && task.noticeDaysBefore === 0, 'DAILY_SCHEDULE_NOT_ANCHORED');
+          check(rule?.forecastPeriod?.period === 'today' && rule.forecastPeriod.timeWindow === 'all', 'WHOLE_DAY_SCOPE_MISSING');
+          check(rule?.weatherCondition?.operator === 'or' && rule.weatherCondition.conditions?.some((item) => item.kind === 'rain') && rule.weatherCondition.conditions?.some((item) => item.kind === 'max_wind_speed' && item.comparison === 'gt' && item.thresholdMps === 10), 'WEATHER_OR_RULE_MISSING');
+          check(rule?.location?.canonicalName === 'Lillesand' && rule.location?.municipality === 'Lillesand', 'LILLESAND_RESOLUTION_MISMATCH');
+        }
         for (let index = 1; index <= scenario.count; index++) {
           try {
             const uiRun = scenario.name === 'weather' && index === 1 ? await testThroughUi(page, base, await taskById(task.id)) : null;

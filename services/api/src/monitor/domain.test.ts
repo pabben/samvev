@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { DomainError } from '@samvev/core';
-import { answerFromAi, compositeDecisionFromAi, extractionFromAi, interpretationFromAi, monitorSetupSummary, monitorSourcePlan, monitorTaskLifecycle, weatherScopeFromInstruction } from './service.ts';
+import { answerFromAi, compositeDecisionFromAi, conditionalWeatherExtraction, extractionFromAi, interpretationFromAi, monitorScheduleFromInstruction, monitorSetupSummary, monitorSourcePlan, monitorTaskLifecycle, weatherConditionFromInstruction, weatherScopeFromInstruction } from './service.ts';
 import { monitorEventKey, orderedMonitorEvents } from './event-identity.ts';
 import { sanitizedMonitorErrorDetails } from './service.ts';
 
@@ -42,6 +42,24 @@ test('weather scope is pinned to the reviewed instruction instead of model-selec
   assert.deepEqual(weatherScopeFromInstruction('Sjekk ukeplanen og været i Oslo. Aktiviteten er 2030-09-20.',true),{location:'Oslo',period:'date',timeWindow:'all',dynamicDateFromEvidence:true});
   assert.deepEqual(weatherScopeFromInstruction('Sjekk været i Bergen 20. september 2030'),{location:'Bergen',period:'date',date:'2030-09-20',timeWindow:'all'});
   assert.equal(weatherScopeFromInstruction('Sjekk været i morgen tidlig'),undefined);
+  const recurring='Sjekk været i Lillesand og gi beskjed hver dag 08:00 dersom det er meldt regn eller vind over 10m/s i løpet av dagen';
+  assert.deepEqual(weatherScopeFromInstruction(recurring),{location:'Lillesand',period:'today',timeWindow:'all'});
+  assert.deepEqual(weatherScopeFromInstruction(recurring.replace('Lillesand','Lillesand, Agder')),{location:'Lillesand, Agder',period:'today',timeWindow:'all'});
+  assert.deepEqual(monitorScheduleFromInstruction(recurring),{kind:'daily',localTime:'08:00',timezone:'Europe/Oslo'});
+  assert.deepEqual(weatherConditionFromInstruction(recurring),{operator:'or',conditions:[{kind:'rain'},{kind:'max_wind_speed',comparison:'gt',thresholdMps:10}]});
+});
+
+test('server evaluates rain OR strict maximum forecast mean-wind thresholds',()=>{
+  const condition={operator:'or' as const,conditions:[{kind:'rain' as const},{kind:'max_wind_speed' as const,comparison:'gt' as const,thresholdMps:10}]};const source=(precipitation:number,wind:number,conditions:string)=>({finalUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',publicEvidenceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/documentation',contentType:'application/vnd.met.no.locationforecast+json' as const,evidenceKind:'weather' as const,text:`Forecast summary 2030-09-20: location Synthetic place, Norge; minimum temperature 5 C; maximum temperature 9 C; total precipitation ${precipitation} mm; maximum wind ${wind} m/s; conditions ${conditions}\nForecast 2030-09-20T08:00:00Z: temperature 5 C; precipitation ${precipitation} mm; wind ${wind} m/s; symbol ${conditions}`,fingerprint:`${precipitation}-${wind}-${conditions}`,evidenceDates:['2030-09-20'],evidenceComplete:true});
+  assert.equal(conditionalWeatherExtraction(source(0,10,'fair_day'),condition).events.length,0,'exactly 10.0 is not greater than 10');
+  assert.equal(conditionalWeatherExtraction(source(1,10,'rain'),condition).events.length,1,'rain alone triggers');
+  assert.equal(conditionalWeatherExtraction(source(0,10.1,'fair_day'),condition).events.length,1,'wind above threshold alone triggers');
+  const both=conditionalWeatherExtraction(source(1,10.1,'rain'),condition);assert.equal(both.events.length,1);assert.match(both.events[0]!.description,/regn og vind/);assert.equal(both.events[0]!.evidence.sourceUrl,'https://api.met.no/weatherapi/locationforecast/2.0/documentation');
+  assert.equal(conditionalWeatherExtraction(source(2,5,'snow'),condition).events.length,0,'snow precipitation is not rain');
+  const rainOnly={operator:'or' as const,conditions:[{kind:'rain' as const}]};const rainWithoutWind={...source(1,0,'rain'),text:source(1,0,'rain').text.replace('maximum wind 0 m/s','maximum wind unknown m/s').replace('wind 0 m/s','wind unknown m/s')};assert.equal(conditionalWeatherExtraction(rainWithoutWind,rainOnly).events.length,1,'rain-only rules do not require an unrelated wind value');
+  const splitEvidence={...source(2,5,'snow'),text:`Forecast summary 2030-09-20: location Synthetic place, Norge; minimum temperature 5 C; maximum temperature 9 C; total precipitation 2 mm; maximum wind 5 m/s; conditions snow, rain\nForecast 2030-09-20T08:00:00Z: temperature 5 C; precipitation 2 mm; wind 5 m/s; symbol snow\nForecast 2030-09-20T09:00:00Z: temperature 6 C; precipitation 0 mm; wind 5 m/s; symbol rain`};
+  assert.equal(conditionalWeatherExtraction(splitEvidence,condition).events.length,0,'rain requires precipitation and a rain symbol in the same forecast interval');
+  const repeated=Array.from({length:3},()=>conditionalWeatherExtraction(source(0,10.1,'fair_day'),condition));assert.ok(repeated.every((item)=>JSON.stringify(item)===JSON.stringify(repeated[0])),'three executions are deterministic and execution-local');
 });
 
 test('verified weather setup summaries are deterministic in the requested locale',()=>{

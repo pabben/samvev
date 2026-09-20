@@ -86,9 +86,9 @@ test('optional public QA source fails closed without logging query; default rema
 });
 
 test('scenario selection is strict, defaults to the full matrix and cannot call partial success a full PASS',()=>{
-  const full={names:['weather','via-yr','web+weather','negative'],completeMatrix:true};
+  const full={names:['weather','via-yr','web+weather','negative','lillesand','lillesand-daily'],completeMatrix:true};
   assert.deepEqual(selectedScenarios(undefined),full);assert.deepEqual(selectedScenarios(''),full);
-  assert.deepEqual(selectedScenarios('negative,web+weather,via-yr,weather'),full);
+  assert.deepEqual(selectedScenarios('lillesand-daily,negative,web+weather,lillesand,via-yr,weather'),full);
   for(const value of ['weather,weather','all','web+weather,',' weather','weather, via-yr','unknown','WEATHER',',',[],42])assert.throws(()=>selectedScenarios(value),/SCENARIOS_INVALID/);
   const partial=selectedScenarios('web+weather');assert.deepEqual(partial,{names:['web+weather'],completeMatrix:false});
   assert.equal(successfulRunLabel(full.completeMatrix,'synthetic_weekly_plan'),'LIVE E2E PASS');

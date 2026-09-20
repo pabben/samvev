@@ -10,6 +10,7 @@ import {MonitorExecutionQueue,runMonitorExecutionBatch} from './execution.ts';
 import {MonitorService} from './service.ts';
 import type {MonitorActor} from './service.ts';
 import type {MonitorSourceFetcher,SourceDocument} from './source-fetcher.ts';
+import {nextMonitorCheckAt} from './schedule.ts';
 
 const guard=new URL(process.env.DATABASE_URL??'');assert.equal(guard.hostname,'test-db');assert.equal(guard.pathname,'/samvev_test');
 let actor:MonitorActor;let taskId:string;let now=Date.parse('2026-09-13T12:00:00Z');let app:FastifyInstance;let sessionToken:string;let csrfToken:string;
@@ -32,6 +33,13 @@ async function fixture():Promise<void>{
 before(async()=>{await migrate();app=await buildApp();});after(async()=>{await app.close();await pool.end();});
 
 function auth(){return{cookie:`samvev_session=${sessionToken}`,'x-csrf-token':csrfToken};}
+
+test('daily 08:00 schedule stays on the Europe/Oslo wall clock across both DST changes',async()=>{
+  const interpretedRule={version:1,resultKind:'events',summary:'Synthetic daily weather condition',eventTypes:[],keywords:[],people:[],noticeDaysBefore:0,noticeLocalTime:'08:00',checkIntervalMinutes:1440,conditionalNotification:true,tools:['weather.forecast'],schedule:{kind:'daily',localTime:'08:00',timezone:'Europe/Oslo'},weatherCondition:{operator:'or',conditions:[{kind:'rain'}]}};
+  assert.equal((await nextMonitorCheckAt(pool as any,{interpretedRule,checkIntervalMinutes:1440},new Date('2026-03-28T08:00:00Z'))).toISOString(),'2026-03-29T06:00:00.000Z');
+  assert.equal((await nextMonitorCheckAt(pool as any,{interpretedRule,checkIntervalMinutes:1440},new Date('2026-10-24T08:00:00Z'))).toISOString(),'2026-10-25T07:00:00.000Z');
+  assert.equal((await nextMonitorCheckAt(pool as any,{interpretedRule,checkIntervalMinutes:1440},new Date('2026-09-19T05:00:00Z'))).toISOString(),'2026-09-19T06:00:00.000Z');
+});
 
 test('durable enqueue returns one stable run, survives request completion and keeps a bounded lease',async()=>{
   await fixture();let resolveWork!:()=>void;let capturedDeadline=0;const work=new Promise<void>((resolve)=>{resolveWork=resolve;});

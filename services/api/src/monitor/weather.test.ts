@@ -6,7 +6,7 @@ import type { AiAdminService } from '../ai/admin-service.ts';
 import { MonitorAgentRunner, type MonitorExecutionObserver } from './agent-runner.ts';
 import type { MonitorSourceFetcher, SourceDocument } from './source-fetcher.ts';
 import { monitorToolRegistry } from './tool-registry.ts';
-import { KartverketPlaceResolver, MetWeatherClient, norwegianWeatherDate, weatherTargetDate, type FixedHttpRequest, type FixedHttpResponse, type FixedHttpTransport, type WeatherForecastArgs } from './weather.ts';
+import { KartverketPlaceResolver, MetWeatherClient, norwegianWeatherDate, weatherDayMetrics, weatherPeriodCoverage, weatherTargetDate, type FixedHttpRequest, type FixedHttpResponse, type FixedHttpTransport, type WeatherForecastArgs } from './weather.ts';
 
 function response(status:number,value:unknown,headers:Record<string,string>={'content-type':'application/json'}):FixedHttpResponse{
   const body=Buffer.from(JSON.stringify(value));const normalized=new Map(Object.entries({...headers,'content-length':headers['content-length']??String(body.length)}).map(([key,item])=>[key.toLowerCase(),item]));
@@ -51,6 +51,17 @@ test('Kartverket resolver deterministically disambiguates with municipality and 
   const place=await resolver.resolve('Birkeland Birkenes');assert.equal(place.municipality,'Birkenes');assert.equal(place.latitude,58.3312);assert.equal(place.longitude,8.2325);assert.match(requests[0]!.url,/^https:\/\/ws\.geonorge\.no\/stedsnavn\/v1\/navn\?/);assert.ok(requests[0]!.headers['user-agent']);assert.equal(requests[0]!.headers['accept-encoding'],'gzip');
 });
 
+test('Kartverket prefers the exact municipality seat but keeps genuinely ambiguous names closed',async()=>{
+  const lillesand={navn:[
+    {skrivemåte:'Lillesand',stedsnummer:1,representasjonspunkt:{øst:8.38,nord:58.25},kommuner:[{kommunenavn:'Lillesand'}],fylker:[{fylkesnavn:'Agder'}]},
+    {skrivemåte:'Lillesand',stedsnummer:2,representasjonspunkt:{øst:8.1,nord:58.2},kommuner:[{kommunenavn:'Grimstad'}],fylker:[{fylkesnavn:'Agder'}]},
+    {skrivemåte:'Lillesand',stedsnummer:3,representasjonspunkt:{øst:8,nord:58.1},kommuner:[{kommunenavn:'Kristiansand'}],fylker:[{fylkesnavn:'Agder'}]}
+  ]};
+  const resolver=new KartverketPlaceResolver(async()=>response(200,lillesand));
+  assert.equal((await resolver.resolve('Lillesand')).municipality,'Lillesand');assert.equal((await resolver.resolve('Lillesand, Agder')).municipality,'Lillesand');
+  const ambiguous={navn:lillesand.navn.slice(1)};await assert.rejects(new KartverketPlaceResolver(async()=>response(200,ambiguous)).resolve('Lillesand, Agder'),(error:any)=>error.code==='MONITOR_LOCATION_AMBIGUOUS');
+});
+
 test('Kartverket resolver separates a reviewed municipality label from the place-name search',async()=>{
   const terms:string[]=[];const transport:FixedHttpTransport=async(request)=>{const term=new URL(request.url).searchParams.get('sok')!;terms.push(term);return response(200,term==='Birkeland'?places:{navn:[]});};
   const comma=await new KartverketPlaceResolver(transport).resolve('Birkeland, Birkenes');assert.equal(comma.municipality,'Birkenes');assert.deepEqual(terms,['Birkeland']);
@@ -62,7 +73,7 @@ test('MET client uses fixed HTTPS endpoint, identifying UA, cache and conditiona
   const transport:FixedHttpTransport=async(request)=>{requests.push(request);if(request.url.startsWith('https://ws.geonorge.no/'))return response(200,{navn:[places.navn[0]]});forecastCalls++;if(forecastCalls===1)return response(200,forecast,{'content-type':'application/json','last-modified':'Sat, 12 Sep 2026 08:00:00 GMT','expires':'Sat, 12 Sep 2026 08:01:00 GMT'});return{status:304,headers:{get:(name)=>name.toLowerCase()==='expires'?'Sat, 12 Sep 2026 08:06:00 GMT':null},arrayBuffer:async()=>new ArrayBuffer(0)};};
   const resolver=new KartverketPlaceResolver(transport);const client=new MetWeatherClient(resolver,transport,1000,()=>now);
   const first=await client.forecast({location:'Birkeland Birkenes',period:'tomorrow',timeWindow:'all'});assert.equal(first.points.length,2);assert.equal(first.attribution,'MET Norway Locationforecast');assert.match(first.sourceUrl,/^https:\/\/api\.met\.no\/weatherapi\/locationforecast\/2\.0\/compact\?lat=58\.3312&lon=8\.2325$/);assert.equal(first.cacheStatus,'miss');
-  assert.deepEqual(first.points[0],{at:'2026-09-13T06:00:00Z',temperatureC:12.5,windSpeedMps:3.1,precipitationMm:0.2,symbolCode:'partlycloudy_day'});
+  assert.deepEqual(first.points[0],{at:'2026-09-13T06:00:00Z',temperatureC:12.5,windSpeedMps:3.1,precipitationMm:0.2,precipitationPeriodHours:1,symbolCode:'partlycloudy_day'});
   assert.equal((await client.forecast({location:'Birkeland Birkenes',period:'tomorrow',timeWindow:'all'})).cacheStatus,'hit');assert.equal(forecastCalls,1);
   now=new Date('2026-09-12T08:02:00Z');const revalidated=await client.forecast({location:'Birkeland Birkenes',period:'tomorrow',timeWindow:'all'});assert.equal(revalidated.cacheStatus,'revalidated');assert.equal(revalidated.httpStatus,304);assert.equal(requests.at(-1)!.headers['if-modified-since'],'Sat, 12 Sep 2026 08:00:00 GMT');assert.ok(requests.at(-1)!.headers['user-agent']);
 });
@@ -101,14 +112,37 @@ test('one coordinate cache entry serves different dates and time windows',async(
   assert.equal(today.points.length,1);assert.equal(tomorrow.points.length,1);assert.equal(calls,1);
 });
 
+test('whole-day aggregation keeps a 25-hour Oslo day and never double-counts overlapping precipitation intervals',async()=>{
+  const points=Array.from({length:25},(_,index)=>({at:new Date(Date.UTC(2026,9,24,22+index)).toISOString(),temperatureC:5,windSpeedMps:index===24?10.1:10,precipitationMm:index===3?1:0,precipitationPeriodHours:1 as const,symbolCode:index===3?'rain':'fair_day'}));
+  const transport:FixedHttpTransport=async(request)=>request.url.startsWith('https://ws.geonorge.no/')?response(200,{navn:[{skrivemåte:'Lillesand',stedsnummer:1,representasjonspunkt:{øst:8.38,nord:58.25},kommuner:[{kommunenavn:'Lillesand'}],fylker:[{fylkesnavn:'Agder'}]}]}):response(200,{properties:{meta:{updated_at:'2026-10-24T08:00:00Z'},timeseries:points.map((point)=>({time:point.at,data:{instant:{details:{air_temperature:point.temperatureC,wind_speed:point.windSpeedMps}},next_1_hours:{summary:{symbol_code:point.symbolCode},details:{precipitation_amount:point.precipitationMm}}}}))}});
+  const client=new MetWeatherClient(new KartverketPlaceResolver(transport),transport,1000,()=>new Date('2026-10-24T08:00:00Z'));const result=await client.forecast({location:'Lillesand',period:'tomorrow',timeWindow:'all'});assert.equal(result.points.length,25);assert.deepEqual(weatherDayMetrics(result.points),{totalPrecipitationMm:1,precipitationCoverageHours:25,hasRain:true,maxWindSpeedMps:10.1});
+  const sixHourly=[0,1,6,7,12,13].map((hour)=>({at:new Date(Date.UTC(2030,0,1,hour)).toISOString(),temperatureC:0,windSpeedMps:2,precipitationMm:1,precipitationPeriodHours:6 as const,symbolCode:'rain'}));assert.deepEqual(weatherDayMetrics(sixHourly),{totalPrecipitationMm:3,precipitationCoverageHours:18,hasRain:true,maxWindSpeedMps:2});
+  assert.equal(weatherDayMetrics([{at:'2030-01-01T00:00:00Z',temperatureC:0,windSpeedMps:1,precipitationMm:2,precipitationPeriodHours:1,symbolCode:'snow'}]).hasRain,false);
+});
+
+test('hourly period coverage detects missing forecast hours and handles Oslo DST days',()=>{
+  const point=(at:string)=>({at,temperatureC:5,windSpeedMps:2,precipitationMm:0,precipitationPeriodHours:1 as const,symbolCode:'fair_day'});
+  const autumn=Array.from({length:25},(_,index)=>point(new Date(Date.UTC(2026,9,24,22+index)).toISOString()));const autumnArgs={location:'Lillesand',period:'date' as const,date:'2026-10-25',timeWindow:'all' as const};
+  assert.deepEqual(weatherPeriodCoverage(autumn,autumnArgs,new Date('2026-10-24T08:00:00Z')),{complete:true,expectedHours:25,observedHours:25,missingInstants:[]});
+  const missing=weatherPeriodCoverage(autumn.filter((_,index)=>index!==12),autumnArgs,new Date('2026-10-24T08:00:00Z'));assert.equal(missing.complete,false);assert.equal(missing.expectedHours,25);assert.equal(missing.observedHours,24);assert.equal(missing.missingInstants.length,1);
+  const spring=Array.from({length:23},(_,index)=>point(new Date(Date.UTC(2026,2,28,23+index)).toISOString()));assert.deepEqual(weatherPeriodCoverage(spring,{location:'Oslo',period:'date',date:'2026-03-29',timeWindow:'all'},new Date('2026-03-28T08:00:00Z')),{complete:true,expectedHours:23,observedHours:23,missingInstants:[]});
+  const today=Array.from({length:16},(_,index)=>point(new Date(Date.UTC(2030,8,20,6+index)).toISOString()));assert.deepEqual(weatherPeriodCoverage(today,{location:'Lillesand',period:'today',timeWindow:'all'},new Date('2030-09-20T06:00:00Z')),{complete:true,expectedHours:16,observedHours:16,missingInstants:[]});
+  assert.equal(weatherPeriodCoverage(today.slice(0,1),{location:'Lillesand',period:'today',timeWindow:'all'},new Date('2030-09-20T06:00:00Z')).complete,false,'a single point is not complete whole-day evidence');
+});
+
 test('weather client classifies invalid MIME, oversized and timed out responses',async()=>{
   const placeTransport:FixedHttpTransport=async()=>response(200,{navn:[places.navn[0]]});const resolver=new KartverketPlaceResolver(placeTransport);
   const invalid=new MetWeatherClient(resolver,async()=>response(200,forecast,{'content-type':'text/html'}));await assert.rejects(invalid.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_SOURCE_UNSUPPORTED');
   const oversized=new MetWeatherClient(resolver,async()=>response(200,forecast,{'content-type':'application/json','content-length':String(3*1024*1024)}));await assert.rejects(oversized.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_SOURCE_TOO_LARGE');
   const malformed=new MetWeatherClient(resolver,async()=>response(200,{unexpected:true}));await assert.rejects(malformed.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_WEATHER_INVALID');
-  const upstream=new MetWeatherClient(resolver,async()=>response(503,{}));await assert.rejects(upstream.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_WEATHER_UNAVAILABLE');
+  const upstream=new MetWeatherClient(resolver,async()=>response(503,{}));await assert.rejects(upstream.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_WEATHER_UNAVAILABLE'&&error.details?.weatherStage==='forecast');
   const limited=new MetWeatherClient(resolver,async()=>response(429,{}));await assert.rejects(limited.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_WEATHER_RATE_LIMITED');
   const timeout=new MetWeatherClient(resolver,async(request)=>new Promise((_resolve,reject)=>request.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})),10);await assert.rejects(timeout.forecast({location:'Birkeland Birkenes',period:'tomorrow'}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_SOURCE_TIMEOUT');
+});
+
+test('location and forecast upstream failures retain a sanitized stage',async()=>{
+  await assert.rejects(new KartverketPlaceResolver(async()=>response(503,{})).resolve('Lillesand'),(error:any)=>error.code==='MONITOR_WEATHER_UNAVAILABLE'&&error.details?.weatherStage==='location');
+  const resolver=new KartverketPlaceResolver(async()=>response(200,{navn:[places.navn[0]]}));await assert.rejects(new MetWeatherClient(resolver,async()=>response(503,{})).forecast({location:'Birkeland, Birkenes',period:'tomorrow'}),(error:any)=>error.details?.weatherStage==='forecast');
 });
 
 test('weather client stops an oversized chunked response before buffering it all',async()=>{

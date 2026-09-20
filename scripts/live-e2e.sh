@@ -58,7 +58,7 @@ For supplemental isolated QA, SAMVEV_E2E_PUBLIC_SOURCE_URL may identify an
 operator-approved public HTTPS source. It is validated by the harness and never
 printed; the normal server source/SSRF policy still applies.
 SAMVEV_E2E_SCENARIOS may select comma-separated diagnostic cases only from
-weather,via-yr,web+weather,negative. Omit it for the full release matrix.
+weather,via-yr,web+weather,negative,lillesand,lillesand-daily. Omit it for the full release matrix.
 Filtered successes are reported as diagnostics, never full LIVE E2E PASS.
 EOF
 }

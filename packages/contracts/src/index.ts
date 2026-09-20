@@ -276,6 +276,18 @@ export const monitorInterpretationSchema = z.object({
   noticeLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   checkIntervalMinutes: z.number().int().min(15).max(10080),
   conditionalNotification: z.boolean().default(false),
+  schedule: z.object({
+    kind: z.literal('daily'),
+    localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    timezone: z.literal('Europe/Oslo')
+  }).strict().optional(),
+  weatherCondition: z.object({
+    operator: z.literal('or'),
+    conditions: z.array(z.discriminatedUnion('kind', [
+      z.object({ kind: z.literal('rain') }).strict(),
+      z.object({ kind: z.literal('max_wind_speed'), comparison: z.literal('gt'), thresholdMps: z.number().min(0).max(150) }).strict()
+    ])).min(1).max(2)
+  }).strict().optional(),
   tools: z.array(z.enum(monitorToolNames)).min(1).max(6).optional(),
   location: z.object({
     query: z.string().trim().min(1).max(200),

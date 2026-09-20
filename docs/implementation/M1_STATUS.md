@@ -605,9 +605,27 @@ host-global service modified. No merge, tag, release or production deployment.
   NB/EN, actual light/dark theme, mobile/desktop, Axe/focus and reduced motion.
   A controlled immutable deployment of migrations 015–016 and the candidate is
   still required before the same supported command can establish live PASS.
-- Final current-tree gate: full `npm test` passed 160 tests; all workspace
+- Final current-tree gate: full `npm test` passed 170 tests; all workspace
   typechecks, production build and lint passed. Focused provider/domain checks
   also cover OpenAI strict-schema compatibility and conflicting NB/EN source
   dates. Migrations 001–016 passed a two-run fresh-database gate. The older broad
   M1 browser matrix still has a stale onboarding assertion outside this harness,
   so its historical full-matrix result is not claimed here.
+
+### Lillesand daily conditional weather blocker
+
+- Deployed-runtime synthetic reproduction on `e1cce66…` failed 3/3 before any
+  provider turn because the location parser included the daily schedule and
+  condition in the Kartverket query. Live-E2E was disabled again after normal
+  cleanup.
+- The current worktree corrects reviewed place extraction, municipality-seat
+  ranking, daily 08:00 Europe/Oslo scheduling, full local-day handling and the
+  strict server-side rain OR mean-wind-above-10 condition. No migration is
+  required; old interval rules remain valid.
+- Approval and resume now anchor the first recurring execution to the next
+  reviewed local 08:00 instead of running the recurring rule immediately.
+- The exact current tree passes 170/170 workspace tests (including 146/146 API tests), 66/66 focused
+  domain/weather/E2E-helper checks, 16/16 database weather/durable integration
+  checks, all typechecks, production build, browser/Axe/responsive/reduced-motion
+  smoke, and a two-run fresh migration 001–016 gate. It has not been committed,
+  deployed or exercised by the expanded post-fix live Lillesand matrix.

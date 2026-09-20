@@ -22,7 +22,7 @@ export const weatherForecastArgsSchema=z.object({
 export type WeatherForecastArgs=z.infer<typeof weatherForecastArgsSchema>;
 
 export interface ResolvedPlace {query:string;canonicalName:string;municipality:string|null;region:string|null;country:'Norge';latitude:number;longitude:number;placeId:string;}
-export interface WeatherPoint {at:string;temperatureC:number|null;precipitationMm:number|null;windSpeedMps:number|null;symbolCode:string|null;}
+export interface WeatherPoint {at:string;temperatureC:number|null;precipitationMm:number|null;precipitationPeriodHours?:1|6|null;windSpeedMps:number|null;symbolCode:string|null;}
 export interface WeatherForecast {
   sourceUrl:string;attribution:'MET Norway Locationforecast';retrievedAt:string;updatedAt:string|null;validFrom:string;validTo:string;
   location:ResolvedPlace;points:WeatherPoint[];fingerprint:string;httpStatus:200|203|304;cacheStatus:'hit'|'miss'|'revalidated';
@@ -73,6 +73,10 @@ function mapError(error:unknown,signal:AbortSignal,invalid='MONITOR_WEATHER_INVA
   if(error instanceof DomainError)throw error;
   throw new DomainError(invalid,502);
 }
+function weatherStageError(error:unknown,stage:'location'|'forecast'):never{
+  if(error instanceof DomainError)throw new DomainError(error.code,error.status,{...(error.details??{}),weatherStage:stage});
+  throw new DomainError('MONITOR_WEATHER_UNAVAILABLE',502,{weatherStage:stage});
+}
 async function readJson(response:FixedHttpResponse,signal:AbortSignal):Promise<unknown>{
   const contentType=response.headers.get('content-type')??'';if(!JSON_MIME.test(contentType))throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
   const length=Number(response.headers.get('content-length')??0);if(Number.isFinite(length)&&length>MAX_RESPONSE_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);
@@ -108,12 +112,12 @@ export class KartverketPlaceResolver {
         if(candidates.length)break;
       }
       if(!candidates.length)throw new DomainError('MONITOR_LOCATION_NOT_FOUND',422);
-      const queryParts=normalized(requested).split(' ');const score=(item:ResolvedPlace)=>{const name=normalized(item.canonicalName);const municipality=normalized(item.municipality??'');const region=normalized(item.region??'');return(name===queryParts[0]?100:name.startsWith(queryParts[0]!)?50:0)+queryParts.slice(1).filter((part)=>municipality.includes(part)||region.includes(part)).length*20;};
+      const queryParts=normalized(requested).split(' ');const score=(item:ResolvedPlace)=>{const name=normalized(item.canonicalName);const municipality=normalized(item.municipality??'');const region=normalized(item.region??'');const exact=name===queryParts[0];return(exact?100:name.startsWith(queryParts[0]!)?50:0)+(exact&&municipality===name?30:0)+queryParts.slice(1).filter((part)=>municipality.includes(part)||region.includes(part)).length*20;};
       candidates.sort((a,b)=>score(b)-score(a)||a.canonicalName.localeCompare(b.canonicalName,'nb')||(a.municipality??'').localeCompare(b.municipality??'','nb')||a.placeId.localeCompare(b.placeId));
       const bestScore=score(candidates[0]!);const tied=candidates.filter((item)=>score(item)===bestScore);const distinct=new Set(tied.map((item)=>`${normalized(item.canonicalName)}|${normalized(item.municipality??'')}|${normalized(item.region??'')}`));
       if(bestScore<=0)throw new DomainError('MONITOR_LOCATION_NOT_FOUND',422);if(distinct.size>1)throw new DomainError('MONITOR_LOCATION_AMBIGUOUS',422,{candidates:safeCandidates(tied)});
       return candidates[0]!;
-    }catch(error){mapError(error,deadline.signal,'MONITOR_WEATHER_UNAVAILABLE');}finally{deadline.close();}
+    }catch(error){try{mapError(error,deadline.signal,'MONITOR_WEATHER_UNAVAILABLE');}catch(mapped){weatherStageError(mapped,'location');}}finally{deadline.close();}
   }
 }
 
@@ -128,18 +132,30 @@ export function weatherTargetDate(args:WeatherForecastArgs,now:Date):string{
 }
 function inWindow(iso:string,window:WeatherForecastArgs['timeWindow']):boolean{if(window==='all')return true;const hour=Number(new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Oslo',hour:'2-digit',hourCycle:'h23'}).format(new Date(iso)));return window==='night'?hour<6:window==='morning'?hour>=6&&hour<12:window==='afternoon'?hour>=12&&hour<18:hour>=18;}
 
+export interface WeatherPeriodCoverage {complete:boolean;expectedHours:number;observedHours:number;missingInstants:string[];}
+/**
+ * Verify hourly coverage in Europe/Oslo instead of comparing a precipitation
+ * duration with a record count. The UTC scan also handles 23/25-hour DST days.
+ * For "today", hours that had already elapsed before the request are excluded.
+ */
+export function weatherPeriodCoverage(points:readonly WeatherPoint[],raw:unknown,now:Date):WeatherPeriodCoverage{
+  const args=weatherForecastArgsSchema.parse(raw);const target=weatherTargetDate(args,now);const anchor=Date.parse(`${target}T12:00:00.000Z`);const firstFutureHour=Math.ceil(now.getTime()/(60*60_000))*60*60_000;const expected:number[]=[];
+  for(let instant=anchor-36*60*60_000;instant<=anchor+36*60*60_000;instant+=60*60_000){const iso=new Date(instant).toISOString();if(norwegianWeatherDate(new Date(instant))!==target||!inWindow(iso,args.timeWindow))continue;if(args.period==='today'&&instant<firstFutureHour)continue;expected.push(instant);}
+  const observed=new Set(points.map((point)=>Date.parse(point.at)).filter(Number.isFinite));const missing=expected.filter((instant)=>!observed.has(instant));return{complete:expected.length>0&&missing.length===0,expectedHours:expected.length,observedHours:expected.filter((instant)=>observed.has(instant)).length,missingInstants:missing.map((instant)=>new Date(instant).toISOString())};
+}
+
 export class MetWeatherClient {
   private readonly cache=new Map<string,CacheEntry>();private readonly inFlight=new Map<string,Promise<RawForecast>>();
   constructor(private readonly resolver=new KartverketPlaceResolver(),private readonly transport:FixedHttpTransport=defaultTransport,private readonly timeoutMs=DEFAULT_TIMEOUT_MS,private readonly now=()=>new Date()){}
   async forecast(raw:unknown,signal?:AbortSignal):Promise<WeatherForecast>{
     const args=weatherForecastArgsSchema.parse(raw);const deadline=withDeadline(signal,this.timeoutMs);
-    try{const locationStarted=Date.now();const place=await this.resolver.resolve(args.location,deadline.signal);const locationMs=Math.max(0,Date.now()-locationStarted);const date=weatherTargetDate(args,this.now());const key=`${place.latitude.toFixed(4)},${place.longitude.toFixed(4)}`;let rawForecast=this.inFlight.get(key);const forecastStarted=Date.now();
-      if(!rawForecast){rawForecast=this.fetchForecast(place,key,deadline.signal);this.inFlight.set(key,rawForecast);}
+    try{const locationStarted=Date.now();let place:ResolvedPlace;try{place=await this.resolver.resolve(args.location,deadline.signal);}catch(error){weatherStageError(error,'location');}const locationMs=Math.max(0,Date.now()-locationStarted);const date=weatherTargetDate(args,this.now());const key=`${place!.latitude.toFixed(4)},${place!.longitude.toFixed(4)}`;let rawForecast=this.inFlight.get(key);const forecastStarted=Date.now();
+      if(!rawForecast){rawForecast=this.fetchForecast(place!,key,deadline.signal);this.inFlight.set(key,rawForecast);}
       let source:RawForecast;try{source=await rawForecast;}finally{if(this.inFlight.get(key)===rawForecast)this.inFlight.delete(key);}
-      const points=source.points.filter((item)=>norwegianWeatherDate(new Date(item.at))===date&&inWindow(item.at,args.timeWindow)).slice(0,24);
+      const points=source.points.filter((item)=>norwegianWeatherDate(new Date(item.at))===date&&inWindow(item.at,args.timeWindow));
       if(!points.length)throw new DomainError('MONITOR_WEATHER_DATE_UNAVAILABLE',422,{earliestDate:norwegianWeatherDate(new Date(source.points[0]?.at??this.now())),latestDate:norwegianWeatherDate(new Date(source.points.at(-1)?.at??this.now()))});
       const fingerprint=createHash('sha256').update(JSON.stringify({place:{lat:place.latitude,lon:place.longitude},date,window:args.timeWindow,points})).digest('hex');
-      return{sourceUrl:source.sourceUrl,attribution:'MET Norway Locationforecast',retrievedAt:source.retrievedAt,updatedAt:source.updatedAt,validFrom:points[0]!.at,validTo:points.at(-1)!.at,location:place,points,fingerprint,httpStatus:source.httpStatus,cacheStatus:source.cacheStatus,timing:{locationMs,forecastMs:Math.max(0,Date.now()-forecastStarted)}};}
+      return{sourceUrl:source.sourceUrl,attribution:'MET Norway Locationforecast',retrievedAt:source.retrievedAt,updatedAt:source.updatedAt,validFrom:points[0]!.at,validTo:points.at(-1)!.at,location:place!,points,fingerprint,httpStatus:source.httpStatus,cacheStatus:source.cacheStatus,timing:{locationMs,forecastMs:Math.max(0,Date.now()-forecastStarted)}};}
     finally{deadline.close();}
   }
   private async fetchForecast(place:ResolvedPlace,key:string,parent?:AbortSignal):Promise<RawForecast>{
@@ -154,18 +170,26 @@ export class MetWeatherClient {
       if(response.status===429){const retryAfter=boundedRetryAfter(response.headers.get('retry-after'),this.now().getTime());throw new DomainError('MONITOR_WEATHER_RATE_LIMITED',502,retryAfter===undefined?undefined:{retryAfterSeconds:retryAfter});}
       if(response.status!==200&&response.status!==203)throw new DomainError('MONITOR_WEATHER_UNAVAILABLE',502);
       const parsed=forecastSchema.safeParse(await readJson(response,deadline.signal));if(!parsed.success)throw new DomainError('MONITOR_WEATHER_INVALID',502);
-      const points=parsed.data.properties.timeseries.map((item):WeatherPoint=>({at:item.time,temperatureC:item.data.instant.details.air_temperature??null,windSpeedMps:item.data.instant.details.wind_speed??null,precipitationMm:item.data.next_1_hours?.details.precipitation_amount??item.data.next_6_hours?.details.precipitation_amount??null,symbolCode:item.data.next_1_hours?.summary.symbol_code??item.data.next_6_hours?.summary.symbol_code??null}));if(!points.length)throw new DomainError('MONITOR_WEATHER_INVALID',502);
+      const points=parsed.data.properties.timeseries.map((item):WeatherPoint=>({at:item.time,temperatureC:item.data.instant.details.air_temperature??null,windSpeedMps:item.data.instant.details.wind_speed??null,precipitationMm:item.data.next_1_hours?.details.precipitation_amount??item.data.next_6_hours?.details.precipitation_amount??null,precipitationPeriodHours:item.data.next_1_hours?1:item.data.next_6_hours?6:null,symbolCode:item.data.next_1_hours?.summary.symbol_code??item.data.next_6_hours?.summary.symbol_code??null}));if(!points.length)throw new DomainError('MONITOR_WEATHER_INVALID',502);
       const forecast:RawForecast={sourceUrl:url.toString(),retrievedAt:this.now().toISOString(),updatedAt:parsed.data.properties.meta.updated_at??null,points,httpStatus:response.status as 200|203,cacheStatus:cached?'revalidated':'miss'};
       const expires=Date.parse(response.headers.get('expires')??'');if(!this.cache.has(key)&&this.cache.size>=MAX_CACHE_ENTRIES)this.cache.delete(this.cache.keys().next().value!);this.cache.set(key,{forecast,expiresAt:Number.isFinite(expires)?expires:this.now().getTime()+5*60_000,lastModified:response.headers.get('last-modified')});return forecast;
-    }catch(error){mapError(error,deadline.signal,'MONITOR_WEATHER_UNAVAILABLE');}finally{deadline.close();}
+    }catch(error){try{mapError(error,deadline.signal,'MONITOR_WEATHER_UNAVAILABLE');}catch(mapped){weatherStageError(mapped,'forecast');}}finally{deadline.close();}
   }
+}
+
+export interface WeatherDayMetrics {totalPrecipitationMm:number|null;precipitationCoverageHours:number;hasRain:boolean;maxWindSpeedMps:number|null;}
+export function weatherDayMetrics(points:readonly WeatherPoint[]):WeatherDayMetrics{
+  const wind=points.flatMap((point)=>point.windSpeedMps===null?[]:[point.windSpeedMps]);
+  const hourly=points.filter((point)=>(point.precipitationPeriodHours??1)===1&&point.precipitationMm!==null);
+  const precipitation=hourly.length?hourly:(()=>{const selected:WeatherPoint[]=[];let coveredUntil=-Infinity;for(const point of points.filter((item)=>item.precipitationPeriodHours===6&&item.precipitationMm!==null).sort((a,b)=>Date.parse(a.at)-Date.parse(b.at))){const start=Date.parse(point.at);if(start<coveredUntil)continue;selected.push(point);coveredUntil=start+6*60*60_000;}return selected;})();
+  return{totalPrecipitationMm:precipitation.length?Math.round(precipitation.reduce((sum,point)=>sum+point.precipitationMm!,0)*10)/10:null,precipitationCoverageHours:precipitation.reduce((sum,point)=>sum+(point.precipitationPeriodHours??1),0),hasRain:points.some((point)=>Boolean(point.precipitationMm&&point.precipitationMm>0&&point.symbolCode&&/rain/i.test(point.symbolCode))),maxWindSpeedMps:wind.length?Math.max(...wind):null};
 }
 
 export function weatherEvidenceText(forecast:WeatherForecast):string{
   const place=[forecast.location.canonicalName,forecast.location.municipality,forecast.location.region,forecast.location.country].filter(Boolean).join(', ');
-  const temperatures=forecast.points.flatMap((point)=>point.temperatureC===null?[]:[point.temperatureC]);const precipitation=forecast.points.flatMap((point)=>point.precipitationMm===null?[]:[point.precipitationMm]);const wind=forecast.points.flatMap((point)=>point.windSpeedMps===null?[]:[point.windSpeedMps]);const symbols=[...new Set(forecast.points.flatMap((point)=>point.symbolCode?[point.symbolCode]:[]))];
-  const summary=`Forecast summary ${norwegianWeatherDate(new Date(forecast.validFrom))}: location ${place}; minimum temperature ${temperatures.length?Math.min(...temperatures):'unknown'} C; maximum temperature ${temperatures.length?Math.max(...temperatures):'unknown'} C; total precipitation ${precipitation.length?Math.round(precipitation.reduce((sum,value)=>sum+value,0)*10)/10:'unknown'} mm; maximum wind ${wind.length?Math.max(...wind):'unknown'} m/s; conditions ${symbols.length?symbols.join(', '):'unknown'}`;
-  const number=(value:number,locale:string)=>new Intl.NumberFormat(locale,{maximumFractionDigits:1}).format(value);const date=new Date(`${norwegianWeatherDate(new Date(forecast.validFrom))}T12:00:00Z`);const values=(locale:'nb-NO'|'en-GB')=>{const parts:string[]=[];if(temperatures.length){const minimum=Math.min(...temperatures),maximum=Math.max(...temperatures);parts.push(minimum===maximum?`${number(minimum,locale)} °C`:`${number(minimum,locale)}–${number(maximum,locale)} °C`);}if(precipitation.length)parts.push(locale==='nb-NO'?`${number(Math.round(precipitation.reduce((sum,value)=>sum+value,0)*10)/10,locale)} mm nedbør`:`${number(Math.round(precipitation.reduce((sum,value)=>sum+value,0)*10)/10,locale)} mm precipitation`);if(wind.length)parts.push(locale==='nb-NO'?`vind opptil ${number(Math.max(...wind),locale)} m/s`:`wind up to ${number(Math.max(...wind),locale)} m/s`);return parts.join(', ');};
+  const temperatures=forecast.points.flatMap((point)=>point.temperatureC===null?[]:[point.temperatureC]);const metrics=weatherDayMetrics(forecast.points);const precipitation=metrics.totalPrecipitationMm;const wind=metrics.maxWindSpeedMps;const symbols=[...new Set(forecast.points.flatMap((point)=>point.symbolCode?[point.symbolCode]:[]))];
+  const summary=`Forecast summary ${norwegianWeatherDate(new Date(forecast.validFrom))}: location ${place}; minimum temperature ${temperatures.length?Math.min(...temperatures):'unknown'} C; maximum temperature ${temperatures.length?Math.max(...temperatures):'unknown'} C; total precipitation ${precipitation??'unknown'} mm; maximum wind ${wind??'unknown'} m/s; conditions ${symbols.length?symbols.join(', '):'unknown'}`;
+  const number=(value:number,locale:string)=>new Intl.NumberFormat(locale,{maximumFractionDigits:1}).format(value);const date=new Date(`${norwegianWeatherDate(new Date(forecast.validFrom))}T12:00:00Z`);const values=(locale:'nb-NO'|'en-GB')=>{const parts:string[]=[];if(temperatures.length){const minimum=Math.min(...temperatures),maximum=Math.max(...temperatures);parts.push(minimum===maximum?`${number(minimum,locale)} °C`:`${number(minimum,locale)}–${number(maximum,locale)} °C`);}if(precipitation!==null)parts.push(locale==='nb-NO'?`${number(precipitation,locale)} mm nedbør`:`${number(precipitation,locale)} mm precipitation`);if(wind!==null)parts.push(locale==='nb-NO'?`vind opptil ${number(wind,locale)} m/s`:`wind up to ${number(wind,locale)} m/s`);return parts.join(', ');};
   const nbDate=new Intl.DateTimeFormat('nb-NO',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(date);const enDate=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(date);const nb=`Vær for ${place} ${nbDate}: ${values('nb-NO')}.`;const en=`Weather for ${place} on ${enDate}: ${values('en-GB')}.`;
   return [summary,`Norwegian presentation: ${nb}`,`English presentation: ${en}`,`Location: ${place}`,`Source: ${forecast.attribution}`,`Valid: ${forecast.validFrom} to ${forecast.validTo}`,...forecast.points.map((point)=>`Forecast ${point.at}: temperature ${point.temperatureC??'unknown'} C; precipitation ${point.precipitationMm??'unknown'} mm; wind ${point.windSpeedMps??'unknown'} m/s; symbol ${point.symbolCode??'unknown'}`)].join('\n');
 }

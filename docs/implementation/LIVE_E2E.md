@@ -227,8 +227,11 @@ tests.
 
 For isolated diagnosis, set `SAMVEV_E2E_SCENARIOS=web+weather` before the supported
 wrapper command. Allowed case names are exactly `weather`, `via-yr`,
-`web+weather`, and `negative`, separated by commas with no duplicates or spaces.
-Omit or leave the variable empty for the full default 3/3/3/2 matrix. A selected
+`web+weather`, `negative`, `lillesand`, and `lillesand-daily`, separated by
+commas with no duplicates or spaces. Omit or leave the variable empty for the
+full default 3/3/3/2/3/3 matrix. The Lillesand daily case also attests the
+reviewed Europe/Oslo 08:00 schedule, same-day full available period and strict
+rain-OR-wind-above-10 rule before its three Test-now executions. A selected
 case keeps its normal repeat count; this does not shorten a run or change any
 server policy. Invalid selectors fail before login or mutation.
 
@@ -239,6 +242,13 @@ print `LIVE E2E PASS`. A full matrix using an external public-source supplement
 is also labelled diagnostic, because its source semantics do not replace the
 synthetic weekly-plan gate. Only the full matrix with the default synthetic
 source can report overall LIVE E2E PASS.
+
+The deployed `e1cce66…` runtime reproduced the pre-fix daily Lillesand setup
+failure 3/3 through normal synthetic authentication and was returned to the
+disabled E2E state after normal cleanup and logout. The corrected `lillesand`
+and `lillesand-daily` scenarios are candidate coverage; they must not be
+reported as live PASS until that candidate is deployed through a separate
+authorized gate.
 
 Failed setup interpretation and Test now results preserve only the backend's
 allowlisted `validationStage` and `validationReason`, plus the already sanitized

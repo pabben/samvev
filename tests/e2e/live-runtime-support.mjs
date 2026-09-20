@@ -96,7 +96,7 @@ export async function startObservedExecution(enqueue, readRun, initialRun = null
   return initialRun;
 }
 
-const scenarioNames = ['weather', 'via-yr', 'web+weather', 'negative'];
+const scenarioNames = ['weather', 'via-yr', 'web+weather', 'negative', 'lillesand', 'lillesand-daily'];
 export function selectedScenarios(value) {
   if (value === undefined || value === '') return { names: [...scenarioNames], completeMatrix: true };
   check(typeof value === 'string' && value.length <= 64, 'SCENARIOS_INVALID');

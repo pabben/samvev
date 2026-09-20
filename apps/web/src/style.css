@@ -2679,3 +2679,7 @@ details[open] > summary:before {
 .monitor-progress { border-inline-start: 3px solid var(--teal); }
 .monitor-progress-stage { display: flex; align-items: center; gap: 10px; }
 .monitor-progress-spinner { display: inline-block; flex: 0 0 22px; }
+
+.monitor-rule .monitor-condition { grid-column: 1 / -1; }
+.monitor-condition-or { display: block; margin: .55rem 0; color: var(--teal); }
+.monitor-condition dd > p { margin: .75rem 0 0; }

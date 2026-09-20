@@ -7,6 +7,11 @@ const out = "docs/implementation/artifacts/qa";
 await mkdir(out, { recursive: true });
 const checks = [];
 const axeViolations = [];
+const labels = {
+  en: { demo: "Explore a synthetic demo", email: "Email", password: "Password", signIn: "Sign in", messages: "Messages", newMessage: "New message", pairing: "Get a pairing code" },
+  nb: { demo: "Utforsk en syntetisk demo", email: "E-post", password: "Passord", signIn: "Logg inn", messages: "Beskjeder", newMessage: "Ny beskjed", pairing: "Hent tilkoblingskode" },
+};
+const pageLabels = async (page) => labels[(await page.locator("html").getAttribute("lang")) === "nb" ? "nb" : "en"];
 const pass = (label) => { checks.push(label); console.log(`PASS ${label}`); };
 const browser = await chromium.launch({ headless: true });
 async function accessibilityCheck(page, surface) {
@@ -54,32 +59,40 @@ try {
   }, { timeout: 60_000 }).toBeTruthy();
   await page.goto("/");
   if (process.env.QA_EXISTING_DEMO === "true") {
-    await page.getByLabel("Email", { exact: true }).fill("admin@demo.invalid");
-    await page.getByLabel("Password", { exact: true }).fill("Synthetic-demo-pass-42");
-    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    const loginLabels = await pageLabels(page);
+    await page.getByLabel(loginLabels.email, { exact: true }).fill("admin@demo.invalid");
+    await page.getByLabel(loginLabels.password, { exact: true }).fill("Synthetic-demo-pass-42");
+    await page.getByRole("button", { name: loginLabels.signIn, exact: true }).click();
   } else {
-  await expect(page.getByRole("button", { name: "Explore a synthetic demo", exact: true })).toBeVisible();
+    const welcomeLabels = await pageLabels(page);
+    await expect(page.getByRole("button", { name: welcomeLabels.demo, exact: true })).toBeVisible();
     await accessibilityCheck(page, "fresh setup welcome");
     await axeCheck(page, "fresh setup welcome");
-    await page.getByRole("button", { name: "Explore a synthetic demo", exact: true }).click();
+    await page.getByRole("button", { name: welcomeLabels.demo, exact: true }).click();
   }
-  await expect(page.getByRole("button", { name: "Messages", exact: true })).toBeVisible();
+  // The synthetic demo account deliberately uses English even when the fresh
+  // installation welcome defaults to Norwegian. Wait for that account locale
+  // transition before deriving post-login labels.
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  const memberLabels = await pageLabels(page);
+  await expect(page.getByRole("button", { name: memberLabels.messages, exact: true })).toBeVisible();
   await page.screenshot({ path: `${out}/fresh-demo-member-en-light.png`, fullPage: false, animations: "disabled", caret: "hide" });
   if (process.env.QA_EXISTING_DEMO !== "true") pass("explicit fresh-install demo action creates and opens labelled synthetic household data");
   await expect(page.locator("main")).toHaveCount(1);
-  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect(page.locator("html")).toHaveAttribute("lang", memberLabels === labels.nb ? "nb" : "en");
   await accessibilityCheck(page, "member message board");
   await axeCheck(page, "member message board");
   await page.keyboard.press("Tab");
   expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
-  await page.getByRole("button", { name: "Messages", exact: true }).click();
-  await page.getByRole("button", { name: "New message", exact: true }).first().click();
+  await page.getByRole("button", { name: memberLabels.messages, exact: true }).click();
+  await page.getByRole("button", { name: memberLabels.newMessage, exact: true }).first().click();
   await accessibilityCheck(page.getByRole("dialog"), "message composer");
   await axeCheck(page, "message composer");
   await page.keyboard.press("Escape");
   const display = await context.newPage();
   await display.goto("/display");
-  await expect(display.getByRole("button", { name: "Get a pairing code", exact: true })).toBeVisible();
+  const displayLabels = await pageLabels(display);
+  await expect(display.getByRole("button", { name: displayLabels.pairing, exact: true })).toBeVisible();
   await accessibilityCheck(display, "restricted display pairing");
   await axeCheck(display, "restricted display pairing");
   pass("setup, member board, message composer and restricted display pairing have named controls, visible landmarks and sampled 3:1 text contrast");

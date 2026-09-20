@@ -7,9 +7,9 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'MONITOR_LOCATION_REQUIRED') return 'monitorErrorLocationRequired';
   if (code === 'MONITOR_LOCATION_AMBIGUOUS') return 'monitorErrorLocationAmbiguous';
   if (code === 'MONITOR_LOCATION_NOT_FOUND') return 'monitorErrorLocationNotFound';
-  if (code === 'MONITOR_WEATHER_UNAVAILABLE') return 'monitorErrorWeatherUnavailable';
-  if (code === 'MONITOR_WEATHER_RATE_LIMITED') return 'monitorErrorWeatherRateLimited';
-  if (code === 'MONITOR_WEATHER_INVALID') return 'monitorErrorWeatherInvalid';
+  if (code === 'MONITOR_WEATHER_UNAVAILABLE') return error instanceof ApiError && error.details?.weatherStage === 'location' ? 'monitorErrorLocationUnavailable' : 'monitorErrorWeatherUnavailable';
+  if (code === 'MONITOR_WEATHER_RATE_LIMITED') return error instanceof ApiError && error.details?.weatherStage === 'location' ? 'monitorErrorLocationRateLimited' : 'monitorErrorWeatherRateLimited';
+  if (code === 'MONITOR_WEATHER_INVALID') return error instanceof ApiError && error.details?.weatherStage === 'location' ? 'monitorErrorLocationInvalid' : 'monitorErrorWeatherInvalid';
   if (code === 'MONITOR_WEATHER_DATE_UNAVAILABLE') return 'monitorErrorWeatherDateUnavailable';
   if (code === 'MONITOR_WEATHER_FORBIDDEN' || code === 'MONITOR_WEATHER_CONFIGURATION_INVALID') return 'monitorErrorWeatherConfiguration';
   if (code === 'MONITOR_RUNNING') return 'monitorErrorRunning';
@@ -20,9 +20,9 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'MONITOR_SOURCE_REQUIRED') return 'monitorErrorSourceRequired';
   if (code === 'MONITOR_SOURCE_AMBIGUOUS') return 'monitorErrorSourceAmbiguous';
   if (code === 'AI_ENDPOINT_BLOCKED' || code === 'AI_ENDPOINT_INVALID') return 'monitorErrorSourceBlocked';
-  if (code === 'MONITOR_SOURCE_UNSUPPORTED' || code === 'MONITOR_SOURCE_TOO_LARGE') return 'monitorErrorSourceFormat';
+  if (code === 'MONITOR_SOURCE_UNSUPPORTED' || code === 'MONITOR_SOURCE_TOO_LARGE') return error instanceof ApiError && error.details?.weatherStage === 'location' ? 'monitorErrorLocationInvalid' : error instanceof ApiError && error.details?.weatherStage === 'forecast' ? 'monitorErrorWeatherInvalid' : 'monitorErrorSourceFormat';
   if (code === 'MONITOR_SOURCE_UNAVAILABLE') return 'monitorErrorSourceUnavailable';
-  if (code === 'MONITOR_SOURCE_TIMEOUT') return 'monitorErrorSourceTimeout';
+  if (code === 'MONITOR_SOURCE_TIMEOUT') return error instanceof ApiError && error.details?.weatherStage === 'location' ? 'monitorErrorLocationTimeout' : error instanceof ApiError && error.details?.weatherStage === 'forecast' ? 'monitorErrorWeatherTimeout' : 'monitorErrorSourceTimeout';
   if (code === 'MONITOR_TOOL_INVALID') return 'monitorErrorSourceExplore';
   if (code === 'MONITOR_TOOL_LIMIT') return 'monitorErrorSourceLimit';
   if (code === 'OFFLINE') return 'monitorConnectionLost';

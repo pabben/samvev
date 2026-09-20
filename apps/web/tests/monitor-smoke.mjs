@@ -611,6 +611,40 @@ try {
       }
     }
   }
+  // Reviewed daily weather rule: exact recurrence, full remaining day, OR and strict mean-wind threshold.
+  for (const [locale, nav, schedule, rain, wind, zero, time, retry, remove, confirm] of [
+    ['nb', 'Oppdrag', 'Hver dag kl. 08:00 · norsk tid (Europe/Oslo)', 'Det er meldt regn', 'Høyeste varslede middelvind er over 10 m/s', 'Nøyaktig 10 m/s utløser ikke vindvarsel.', 'Resten av dagen', 'Prøv å lage oppsett igjen', 'Slett', 'Ja, slett oppdraget'],
+    ['en', 'Tasks', 'Every day at 08:00 · Norwegian time (Europe/Oslo)', 'Rain is forecast', 'The highest forecast mean wind is over 10 m/s', 'Exactly 10 m/s does not trigger a wind notification.', 'The rest of today', 'Retry setup', 'Delete', 'Yes, delete task'],
+  ]) {
+    me.account.locale = locale; me.account.theme = locale === 'nb' ? 'light' : 'dark';
+    await page.setViewportSize(locale === 'nb' ? { width: 390, height: 844 } : { width: 1280, height: 752 });
+    tasks = [{ ...template, name: locale === 'nb' ? 'Daglig værsjekk' : 'Daily weather check', instruction: locale === 'nb' ? 'Sjekk været i Testvik hver dag kl. 08:00. Gi beskjed ved regn eller vind over 10 m/s.' : 'Check the weather in Testvik every day at 08:00. Notify me of rain or wind over 10 m/s.', sourceUrl: null, sourceKinds: ['weather'], state: 'draft', errorCode: null,
+      interpretedRule: { ...weatherRule, summary: locale === 'nb' ? 'Sjekk dagens vær og gi bare beskjed når et vilkår er oppfylt.' : 'Check today’s forecast and notify only when a condition is met.', resultKind: 'events', schedule: {kind: 'daily', localTime:'08:00', timezone:'Europe/Oslo'},
+        weatherCondition: {operator:'or',conditions:[{kind:'rain'},{kind:'max_wind_speed',comparison:'gt',thresholdMps:10}]},
+        forecastPeriod: {period:'today',timeWindow:'all'} }, latestResult: null }];
+    await page.reload(); await page.getByRole('button', {name:nav,exact:true}).click();
+    const preview = card().locator('.preview-panel');
+    for (const value of [schedule, rain, wind, zero, time, 'Testvik, Eksempelkommune, Eksempelfylke']) await expect(preview).toContainText(value);
+    await expect(preview.locator('.monitor-condition-or')).toHaveText(locale === 'nb' ? 'ELLER' : 'OR');
+    await expect(preview).toContainText(locale === 'nb' ? 'Ingen beskjed hvis ingen av vilkårene' : 'No notification if none of the conditions');
+    await expect(button(locale === 'nb' ? 'Godkjenn og aktiver' : 'Approve and activate')).toBeEnabled();
+    await noTechnicalTerms(); await layout(); await axe();
+    if (process.env.CONDITIONAL_WEATHER_SCREENSHOT_DIR) {
+      await mkdir(process.env.CONDITIONAL_WEATHER_SCREENSHOT_DIR, {recursive:true});
+      await card().screenshot({path:`${process.env.CONDITIONAL_WEATHER_SCREENSHOT_DIR}/conditional-weather-${locale}-synthetic.png`});
+    }
+    for (const stage of ['location','forecast']) {
+      tasks[0] = {...tasks[0],interpretedRule:null,errorCode:'MONITOR_WEATHER_UNAVAILABLE',latestExecution:{id:'synthetic-failed',taskId:tasks[0].id,kind:'interpretation',status:'failed',errorCode:'MONITOR_WEATHER_UNAVAILABLE',errorDetails:{weatherStage:stage}}};
+      await page.reload(); await page.getByRole('button',{name:nav,exact:true}).click();
+      await expect(card().getByRole('alert')).toContainText(stage === 'location' ? locale === 'nb' ? 'Stedstjenesten svarte ikke nå' : 'The place service did not respond now' : locale === 'nb' ? 'Værvarselet kunne ikke hentes nå' : 'The forecast could not be fetched now');
+      await expect(card().getByRole('alert')).not.toContainText(/prøver igjen|retrying/i);
+      await expect(button(retry)).toBeEnabled(); await expect(button(remove)).toBeEnabled();
+    }
+    await button(remove).focus(); await page.keyboard.press('Enter');
+    await expect(card().locator('.monitor-delete')).toBeFocused();
+    await card().getByRole('button',{name:confirm,exact:true}).click();
+    await expect(page.locator('.monitor-card')).toHaveCount(0);
+  }
   failDetails = undefined;
   // Durable jobs return 202 immediately; reload/polling only observe the same job.
   durableMode = true; weatherScenario = true;
