@@ -56,6 +56,8 @@ const answer = { version: 1, answer: "Biblioteket åpner en ny lesehage.", evide
 const rule = { resultKind: "answer", summary: "Finn den nyeste overskriften og vis svaret.", eventTypes: [], keywords: [], people: [], checkIntervalMinutes: 60, noticeDaysBefore: 1, noticeLocalTime: "18:00" };
 let tasks = [];
 let failNext;
+let failDetails;
+let weatherScenario = false;
 let unchangedNext = false;
 let gate;
 let gateAction;
@@ -76,8 +78,14 @@ function presented(task) {
   ];
   const actions = Object.fromEntries(['interpret', 'test', 'approve', 'edit', 'delete', 'run', 'pause', 'resume', 'smarter', 'quality', 'refresh'].map((name) => [name, { enabled: allowed.includes(name), reason: allowed.includes(name) ? null : status === 'running' ? 'running' : 'setup_required' }]));
   if (task.approveDenied) actions.approve = { enabled: false, reason: 'permission_denied' };
-  return { ...task, lifecycle: { status, setupComplete, actions } };
+  const { _usesSmarterAi, ...publicTask } = task;
+  return { ...publicTask, usesSmarterAi: Boolean(_usesSmarterAi), lifecycle: { status, setupComplete, actions } };
 }
+const weatherUrl = "https://api.met.no/weatherapi/locationforecast/2.0/documentation";
+const weatherRule = { ...rule, summary: "Sjekk temperaturen i Testvik i morgen tidlig.", location: { query: "Testvik, Eksempelkommune", canonicalName: "Testvik", municipality: "Eksempelkommune", region: "Eksempelfylke", country: "Norge" } };
+const weatherAnswer = { version: 1, answer: "I Testvik er det meldt 6 °C i morgen tidlig.", evidence: { quote: "2030-09-19 07:00: 6 °C, 1 mm regn, 3 m/s vind.", sourceUrl: weatherUrl }, confidence: .98, uncertainty: "Et værvarsel kan endre seg." };
+const weatherSources = [{ sourceUrl: weatherUrl, fetchedAt: checkedAt, kind: 'weather', attribution: 'MET Norway Locationforecast', canonicalLocation: 'Testvik, Eksempelkommune, Eksempelfylke', validFrom: '2030-09-19T05:00:00.000Z', validTo: '2030-09-19T10:00:00.000Z', forecastUpdatedAt: '2030-09-18T09:00:00.000Z' }];
+const combinedEvent = { date: '2030-09-19', time: null, type: 'Utedag', description: 'Utedag med regn', actions: ['Ta med regntøy'], who: ['Testperson'], evidence: { quote: 'Utedag 19.09.2030', sourceUrl, claims: ['Utedag'], sources: [{ quote: '2030-09-19 07:00: 6 °C, 1 mm regn, 3 m/s vind.', sourceUrl: weatherUrl, claims: ['1 mm regn'] }] }, confidence: .96, uncertainty: null };
 const calls = [];
 const unexpected = [];
 const errors = [];
@@ -100,16 +108,16 @@ async function mock(currentPage, restricted = false) {
       calls.push({ path, method: request.method(), body });
       if (gate && (!gateAction || path.endsWith(`/${gateAction}`))) await gate;
       if (saveGate && (request.method() === 'PATCH' || (request.method() === 'POST' && path === base))) await saveGate;
-      if (failNext) { const code = failNext; failNext = undefined; afterFailure?.(); afterFailure = undefined; return route.fulfill({ status: 422, json: { error: { code } } }); }
+      if (failNext) { const code = failNext; failNext = undefined; afterFailure?.(); afterFailure = undefined; return route.fulfill({ status: 422, json: { error: { code, details: failDetails } } }); }
       if (path === base && request.method() === "POST") {
-        const task = { id: tasks.some((entry) => entry.id === taskId) ? `60000000-0000-4000-8000-${String(++createdIdSequence).padStart(12, '0')}` : taskId, name: body.name ?? "Nyheter fra biblioteket", instruction: body.instruction, sourceUrl: body.sourceUrl ?? sourceUrl, state: "draft", checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: "18:00", providerPolicy: "default", modelTier: "routine", targets: body.targets, interpretedRule: null, events: [], revision: 1, approvedRevision: null, lastCheckedAt: null, nextCheckAt: null, lastResult: null, lastChangedAt: null, errorCode: null, stats: { checks: 0, aiCalls: 0, unchanged: 0 } };
+        const task = { id: tasks.some((entry) => entry.id === taskId) ? `60000000-0000-4000-8000-${String(++createdIdSequence).padStart(12, '0')}` : taskId, name: body.name ?? (weatherScenario ? "Vær i Testvik" : "Nyheter fra biblioteket"), instruction: body.instruction, sourceUrl: weatherScenario ? null : body.sourceUrl ?? sourceUrl, sourceKinds: weatherScenario ? ['weather'] : ['web'], state: "draft", checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: "18:00", targets: body.targets, interpretedRule: null, events: [], revision: 1, approvedRevision: null, lastCheckedAt: null, nextCheckAt: null, lastResult: null, lastChangedAt: null, errorCode: null, stats: { checks: 0, aiCalls: 0, unchanged: 0 } };
         tasks = [task, ...tasks]; return route.fulfill({ json: presented(task) });
       }
       let task = tasks.find((entry) => path.includes(entry.id));
       expect(body.expectedRevision).toBe(task.revision);
       if (request.method() === "DELETE") { tasks = tasks.filter((entry) => entry.id !== task.id); return route.fulfill({ status: 204 }); }
       if (request.method() === "PATCH") {
-        task = { ...task, ...body, revision: task.revision + 1, state: "draft", interpretedRule: null, nextCheckAt: null, latestResult: null, events: [], lastResult: null };
+        task = { ...task, ...body, ...(weatherScenario && body.sourceUrl === "" ? { sourceUrl: null } : {}), revision: task.revision + 1, state: "draft", interpretedRule: null, nextCheckAt: null, latestResult: null, events: [], lastResult: null };
       } else {
         const action = path.split("/").at(-1);
         if (["test", "run", "smarter"].includes(action)) {
@@ -119,15 +127,15 @@ async function mock(currentPage, restricted = false) {
           }
           if (action === "run") { task.lastCheckedAt = checkedAt; task.lastResult = answer.answer; task.stats = { checks: 14, aiCalls: 1, unchanged: 13 }; }
           const eventResult = task.interpretedRule.resultKind === "events";
-          task.latestResult = { resultKind: eventResult ? "events" : "answer", result: eventResult ? { version: 1, events: task.events } : answer, sourceUrl, checkedAt, sources: eventResult ? [] : sources };
+          task.latestResult = { resultKind: eventResult ? "events" : "answer", result: eventResult ? { version: 1, events: task.events } : weatherScenario ? weatherAnswer : answer, sourceUrl: weatherScenario ? weatherUrl : sourceUrl, checkedAt, sources: eventResult ? [] : weatherScenario ? weatherSources : sources };
           return route.fulfill({ json: { outcome: "changed", ...task.latestResult } });
         }
         task = { ...task, revision: task.revision + 1 };
-        if (action === "interpret") task = { ...task, interpretedRule: rule, lifecycleStatus: undefined, errorCode: null, checkIntervalMinutes: 60 };
+        if (action === "interpret") task = { ...task, interpretedRule: weatherScenario ? weatherRule : rule, lifecycleStatus: undefined, errorCode: null, checkIntervalMinutes: 60 };
         else if (action === "approve" || action === "resume") task = { ...task, state: "active", approvedRevision: task.revision, nextCheckAt: scheduledAt };
         if (action === "approve") task = { ...task, latestResult: null, events: [], lastResult: null };
         else if (action === "pause") task = { ...task, state: "paused", nextCheckAt: null };
-        else if (action === "quality") task.modelTier = body.quality === "smarter" ? "strong" : "routine";
+        else if (action === "quality") task._usesSmarterAi = body.quality === "smarter";
         else if (!["interpret", "resume"].includes(action)) unexpected.push(path);
       }
       tasks = tasks.map((entry) => entry.id === task.id ? task : entry);
@@ -220,12 +228,17 @@ try {
   await expect(card().locator(".monitor-observed-at time")).toHaveAttribute("datetime", sources[1].fetchedAt);
   await button("Prøv med smartere KI").click();
   await expect(card()).toContainText("Et smartere forslag");
-  expect(tasks[0].modelTier).toBe("routine"); expect(tasks[0].nextCheckAt).toBe(scheduledAt);
+  expect(tasks[0]).not.toHaveProperty("modelTier"); expect(tasks[0].nextCheckAt).toBe(scheduledAt);
+  await expect(card()).not.toContainText('Bruker smartere KI fremover');
   await button("Bruk smartere KI for dette oppdraget fremover").click();
-  await expect(card().locator(".monitor-meta")).toContainText("Smartere");
+  expect(calls.filter((call) => call.path.endsWith('/quality')).at(-1).body.quality).toBe('smarter');
+  await expect(card()).toContainText('Bruker smartere KI fremover');
+  await expect(card().locator(".monitor-meta")).not.toContainText(/Smartere|Standard|Utførelse/);
   expect(tasks[0].nextCheckAt).toBe(scheduledAt);
   await button("Bruk standard fremover").click();
-  await expect(card().locator(".monitor-meta")).toContainText("Standard");
+  expect(calls.filter((call) => call.path.endsWith('/quality')).at(-1).body.quality).toBe('standard');
+  await expect(card()).not.toContainText('Bruker smartere KI fremover');
+  await expect(card().locator(".monitor-meta")).not.toContainText(/Smartere|Standard|Utførelse/);
   failNext = "AI_TIMEOUT";
   await button("Kjør nå").click();
   await expect(card().getByRole("alert")).toContainText("Dette tok for lang tid");
@@ -489,6 +502,84 @@ try {
     await page.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
     await page.locator(".monitor-grid").screenshot({ path: `${process.env.MONITOR_STATE_SCREENSHOT_DIR}/task-states-nb-synthetic.png` });
   }
+  // Structured weather needs no URL, and only reviewed canonical place/source details appear.
+  weatherScenario = true; tasks = []; me.account.locale = 'nb'; me.account.theme = 'light';
+  await page.setViewportSize({ width: 390, height: 844 }); await page.reload(); await navigate();
+  await panel().getByRole('button', { name: 'Nytt oppdrag' }).click();
+  await page.getByLabel('Din forespørsel', { exact: true }).fill('Sjekk været i Testvik i morgen tidlig.');
+  await panel().getByRole('button', { name: 'Lag oppsett fra forespørselen', exact: true }).click();
+  await expect(card().locator('.monitor-state')).toHaveText('Venter på din godkjenning');
+  expect(calls.filter((call) => call.path === base && call.method === 'POST').at(-1).body.sourceUrl).toBeUndefined();
+  expect(tasks[0].sourceUrl).toBeNull();
+  await expect(card().locator('.monitor-rule')).toContainText('Testvik, Eksempelkommune, Eksempelfylke, Norge');
+  await expect(card().locator('.monitor-rule')).toContainText('Stedsnavn © Kartverket');
+  await expect(card().locator('.monitor-source')).toHaveText('Værvarsel fra Meteorologisk institutt');
+  await expect(card().locator('a[href=""], a:not([href])')).toHaveCount(0);
+  await expect(button('Test nå')).toBeEnabled(); await expect(button('Godkjenn og aktiver')).toBeEnabled();
+  await button('Test nå').focus(); await page.keyboard.press('Enter');
+  await expect(card().locator('.monitor-result')).toBeFocused();
+  await expect(card().locator('.monitor-result')).toContainText('6 °C');
+  await expect(card().locator('.monitor-result')).toContainText('Prognosen gjelder');
+  await expect(card().locator('.monitor-result')).toContainText('Prognosen oppdatert');
+  await expect(card().locator('.monitor-result-source')).toHaveText('Værvarsel fra Meteorologisk institutt');
+  expect(tasks[0].state).toBe('draft'); expect(tasks[0].nextCheckAt).toBeNull();
+  await expect(panel()).not.toContainText(/60\.1234|10\.4321|weather[._]forecast|routine|strong|Utførelse/);
+  await noTechnicalTerms(); await layout(); await axe();
+  if (process.env.WEATHER_SCREENSHOT_DIR) {
+    await mkdir(process.env.WEATHER_SCREENSHOT_DIR, { recursive: true });
+    await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+    await page.screenshot({ path: `${process.env.WEATHER_SCREENSHOT_DIR}/weather-nb-mobile-synthetic.png` });
+  }
+  // Both sources survive reload; the source list uses human labels and attribution.
+  tasks[0] = { ...tasks[0], sourceUrl, sourceKinds: ['web', 'weather'], state: 'active', interpretedRule: { ...weatherRule, resultKind: 'events' }, events: [combinedEvent], latestResult: { resultKind: 'events', result: { version: 1, events: [combinedEvent] }, sourceUrl, checkedAt, sources: [sources[0], ...weatherSources] } };
+  me.account.locale = 'en'; me.account.theme = 'dark';
+  await page.setViewportSize({ width: 1280, height: 752 }); await page.reload(); await page.getByRole('button', { name: 'Tasks', exact: true }).click();
+  await expect(card().locator('.monitor-source-list')).toContainText('Web page / document');
+  await expect(card().locator('.monitor-source-list')).toContainText('Forecast from MET Norway');
+  await card().locator('.monitor-sources summary').focus(); await page.keyboard.press('Enter');
+  await expect(card().locator('.monitor-sources')).toContainText('Forecast valid');
+  await expect(card().locator('.monitor-sources')).toContainText('Forecast from MET Norway');
+  await expect(card().locator('.monitor-supporting-evidence')).toContainText('Supporting source evidence');
+  await expect(card().locator(`.monitor-supporting-evidence a[href="${weatherUrl}"]`)).toHaveCount(1);
+  await expect(panel()).not.toContainText(/60\.1234|10\.4321|weather[._]forecast|routine|strong|Quality/);
+  await noTechnicalTerms(); await layout(); await axe();
+  if (process.env.WEATHER_SCREENSHOT_DIR) await panel().screenshot({ path: `${process.env.WEATHER_SCREENSHOT_DIR}/weather-en-desktop-synthetic.png` });
+  // An explicit cleared override is sent on edit, so old web sources cannot stick to weather-only setup.
+  await button('Edit').click();
+  await page.getByLabel('Source (optional)', { exact: true }).fill('');
+  await panel().getByRole('button', { name: 'Create setup from request', exact: true }).click();
+  await expect(card().locator('.monitor-state')).toHaveText('Waiting for your approval');
+  expect(calls.filter((call) => call.method === 'PATCH').at(-1).body.sourceUrl).toBe('');
+  expect(tasks[0].sourceUrl).toBeNull();
+  await expect(card().locator('.monitor-source')).toHaveCount(1);
+  for (const [locale, nav, create, retry, edit, errorMessages] of [
+    ['nb', 'Oppdrag', 'Lag oppsett fra forespørselen', 'Prøv å lage oppsett igjen', 'Endre', ['Hvilket sted gjelder værvarselet?', 'Hvilket sted mener du?', 'Samvev fant ikke stedet.', 'Værvarselet kunne ikke hentes nå.', 'Værtjenesten ber oss vente litt.', 'Samvev fikk ikke et gyldig værvarsel']],
+    ['en', 'Tasks', 'Create setup from request', 'Retry setup', 'Edit', ['Which place is the forecast for?', 'Which place do you mean?', 'Samvev could not find the place.', 'The forecast could not be fetched now.', 'The weather service has asked us to wait.', 'Samvev did not receive a valid forecast']],
+  ]) {
+    me.account.locale = locale;
+    const codes = ['MONITOR_LOCATION_REQUIRED', 'MONITOR_LOCATION_AMBIGUOUS', 'MONITOR_LOCATION_NOT_FOUND', 'MONITOR_WEATHER_UNAVAILABLE', 'MONITOR_WEATHER_RATE_LIMITED', 'MONITOR_WEATHER_INVALID'];
+    for (let index = 0; index < codes.length; index++) {
+      tasks = [{ ...template, sourceUrl: null, interpretedRule: null, errorCode: null }];
+      await page.reload(); await page.getByRole('button', { name: nav, exact: true }).click();
+      failNext = codes[index]; failDetails = codes[index] === 'MONITOR_LOCATION_AMBIGUOUS' ? { candidates: [{ name: 'Testvik', municipality: 'Eksempelkommune', region: 'Eksempelfylke', latitude: 60.1234, longitude: 10.4321 }, { name: 'Testvik', municipality: 'Prøvekommune', region: 'Prøvefylke' }] } : undefined;
+      afterFailure = () => { tasks[0].errorCode = codes[index]; };
+      await button(create).click(); await expect(card().getByRole('alert')).toContainText(errorMessages[index]);
+      await expect(card().getByRole('alert')).toBeFocused(); await expect(button(retry)).toBeEnabled(); await expect(button(edit)).toBeEnabled();
+      await expect(panel()).not.toContainText(/60\.1234|10\.4321/);
+      if (codes[index] === 'MONITOR_LOCATION_AMBIGUOUS') {
+        await expect(card().locator('.monitor-location-options button')).toHaveCount(2);
+        await card().locator('.monitor-location-options button').first().focus(); await page.keyboard.press('Enter');
+        await expect(page.locator('#monitor-instruction')).toBeFocused();
+        await expect(page.locator('#monitor-instruction')).toHaveValue(/Testvik, Eksempelkommune, Eksempelfylke/);
+        await panel().getByRole('button', { name: create, exact: true }).click();
+        await expect(card().locator('.monitor-state')).toHaveText(locale === 'nb' ? 'Venter på din godkjenning' : 'Waiting for your approval');
+        await page.reload(); await page.getByRole('button', { name: nav, exact: true }).click();
+        await expect(card().locator('.monitor-rule')).toContainText('Testvik, Eksempelkommune, Eksempelfylke');
+        await layout(); await axe();
+      }
+    }
+  }
+  failDetails = undefined;
   const limitedContext = await browser.newContext({ baseURL }); const limited = await limitedContext.newPage(); await mock(limited, true); await limited.goto("/");
   await expect(limited.getByRole("button", { name: "Tasks", exact: true })).toHaveCount(0); await limitedContext.close();
   expect(errors).toEqual([]); expect(unexpected).toEqual([]);

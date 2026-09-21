@@ -68,11 +68,16 @@ export function sourceUrlFromInstruction(instruction:string,manualSource?:string
 
 export interface SourceLink { url:string; label:string; }
 export interface SourceDocument {
-  finalUrl:string; contentType:'text/html'|'application/pdf'; text:string; fingerprint:string;
+  finalUrl:string; contentType:'text/html'|'application/pdf'|'application/vnd.met.no.locationforecast+json'; text:string; fingerprint:string;
   title?:string; headings?:string[]; links?:SourceLink[]; fetchedAt?:string; etag?:string; lastModified?:string;
   httpStatus?:number; byteSize?:number;
   /** Server-only successful tool request aliases. Never sourced from model output. */
   evidenceUrlAliases?:string[];
+  /** Typed metadata for server-side evidence validation. Never accepted from model output. */
+  evidenceKind?:'web'|'weather';
+  evidenceDates?:string[];
+  /** Public citation URL with sensitive query coordinates removed when needed. */
+  publicEvidenceUrl?:string;
 }
 export type MonitorResolver=(hostname:string)=>Promise<Array<{address:string;family:4|6}>>;
 

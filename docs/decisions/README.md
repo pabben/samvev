@@ -19,3 +19,4 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0013](0013-general-ai-task-monitor.md) | General approved AI tasks, source change detection and M1 notification reconciliation | Accepted for M2.3 |
 | [0014](0014-person-account-household-foundation.md) | Separate people/accounts, protected owner succession, optional birthdays and controlled live bootstrap | Accepted |
 | [0015](0015-provider-independent-ai-web-tools.md) | Bounded provider-independent web tools with server-owned network access and source provenance | Accepted for the M2.3 follow-up |
+| [0016](0016-official-weather-tool-and-quality-routing.md) | Official weather and location tools with adaptive internal AI quality routing | Accepted for M2.4 |

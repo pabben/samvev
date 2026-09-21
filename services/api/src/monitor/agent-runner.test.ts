@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AiProviderTurn, AiToolResult } from '@samvev/contracts';
+import type { AiProviderTurn, AiTask, AiToolResult } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService } from '../ai/admin-service.ts';
 import { MONITOR_AGENT_DEADLINE_MS,MONITOR_LEASE_MS,MonitorAgentRunner,monitorWebTool } from './agent-runner.ts';
@@ -26,39 +26,43 @@ test('runner accepts a normal final turn without inventing a tool call',async()=
   assert.equal(result.output,'Synthetic final');assert.equal(result.aiCalls,1);assert.equal(result.documents.length,0);assert.equal(h.fetches,0);assert.deepEqual(h.choices,['auto']);
 });
 
+test('one format repair can reuse server-validated seed evidence without network or tool access',async()=>{
+  let toolCount=-1;let input='';let fetches=0;const root:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',text:'Outdoor activity 2030-09-20',headings:['Outdoor activity'],links:[],fingerprint:'seed',evidenceDates:['2030-09-20']};
+  const ai={createTaskSession:async(_household:string,task:AiTask,_policy:unknown,tools:unknown[])=>{toolCount=tools.length;input=task.input;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>({output:'repaired final',toolCalls:[],generatedAt:'2026-09-12T08:00:00Z'})};}} as unknown as AiAdminService;
+  const fetcher={fetch:async()=>{fetches++;throw new Error('must not fetch');}} as unknown as MonitorSourceFetcher;const result=await new MonitorAgentRunner(ai,fetcher).run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'repair',input:'Return strict JSON',modelTier:'strong',sources:[]},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open'],requiredTools:['web.open'],seedDocuments:[root],preloadSeedDocuments:true,maxTurns:1});
+  assert.equal(result.output,'repaired final');assert.equal(result.aiCalls,1);assert.equal(result.attemptedToolCount,0);assert.equal(toolCount,0);assert.equal(fetches,0);assert.match(input,/already fetched and validated/);assert.equal(result.evidenceDocuments[0]!.finalUrl,root.finalUrl);
+});
+
+test('runner enforces a pinned provider before an escalation sends any task turn',async()=>{
+  let turns=0;let closed=0;const ai={createTaskSession:async()=>({provider:'openai' as const,model:'synthetic',close:()=>{closed++;},next:async()=>{turns++;return{output:'must not run',toolCalls:[],generatedAt:at};}})} as unknown as AiAdminService;
+  await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,expectedProvider:'openai_compatible'}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_PROVIDER_UNAVAILABLE');assert.equal(turns,0);assert.equal(closed,1);
+});
+
 test('runner uses required until a source opens and auto afterward',async()=>{
   const h=harness([{toolCalls:[{id:'root',name:'web.open',arguments:{url:root.finalUrl}}],generatedAt:at},{output:'Evidence-backed final',toolCalls:[],generatedAt:at}]);
   const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true});assert.equal(result.output,'Evidence-backed final');assert.deepEqual(h.choices,['required','auto']);assert.equal(result.documents.length,1);
 });
 
-test('runner retries a premature required final until a source is opened',async()=>{
-  const h=harness([
-    {output:'Premature unsupported source answer',toolCalls:[],generatedAt:at},
-    {toolCalls:[{id:'root_retry',name:'web.open',arguments:{url:root.finalUrl}}],generatedAt:at},
-    {output:'Evidence-backed retry result',toolCalls:[],generatedAt:at}
-  ]);
-  const result=await h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true});
-  assert.equal(result.output,'Evidence-backed retry result');assert.equal(result.aiCalls,3);assert.deepEqual(h.choices,['required','required','auto']);assert.deepEqual(h.fetchedUrls,[root.finalUrl]);assert.equal(JSON.stringify(result).includes('Premature unsupported'),false);
+test('runner deduplicates an identical successful domain-tool call and asks for the final JSON',async()=>{
+  const results:AiToolResult[][]=[];const choices:Array<'auto'|'required'>=[];let weatherCalls=0;
+  const turns:AiProviderTurn[]=[
+    {toolCalls:[{id:'weather_one',name:'weather.forecast',arguments:{location:'Oslo',period:'tomorrow',timeWindow:'all'}}],generatedAt:at},
+    {toolCalls:[{id:'weather_two',name:'weather.forecast',arguments:{location:'Oslo',period:'tomorrow',timeWindow:'all'}}],generatedAt:at},
+    {output:'Strict final JSON',toolCalls:[],generatedAt:at}
+  ];
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(toolResults:AiToolResult[]=[],toolChoice:'auto'|'required'='auto')=>{results.push(toolResults);choices.push(toolChoice);return turns.shift()!;}})} as unknown as AiAdminService;
+  const weather={forecast:async()=>{weatherCalls++;return{sourceUrl:'https://api.met.no/private-coordinates',attribution:'MET Norway Locationforecast' as const,retrievedAt:at,updatedAt:at,validFrom:'2026-09-11T00:00:00.000Z',validTo:'2026-09-11T23:00:00.000Z',location:{query:'Oslo',canonicalName:'Oslo',municipality:'Oslo',region:'Oslo',country:'Norge' as const,latitude:59.9,longitude:10.7,placeId:'synthetic'},points:[{at:'2026-09-11T12:00:00.000Z',temperatureC:12,precipitationMm:0,windSpeedMps:2,symbolCode:'clearsky_day'}],fingerprint:'weather-v1',httpStatus:200 as const,cacheStatus:'miss' as const};}};
+  const weatherTask={...task,input:'Sjekk været i Oslo i morgen.'};const result=await new MonitorAgentRunner(ai,{} as MonitorSourceFetcher,1000,weather as never).run({householdId:'00000000-0000-4000-8000-000000000001',task:weatherTask,policy:'local',toolNames:['weather.forecast'],requiredTools:['weather.forecast']});
+  assert.equal(result.output,'Strict final JSON');assert.equal(weatherCalls,1);assert.equal(result.aiCalls,3);assert.equal(result.attemptedToolCount,2);assert.deepEqual(choices,['required','auto','auto']);
+  assert.match(results[1]![0]!.output,/"toolStatus":"success"/);assert.match(results[1]![0]!.output,/return the required final JSON/);
+  assert.match(results[2]![0]!.output,/"toolStatus":"already_completed"/);assert.match(results[2]![0]!.output,/return the required final JSON now/);
+  assert.equal(result.provenance.length,1);assert.deepEqual(result.attempts.map((item)=>item.tool),['weather.forecast','weather.forecast']);
 });
 
-test('repeated premature required finals end at the provider-turn bound without fetching',async()=>{
-  const h=harness(Array.from({length:7},(_,index)=>({output:`Premature ${index}`,toolCalls:[],generatedAt:at})));
-  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_TOOL_LIMIT'&&error.details?.aiCalls===7&&error.details?.attemptedToolCount===0);
-  assert.deepEqual(h.choices,Array(7).fill('required'));assert.equal(h.fetches,0);assert.deepEqual(h.results,Array.from({length:7},()=>[]));
-});
-
-test('runner applies an explicit repair-turn ceiling inside the hard cap',async()=>{
-  const h=harness(Array.from({length:7},(_,index)=>({output:`Premature ${index}`,toolCalls:[],generatedAt:at})));
-  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true,maxTurns:6,maxToolExecutions:6}),(error:unknown)=>error instanceof DomainError&&error.code==='MONITOR_TOOL_LIMIT'&&error.details?.aiCalls===6);
-  assert.equal(h.results.length,6);assert.equal(h.fetches,0);
-});
-
-test('runner keeps one session through a premature final and closes it after its deadline aborts the retry',async()=>{
-  let turns=0;let closed=0;
-  const ai={createTaskSession:async(_household:string,_task:unknown,_policy:unknown,_tools:unknown,signal:AbortSignal)=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{closed++;},next:async()=>{turns++;if(turns===1)return{output:'Premature',toolCalls:[],generatedAt:at};return new Promise<never>((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DomainError('AI_TIMEOUT',504)),{once:true}));}})} as unknown as AiAdminService;
-  const runner=new MonitorAgentRunner(ai,{} as MonitorSourceFetcher,20);const started=Date.now();
-  await assert.rejects(runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_TIMEOUT');
-  assert.equal(turns,2);assert.equal(closed,1);assert.ok(Date.now()-started<60);
+test('runner rejects a final answer that omits a required tool so the caller can escalate once',async()=>{
+  const h=harness([{output:'Premature unsupported source answer',toolCalls:[],generatedAt:at}]);
+  await assert.rejects(h.runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,requireTool:true}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.aiCalls===1&&error.details?.provider==='openai_compatible');
+  assert.deepEqual(h.choices,['required']);assert.equal(h.fetches,0);assert.deepEqual(h.results,[[]]);
 });
 
 test('runner rejects credential-bearing root URLs before provider or fetch access',async()=>{

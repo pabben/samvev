@@ -223,6 +223,7 @@ export const aiSettingsUpdateSchema = z.object({
 export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers) }).strict();
 
 export const monitorProviderPolicies = ['default', 'local', 'openai'] as const;
+export const monitorToolNames = ['web.open', 'weather.forecast'] as const;
 export const monitorStates = ['draft', 'active', 'paused'] as const;
 export const monitorLifecycleStatuses = ['incomplete', 'setup_failed', 'ready_for_approval', 'active', 'paused', 'running'] as const;
 export const monitorTaskActions = ['interpret', 'test', 'approve', 'edit', 'delete', 'run', 'pause', 'resume', 'smarter', 'quality', 'refresh'] as const;
@@ -262,13 +263,44 @@ export const monitorInterpretationSchema = z.object({
   people: z.array(z.string().trim().min(1).max(80)).max(20),
   noticeDaysBefore: z.number().int().min(0).max(30),
   noticeLocalTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
-  checkIntervalMinutes: z.number().int().min(15).max(10080)
+  checkIntervalMinutes: z.number().int().min(15).max(10080),
+  conditionalNotification: z.boolean().default(false),
+  tools: z.array(z.enum(monitorToolNames)).min(1).max(6).optional(),
+  location: z.object({
+    query: z.string().trim().min(1).max(200),
+    canonicalName: z.string().trim().min(1).max(200).optional(),
+    municipality: z.string().trim().min(1).max(120).optional(),
+    region: z.string().trim().min(1).max(120).optional(),
+    country: z.string().trim().min(1).max(120).optional()
+  }).strict().optional(),
+  /** Server-anchored execution scope. Removed from ordinary task DTOs. */
+  weatherScope: z.object({
+    location: z.string().trim().min(1).max(200),
+    period: z.enum(['today','tomorrow','date']),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+    timeWindow: z.enum(['all','night','morning','afternoon','evening']),
+    dynamicDateFromEvidence: z.boolean().optional()
+  }).strict().superRefine((value,ctx)=>{if(value.period==='date'&&!value.dynamicDateFromEvidence&&!value.date)ctx.addIssue({code:'custom',message:'date_required',path:['date']});}).optional()
 }).strict();
 
 const calendarDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => {
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 });
+
+export const monitorEvidenceSourceSchema = z.object({
+  quote: z.string().trim().min(1).max(1000),
+  sourceUrl: z.string().url().max(2048),
+  claims: z.array(z.string().trim().min(1).max(500)).min(1).max(20)
+}).strict();
+
+export const monitorEventEvidenceSchema = z.object({
+  quote: z.string().trim().min(1).max(500),
+  sourceUrl: z.string().url().max(2048),
+  claims: z.array(z.string().trim().min(1).max(500)).min(1).max(20).optional(),
+  /** Additional server-anchored sources for a composite event. */
+  sources: z.array(monitorEvidenceSourceSchema).min(1).max(6).optional()
+}).strict();
 
 export const monitorExtractionSchema = z.object({
   version: z.literal(1),
@@ -279,7 +311,7 @@ export const monitorExtractionSchema = z.object({
     description: z.string().trim().min(1).max(500),
     actions: z.array(z.string().trim().min(1).max(200)).max(20),
     who: z.array(z.string().trim().min(1).max(80)).max(20),
-    evidence: z.object({ quote: z.string().trim().min(1).max(500), sourceUrl: z.string().url().max(2048) }).strict(),
+    evidence: monitorEventEvidenceSchema,
     confidence: z.number().min(0).max(1),
     uncertainty: z.string().trim().max(500).nullable()
   }).strict()).max(200)
@@ -316,6 +348,7 @@ export type AiModelTier = (typeof aiModelTiers)[number];
 export type AiReasoningEffort = (typeof aiReasoningEfforts)[number];
 export type AiProviderId = (typeof aiProviderIds)[number];
 export type MonitorProviderPolicy = (typeof monitorProviderPolicies)[number];
+export type MonitorToolName = (typeof monitorToolNames)[number];
 export type MonitorLifecycleStatus = (typeof monitorLifecycleStatuses)[number];
 export type MonitorTaskAction = (typeof monitorTaskActions)[number];
 export type MonitorActionBlockReason = (typeof monitorActionBlockReasons)[number];
@@ -342,6 +375,9 @@ export type ErrorCode =
   | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_INTERPRETATION_SCHEMA_INVALID'
   | 'MONITOR_INTERPRETATION_SOURCE_REFUSAL' | 'MONITOR_OWNER_UNAUTHORIZED' | 'MONITOR_RUNNING'
   | 'MONITOR_SETUP_REQUIRED' | 'MONITOR_TARGET_INVALID'
-  | 'MONITOR_TOOL_INVALID' | 'MONITOR_TOOL_LIMIT' | 'INTERNAL_ERROR';
+  | 'MONITOR_TOOL_INVALID' | 'MONITOR_TOOL_LIMIT'
+  | 'MONITOR_LOCATION_REQUIRED' | 'MONITOR_LOCATION_AMBIGUOUS' | 'MONITOR_LOCATION_NOT_FOUND'
+  | 'MONITOR_WEATHER_UNAVAILABLE' | 'MONITOR_WEATHER_RATE_LIMITED' | 'MONITOR_WEATHER_INVALID' | 'MONITOR_WEATHER_FORBIDDEN'
+  | 'MONITOR_WEATHER_CONFIGURATION_INVALID' | 'MONITOR_WEATHER_DATE_UNAVAILABLE' | 'AI_COMPOSITION_INVALID' | 'INTERNAL_ERROR';
 
 export interface ApiErrorBody { error: { code: ErrorCode; requestId: string; details?: Record<string, unknown> } }
