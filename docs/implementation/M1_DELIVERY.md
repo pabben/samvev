@@ -104,11 +104,24 @@ returning to an earlier schema/application combination. The pre-upgrade syntheti
 backup is ignored under `.local/backups`; its checksum/structure were checked,
 but an actual restore was not exercised.
 
-Physical iPhone and Shelly hardware were not tested; the required browser sizes
-were visually checked. This is a local, loopback-bound M1, with no production
-deployment. AI, Homey, Home Assistant, calendars, Spond, Keep, native iOS, rewards
-and voice remain deferred. The next product issue should validate the pilot on
-actual devices and record usability feedback before expanding integrations.
+A later isolated drill on 2026-09-20 restored the current deployed f829 custom
+backup into a fresh PostgreSQL 17 volume, verified migrations 001–016 and
+database integrity, and started the exact matching application runtime for
+normal synthetic authentication and authorized reads. The clone was removed and
+live container identity and health remained unchanged. This closes the current
+backup-restore gate without rewriting the narrower historical M1 backup claim.
+See [M1_RESTORE_GATE.md](M1_RESTORE_GATE.md).
+
+**Physical display validation is DEFERRED BY OWNER, NOT YET VERIFIED and
+NON-BLOCKING for the current development and merge.** Browser viewport, visual
+regression and accessibility evidence are not a physical-device PASS. A later
+follow-up must still cover the actual Shelly Wall Display XL and the actual
+kitchen iPad/large shared display, including cold load/reload, SSE reconnect,
+touch, scrolling/clipping, distance readability and light/dark/system modes.
+
+The original M1 delivery was local and loopback-bound, with no production
+deployment. AI, Homey, Home Assistant, calendars, Spond, Keep, native iOS,
+rewards and voice remained outside that delivery.
 
 ## Git delivery verified — 2026-09-07 UTC
 
