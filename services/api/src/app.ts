@@ -181,7 +181,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
-  const monitors = new MonitorService(aiAdmin);
+  const monitors = new MonitorService(aiAdmin,options.monitorFetcher);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin);
   await app.register(cookie);
   const projectionEvents=new ProjectionEventFanout();
@@ -425,9 +425,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=parse(monitorTaskQualitySchema,request.body);return monitors.setQuality(auth,params(request).monitorId!,body.expectedRevision,body.quality);
   });
-  app.delete('/api/v1/households/:householdId/monitors/:monitorId',async (request) => {
+  app.delete('/api/v1/households/:householdId/monitors/:monitorId',async (request,reply) => {
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
-    const body=parse(monitorTaskRevisionSchema,request.body);await monitors.remove(auth,params(request).monitorId!,body.expectedRevision);return undefined;
+    const body=parse(monitorTaskRevisionSchema,request.body);await monitors.remove(auth,params(request).monitorId!,body.expectedRevision);return reply.status(204).send();
   });
 
   app.get('/api/v1/households/:householdId/people', async (request) => {

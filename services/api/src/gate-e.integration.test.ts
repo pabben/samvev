@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test, { after, before } from 'node:test';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
+import { roleCapabilityPresets } from '@samvev/contracts';
 import { hashPassword, tokenHash } from '@samvev/core';
 import { buildApp } from './app.ts';
 import { pool } from './db.ts';
@@ -89,10 +90,11 @@ test('Gate E security, projection, activity and bounded realtime regressions',as
   const limitedLogin=await login('gate-limited@test.invalid','Synthetic-limited-pass-42');
 
   const profileManager=await createPerson(adminCookie,adminCsrf,householdId,{
-    displayName:'Profile manager',ageGroup:'adult',rolePreset:'member',capabilities:['household.view','people.manage'],displayIds:[],
+    displayName:'Profile manager',ageGroup:'adult',rolePreset:'member',capabilities:['household.view'],displayIds:[],
     login:{email:'profiles@test.invalid',password:'Synthetic-profile-pass-42',locale:'en',theme:'light'}
   });
   assert.ok(profileManager.membershipId);
+  await pool.query('UPDATE memberships SET capabilities=$2 WHERE id=$1',[profileManager.membershipId,JSON.stringify(['household.view','people.manage'])]);
   const profileLogin=await login('profiles@test.invalid','Synthetic-profile-pass-42');
   const profilePeople=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/people`,headers:{cookie:profileLogin.cookie}});
   assert.equal(profilePeople.statusCode,200);
@@ -104,17 +106,18 @@ test('Gate E security, projection, activity and bounded realtime regressions',as
   const forbiddenLoginCreate=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(profileLogin.cookie,profileLogin.csrf),payload:{displayName:'Must not get login',ageGroup:'teen',rolePreset:'limited',capabilities:['household.view'],displayIds:[],login:{email:'forbidden@test.invalid',password:'Synthetic-forbidden-pass-42',locale:'en',theme:'light'}}});
   assert.equal(forbiddenLoginCreate.statusCode,403);
 
-  await createPerson(adminCookie,adminCsrf,householdId,{
-    displayName:'Account viewer',ageGroup:'adult',rolePreset:'member',capabilities:['household.view','account.manage'],displayIds:[],
+  const accountViewer=await createPerson(adminCookie,adminCsrf,householdId,{
+    displayName:'Account viewer',ageGroup:'adult',rolePreset:'member',capabilities:['household.view'],displayIds:[],
     login:{email:'accounts@test.invalid',password:'Synthetic-account-pass-42',locale:'en',theme:'light'}
   });
+  await pool.query('UPDATE memberships SET capabilities=$2 WHERE id=$1',[accountViewer.membershipId,JSON.stringify(['household.view','account.manage'])]);
   const accountLogin=await login('accounts@test.invalid','Synthetic-account-pass-42');
   const accountPeople=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/people`,headers:{cookie:accountLogin.cookie}});
   assert.ok(accountPeople.json().people.some((person:{email:string|null})=>person.email==='gate-owner@test.invalid'));
   assert.ok(accountPeople.json().people.every((person:{capabilities:string[]})=>person.capabilities.length===0));
   assert.equal((await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(accountLogin.cookie,accountLogin.csrf),payload:{displayName:'No profile permission',ageGroup:'child',rolePreset:'limited',capabilities:['household.view'],displayIds:[]}})).statusCode,403);
 
-  const noLoginElevated=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(adminCookie,adminCsrf),payload:{displayName:'No-login owner',ageGroup:'adult',rolePreset:'installation_admin',displayIds:[]}});
+  const noLoginElevated=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(adminCookie,adminCsrf),payload:{displayName:'No-login owner',ageGroup:'adult',rolePreset:'installation_admin',confirmInstallationOwner:true,displayIds:[]}});
   assert.equal(noLoginElevated.statusCode,400);
   assert.equal(noLoginElevated.json().error.details.reason,'elevated_login_required');
 
@@ -198,7 +201,7 @@ test('Gate E security, projection, activity and bounded realtime regressions',as
   const phantom=await createPerson(adminCookie,adminCsrf,householdId,{displayName:'Legacy no-login profile',ageGroup:'adult',rolePreset:'limited',capabilities:['household.view'],displayIds:[]});
   await pool.query(`UPDATE memberships SET role_preset='installation_admin',capabilities=$2 WHERE id=$1`,[phantom.membershipId,JSON.stringify(allCapabilities)]);
   const secondAdmin=await createPerson(adminCookie,adminCsrf,householdId,{
-    displayName:'Second owner',ageGroup:'adult',rolePreset:'installation_admin',displayIds:[],
+    displayName:'Second owner',ageGroup:'adult',rolePreset:'installation_admin',confirmInstallationOwner:true,displayIds:[],
     login:{email:'second-owner@test.invalid',password:'Synthetic-second-pass-42',locale:'en',theme:'light'}
   });
   const secondAccount=await pool.query<{account_id:string}>('SELECT account_id FROM memberships WHERE id=$1',[secondAdmin.membershipId]);
@@ -219,10 +222,16 @@ test('Gate E security, projection, activity and bounded realtime regressions',as
   const activeLoginForMember=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/people`,headers:{cookie:limitedLogin.cookie}});
   assert.equal(activeLoginForMember.statusCode,200);
   assert.ok(activeLoginForMember.json().people.every((person:Record<string,unknown>)=>!Object.hasOwn(person,'has_active_login')));
-  const managerRemoval=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'installation_admin',capabilities:allCapabilities.filter((capability)=>capability!=='household.manage'),displayIds:[],expectedRevision:1}});
+  await pool.query('UPDATE memberships SET capabilities=$2 WHERE id=$1',[ownerMembershipId,JSON.stringify(allCapabilities.filter((capability)=>capability!=='household.manage'))]);
+  await pool.query(`UPDATE memberships SET role_preset='household_admin',capabilities=$2 WHERE id=$1`,[secondAdmin.membershipId,JSON.stringify(roleCapabilityPresets.household_admin)]);
+  await pool.query('UPDATE accounts SET disabled_at=NULL WHERE id=$1',[secondAccount.rows[0]!.account_id]);
+  const managerRemoval=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${secondAdmin.membershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'member',capabilities:['household.view'],displayIds:[],expectedRevision:1}});
   assert.equal(managerRemoval.statusCode,409);
   assert.equal(managerRemoval.json().error.details.reason,'last_household_manager');
-  const capabilityRemoval=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'installation_admin',capabilities:allCapabilities.filter((capability)=>capability!=='capability.manage'),displayIds:[],expectedRevision:1}});
+  await pool.query('UPDATE memberships SET capabilities=$2 WHERE id=$1',[ownerMembershipId,JSON.stringify(allCapabilities)]);
+  await pool.query(`UPDATE memberships SET role_preset='installation_admin',capabilities=$2 WHERE id=$1`,[secondAdmin.membershipId,JSON.stringify(allCapabilities)]);
+  await pool.query('UPDATE accounts SET disabled_at=clock_timestamp() WHERE id=$1',[secondAccount.rows[0]!.account_id]);
+  const capabilityRemoval=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/memberships/${ownerMembershipId}`,headers:auth(adminCookie,adminCsrf),payload:{rolePreset:'member',capabilities:['household.view'],displayIds:[],expectedRevision:1}});
   assert.equal(capabilityRemoval.statusCode,409);
   assert.equal(capabilityRemoval.json().error.details.reason,'last_installation_owner');
   await pool.query('UPDATE accounts SET disabled_at=NULL WHERE id=$1',[secondAccount.rows[0]!.account_id]);

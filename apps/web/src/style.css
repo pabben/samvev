@@ -2658,3 +2658,11 @@ details[open] > summary:before {
 @media(max-width:600px){.monitor-rule{grid-template-columns:1fr}.monitor-form .card-actions .primary{width:100%}.monitor-page .section-heading{gap:14px}.monitor-card{padding:20px}.monitor-result{padding:14px}}
 
 .monitor-card .preview-panel{align-self:stretch;overflow-wrap:anywhere}
+
+.monitor-sources{margin-top:12px;border-top:1px solid var(--line)}
+.monitor-sources summary{cursor:pointer;font-weight:700;min-height:44px;padding:12px 0}
+.monitor-sources summary:focus-visible,.monitor-sources a:focus-visible,.monitor-result-source:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.monitor-sources ul{list-style:none;margin:0;padding:0}
+.monitor-sources li{padding:8px 0}
+.monitor-sources a,.monitor-result-source{display:inline-flex;align-items:center;min-height:44px;overflow-wrap:anywhere;max-width:100%}
+.monitor-sources small,.monitor-result .monitor-observed-at{max-width:none;overflow:visible;text-overflow:clip}

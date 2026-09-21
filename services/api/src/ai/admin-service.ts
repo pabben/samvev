@@ -1,4 +1,8 @@
-import { aiTaskSchema, type AiModelTier, type AiProviderId, type AiReasoningEffort, type AiResult, type AiTask, type MonitorProviderPolicy } from '@samvev/contracts';
+import {
+  aiTaskSchema, type AiModelTier, type AiProviderId, type AiProviderTurn,
+  type AiReasoningEffort, type AiResult, type AiTask, type AiToolDefinition,
+  type AiToolResult, type MonitorProviderPolicy
+} from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import { pool, transaction } from '../db.ts';
 import { AiCredentialVault } from './credential-vault.ts';
@@ -163,15 +167,30 @@ export class AiAdminService {
 
   async executeTaskWithContext(householdId: string, rawTask: AiTask, policy: MonitorProviderPolicy = 'default'): Promise<{result:AiResult;provider:AiProviderId;model:string}> {
     const task = aiTaskSchema.parse(rawTask);
-    const settings = await this.rawSettings(householdId);
-    if ((policy === 'local' && settings.provider !== 'openai_compatible') ||
-        (policy === 'openai' && settings.provider !== 'openai')) throw new DomainError('AI_PROVIDER_UNAVAILABLE', 422);
-    const outcome = await this.run(householdId, settings, task, true, false);
+    const session=await this.createTaskSession(householdId,task,policy);
+    try{const turn=await session.next();if(!turn.output)throw new DomainError('AI_RESPONSE_INVALID',502);return {result:{output:turn.output,generatedAt:turn.generatedAt,uncertainty:'unknown',sources:task.sources,...(turn.usage?{usage:turn.usage}:{})},provider:session.provider,model:session.model};}
+    finally{session.close();}
+  }
+
+  /** Resolve/decrypt provider configuration once, then keep protocol state request-local. */
+  async createTaskSession(
+    householdId:string,rawTask:AiTask,policy:MonitorProviderPolicy='default',
+    tools:AiToolDefinition[]=[],signal?:AbortSignal
+  ):Promise<{provider:AiProviderId;model:string;next:(results?:AiToolResult[],toolChoice?:'auto'|'required')=>Promise<AiProviderTurn>;close:()=>void}>{
+    const task=aiTaskSchema.parse(rawTask);const settings=await this.rawSettings(householdId);
+    if((policy==='local'&&settings.provider!=='openai_compatible')||(policy==='openai'&&settings.provider!=='openai'))throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
     const model=task.modelTier==='strong'?settings.strong_model:settings.default_model;
-    if (outcome.success) return {result:outcome.result,provider:settings.provider,model};
-    const status = ['AI_CONFIGURATION_INVALID','AI_DISABLED'].includes(outcome.failure.code) ? 422 :
-      outcome.failure.code === 'AI_TIMEOUT' ? 504 : 502;
-    throw new DomainError(outcome.failure.code, status);
+    if(!settings.enabled){await this.recordUsage(householdId,settings.provider,model,task,false,'AI_DISABLED');throw new DomainError('AI_DISABLED',422);}
+    const provider=this.providers[settings.provider];if(!provider)throw new DomainError('AI_PROVIDER_UNAVAILABLE',502);
+    let apiKey:string|undefined;
+    if(settings.api_key_ciphertext){try{apiKey=await this.vault.decrypt(householdId,settings.api_key_ciphertext);}catch{throw new DomainError('AI_CONFIGURATION_INVALID',422);}}
+    const configuration={provider:settings.provider,model,apiKey,baseUrl:settings.base_url??undefined,reasoningEffort:task.modelTier==='strong'?settings.strong_reasoning_effort:settings.default_reasoning_effort};
+    try{validateAiProviderConfiguration(configuration);}catch(error){throw new DomainError(error instanceof AiProviderFailure?error.code:'AI_CONFIGURATION_INVALID',422);}
+    const wire=provider.createSession(task,configuration,tools,signal);
+    return {provider:settings.provider,model,close:()=>wire.close(),next:async(results=[],toolChoice='auto')=>{
+      try{const turn=await wire.next(results,toolChoice);await this.recordUsage(householdId,settings.provider,model,task,true,null,turn.usage);return turn;}
+      catch(error){const failure=error instanceof AiProviderFailure?error:new AiProviderFailure('AI_UPSTREAM_ERROR');await this.recordUsage(householdId,settings.provider,model,task,false,failure.code,failure.usage);const status=['AI_CONFIGURATION_INVALID','AI_DISABLED'].includes(failure.code)?422:failure.code==='AI_TIMEOUT'?504:502;throw new DomainError(failure.code,status);}
+    }};
   }
 
   async usage(householdId: string): Promise<Record<string, unknown>> {
@@ -232,13 +251,13 @@ export class AiAdminService {
     }
     const usage = outcome.success ? outcome.result.usage : outcome.failure.usage;
     const failureCode: AiFailureCode | null = outcome.success ? null : outcome.failure.code;
-    await pool.query(`INSERT INTO ai_usage_events(
-      household_id,provider,model,operation,purpose,success,failure_code,input_tokens,output_tokens
-    ) VALUES ($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,$9)`, [
-      householdId, settings.provider, model, task.operation, task.purpose, outcome.success, failureCode,
-      usage?.inputTokens ?? null, usage?.outputTokens ?? null
-    ]);
+    await this.recordUsage(householdId,settings.provider,model,task,outcome.success,failureCode,usage);
     return outcome;
+  }
+
+  private async recordUsage(householdId:string,provider:AiProviderId,model:string,task:AiTask,success:boolean,failureCode:AiFailureCode|null,usage?:{inputTokens?:number;outputTokens?:number}):Promise<void>{
+    await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,operation,purpose,success,failure_code,input_tokens,output_tokens)
+      VALUES ($1,$2,NULLIF($3,''),$4,$5,$6,$7,$8,$9)`,[householdId,provider,model,task.operation,task.purpose,success,failureCode,usage?.inputTokens??null,usage?.outputTokens??null]);
   }
 
   private settingsDto(settings: SettingsRow): Record<string, unknown> {
