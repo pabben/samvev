@@ -32,6 +32,9 @@ accessibility rules were skipped or disabled.
 
 Migrations 001–004 are checksum tracked; rollback of retained data requires a
 verified backup, with no automatic down migration. Screenshots and synthetic
-demo instructions are linked from the delivery guide. Physical-device and
-backup-restore validation remain follow-up work. All fixtures are fictional.
+demo instructions are linked from the delivery guide. A later isolated
+PostgreSQL 17 restore and matching application-read drill passed for the deployed
+f829 candidate. Physical display validation remains unverified and is explicitly
+deferred by the owner as non-blocking for this merge; no hardware PASS is
+claimed. All fixtures are fictional.
 External integrations, AI, native iOS, rewards and voice are outside M1.

@@ -1,7 +1,14 @@
 # M1 implementation status
 
-Updated: 2026-09-10. Branch: `feat/m2-ai-provider-foundation`.
-Overall status: **PASS — local acceptance passed; Git delivery externally verified and sole blocker resolved**.
+Updated: 2026-09-20. Branch: `feat/m1-first-runnable-slice`.
+Overall status: **PASS — local acceptance and backup restoration passed; Git
+delivery is verified; physical display validation is owner-deferred and
+non-blocking for this merge**.
+
+Current delivery and demo: [M1_DELIVERY.md](M1_DELIVERY.md),
+[M1_DEMO.md](M1_DEMO.md). The gate table and **Final execution and independent
+verification** section describe the current state. All later checkpoint
+sections record earlier states and counts.
 
 ## Post-M1 M2.3 issue #4 checkpoint — 2026-09-10
 
@@ -39,11 +46,6 @@ bootstrap. Existing explicit locales and synthetic history are retained.
 Targeted delivery evidence is recorded in the current task report; this did not
 rerun or replace the historical full M1 acceptance matrix.
 
-Current delivery and demo: [M1_DELIVERY.md](M1_DELIVERY.md),
-[M1_DEMO.md](M1_DEMO.md). The gate table and **Final execution and independent
-verification** section describe the current state. All later checkpoint
-sections record earlier states and counts.
-
 ## Gate progress
 
 | Gate | Status | Evidence |
@@ -54,6 +56,25 @@ sections record earlier states and counts.
 | D: parallel review | Complete; findings resolved | All three reports and rechecks returned; M1_REVIEW_FINDINGS.md |
 | E: fixes, full retest, release gate | PASS; sole Git blocker resolved | [Final release review](M1_RELEASE_GATE.md); prior complete QA and independent verification passed; external GitHub delivery confirmation closes the remaining blocker |
 | Push and draft PR | Complete; externally verified by the user | [Draft PR #1](https://github.com/pabben/samvev/pull/1), remote head `5e1f384cf8b4322454ea5a200ae457db6738b764`; open, draft, mergeable; Documentation checks success |
+
+## Restore and physical-display decision — 2026-09-20 UTC
+
+**Backup restoration: PASS (technical, scoped).** The current deployed f829
+PostgreSQL 17 custom backup was restored into a fresh isolated PostgreSQL 17
+clone. Archive integrity, migrations 001–016, sanitized schema/data integrity,
+matching app health, normal synthetic login/read/logout, cleanup and unchanged
+live service identity/health passed. This does not certify a PostgreSQL
+major-version migration, recovery of external provider secrets or restoration
+of the historical M1-only backup. Full evidence is in
+[M1_RESTORE_GATE.md](M1_RESTORE_GATE.md).
+
+**Physical display validation: DEFERRED BY OWNER — NOT YET VERIFIED —
+NON-BLOCKING FOR CURRENT DEVELOPMENT AND MERGE.** Automated Chromium viewport,
+visual regression and accessibility checks are not physical-device evidence.
+No real Shelly Wall Display XL or physical kitchen iPad/large shared display has
+been validated. Cold load/reload, SSE/reconnect, touch, scrolling/clipping,
+distance readability and light/dark/system modes remain explicit follow-up work.
+No physical hardware PASS is claimed.
 
 ## Git delivery resolved — 2026-09-07 UTC
 
