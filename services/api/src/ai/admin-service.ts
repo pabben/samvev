@@ -42,6 +42,8 @@ export interface AiSettingsPatch {
   expectedRevision: number;
 }
 
+export type AiSessionMode='analysis'|'format_repair';
+
 const providerCatalog = [
   { id: 'openai', runtimeAvailable: true, reasonCode: null },
   { id: 'chatgpt_subscription', runtimeAvailable: false, reasonCode: 'CHATGPT_CONNECTION_NOT_CONFIGURED' },
@@ -87,6 +89,16 @@ export class AiAdminService {
 
   async settings(householdId: string): Promise<Record<string, unknown>> {
     return this.settingsDto(await this.rawSettings(householdId));
+  }
+
+  /** A sanitized queue-time fence. It deliberately contains no endpoint, model or credential. */
+  async executionProfile(householdId:string,policy:MonitorProviderPolicy='default'):Promise<{provider:AiProviderId;settingsRevision:number}> {
+    const settings=await this.rawSettings(householdId);
+    if((policy==='local'&&settings.provider!=='openai_compatible')||(policy==='openai'&&settings.provider!=='openai'))throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
+    if(!settings.enabled)throw new DomainError('AI_DISABLED',422);
+    if(!this.providers[settings.provider])throw new DomainError('AI_PROVIDER_UNAVAILABLE',502);
+    if(!hasStoredProviderConfiguration(settings))throw new DomainError('AI_CONFIGURATION_INVALID',422);
+    return{provider:settings.provider,settingsRevision:settings.revision};
   }
 
   async updateSettings(householdId: string, patch: AiSettingsPatch): Promise<Record<string, unknown>> {
@@ -175,7 +187,7 @@ export class AiAdminService {
   /** Resolve/decrypt provider configuration once, then keep protocol state request-local. */
   async createTaskSession(
     householdId:string,rawTask:AiTask,policy:MonitorProviderPolicy='default',
-    tools:AiToolDefinition[]=[],signal?:AbortSignal
+    tools:AiToolDefinition[]=[],signal?:AbortSignal,mode:AiSessionMode='analysis'
   ):Promise<{provider:AiProviderId;model:string;next:(results?:AiToolResult[],toolChoice?:'auto'|'required')=>Promise<AiProviderTurn>;close:()=>void}>{
     const task=aiTaskSchema.parse(rawTask);const settings=await this.rawSettings(householdId);
     if((policy==='local'&&settings.provider!=='openai_compatible')||(policy==='openai'&&settings.provider!=='openai'))throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
@@ -184,12 +196,17 @@ export class AiAdminService {
     const provider=this.providers[settings.provider];if(!provider)throw new DomainError('AI_PROVIDER_UNAVAILABLE',502);
     let apiKey:string|undefined;
     if(settings.api_key_ciphertext){try{apiKey=await this.vault.decrypt(householdId,settings.api_key_ciphertext);}catch{throw new DomainError('AI_CONFIGURATION_INVALID',422);}}
-    const configuration={provider:settings.provider,model,apiKey,baseUrl:settings.base_url??undefined,reasoningEffort:task.modelTier==='strong'?settings.strong_reasoning_effort:settings.default_reasoning_effort};
+    // A bounded format-only repair has already received server-verified evidence
+    // and performs no semantic planning or tool selection. Minimal reasoning
+    // preserves the chosen model/policy while reserving output tokens for the
+    // required JSON instead of an unobservable reasoning trace.
+    const configuredReasoning=task.modelTier==='strong'?settings.strong_reasoning_effort:settings.default_reasoning_effort;
+    const configuration={provider:settings.provider,model,apiKey,baseUrl:settings.base_url??undefined,reasoningEffort:mode==='format_repair'?'none':configuredReasoning};
     try{validateAiProviderConfiguration(configuration);}catch(error){throw new DomainError(error instanceof AiProviderFailure?error.code:'AI_CONFIGURATION_INVALID',422);}
     const wire=provider.createSession(task,configuration,tools,signal);
     return {provider:settings.provider,model,close:()=>wire.close(),next:async(results=[],toolChoice='auto')=>{
       try{const turn=await wire.next(results,toolChoice);await this.recordUsage(householdId,settings.provider,model,task,true,null,turn.usage);return turn;}
-      catch(error){const failure=error instanceof AiProviderFailure?error:new AiProviderFailure('AI_UPSTREAM_ERROR');await this.recordUsage(householdId,settings.provider,model,task,false,failure.code,failure.usage);const status=['AI_CONFIGURATION_INVALID','AI_DISABLED'].includes(failure.code)?422:failure.code==='AI_TIMEOUT'?504:502;throw new DomainError(failure.code,status);}
+      catch(error){const failure=error instanceof AiProviderFailure?error:new AiProviderFailure('AI_UPSTREAM_ERROR');await this.recordUsage(householdId,settings.provider,model,task,false,failure.code,failure.usage);const status=['AI_CONFIGURATION_INVALID','AI_DISABLED'].includes(failure.code)?422:failure.code==='AI_TIMEOUT'?504:502;throw new DomainError(failure.code,status,failure.responseReason?{providerResponseReason:failure.responseReason}:undefined);}
     }};
   }
 

@@ -26,9 +26,11 @@ import type { AiHttpTransport } from './ai/openai-provider.ts';
 import { loadRuntimeConfig, type RuntimeConfig } from './runtime-config.ts';
 import { MonitorService } from './monitor/service.ts';
 import { MonitorEngine } from './monitor/engine.ts';
+import { MonitorExecutionQueue } from './monitor/execution.ts';
 import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
 import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
+import { liveE2eAttestation, liveE2eExecutionEvidence } from './e2e/live-e2e.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -178,12 +180,13 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
   const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
+  const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
   await app.register(cookie);
   const projectionEvents=new ProjectionEventFanout();
   await projectionEvents.start();
@@ -215,6 +218,24 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/health', async () => {
     await pool.query('SELECT 1');
     return { status: 'ok', version: 1 };
+  });
+
+  const liveE2eEnabled=options.liveE2eEnabled??process.env.SAMVEV_LIVE_E2E_ENABLED==='true';
+  app.get('/api/v1/e2e/fixtures/weekly-plan',async(request,reply)=>{
+    if(!liveE2eEnabled)throw new DomainError('NOT_FOUND',404);
+    await durableRateLimit('live_e2e_fixture',request.ip,60,60);
+    const today=localDateInTimezone(new Date(),'Europe/Oslo');const tomorrow=new Date(`${today}T12:00:00.000Z`);tomorrow.setUTCDate(tomorrow.getUTCDate()+1);const tomorrowText=tomorrow.toISOString().slice(0,10);
+    return reply.header('cache-control','public, max-age=60').header('x-robots-tag','noindex, nofollow').type('text/html; charset=utf-8').send(`<!doctype html><html lang="nb"><head><meta charset="utf-8"><title>Syntetisk ukeplan</title></head><body><main><h1>Syntetisk ukeplan</h1><p>Kun for Samvev live-E2E.</p><h2>${tomorrowText}</h2><p>Uteaktivitet i morgen. Ta med klær som passer været.</p></main></body></html>`);
+  });
+
+  app.get('/api/v1/e2e/attestation',async(request,reply)=>{
+    if(!liveE2eEnabled)throw new DomainError('NOT_FOUND',404);reply.header('cache-control','no-store');const session=await sessionAccount(request);await durableRateLimit('live_e2e_attestation',session.accountId,60,900);
+    return{attestation:await liveE2eAttestation(session.accountId)};
+  });
+
+  app.get('/api/v1/e2e/households/:householdId/monitors/:monitorId/executions/:executionId/evidence',async(request,reply)=>{
+    if(!liveE2eEnabled)throw new DomainError('NOT_FOUND',404);reply.header('cache-control','no-store');const session=await sessionAccount(request);await durableRateLimit('live_e2e_evidence',session.accountId,240,3600);
+    return{evidence:await liveE2eExecutionEvidence(session.accountId,params(request).householdId!,params(request).monitorId!,params(request).executionId!)};
   });
 
   app.get('/api/v1/setup/status', async () => {
@@ -408,19 +429,22 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     return monitors.update(auth,params(request).monitorId!,parse(monitorTaskUpdateSchema,request.body));
   });
-  app.post('/api/v1/households/:householdId/monitors/:monitorId/interpret', async (request) => {
+  app.post('/api/v1/households/:householdId/monitors/:monitorId/interpret', async (request,reply) => {
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     await durableRateLimit('monitor_interpret',auth.householdId,30,3600);
-    const body=parse(monitorTaskRevisionSchema,request.body);return monitors.interpret(auth,params(request).monitorId!,body.expectedRevision);
+    const body=parse(monitorTaskRevisionSchema,request.body);if(options.synchronousMonitorActionsForLegacyTests)return monitors.interpret(auth,params(request).monitorId!,body.expectedRevision);const run=await monitorExecutions.enqueue(auth,params(request).monitorId!,body.expectedRevision,'interpretation');return reply.status(202).send({run});
   });
   for(const action of ['approve','pause','resume'] as const)app.post(`/api/v1/households/:householdId/monitors/:monitorId/${action}`,async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=parse(monitorTaskRevisionSchema,request.body);return monitors.setState(auth,params(request).monitorId!,body.expectedRevision,action);
   });
-  for(const action of ['test','run','smarter'] as const)app.post(`/api/v1/households/:householdId/monitors/:monitorId/${action}`,async(request)=>{
+  for(const action of ['test','run','smarter'] as const)app.post(`/api/v1/households/:householdId/monitors/:monitorId/${action}`,async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=parse(monitorTaskRevisionSchema,request.body);await durableRateLimit('monitor_manual_run',auth.householdId,30,3600);
-    return monitorEngine.runManual(auth,params(request).monitorId!,body.expectedRevision,action==='run'?'manual':action);
+    const kind=action==='run'?'manual':action;if(options.synchronousMonitorActionsForLegacyTests)return monitorEngine.runManual(auth,params(request).monitorId!,body.expectedRevision,kind);const run=await monitorExecutions.enqueue(auth,params(request).monitorId!,body.expectedRevision,kind);return reply.status(202).send({run});
+  });
+  app.get('/api/v1/households/:householdId/monitors/:monitorId/runs/:runId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');return{run:await monitorExecutions.get(auth,params(request).monitorId!,params(request).runId!)};
   });
   app.post('/api/v1/households/:householdId/monitors/:monitorId/quality',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');

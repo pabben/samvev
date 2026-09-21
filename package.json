@@ -22,7 +22,10 @@
     "db:migrate": "tsx services/api/src/db/migrate.ts",
     "lint": "node scripts/run-workspace-command.mjs lint",
     "test": "node scripts/run-workspace-command.mjs test",
-    "test:browser": "node apps/web/tests/smoke.mjs && node apps/web/tests/review-regressions.mjs"
+    "test:browser": "node apps/web/tests/smoke.mjs && node apps/web/tests/review-regressions.mjs",
+    "e2e:live": "node tests/e2e/live-runtime.mjs",
+    "test:e2e-harness": "node --test tests/e2e/live-runtime.test.mjs && node tests/e2e/live-runtime-browser-smoke.mjs",
+    "e2e:provision": "npm run e2e:provision --workspace @samvev/api --"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

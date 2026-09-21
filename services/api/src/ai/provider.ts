@@ -67,6 +67,9 @@ export interface AiProviderSession {
 
 export type AiFailureCode = 'AI_CONFIGURATION_INVALID' | 'AI_DISABLED' | 'AI_PROVIDER_UNAVAILABLE' |
   'AI_UPSTREAM_ERROR' | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED';
+export type AiProviderResponseReason=
+  'invalid_json_body'|'missing_choices'|'missing_message'|'invalid_tool_calls'|'empty_content'|'invalid_turn_shape'|'response_too_large'|
+  'upstream_http_4xx'|'upstream_http_5xx'|'upstream_http_other'|'upstream_invalid_json'|'upstream_response_too_large'|'upstream_context_limit'|'upstream_rate_limited'|'upstream_format_unsupported'|'upstream_tool_unsupported'|'network_error';
 
 export const aiProviderRequirements: Record<AiProviderId, { apiKey: boolean; baseUrl: boolean }> = {
   openai: { apiKey: true, baseUrl: false },
@@ -87,7 +90,8 @@ export function validateAiProviderConfiguration(configuration: AiProviderConfigu
 export class AiProviderFailure extends Error {
   constructor(
     public readonly code: AiFailureCode,
-    public readonly usage?: { inputTokens?: number; outputTokens?: number }
+    public readonly usage?: { inputTokens?: number; outputTokens?: number },
+    public readonly responseReason?:AiProviderResponseReason
   ) { super(code); }
 }
 

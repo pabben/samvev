@@ -3,8 +3,9 @@ import { constants, promises as fs } from 'node:fs';
 import { createServer } from 'node:http';
 import test from 'node:test';
 import { resolve } from 'node:path';
-import { OpenAiProvider } from './openai-provider.ts';
+import { normalizeOpenAiStrictOutput, openAiStrictResponseSchema, OpenAiProvider } from './openai-provider.ts';
 import {
+  chatCompletionTurn,
   isBlockedAiTarget,
   normalizeOpenAiCompatibleBaseUrl,
   OpenAiCompatibleProvider,
@@ -12,6 +13,9 @@ import {
 } from './openai-compatible-provider.ts';
 import { AiProviderFailure, createAiToolNameAliases, validateAiProviderConfiguration, validateAiResult, validateAiTask } from './provider.ts';
 import { AiCredentialVault } from './credential-vault.ts';
+import {
+  monitorAnswerResponseSchema, monitorCompositeDecisionResponseSchema, monitorEventsResponseSchema, monitorInterpretationResponseSchema
+} from '../monitor/response-schemas.ts';
 
 const task = {
   operation: 'extract' as const,
@@ -20,6 +24,19 @@ const task = {
   modelTier: 'routine' as const,
   sources: [{ url: 'https://example.invalid/source', observedAt: '2026-09-08T10:00:00.000Z', uncertainty: 'medium' as const }]
 };
+
+test('OpenAI-compatible response diagnostics classify only safe structural reasons',()=>{
+  const cases:Array<{payload:Record<string,unknown>;reason:string}>=[
+    {payload:{},reason:'missing_choices'},
+    {payload:{choices:[{}]},reason:'missing_message'},
+    {payload:{choices:[{message:{tool_calls:{}}}]},reason:'invalid_tool_calls'},
+    {payload:{choices:[{message:{content:null,reasoning_content:'private reasoning must not become output'}}]},reason:'empty_content'},
+    {payload:{choices:[{message:{tool_calls:[{id:'',function:{name:'',arguments:'{}'}}]}}]},reason:'invalid_tool_calls'}
+  ];
+  for(const item of cases){
+    assert.throws(()=>chatCompletionTurn(item.payload),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID'&&error.responseReason===item.reason&&!error.message.includes('private reasoning'));
+  }
+});
 
 test('provider configuration requires credentials only when the provider contract does',()=>{
   assert.doesNotThrow(()=>validateAiProviderConfiguration({provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}));
@@ -65,6 +82,57 @@ test('provider-neutral task and result contracts are strict and preserve evidenc
   assert.deepEqual(result.usage, { inputTokens: 12, outputTokens: 4 });
 });
 
+test('OpenAI Responses maps the provider-neutral response schema only without active tools',async()=>{
+  const bodies:Array<Record<string,unknown>>=[];const responseSchema={name:'synthetic_result',schema:{type:'object',properties:{answer:{type:'string'}},required:['answer'],additionalProperties:false}};
+  const provider=new OpenAiProvider(async(_url,init)=>{bodies.push(JSON.parse(String(init.body)) as Record<string,unknown>);return new Response(JSON.stringify({status:'completed',output:[{type:'message',content:[{type:'output_text',text:'{"answer":"ok"}'}]}]}),{status:200});});
+  await provider.execute({...task,responseSchema},{provider:'openai',model:'synthetic',apiKey:'synthetic'});
+  assert.deepEqual(bodies[0]!.text,{format:{type:'json_schema',name:'synthetic_result',strict:true,schema:responseSchema.schema}});
+  const session=provider.createSession({...task,responseSchema},{provider:'openai',model:'synthetic',apiKey:'synthetic'},[{name:'web.open',description:'Open source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}}]);
+  await session.next();assert.equal('text' in bodies[1]!,false);session.close();
+});
+
+test('OpenAI strict response schemas require every nested property and normalize optional nulls for monitor contracts',async()=>{
+  const assertStrictObjects=(schema:unknown):void=>{
+    if(!schema||typeof schema!=='object'||Array.isArray(schema))return;const row=schema as Record<string,unknown>;
+    for(const key of ['anyOf','oneOf','allOf'])if(Array.isArray(row[key]))for(const child of row[key] as unknown[])assertStrictObjects(child);
+    if(row.items)assertStrictObjects(row.items);
+    if(row.properties&&typeof row.properties==='object'&&!Array.isArray(row.properties)){
+      const properties=row.properties as Record<string,unknown>;
+      assert.deepEqual([...(row.required as string[])].sort(),Object.keys(properties).sort());
+      for(const child of Object.values(properties))assertStrictObjects(child);
+    }
+  };
+  const assertSupportedWireSubset=(schema:unknown):void=>{
+    if(!schema||typeof schema!=='object'||Array.isArray(schema))return;const row=schema as Record<string,unknown>;
+    assert.notEqual(row.format,'uri');assert.notEqual(row.uniqueItems,true);
+    for(const key of ['anyOf','oneOf','allOf'])if(Array.isArray(row[key]))for(const child of row[key] as unknown[])assertSupportedWireSubset(child);
+    if(row.items)assertSupportedWireSubset(row.items);
+    if(row.properties&&typeof row.properties==='object'&&!Array.isArray(row.properties))for(const child of Object.values(row.properties))assertSupportedWireSubset(child);
+  };
+  const cases=[
+    {responseSchema:monitorInterpretationResponseSchema,wire:{version:1,resultKind:'answer',summary:'Syntetisk oppsett',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['weather.forecast'],location:null},normalized:{version:1,resultKind:'answer',summary:'Syntetisk oppsett',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['weather.forecast']}},
+    {responseSchema:monitorAnswerResponseSchema,wire:{version:1,outputLocale:'nb',answer:'Syntetisk svar',evidence:{quote:'Kildebevis',sourceUrl:null,claims:null},confidence:0.9,uncertainty:null},normalized:{version:1,outputLocale:'nb',answer:'Syntetisk svar',evidence:{quote:'Kildebevis'},confidence:0.9,uncertainty:null}},
+    {responseSchema:monitorEventsResponseSchema,wire:{version:1,outputLocale:'nb',events:[{date:'2030-01-02',time:null,type:'uteaktivitet',description:'Syntetisk hendelse',actions:[],who:[],evidence:{quote:'Uteaktivitet',sourceUrl:null,claims:['aktivitet'],sources:[{quote:'Regn',sourceUrl:null,claims:['vær']}]},confidence:0.8,uncertainty:null}]},normalized:{version:1,outputLocale:'nb',events:[{date:'2030-01-02',time:null,type:'uteaktivitet',description:'Syntetisk hendelse',actions:[],who:[],evidence:{quote:'Uteaktivitet',claims:['aktivitet'],sources:[{quote:'Regn',claims:['vær']}]},confidence:0.8,uncertainty:null}]}},
+    {responseSchema:monitorCompositeDecisionResponseSchema,wire:{version:1,outputLocale:'en',events:[]},normalized:{version:1,outputLocale:'en',events:[]}}
+  ];
+  for(const item of cases){
+    const original=JSON.stringify(item.responseSchema.schema);let body:Record<string,any>|undefined;
+    const provider=new OpenAiProvider(async(_url,init)=>{body=JSON.parse(String(init.body));return new Response(JSON.stringify({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(item.wire)}]}]}),{status:200});});
+    const result=await provider.execute({...task,responseSchema:item.responseSchema},{provider:'openai',model:'synthetic',apiKey:'synthetic'});
+    const strictSchema=body!.text.format.schema;assertStrictObjects(strictSchema);assertSupportedWireSubset(strictSchema);assert.equal(JSON.stringify(item.responseSchema.schema),original);
+    assert.deepEqual(JSON.parse(result.output),item.normalized);
+  }
+  const strictInterpretation=openAiStrictResponseSchema(monitorInterpretationResponseSchema.schema) as any;
+  assert.ok(strictInterpretation.properties.location.anyOf.some((schema:any)=>schema.type==='null'));
+  const strictAnswer=openAiStrictResponseSchema(monitorAnswerResponseSchema.schema) as any;
+  assert.ok(strictAnswer.properties.evidence.properties.sourceUrl.anyOf.some((schema:any)=>schema.type==='null'));
+  assert.equal((monitorInterpretationResponseSchema.schema as any).properties.tools.uniqueItems,true);
+  assert.equal((monitorAnswerResponseSchema.schema as any).properties.evidence.properties.sourceUrl.format,'uri');
+  assert.equal(strictInterpretation.properties.tools.uniqueItems,undefined);
+  assert.equal(strictAnswer.properties.evidence.properties.sourceUrl.anyOf[0].format,undefined);
+  assert.equal(normalizeOpenAiStrictOutput('{not-json',monitorAnswerResponseSchema.schema),'{not-json');
+});
+
 test('OpenAI Responses maps function calls and keeps opaque continuation request-local',async()=>{
   const bodies:unknown[]=[];let call=0;let wireName='';
   const provider=new OpenAiProvider(async(_url,init)=>{const body=JSON.parse(String(init.body));bodies.push(body);call++;
@@ -98,13 +166,14 @@ test('OpenAI-compatible maps one and multiple Chat Completions tool calls and to
       {id:'call_b',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/news"}'}}
     ]}}]}:{choices:[{message:{role:'assistant',content:'Synthetic final'}}]};return new Response(JSON.stringify(messages),{status:200});
   },1000,async()=>[{address:'93.184.216.34',family:4}]);
-  const session=provider.createSession(task,{provider:'openai_compatible',model:'local',baseUrl:'http://provider.test/v1'},[{
+  const session=provider.createSession({...task,responseSchema:{name:'synthetic_result',schema:{type:'object',properties:{done:{type:'boolean'}},required:['done'],additionalProperties:false}}},{provider:'openai_compatible',model:'local',baseUrl:'http://provider.test/v1'},[{
     name:'web.open',description:'Open approved source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}
   }]);
   const first=await session.next([],'required');assert.equal(first.toolCalls.length,2);assert.equal(first.output,undefined);
   assert.deepEqual(first.toolCalls.map((item)=>item.name),['web.open','web.open']);assert.match(wireName,/^[A-Za-z0-9_-]{1,64}$/);assert.notEqual(wireName,'web.open');
   const final=await session.next(first.toolCalls.map((item)=>({callId:item.id,name:item.name,output:'{"text":"Synthetic"}'})));assert.equal(final.output,'Synthetic final');
   assert.equal(bodies[0]!.tool_choice,'required');assert.equal(bodies[1]!.tool_choice,'auto');
+  assert.equal('response_format' in bodies[0]!,false);assert.equal('response_format' in bodies[1]!,false);
   const sent=bodies[1]!.messages as Array<Record<string,unknown>>;assert.equal(sent.filter((message)=>message.role==='tool').length,2);
   assert.deepEqual(sent[1],{role:'assistant',content:null,tool_calls:[
     {id:'call_a',type:'function',function:{name:wireName,arguments:'{"url":"https://example.test/"}'}},
@@ -256,6 +325,15 @@ test('OpenAI-compatible adapter supports every operation, optional credentials a
     reasoning_effort: 'none',
     stream: false
   });
+  const operationBodies=seen.slice(0,4).map((item)=>JSON.parse(String(item.init.body)) as Record<string,unknown>);
+  assert.equal('response_format' in operationBodies[0]!,false);
+  for(const body of operationBodies.slice(1))assert.deepEqual(body.response_format,{type:'json_object'});
+
+  const responseSchema={name:'synthetic_result',schema:{type:'object',properties:{answer:{type:'string'}},required:['answer'],additionalProperties:false}};
+  await provider.execute({...task,responseSchema},{
+    provider:'openai_compatible',model:'local-routine',baseUrl:'http://local-ai.test/v1'
+  });
+  assert.deepEqual(JSON.parse(String(seen.at(-1)!.init.body)).response_format,{type:'json_object'});
 
   await provider.execute(task, {
     provider: 'openai_compatible', model: 'local-routine', baseUrl: 'http://local-ai.test/v1', apiKey: 'short'
@@ -272,6 +350,7 @@ test('OpenAI-compatible adapter supports every operation, optional credentials a
   const connectionBody=JSON.parse(String(seen.at(-1)!.init.body));
   assert.equal(connectionBody.model,'local-strong');
   assert.equal(connectionBody.reasoning_effort,'none');
+  assert.equal('response_format' in connectionBody,false);
 });
 
 test('OpenAI-compatible default transport reaches a mocked local endpoint through the validated pinned address', async () => {
@@ -362,15 +441,18 @@ test('OpenAI-compatible endpoint policy permits localhost and LAN while blocking
 test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failures', async () => {
   const resolver = async () => [{ address: '127.0.0.1', family: 4 as const }];
   for (const item of [
-    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 401 }), code: 'AI_UPSTREAM_ERROR' },
-    { response: new Response('{', { status: 503 }), code: 'AI_UPSTREAM_ERROR' },
-    { response: new Response(JSON.stringify({ choices: [] }), { status: 200 }), code: 'AI_RESPONSE_INVALID' },
-    { response: new Response('{', { status: 200 }), code: 'AI_RESPONSE_INVALID' }
+    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 401 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_http_4xx' },
+    { response: new Response(JSON.stringify({ error: { message: 'the request exceeds the available context length and must not escape' } }), { status: 400 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_context_limit' },
+    { response: new Response(JSON.stringify({ error: { message: 'response_format json_schema is unsupported and must not escape' } }), { status: 400 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_format_unsupported' },
+    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 429 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_rate_limited' },
+    { response: new Response('{', { status: 503 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_invalid_json' },
+    { response: new Response(JSON.stringify({ choices: [] }), { status: 200 }), code: 'AI_RESPONSE_INVALID',reason:'missing_choices' },
+    { response: new Response('{', { status: 200 }), code: 'AI_RESPONSE_INVALID',reason:'invalid_json_body' }
   ]) {
     const provider = new OpenAiCompatibleProvider(async () => item.response, 1_000, resolver);
     await assert.rejects(
       provider.execute(task, { provider: 'openai_compatible', model: 'local', baseUrl: 'http://localhost:11434/v1' }),
-      (error: unknown) => error instanceof AiProviderFailure && error.code === item.code && error.message === item.code
+      (error: unknown) => error instanceof AiProviderFailure && error.code === item.code && error.responseReason===item.reason && error.message === item.code
     );
   }
   const timeout = new OpenAiCompatibleProvider(
@@ -404,7 +486,7 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
   const networkFailure=new OpenAiCompatibleProvider(async()=>{throw new Error('synthetic network failure');},1_000,resolver);
   await assert.rejects(
     networkFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
-    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'
   );
 
   const upstreamAbort=new OpenAiCompatibleProvider(async()=>{throw new DOMException('upstream aborted early','AbortError');},1_000,resolver);

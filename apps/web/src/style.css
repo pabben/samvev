@@ -2654,6 +2654,7 @@ details[open] > summary:before {
 .monitor-result blockquote,.monitor-finding blockquote{margin:12px 0;padding-left:12px;border-left:3px solid var(--line);font-size:13px;color:var(--muted)}
 .monitor-supporting-evidence{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}.monitor-supporting-evidence small{font-weight:700}
 .monitor-quality-preference{color:var(--muted);font-size:.875rem;font-weight:650}
+.monitor-progress{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;align-items:start}.monitor-progress p{min-width:0;margin:0;overflow-wrap:anywhere}
 .monitor-result small{margin-top:10px}.monitor-answer{white-space:pre-wrap}.monitor-finding{padding:12px 0;border-bottom:1px solid var(--line)}
 .monitor-delete{display:block}.monitor-delete p{margin-top:0}.monitor-card .card-actions button{min-height:44px;white-space:normal;text-align:left}.monitor-form .card-actions{display:flex;flex-wrap:wrap;gap:10px}
 .monitor-card .monitor-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-card[aria-busy=true]{opacity:.8}
@@ -2674,3 +2675,11 @@ details[open] > summary:before {
 .monitor-rule dd small, .monitor-forecast-details small { display: block; margin-top: .35rem; }
 .monitor-location-options { display: grid; gap: .5rem; padding-left: 1.25rem; }
 .monitor-location-options button { max-width: 100%; min-height: 44px; white-space: normal; overflow-wrap: anywhere; text-align: start; }
+
+.monitor-progress { border-inline-start: 3px solid var(--teal); }
+.monitor-progress-stage { display: flex; align-items: center; gap: 10px; }
+.monitor-progress-spinner { display: inline-block; flex: 0 0 22px; }
+
+.monitor-rule .monitor-condition { grid-column: 1 / -1; }
+.monitor-condition-or { display: block; margin: .55rem 0; color: var(--teal); }
+.monitor-condition dd > p { margin: .75rem 0 0; }

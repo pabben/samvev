@@ -215,6 +215,10 @@ try {
     await context.request.get("/api/v1/setup/status")
   ).json();
   if (!status.claimed) {
+    // Fresh installations correctly default to Norwegian; this scenario then
+    // explicitly selects English before exercising the English onboarding.
+    await expect(page.locator('html')).toHaveAttribute('lang', 'nb');
+    await page.getByLabel('Språk', { exact: true }).selectOption('en');
     await expect(
       page.getByRole("button", { name: "Set up your household" }),
     ).toBeVisible();
@@ -293,7 +297,7 @@ try {
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Display name", { exact: true }).fill(person.name);
     await dialog.getByLabel("Age group (optional)").selectOption(person.age);
-    await dialog.getByLabel("Starting permissions").selectOption(person.role);
+    await dialog.getByLabel("Role", { exact: true }).selectOption(person.role);
     if (person.email) {
       for (const label of [
         "Write household messages",
@@ -303,10 +307,11 @@ try {
         await dialog.getByLabel(label, { exact: true }).check();
       await dialog.getByLabel("Give this person a sign-in").check();
       await dialog.getByLabel("Email", { exact: true }).fill(person.email);
+      await dialog.getByLabel("Set a password now", { exact: true }).check();
       await dialog.getByLabel("Password", { exact: true }).fill(password);
     }
     await dialog
-      .getByRole("button", { name: "Add person", exact: true })
+      .getByRole("button", { name: "Save changes", exact: true })
       .click();
     await expect(dialog).not.toBeVisible();
   }

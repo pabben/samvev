@@ -83,16 +83,28 @@ export interface Message {
     revision: number | null;
   }[];
 }
+export interface MonitorExecution {
+  id: string; taskId: string; taskRevision: number;
+  kind: 'interpretation' | 'test' | 'manual' | 'smarter' | 'scheduled';
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'superseded';
+  progress: { stage: 'queued' | 'preparing' | 'fetching_source' | 'fetching_weather' | 'analyzing' | 'validating' | 'finalizing'; updatedAt: string };
+  usesLocalAi: boolean; expectedDurationSeconds: number;
+  queuedAt: string; startedAt: string | null; completedAt: string | null;
+  resultSummary?: MonitorRunResult | null; errorCode: string | null;
+  errorDetails?: Record<string, unknown> | null;
+}
 export interface MonitorTask {
   lifecycle: MonitorTaskLifecycle;
   id:string;name:string;instruction:string;sourceUrl:string|null;state:'draft'|'active'|'paused';
   checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;sourceKinds?:Array<'web'|'weather'>;usesSmarterAi:boolean;
-  targets:{personIds:string[];displayIds:string[]};interpretedRule:{resultKind?:'events'|'answer';summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number;location?:{query:string;canonicalName?:string;municipality?:string;region?:string;country?:string}}|null;
+  targets:{personIds:string[];displayIds:string[]};interpretedRule:{resultKind?:'events'|'answer';summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number;schedule?:{kind:'daily';localTime:string;timezone:'Europe/Oslo'};weatherCondition?:{operator:'or';conditions:Array<{kind:'rain'}|{kind:'max_wind_speed';comparison:'gt';thresholdMps:number}>};forecastPeriod?:{period:'today'|'tomorrow'|'date';date?:string;timeWindow:'all'|'night'|'morning'|'afternoon'|'evening'};location?:{query:string;canonicalName?:string;municipality?:string;region?:string;country?:string}}|null;
   events:{date:string;time:string|null;type:string;description:string;actions:string[];who:string[];evidence:{quote:string;sourceUrl:string;claims?:string[];sources?:Array<{quote:string;sourceUrl:string;claims:string[]}>};confidence:number;uncertainty:string|null}[];
   revision:number;approvedRevision:number|null;lastCheckedAt:string|null;nextCheckAt:string|null;lastResult:string|null;lastChangedAt:string|null;errorCode:string|null;
   stats:{checks:number;aiCalls:number;unchanged:number};
   source?:{finalUrl:string|null};
   latestResult?:Omit<MonitorRunResult,'outcome'>|null;
+  activeExecution?: MonitorExecution | null;
+  latestExecution?: MonitorExecution | null;
 }
 export interface MonitorSource {
   sourceUrl:string;fetchedAt:string;kind?:'web'|'weather';label?:string;attribution?:string;

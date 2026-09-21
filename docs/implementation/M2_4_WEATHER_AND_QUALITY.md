@@ -114,7 +114,42 @@ text or person data.
 
 The mocked full database integration still covers interpretation, approval, a
 relevant notification, a changed dry forecast and withdrawal. No paid AI call
-was made, and the global 180-second deadline remains unchanged.
+was made.
+
+## Daily conditional weather correction candidate
+
+Synthetic live reproduction on the deployed `e1cce66…` runtime confirmed a
+later owner-reported Lillesand failure as deterministic: three independent
+setups failed in 61–70 ms with zero provider turns, one failed weather tool call
+and no provenance. The parser had passed the complete schedule and condition
+tail as the place query. The qualified form reached Kartverket but the resolver
+gave equal rank to several different Lillesand records in Agder. This was not a
+MET outage or a model failure.
+
+The correction follows ADR 0019. It stores an optional daily 08:00
+Europe/Oslo schedule and a typed rain OR maximum-wind condition in the existing
+rule JSON. All scheduled terminal paths calculate the next local wall-clock
+occurrence through the same DST-aware helper. Weather-only conditional runs
+evaluate verified MET data server-side and return a valid empty event list when
+neither condition is met. The UI previews the exact schedule, strict threshold,
+period and no-notification case in NB/EN and separates place-service failures
+from forecast-service failures.
+
+No migration is added. Existing rules retain interval behavior and are not
+reinterpreted. The permanent live-E2E matrix adds simple Lillesand 3× and daily
+conditional Lillesand 3×. The correction is not deployed; its live matrix needs
+a new explicit deploy gate.
+
+The current-tree gate passes all **170/170** workspace tests (including **146/146** API tests), all workspace
+typechecks and the production build. Focused weather/domain/E2E-helper tests
+pass **66/66**, database weather/durable-execution integration passes **16/16**,
+and the shared browser smoke passes NB/EN, Axe, keyboard/focus, mobile/desktop,
+dark/light and reduced-motion checks with only intercepted synthetic traffic.
+A fresh synthetic database applied migrations 001–016 twice and retained an
+exact 16-entry ledger. Isolated app, worker and database health, diff validation
+and the private-data/secret scan pass. This is local candidate evidence only:
+the post-fix Lillesand 3× matrix remains blocked until a separately authorized
+immutable deployment.
 
 The post-pilot candidate passed all **128** workspace tests: web 15, contracts
 3, core 3 and API 107. All five workspace typechecks and the production build
@@ -125,3 +160,102 @@ The focused browser smoke passed NB/EN, keyboard/focus, Axe, mobile, desktop,
 1280×752 wall-panel and dark mode with zero real browser requests and no new
 screenshots. Compose validation, isolated QA health, whitespace and
 secret/private-data scans passed.
+
+## Owner pilot blocker and durable execution follow-up
+
+The live owner pilot on 2026-09-13 passed the plain weather request. The
+`via yr` variant timed out once and then passed on retry. The combined week-plan
+and weather task failed three times at the former 180-second server deadline.
+That is a release blocker for PR #9 and Issues #7/#8, tracked separately in
+Issue #10. M2.4 is not accepted or merge-ready on this evidence.
+
+The follow-up replaces synchronous monitor actions with the persistent
+execution model in ADR 0017. Setup interpretation, Test now, Run now,
+smarter-quality previews and scheduled runs enqueue a stable execution and are
+processed by the worker. Local simple work has a bounded five-minute maximum;
+local multi-tool, schedule-like or stronger-quality work has a bounded
+ten-minute maximum. Hosted work retains the three-minute maximum. Leases add a
+60-second completion margin.
+
+Migration `014_monitor_durable_executions.sql` is additive. It introduces the
+queue, sanitized progress/timing fields, single-flight index and execution
+links for run/tool/quality audit. The task projection restores the active run
+and latest current-revision preview after reload. Browser transport failures no
+longer become AI timeouts.
+
+The release evidence below describes the previous M2.4 candidate. A new full
+release gate and isolated local-provider pilot are required for the durable
+execution candidate before deployment.
+
+The durable candidate's focused and full synthetic validation now passes. The
+production HTTP contract returns `202` for interpretation, Test now, Run now
+and smarter previews and exposes the stable execution through an authenticated,
+household-scoped read endpoint. The worker rechecks requester authority and the
+AI settings revision, isolates a misconfigured scheduled task from the rest of
+the queue, and fairly claims work across households. If a worker stops after a
+domain result committed but before queue finalization, lease recovery reconciles
+the matching task/revision/kind run or interpretation audit and restores its
+server-anchored public provenance rather than misreporting an interruption.
+
+The current migration 014 checksum is
+`027ca591ee806b468b0efbb33776402b733e8f4db44386fddda17b2cad4b0eea`
+and matches fresh and repeated isolated test/QA ledgers. Full workspace tests
+pass **141/141**: web 16, contracts 3, core 3
+and API 119. All workspace typechecks and the production build pass. The
+focused durable suite passes **12/12**, including stable IDs, duplicate starts,
+a fake-clock four-minute provider result through the real interpretation
+service and agent runner, true server timeout, scheduled execution,
+configuration-failure isolation, interrupted-worker recovery, crash-window
+reconciliation and escalation telemetry on failed runs. Deterministic
+dependency refreshes contribute their actual web, location and weather timings
+even when no AI call is needed. Focused NB/EN browser smoke passes keyboard,
+focus, Axe, mobile, desktop and 1280×752 checks with zero real requests; two
+synthetic progress screenshots were inspected for the new running state. The broader M1
+browser scenario still stops at its pre-existing display-pairing response wait;
+no monitor assertion fails, and this unrelated smoke issue is not hidden as a
+pass. No local-provider pilot or live deploy has been run for this candidate.
+
+## Post-deploy combined-source correction candidate
+
+The first live M2.5 owner run exposed a separate setup defect for a task that
+combined an explicit week-plan URL with weather for tomorrow. Both attempts
+opened the approved web source successfully, but made no weather request. The
+setup code had classified every `web.open` plus `weather.forecast` task as if
+its forecast date had to be discovered from web evidence, even when the
+instruction already said `tomorrow`. The model could therefore finish after
+`web.open`; the required-tool guard correctly rejected that incomplete result
+as `AI_RESPONSE_INVALID` before combined provenance was created.
+
+The correction keeps explicit `today`, `tomorrow` and calendar dates as fixed,
+reviewed weather scope. Samvev resolves and fetches that approved forecast
+server-side before asking the model to perform the remaining web work. A date
+is dynamic only when it really must come from the opened source. The model
+still decides whether the verified plan and forecast merit an event. A
+successful `events: []` is accepted only when complete, date-aligned web and
+weather evidence exists, so an unavailable or truncated source cannot become a
+false all-clear.
+
+For a positive combined result, source quotes and atomic claims remain verbatim
+and are anchored to both tool results. Samvev renders the user-facing frame in
+the task locale from those validated facts, rather than requiring translated
+presentation text to occur verbatim in an English weather payload. Setup and
+execution prompts also state the resolved `nb` or `en` output language. The
+normal Oppdrag UI now presents a successful empty result as no condition
+requiring a notification for the checked period.
+
+The durable progress panel retains its server-reported stages and adds a
+decorative activity spinner and running accent. It shows no percentage,
+disappears on terminal state and is static under `prefers-reduced-motion`.
+
+This is an application-only correction on top of migration 014. It adds no
+migration and does not change the durable HTTP 202, timeout, lease,
+single-flight or stale-revision contracts. It remains undeployed pending a new
+candidate gate and owner pilot.
+
+The final local gate passed with 144/144 workspace tests and 82/82 focused
+monitor, weather and durable-execution tests. Workspace typechecks, the
+production build, synthetic browser smoke (including Axe, focus, responsive
+layouts and reduced motion), fresh migrations 001-014 applied twice, isolated
+Compose health, diff validation and the private-data/secret scan also passed.
+The current correction is not deployed; a committed candidate, CI and a new
+controlled deploy plus owner pilot are still required.

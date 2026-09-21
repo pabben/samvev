@@ -229,6 +229,15 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   assert.equal(seenModels.at(-1), 'local-strong');
   assert.equal(seenReasoningEfforts.at(-1), 'high');
 
+  const repairSession=await aiAdmin.createTaskSession(f.householdId,{
+    operation:'plan',purpose:'synthetic_format_repair',input:'Return the already verified facts as strict JSON.',
+    modelTier:'strong',sources:[]
+  },'default',[],undefined,'format_repair');
+  try{assert.equal((await repairSession.next()).output,'OK');}
+  finally{repairSession.close();}
+  assert.equal(seenModels.at(-1),'local-strong','format repair must keep the selected strong model');
+  assert.equal(seenReasoningEfforts.at(-1),'none','format repair must reserve output budget instead of producing a reasoning trace');
+
   const localKey = await app.inject({
     method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
     payload: { apiKey: 'short-local-key', expectedRevision: 4 }

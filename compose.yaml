@@ -91,6 +91,9 @@ services:
       SAMVEV_DEMO_MODE: ${SAMVEV_DEMO_MODE:-true}
       SAMVEV_PUBLIC_ORIGIN: "${SAMVEV_PUBLIC_ORIGIN:-http://127.0.0.1:${SAMVEV_PORT:-4173}}"
       SAMVEV_TRUST_PROXY: ${SAMVEV_TRUST_PROXY:-false}
+      # Disabled by default. When explicitly enabled, exposes only the narrowly
+      # scoped synthetic live-E2E fixture and authenticated diagnostics.
+      SAMVEV_LIVE_E2E_ENABLED: ${SAMVEV_LIVE_E2E_ENABLED:-false}
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -193,6 +196,63 @@ services:
         condition: service_completed_successfully
     restart: "no"
 
+  # This runner is separate from app and worker. It tests a configured remote
+  # runtime over HTTPS on an egress-only project network, with no database,
+  # app source, Git or dependency mount.
+  live-e2e:
+    image: ${SAMVEV_E2E_HARNESS_IMAGE:-samvev-m1/browser:local}
+    profiles: ["live-e2e"]
+    init: true
+    working_dir: /workspace
+    user: "1000:1000"
+    command: ["npm", "run", "e2e:live"]
+    environment:
+      CI: "true"
+      SAMVEV_E2E_ORIGIN: ${SAMVEV_E2E_ORIGIN:-}
+      SAMVEV_E2E_CONFIRM_ORIGIN: ${SAMVEV_E2E_CONFIRM_ORIGIN:-}
+      SAMVEV_E2E_CREDENTIALS_FILE: ${SAMVEV_E2E_CREDENTIALS_FILE:-}
+      SAMVEV_E2E_AI_FILE: ${SAMVEV_E2E_AI_FILE:-}
+      SAMVEV_E2E_PUBLIC_SOURCE_URL: ${SAMVEV_E2E_PUBLIC_SOURCE_URL:-}
+      SAMVEV_E2E_SCENARIOS: ${SAMVEV_E2E_SCENARIOS:-}
+    volumes:
+      - type: bind
+        source: .local/live-e2e/reports
+        target: /workspace/.local/live-e2e
+      - type: bind
+        source: .local/live-e2e/credentials/credentials.json
+        target: /workspace/.local/live-e2e/credentials/credentials.json
+        read_only: true
+      - type: bind
+        source: .local/live-e2e/ai-settings.json
+        target: /workspace/.local/live-e2e/ai-settings.json
+        read_only: true
+    networks:
+      - live-e2e-egress
+    labels: *samvev-labels
+    restart: "no"
+
+  # Runs the supported registration CLI from the exact immutable candidate
+  # image. It is not an HTTP service, creates no session and is invoked only
+  # by the operator script after it confirms the enabled target runtime. Its
+  # sole writable host mount is the credential destination.
+  live-e2e-provisioner:
+    image: ${SAMVEV_E2E_RUNTIME_IMAGE:-samvev-m1/workspace:local}
+    profiles: ["live-e2e"]
+    init: true
+    working_dir: /workspace
+    user: "1000:1000"
+    environment:
+      DATABASE_URL: postgresql://${SAMVEV_DB_USER:-samvev}:${SAMVEV_DB_PASSWORD:-local-development-only}@db:5432/${SAMVEV_DB_NAME:-samvev}
+      SAMVEV_LIVE_E2E_ENABLED: "true"
+    volumes:
+      - type: bind
+        source: .local/live-e2e/credentials
+        target: /workspace/.local/live-e2e/credentials
+    networks:
+      - samvev
+    labels: *samvev-labels
+    restart: "no"
+
   qa-db:
     image: postgres:17.11-bookworm
     profiles: ["qa"]
@@ -235,6 +295,7 @@ services:
       HOST: 0.0.0.0
       PORT: "4173"
       SAMVEV_DEMO_MODE: "true"
+      SAMVEV_PUBLIC_ORIGIN: http://qa-app:4173
     depends_on:
       qa-migrate:
         condition: service_completed_successfully
@@ -298,6 +359,8 @@ services:
 networks:
   samvev:
     name: samvev-m1-network
+  live-e2e-egress:
+    name: samvev-m1-live-e2e-egress
 
 volumes:
   postgres-data:

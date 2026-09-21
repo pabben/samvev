@@ -76,6 +76,8 @@ export interface SourceDocument {
   /** Typed metadata for server-side evidence validation. Never accepted from model output. */
   evidenceKind?:'web'|'weather';
   evidenceDates?:string[];
+  /** True only when the exact normalized source text was fully exposed to the model. */
+  evidenceComplete?:boolean;
   /** Public citation URL with sensitive query coordinates removed when needed. */
   publicEvidenceUrl?:string;
 }

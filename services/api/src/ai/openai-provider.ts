@@ -15,6 +15,70 @@ const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_STORED_TOKENS = 2_147_483_647;
 
 interface OpenAiPayload { status?: unknown; incomplete_details?: unknown; output?: unknown; usage?: unknown; }
+type JsonSchema=Record<string,unknown>;
+
+function schemaObject(value:unknown):value is JsonSchema{return Boolean(value)&&typeof value==='object'&&!Array.isArray(value);}
+function permitsNull(schema:unknown):boolean{
+  if(!schemaObject(schema))return false;
+  if(schema.type==='null'||(Array.isArray(schema.type)&&schema.type.includes('null'))||schema.const===null||(Array.isArray(schema.enum)&&schema.enum.includes(null)))return true;
+  return ['anyOf','oneOf'].some((key)=>Array.isArray(schema[key])&&(schema[key] as unknown[]).some(permitsNull));
+}
+
+/** OpenAI strict Structured Outputs requires every declared object property in
+ * `required`. Provider-neutral optional properties are represented as nullable
+ * on the wire and removed again from a successful terminal response. */
+export function openAiStrictResponseSchema(value:unknown):unknown{
+  if(!schemaObject(value))return value;
+  const result:JsonSchema={...value};
+  // OpenAI Structured Outputs supports only a JSON Schema subset. Remove only
+  // constraints used by Samvev's monitor schemas that the wire subset rejects;
+  // the untouched provider-neutral schema remains authoritative server-side.
+  if(value.format==='uri')delete result.format;
+  if(value.uniqueItems===true)delete result.uniqueItems;
+  for(const key of ['anyOf','oneOf','allOf'] as const)if(Array.isArray(value[key]))result[key]=(value[key] as unknown[]).map(openAiStrictResponseSchema);
+  if(schemaObject(value.items))result.items=openAiStrictResponseSchema(value.items);
+  if(schemaObject(value.properties)){
+    const required=new Set(Array.isArray(value.required)?value.required.filter((item):item is string=>typeof item==='string'):[]);
+    const properties=Object.fromEntries(Object.entries(value.properties).map(([name,schema])=>{
+      const strict=openAiStrictResponseSchema(schema);return[name,required.has(name)||permitsNull(strict)?strict:{anyOf:[strict,{type:'null'}]}];
+    }));
+    result.properties=properties;result.required=Object.keys(properties);
+  }
+  return result;
+}
+
+function matchingSchema(value:unknown,schemas:unknown[]):unknown{
+  let best=schemas[0],bestScore=-1;
+  for(const schema of schemas){
+    if(!schemaObject(schema))continue;
+    if(value===null&&permitsNull(schema))return schema;
+    if(schemaObject(value)&&schemaObject(schema.properties)){
+      const keys=Object.keys(value);const known=new Set(Object.keys(schema.properties));
+      const score=keys.filter((key)=>known.has(key)).length-(keys.some((key)=>!known.has(key))?1000:0);
+      if(score>bestScore){best=schema;bestScore=score;}
+    }else if(Array.isArray(value)&&schema.type==='array')return schema;
+  }
+  return best;
+}
+
+function normalizeStrictValue(value:unknown,schema:unknown):unknown{
+  if(!schemaObject(schema)||value===null)return value;
+  for(const key of ['anyOf','oneOf'] as const)if(Array.isArray(schema[key]))return normalizeStrictValue(value,matchingSchema(value,schema[key] as unknown[]));
+  if(Array.isArray(value)&&schemaObject(schema.items))return value.map((item)=>normalizeStrictValue(item,schema.items));
+  if(schemaObject(value)&&schemaObject(schema.properties)){
+    const required=new Set(Array.isArray(schema.required)?schema.required.filter((item):item is string=>typeof item==='string'):[]);const result:JsonSchema={...value};
+    for(const [name,propertySchema] of Object.entries(schema.properties)){
+      if(result[name]===null&&!required.has(name)){delete result[name];continue;}
+      if(Object.hasOwn(result,name))result[name]=normalizeStrictValue(result[name],propertySchema);
+    }
+    return result;
+  }
+  return value;
+}
+
+export function normalizeOpenAiStrictOutput(output:string,schema:unknown):string{
+  try{return JSON.stringify(normalizeStrictValue(JSON.parse(output),schema));}catch{return output;}
+}
 
 export function normalizedResponsesUsage(value: unknown): { inputTokens?: number; outputTokens?: number } | undefined {
   if (!value || typeof value !== 'object') return undefined;
@@ -105,6 +169,7 @@ class OpenAiResponsesSession implements AiProviderSession {
         method: 'POST', headers: { authorization: `Bearer ${this.configuration.apiKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({
           model: this.configuration.model, input: this.input, max_output_tokens: this.task.maxOutputTokens ?? 64, store: false,
+          ...(this.aliases.wireTools.length===0&&this.pending.size===0&&this.task.responseSchema?{text:{format:{type:'json_schema',name:this.task.responseSchema.name,strict:true,schema:openAiStrictResponseSchema(this.task.responseSchema.schema)}}}:{}),
           ...(this.aliases.wireTools.length ? { tools: responseTools(this.aliases.wireTools), tool_choice:toolChoice, include:['reasoning.encrypted_content'] } : {})
         }), signal: active.signal
       }),aborted]);
@@ -113,7 +178,8 @@ class OpenAiResponsesSession implements AiProviderSession {
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR');
       const payload = parsed as OpenAiPayload; const usage = normalizedResponsesUsage(payload.usage);
       if (!response.ok) throw new AiProviderFailure('AI_UPSTREAM_ERROR', usage);
-      const turn = internalizeAiProviderTurn(responsesTurn(payload),this.aliases);
+      let turn = internalizeAiProviderTurn(responsesTurn(payload),this.aliases);
+      if(turn.output&&this.aliases.wireTools.length===0&&this.task.responseSchema)turn={...turn,output:normalizeOpenAiStrictOutput(turn.output,this.task.responseSchema.schema)};
       // Opaque reasoning/function-call items live only in this request-scoped adapter.
       this.input.push(...(payload.output as unknown[]));
       this.pending = new Map(turn.toolCalls.map((call) => [call.id, call.name]));
