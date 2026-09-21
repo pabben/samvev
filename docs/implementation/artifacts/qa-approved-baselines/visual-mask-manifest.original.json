@@ -1,0 +1,641 @@
+{
+  "source": "docs/implementation/artifacts/qa-candidates",
+  "approvedCandidate": {
+    "executedAt": "2026-09-07T02:46:05.751Z",
+    "manifestSha256": "255eef840bfe78431a62a5791f788aad8a1e1cd43e1c8b9e6648b66e098ca71f"
+  },
+  "masks": {
+    "display-mobile-en-light.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45 AM",
+        "x": 259,
+        "y": 60,
+        "width": 109,
+        "height": 33
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 270,
+        "y": 102,
+        "width": 98,
+        "height": 11
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 289,
+        "y": 315,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 289,
+        "y": 659,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 296,
+        "y": 568,
+        "width": 48,
+        "height": 13
+      }
+    ],
+    "display-mobile-en-dark.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45 AM",
+        "x": 259,
+        "y": 60,
+        "width": 109,
+        "height": 33
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 270,
+        "y": 102,
+        "width": 98,
+        "height": 11
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 289,
+        "y": 315,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 289,
+        "y": 659,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 296,
+        "y": 568,
+        "width": 48,
+        "height": 13
+      }
+    ],
+    "display-mobile-nb-light.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45",
+        "x": 304,
+        "y": 60,
+        "width": 64,
+        "height": 33
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 270,
+        "y": 102,
+        "width": 98,
+        "height": 11
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 311,
+        "y": 315,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 311,
+        "y": 659,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 316,
+        "y": 568,
+        "width": 28,
+        "height": 13
+      }
+    ],
+    "display-mobile-nb-dark.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45",
+        "x": 304,
+        "y": 60,
+        "width": 64,
+        "height": 33
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 270,
+        "y": 102,
+        "width": 98,
+        "height": 11
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 311,
+        "y": 315,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 311,
+        "y": 659,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 316,
+        "y": 568,
+        "width": 28,
+        "height": 13
+      }
+    ],
+    "display-shared-en-light.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45 AM",
+        "x": 1563,
+        "y": 38,
+        "width": 189,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1595,
+        "y": 102,
+        "width": 157,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 841,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 1719,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 848,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 1726,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45 AM",
+        "x": 1773,
+        "y": 1040,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shared-en-dark.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45 AM",
+        "x": 1563,
+        "y": 38,
+        "width": 189,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1595,
+        "y": 102,
+        "width": 157,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 841,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 1719,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 848,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 1726,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45 AM",
+        "x": 1773,
+        "y": 1040,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shared-nb-light.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45",
+        "x": 1640,
+        "y": 38,
+        "width": 112,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1596,
+        "y": 102,
+        "width": 156,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 870,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 1748,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 875,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 1753,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45",
+        "x": 1793,
+        "y": 1040,
+        "width": 31,
+        "height": 15
+      }
+    ],
+    "display-shared-nb-dark.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45",
+        "x": 1640,
+        "y": 38,
+        "width": 112,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1596,
+        "y": 102,
+        "width": 156,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 870,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 1748,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 875,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 1753,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45",
+        "x": 1793,
+        "y": 1040,
+        "width": 31,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-en-light.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45 AM",
+        "x": 989,
+        "y": 26,
+        "width": 155,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 538,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 1125,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 542,
+        "y": 508,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 1129,
+        "y": 465,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45 AM",
+        "x": 1165,
+        "y": 719,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-en-dark.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45 AM",
+        "x": 989,
+        "y": 26,
+        "width": 155,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 538,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45 AM",
+        "x": 1125,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 542,
+        "y": 508,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45 PM",
+        "x": 1129,
+        "y": 465,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45 AM",
+        "x": 1165,
+        "y": 719,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-nb-light.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45",
+        "x": 1052,
+        "y": 26,
+        "width": 92,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 564,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 1151,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 566,
+        "y": 508,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 1153,
+        "y": 465,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45",
+        "x": 1185,
+        "y": 719,
+        "width": 31,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-nb-dark.png": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:45",
+        "x": 1052,
+        "y": 26,
+        "width": 92,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 564,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:45",
+        "x": 1151,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 566,
+        "y": 508,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:45",
+        "x": 1153,
+        "y": 465,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:45",
+        "x": 1185,
+        "y": 719,
+        "width": 31,
+        "height": 15
+      }
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "executedAt": "2026-09-07T03:49:25.432Z",
+  "baseURL": "http://qa-app:4173",
+  "checks": [
+    "explicit fresh-install demo action creates and opens labelled synthetic household data",
+    "setup, member board, message composer and restricted display pairing have named controls, visible landmarks and sampled 3:1 text contrast"
+  ],
+  "axeViolations": []
+}

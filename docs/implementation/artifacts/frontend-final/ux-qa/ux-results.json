@@ -1,0 +1,180 @@
+{
+  "executedAt": "2026-09-07T03:10:36.246Z",
+  "baseURL": "http://qa-app:4173",
+  "completed": true,
+  "phase": "all",
+  "checks": [
+    "F8 real permissions save preserves 4 active grants and excludes 1 historical unavailable grants",
+    "F7 all four account disclosure labels and icon semantics rendered in en and nb",
+    "new restricted display has truthful fresh empty state",
+    "F8 concurrent revoke remains an honest server error with the form retained",
+    "keyboard tabs expose selection and visible focus; modal contains forward/backward focus and restores trigger",
+    "all mobile composer controls reachable; API failure preserves every draft value",
+    "long unbroken nb content expands without overflow; real two-author Timeline/Person Columns renders",
+    "real privacy toggle and revocation hide/clear messages and saved projection",
+    "pending loading and recoverable service-error states have semantic feedback and successful retry",
+    "workbench components captured in phone, Shelly and 16:9 profiles across en/nb and light/dark"
+  ],
+  "screenshots": [
+    {
+      "file": "people-valid-grants-en.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Real membership save after historical grant sanitization",
+      "fullPage": false
+    },
+    {
+      "file": "people-account-states-en.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Test-only account disclosure variants: active, disabled, profile-only, undisclosed",
+      "fullPage": true
+    },
+    {
+      "file": "people-account-states-nb.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Test-only account disclosure variants: active, disabled, profile-only, undisclosed",
+      "fullPage": true
+    },
+    {
+      "file": "display-fresh-empty-en.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Real newly paired display with no targeted messages",
+      "fullPage": false
+    },
+    {
+      "file": "permissions-concurrent-revoke-error.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Real API rejection retains open permission form after concurrent target revocation",
+      "fullPage": false
+    },
+    {
+      "file": "keyboard-tabs-focus.png",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "evidence": "Arrow/Home/End selection and visible keyboard focus",
+      "fullPage": false
+    },
+    {
+      "file": "mobile-composer-bottom-controls.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "evidence": "Every visible composer control scrolled within 390×844 viewport",
+      "fullPage": false
+    },
+    {
+      "file": "mobile-composer-retained-error.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "evidence": "Test-only POST503 retains body, recipients, schedule, expiry and visible retry action",
+      "fullPage": false
+    },
+    {
+      "file": "mobile-long-expanded-nb-dark.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "evidence": "Real long/unbroken body expanded in Bokmål; no horizontal overflow",
+      "fullPage": true
+    },
+    {
+      "file": "shelly-person-columns-nb-dark.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Real published messages grouped by two original authors with publication times",
+      "fullPage": false
+    },
+    {
+      "file": "display-privacy-en-dark.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Real persisted privacy mode suppresses all targeted cards",
+      "fullPage": false
+    },
+    {
+      "file": "display-revoked-en.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Real revocation clears projection and returns to restricted pairing flow",
+      "fullPage": false
+    },
+    {
+      "file": "member-loading.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Test-only held initial API request; genuine pending loading component",
+      "fullPage": false
+    },
+    {
+      "file": "member-error-retry.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Test-only initial API503; accessible error and retry",
+      "fullPage": false
+    },
+    {
+      "file": "workbench-390-en-light.png",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "evidence": "Synthetic component workbench: message/person/status/schedule/header/empty/offline/error/loading",
+      "fullPage": true
+    },
+    {
+      "file": "workbench-1280-nb-dark.png",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "evidence": "Synthetic component workbench: message/person/status/schedule/header/empty/offline/error/loading",
+      "fullPage": true
+    },
+    {
+      "file": "workbench-1920-en-dark.png",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "evidence": "Synthetic component workbench: message/person/status/schedule/header/empty/offline/error/loading",
+      "fullPage": true
+    }
+  ],
+  "cleanup": {
+    "ownMessagesWithdrawn": 2,
+    "ownDisplaysRevoked": 3,
+    "temporaryGrantRemoved": true
+  },
+  "syntheticOnly": true,
+  "networkFaults": "Explicitly labeled per screenshot; no auth artifacts recorded"
+}

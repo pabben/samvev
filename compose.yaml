@@ -1,0 +1,308 @@
+name: samvev-m1
+
+x-samvev-labels: &samvev-labels
+  com.samvev.component: m1
+  com.samvev.environment: local
+
+x-git-read-only: &git-read-only
+  type: bind
+  source: .git
+  target: /workspace/.git
+  read_only: true
+
+x-workspace: &workspace
+  build:
+    context: .
+    target: development
+  image: samvev-m1/workspace:local
+  init: true
+  working_dir: /workspace
+  user: "1000:1000"
+  volumes:
+    - .:/workspace
+    - *git-read-only
+    - workspace-node-modules:/workspace/node_modules
+  networks:
+    - samvev
+  labels: *samvev-labels
+
+services:
+  db:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_DB: ${SAMVEV_DB_NAME:-samvev}
+      POSTGRES_USER: ${SAMVEV_DB_USER:-samvev}
+      POSTGRES_PASSWORD: ${SAMVEV_DB_PASSWORD:-local-development-only}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - samvev
+    labels: *samvev-labels
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  dependencies:
+    <<: *workspace
+    command: ["npm", "ci", "--ignore-scripts"]
+    restart: "no"
+
+  lock:
+    build:
+      context: .
+      target: bootstrap
+    image: samvev-m1/bootstrap:local
+    profiles: ["tools"]
+    init: true
+    working_dir: /workspace
+    user: "1000:1000"
+    command: ["npm", "install", "--package-lock-only", "--ignore-scripts"]
+    volumes:
+      - .:/workspace
+      - *git-read-only
+    networks:
+      - samvev
+    labels: *samvev-labels
+    restart: "no"
+
+  migrate:
+    <<: *workspace
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      DATABASE_URL: postgresql://${SAMVEV_DB_USER:-samvev}:${SAMVEV_DB_PASSWORD:-local-development-only}@db:5432/${SAMVEV_DB_NAME:-samvev}
+    depends_on:
+      db:
+        condition: service_healthy
+      dependencies:
+        condition: service_completed_successfully
+    restart: "no"
+
+  app:
+    <<: *workspace
+    command: ["sh", "-c", "npm run build && npm run dev:api"]
+    environment:
+      DATABASE_URL: postgresql://${SAMVEV_DB_USER:-samvev}:${SAMVEV_DB_PASSWORD:-local-development-only}@db:5432/${SAMVEV_DB_NAME:-samvev}
+      HOST: 0.0.0.0
+      PORT: "4173"
+      SAMVEV_DEMO_MODE: ${SAMVEV_DEMO_MODE:-true}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:${SAMVEV_PORT:-4173}:4173"
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --show-error http://127.0.0.1:4173/api/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  worker:
+    <<: *workspace
+    command: ["npm", "run", "dev:worker"]
+    environment:
+      DATABASE_URL: postgresql://${SAMVEV_DB_USER:-samvev}:${SAMVEV_DB_PASSWORD:-local-development-only}@db:5432/${SAMVEV_DB_NAME:-samvev}
+      SAMVEV_WORKER_HEALTH_FILE: /tmp/samvev-worker-health.json
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const fs=require('fs');const p='/tmp/samvev-worker-health.json';const value=JSON.parse(fs.readFileSync(p,'utf8'));const age=Date.now()-fs.statSync(p).mtimeMs;if(age>30000||value.healthy!==true)process.exit(1)\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  tools:
+    <<: *workspace
+    profiles: ["tools"]
+    command: ["npm", "run", "check"]
+    depends_on:
+      dependencies:
+        condition: service_completed_successfully
+    restart: "no"
+
+  test-db:
+    image: postgres:17.11-bookworm
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: samvev_test
+      POSTGRES_USER: samvev_test
+      POSTGRES_PASSWORD: synthetic-test-data-only
+    volumes:
+      - test-postgres-data:/var/lib/postgresql/data
+    networks:
+      - samvev
+    labels: *samvev-labels
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: "no"
+
+  test:
+    <<: *workspace
+    profiles: ["test"]
+    command: ["sh", "-c", "npm run db:migrate && npm test"]
+    environment:
+      DATABASE_URL: postgresql://samvev_test:synthetic-test-data-only@test-db:5432/samvev_test
+      NODE_ENV: test
+      SAMVEV_DEMO_MODE: "true"
+    depends_on:
+      dependencies:
+        condition: service_completed_successfully
+      test-db:
+        condition: service_healthy
+    restart: "no"
+
+  browser:
+    build:
+      context: .
+      target: browser
+    image: samvev-m1/browser:local
+    profiles: ["browser"]
+    init: true
+    working_dir: /workspace
+    user: "1000:1000"
+    command: ["npm", "run", "test:browser"]
+    environment:
+      BASE_URL: http://samvev-m1-app-1:4173
+      CI: "true"
+      SMOKE_ARTIFACT_DIR: docs/implementation/artifacts/runtime-final
+    volumes:
+      - .:/workspace
+      - *git-read-only
+      - workspace-node-modules:/workspace/node_modules
+    networks:
+      - samvev
+    labels: *samvev-labels
+    depends_on:
+      app:
+        condition: service_healthy
+      dependencies:
+        condition: service_completed_successfully
+    restart: "no"
+
+  qa-db:
+    image: postgres:17.11-bookworm
+    profiles: ["qa"]
+    environment:
+      POSTGRES_DB: samvev_qa
+      POSTGRES_USER: samvev_qa
+      POSTGRES_PASSWORD: synthetic-qa-data-only
+    volumes:
+      - qa-postgres-data:/var/lib/postgresql/data
+    networks:
+      - samvev
+    labels: *samvev-labels
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: "no"
+
+  qa-migrate:
+    <<: *workspace
+    profiles: ["qa"]
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      DATABASE_URL: postgresql://samvev_qa:synthetic-qa-data-only@qa-db:5432/samvev_qa
+    depends_on:
+      qa-db:
+        condition: service_healthy
+      dependencies:
+        condition: service_completed_successfully
+    restart: "no"
+
+  qa-app:
+    <<: *workspace
+    profiles: ["qa"]
+    command: ["sh", "-c", "npm run build && npm run dev:api"]
+    environment:
+      DATABASE_URL: postgresql://samvev_qa:synthetic-qa-data-only@qa-db:5432/samvev_qa
+      HOST: 0.0.0.0
+      PORT: "4173"
+      SAMVEV_DEMO_MODE: "true"
+    depends_on:
+      qa-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl --fail --silent --show-error http://127.0.0.1:4173/api/v1/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: "no"
+
+  qa-worker:
+    <<: *workspace
+    profiles: ["qa"]
+    command: ["npm", "run", "dev:worker"]
+    environment:
+      DATABASE_URL: postgresql://samvev_qa:synthetic-qa-data-only@qa-db:5432/samvev_qa
+      SAMVEV_WORKER_HEALTH_FILE: /tmp/samvev-qa-worker-health.json
+    depends_on:
+      qa-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"const fs=require('fs');const p='/tmp/samvev-qa-worker-health.json';const value=JSON.parse(fs.readFileSync(p,'utf8'));const age=Date.now()-fs.statSync(p).mtimeMs;if(age>30000||value.healthy!==true)process.exit(1)\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: "no"
+
+  qa-browser:
+    build:
+      context: .
+      target: browser
+    image: samvev-m1/browser:local
+    profiles: ["qa"]
+    init: true
+    working_dir: /workspace
+    user: "1000:1000"
+    command: ["node", "tests/e2e/m1-acceptance.mjs"]
+    environment:
+      BASE_URL: http://qa-app:4173
+      CI: "true"
+      SMOKE_ARTIFACT_DIR: docs/implementation/artifacts/qa-final
+      QA_DATABASE_URL: postgresql://samvev_qa:synthetic-qa-data-only@qa-db:5432/samvev_qa
+    volumes:
+      - .:/workspace
+      - *git-read-only
+      - workspace-node-modules:/workspace/node_modules
+    networks:
+      - samvev
+    labels: *samvev-labels
+    depends_on:
+      qa-app:
+        condition: service_healthy
+      qa-worker:
+        condition: service_healthy
+      dependencies:
+        condition: service_completed_successfully
+    restart: "no"
+
+networks:
+  samvev:
+    name: samvev-m1-network
+
+volumes:
+  postgres-data:
+    name: samvev-m1-postgres-data
+  test-postgres-data:
+    name: samvev-m1-test-postgres-data
+  qa-postgres-data:
+    name: samvev-m1-qa-postgres-data
+  workspace-node-modules:
+    name: samvev-m1-workspace-node-modules

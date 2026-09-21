@@ -1,0 +1,24 @@
+{
+  "householdId": "2830388a-1c99-4fc0-b7a1-8288e74dd096",
+  "missed": {
+    "id": "adebfd5d-2c8c-4f45-88ed-1e03cc507d80",
+    "body": "QA missed restart window · synthetic",
+    "importance": "normal",
+    "audience_household": false,
+    "publish_at": "2026-09-07T03:52:27.550Z",
+    "expires_at": "2026-09-07T03:52:42.550Z",
+    "state": "scheduled",
+    "revision": 1
+  },
+  "recover": {
+    "id": "7a13c352-db6d-4b96-9f25-b5d27699c340",
+    "body": "QA restart recovery window · synthetic",
+    "importance": "normal",
+    "audience_household": false,
+    "publish_at": "2026-09-07T03:52:27.550Z",
+    "expires_at": "2026-09-07T03:53:47.550Z",
+    "state": "scheduled",
+    "revision": 1
+  },
+  "createdAt": 1788753132550
+}

@@ -1,0 +1,177 @@
+{
+  "verifiedAt": {
+    "current_time": "2026-09-07 04:04:10 UTC"
+  },
+  "branch": "feat/m1-first-runnable-slice",
+  "unchangedHead": "5bd4f0416efb3eaeb88a34e456d1f075de463ac9",
+  "independentTests": {
+    "command": "bash scripts/m1.sh test",
+    "exitCode": 0,
+    "passed": 18,
+    "failed": 0,
+    "skipped": 0,
+    "web": 10,
+    "core": 3,
+    "api": 5,
+    "contractsStandalone": 0,
+    "workerStandalone": 0,
+    "log": "unit-integration.log"
+  },
+  "restart": {
+    "ids": {
+      "missed": "adebfd5d-2c8c-4f45-88ed-1e03cc507d80",
+      "recover": "7a13c352-db6d-4b96-9f25-b5d27699c340"
+    },
+    "transitions": {
+      "missed": [
+        "scheduled",
+        "expired"
+      ],
+      "recover": [
+        "scheduled",
+        "published",
+        "expired"
+      ]
+    },
+    "verified": "exact persisted transitions; no missed publication and exactly one recovery publication"
+  },
+  "visual": {
+    "comparisonExecutedAt": "2026-09-07T03:53:53.641Z",
+    "profiles": 12,
+    "allCurrentHashesAndDimensionsVerified": true,
+    "allOriginalBaselineImagesUnchanged": true,
+    "zeroOutsideMaskForEveryProfile": true,
+    "onlyApprovedMaskChanges": [
+      "display-mobile-nb-light.png",
+      "display-mobile-nb-dark.png",
+      "display-shelly-xl-nb-light.png",
+      "display-shelly-xl-nb-dark.png"
+    ],
+    "temporalAssertionGroups": [
+      "display-mobile-en-light",
+      "display-mobile-en-dark",
+      "display-mobile-nb-light",
+      "display-mobile-nb-dark",
+      "display-shared-en-light",
+      "display-shared-en-dark",
+      "display-shared-nb-light",
+      "display-shared-nb-dark",
+      "display-shelly-xl-en-light",
+      "display-shelly-xl-en-dark",
+      "display-shelly-xl-nb-light",
+      "display-shelly-xl-nb-dark"
+    ],
+    "visualClock": {
+      "instant": "2026-09-07T02:45:00.000Z",
+      "scope": "Separate screenshot page only; Date is fixed while timers, performance, API, SSE and worker remain real."
+    }
+  },
+  "temporal": {
+    "profiles": 12,
+    "separateTimeScopes": 24,
+    "matchingRenderedTemporalAssertions": 168
+  },
+  "runtimeCleanup": {
+    "revokedOnlyKnownAbandonedSyntheticDisplays": [
+      "2ffc0c37-80a6-45f7-a09c-f90fe6d7bfef",
+      "1b09019d-8e88-43cc-a0c9-32cd7f0e96d1",
+      "8259c843-8764-4ac9-928f-287b237f0ba8",
+      "a747a237-4ed5-48c5-991e-3651ef792e51"
+    ],
+    "retainedFinalTestDisplay": "d6ccec43-19d8-4a3f-b02c-5eb30687bf61",
+    "activeDisplayCount": 1,
+    "retainedSyntheticPeople": 5,
+    "installationReset": false,
+    "historyDeleted": false
+  },
+  "operations": {
+    "checkedAt": {
+      "current_time": "2026-09-07 04:02:57 UTC"
+    },
+    "composeStatus": "NAME                    IMAGE                                                                     COMMAND                  SERVICE     CREATED          STATUS                    PORTS\nsamvev-m1-app-1         samvev-m1/workspace:local                                                 \"dumb-init -- sh -c …\"   app         8 minutes ago    Up 8 minutes (healthy)    127.0.0.1:4173->4173/tcp\nsamvev-m1-db-1          postgres:17.11-bookworm                                                   \"docker-entrypoint.s…\"   db          3 hours ago      Up 3 hours (healthy)      5432/tcp\nsamvev-m1-qa-app-1      samvev-m1/workspace:local                                                 \"dumb-init -- sh -c …\"   qa-app      12 minutes ago   Up 12 minutes (healthy)   \nsamvev-m1-qa-db-1       postgres:17.11-bookworm                                                   \"docker-entrypoint.s…\"   qa-db       13 minutes ago   Up 12 minutes (healthy)   5432/tcp\nsamvev-m1-qa-worker-1   samvev-m1/workspace:local                                                 \"dumb-init -- npm ru…\"   qa-worker   12 minutes ago   Up 9 minutes (healthy)    \nsamvev-m1-test-db-1     postgres:17.11-bookworm                                                   \"docker-entrypoint.s…\"   test-db     3 hours ago      Up 3 hours (healthy)      5432/tcp\nsamvev-m1-worker-1      sha256:a3f7e73f3eb9d7a2d9da840af93856c30a43f8816e716076365722ed439c0cbe   \"dumb-init -- npm ru…\"   worker      2 hours ago      Up 2 hours (healthy)      \n",
+    "nodeApp": "v24.20.0",
+    "nodeWorker": "v24.20.0",
+    "databaseVersionPeopleMigrationListener": [
+      "17.11 (Debian 17.11-1.pgdg12+2)",
+      "5",
+      "4",
+      "1"
+    ],
+    "http": {
+      "/api/v1/health": {
+        "status": 200,
+        "body": {
+          "status": "ok",
+          "version": 1
+        }
+      },
+      "/api/v1/me": {
+        "status": 401
+      },
+      "/api/v1/display/projection": {
+        "status": 401
+      },
+      "/": {
+        "status": 200
+      },
+      "assets": {
+        "/assets/index-DfJ005FL.js": 200,
+        "/assets/index-Db21OJeg.css": 200
+      },
+      "/display": {
+        "status": 200
+      },
+      "/workbench": {
+        "status": 200
+      }
+    }
+  },
+  "dataScan": {
+    "scope": "modified and new nonignored working-tree text files; no symlink traversal",
+    "textFilesScanned": 116,
+    "artifactJsonFilesScanned": 31,
+    "secretPatternAndPersistedAuthFindings": [],
+    "nonReservedEmailLocations": []
+  },
+  "laterDataScanEvidence": "data-scan.json",
+  "independentDependencyAudit": "dependency-audit.json",
+  "releaseReview": {
+    "date": "2026-09-07",
+    "agent": "/root/release_gate",
+    "overallResult": "BLOCKED",
+    "localAcceptance": "PASS",
+    "soleBlocker": "Read-only Git metadata prevents implementation signed-off commit, work-branch push and draft PR.",
+    "additionalHighOrMediumLocalFindings": 0,
+    "independentReadOnlyChecks": [
+      "Exact project-scoped service health, exposure, privilege, network and Git mount verification",
+      "HTTP 200 public/assets and 401 anonymous member/projection APIs",
+      "Runtime Node/PostgreSQL versions, five synthetic people, four migrations, one active display",
+      "Exact persisted restart lifecycle transitions",
+      "All four migration checksums match SQL source",
+      "All twelve PNG pixel comparisons have zero changes outside approved masks",
+      "Candidate, baseline and final image hashes/dimensions; exactly four approved one-pixel mask-width changes",
+      "All 168 rendered temporal expected/actual assertions",
+      "Shell syntax, scoped Compose configuration and Git whitespace check",
+      "Read-only .git filesystem flag"
+    ],
+    "reviewerMutations": false,
+    "report": "../../M1_RELEASE_GATE.md"
+  },
+  "gitFilesystem": {
+    ".": {
+      "readOnlyFilesystem": false
+    },
+    ".git": {
+      "readOnlyFilesystem": true
+    }
+  },
+  "newCommitCreated": false,
+  "workBranchPushed": false,
+  "draftPrCreated": false,
+  "limits": [
+    "Physical iPhone/Shelly hardware not exercised; Chromium viewport checks were executed.",
+    "Logical backup checksum/structure checked; actual backup restore not exercised.",
+    "No production deployment or host-global changes.",
+    "Final release gate BLOCKED solely by Git delivery; local M1 acceptance PASS."
+  ]
+}

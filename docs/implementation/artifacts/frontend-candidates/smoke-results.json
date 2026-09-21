@@ -1,0 +1,1156 @@
+{
+  "executedAt": "2026-09-07T02:49:58.744Z",
+  "baseURL": "http://samvev-m1-app-1:4173",
+  "checks": [
+    "reduced-motion media rule removes transition and animation from a real app button",
+    "people screen passes axe WCAG 2 A/AA and 2.1 AA",
+    "adult plus two limited profiles, optional limited sign-in, explicit capability presets",
+    "browser-bound display-generated code approval and restricted cookie redemption",
+    "paired restricted display passes axe WCAG 2 A/AA and 2.1 AA",
+    "limited member gets explicit approved-display grant through UI",
+    "message composer passes axe WCAG 2 A/AA and 2.1 AA",
+    "real immediate publication appears live without manual display refresh",
+    "after-paint device render acknowledgement changes real delivery to displayed",
+    "limited sign-in, tomorrow 07:00 scheduling, optimistic edit and withdrawal via mobile UI",
+    "real worker automatically publishes and expires accelerated limited-member schedule",
+    "12 real paired-display viewport/theme/locale screenshots with no horizontal overflow",
+    "offline saved projection is visibly stale; reconnection restores live status",
+    "member mobile nb dark passes axe WCAG 2 A/AA and 2.1 AA",
+    "member language and appearance persist through reload",
+    "no uncaught browser page errors"
+  ],
+  "screenshots": "display-{mobile,shared,shelly-xl}-{en,nb}-{light,dark}.png",
+  "dynamicMasks": {
+    "display-mobile-en-light": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49 AM",
+        "x": 259,
+        "y": 116,
+        "width": 109,
+        "height": 32
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 270,
+        "y": 157,
+        "width": 98,
+        "height": 12
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 289,
+        "y": 371,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 289,
+        "y": 715,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 296,
+        "y": 624,
+        "width": 48,
+        "height": 13
+      }
+    ],
+    "display-mobile-en-dark": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49 AM",
+        "x": 259,
+        "y": 116,
+        "width": 109,
+        "height": 32
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 270,
+        "y": 157,
+        "width": 98,
+        "height": 12
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 289,
+        "y": 371,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 289,
+        "y": 715,
+        "width": 55,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 296,
+        "y": 624,
+        "width": 48,
+        "height": 13
+      }
+    ],
+    "display-mobile-nb-light": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49",
+        "x": 304,
+        "y": 60,
+        "width": 64,
+        "height": 33
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 270,
+        "y": 102,
+        "width": 98,
+        "height": 11
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 311,
+        "y": 315,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 311,
+        "y": 659,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 316,
+        "y": 568,
+        "width": 28,
+        "height": 13
+      }
+    ],
+    "display-mobile-nb-dark": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49",
+        "x": 304,
+        "y": 60,
+        "width": 64,
+        "height": 33
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 270,
+        "y": 102,
+        "width": 98,
+        "height": 11
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 311,
+        "y": 315,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 311,
+        "y": 659,
+        "width": 33,
+        "height": 16
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 316,
+        "y": 568,
+        "width": 28,
+        "height": 13
+      }
+    ],
+    "display-shared-en-light": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49 AM",
+        "x": 1563,
+        "y": 38,
+        "width": 189,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1595,
+        "y": 102,
+        "width": 157,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 841,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 1719,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 848,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 1726,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49 AM",
+        "x": 1773,
+        "y": 1040,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shared-en-dark": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49 AM",
+        "x": 1563,
+        "y": 38,
+        "width": 189,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1595,
+        "y": 102,
+        "width": 157,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 841,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 1719,
+        "y": 349,
+        "width": 72,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 848,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 1726,
+        "y": 584,
+        "width": 65,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49 AM",
+        "x": 1773,
+        "y": 1040,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shared-nb-light": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49",
+        "x": 1640,
+        "y": 38,
+        "width": 112,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1596,
+        "y": 102,
+        "width": 156,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 870,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 1748,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 875,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 1753,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49",
+        "x": 1793,
+        "y": 1040,
+        "width": 31,
+        "height": 15
+      }
+    ],
+    "display-shared-nb-dark": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49",
+        "x": 1640,
+        "y": 38,
+        "width": 112,
+        "height": 54
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1596,
+        "y": 102,
+        "width": 156,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 870,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 1748,
+        "y": 349,
+        "width": 43,
+        "height": 20
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 875,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 1753,
+        "y": 584,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49",
+        "x": 1793,
+        "y": 1040,
+        "width": 31,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-en-light": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49 AM",
+        "x": 989,
+        "y": 26,
+        "width": 155,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 538,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 1125,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 542,
+        "y": 508,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 1129,
+        "y": 465,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49 AM",
+        "x": 1165,
+        "y": 719,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-en-dark": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49 AM",
+        "x": 989,
+        "y": 26,
+        "width": 155,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "Monday, September 7",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 538,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49 AM",
+        "x": 1125,
+        "y": 274,
+        "width": 64,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 542,
+        "y": 508,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49 PM",
+        "x": 1129,
+        "y": 465,
+        "width": 60,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49 AM",
+        "x": 1165,
+        "y": 719,
+        "width": 51,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-nb-light": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49",
+        "x": 1052,
+        "y": 26,
+        "width": 92,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 564,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 1151,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 566,
+        "y": 508,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 1153,
+        "y": 465,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49",
+        "x": 1185,
+        "y": 719,
+        "width": 31,
+        "height": 15
+      }
+    ],
+    "display-shelly-xl-nb-dark": [
+      {
+        "selector": ".display-date strong",
+        "text": "04:49",
+        "x": 1052,
+        "y": 26,
+        "width": 92,
+        "height": 45
+      },
+      {
+        "selector": ".display-date span",
+        "text": "mandag 7. september",
+        "x": 1007,
+        "y": 80,
+        "width": 137,
+        "height": 17
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 564,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-card-top > span:last-child",
+        "text": "04:49",
+        "x": 1151,
+        "y": 274,
+        "width": 38,
+        "height": 18
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 566,
+        "y": 508,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-until",
+        "text": "12:49",
+        "x": 1153,
+        "y": 465,
+        "width": 36,
+        "height": 17
+      },
+      {
+        "selector": ".display-footer span:last-child",
+        "text": "04:49",
+        "x": 1185,
+        "y": 719,
+        "width": 31,
+        "height": 15
+      }
+    ]
+  },
+  "dynamicTextAssertions": {
+    "display-mobile-en-light": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49 AM",
+          "actual": "04:49 AM"
+        },
+        "date": {
+          "expected": "Monday, September 7",
+          "actual": "Monday, September 7"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Updated 04:49 AM",
+        "actual": "Updated 04:49 AM"
+      }
+    },
+    "display-mobile-en-dark": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49 AM",
+          "actual": "04:49 AM"
+        },
+        "date": {
+          "expected": "Monday, September 7",
+          "actual": "Monday, September 7"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Updated 04:49 AM",
+        "actual": "Updated 04:49 AM"
+      }
+    },
+    "display-mobile-nb-light": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49",
+          "actual": "04:49"
+        },
+        "date": {
+          "expected": "mandag 7. september",
+          "actual": "mandag 7. september"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Oppdatert 04:49",
+        "actual": "Oppdatert 04:49"
+      }
+    },
+    "display-mobile-nb-dark": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49",
+          "actual": "04:49"
+        },
+        "date": {
+          "expected": "mandag 7. september",
+          "actual": "mandag 7. september"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Oppdatert 04:49",
+        "actual": "Oppdatert 04:49"
+      }
+    },
+    "display-shared-en-light": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49 AM",
+          "actual": "04:49 AM"
+        },
+        "date": {
+          "expected": "Monday, September 7",
+          "actual": "Monday, September 7"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Updated 04:49 AM",
+        "actual": "Updated 04:49 AM"
+      }
+    },
+    "display-shared-en-dark": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49 AM",
+          "actual": "04:49 AM"
+        },
+        "date": {
+          "expected": "Monday, September 7",
+          "actual": "Monday, September 7"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Updated 04:49 AM",
+        "actual": "Updated 04:49 AM"
+      }
+    },
+    "display-shared-nb-light": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49",
+          "actual": "04:49"
+        },
+        "date": {
+          "expected": "mandag 7. september",
+          "actual": "mandag 7. september"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Oppdatert 04:49",
+        "actual": "Oppdatert 04:49"
+      }
+    },
+    "display-shared-nb-dark": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49",
+          "actual": "04:49"
+        },
+        "date": {
+          "expected": "mandag 7. september",
+          "actual": "mandag 7. september"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Oppdatert 04:49",
+        "actual": "Oppdatert 04:49"
+      }
+    },
+    "display-shelly-xl-en-light": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49 AM",
+          "actual": "04:49 AM"
+        },
+        "date": {
+          "expected": "Monday, September 7",
+          "actual": "Monday, September 7"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Updated 04:49 AM",
+        "actual": "Updated 04:49 AM"
+      }
+    },
+    "display-shelly-xl-en-dark": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49 AM",
+          "actual": "04:49 AM"
+        },
+        "date": {
+          "expected": "Monday, September 7",
+          "actual": "Monday, September 7"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49 AM",
+            "actual": "04:49 AM"
+          },
+          "expiry": {
+            "expected": "Until 12:49 PM",
+            "actual": "Until 12:49 PM"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Updated 04:49 AM",
+        "actual": "Updated 04:49 AM"
+      }
+    },
+    "display-shelly-xl-nb-light": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49",
+          "actual": "04:49"
+        },
+        "date": {
+          "expected": "mandag 7. september",
+          "actual": "mandag 7. september"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Oppdatert 04:49",
+        "actual": "Oppdatert 04:49"
+      }
+    },
+    "display-shelly-xl-nb-dark": {
+      "timezone": "Europe/Oslo",
+      "header": {
+        "time": {
+          "expected": "04:49",
+          "actual": "04:49"
+        },
+        "date": {
+          "expected": "mandag 7. september",
+          "actual": "mandag 7. september"
+        }
+      },
+      "cards": [
+        {
+          "id": "07626dc7-4761-400a-adea-5b805cfbcb21",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        },
+        {
+          "id": "cd1bd3a3-144f-41c6-a8d0-0536114b393e",
+          "publish": {
+            "expected": "04:49",
+            "actual": "04:49"
+          },
+          "expiry": {
+            "expected": "Til 12:49",
+            "actual": "Til 12:49"
+          }
+        }
+      ],
+      "footer": {
+        "expected": "Oppdatert 04:49",
+        "actual": "Oppdatert 04:49"
+      }
+    }
+  },
+  "notes": [
+    "Synthetic fixtures only. Runtime was not reset.",
+    "Initial browser evidence, not final QA accessibility/visual regression/restart gate.",
+    "Screenshots at Shelly dimensions are not physical hardware certification."
+  ]
+}

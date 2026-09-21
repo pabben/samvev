@@ -1,0 +1,34 @@
+{
+  "name": "samvev",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Samvev M1 local development workspace",
+  "license": "AGPL-3.0-or-later",
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "npm": ">=11.0.0 <12"
+  },
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "node scripts/run-workspace-command.mjs build",
+    "check": "node scripts/run-workspace-command.mjs check",
+    "dev:api": "tsx services/api/src/server.ts",
+    "dev:worker": "tsx services/worker/src/index.ts",
+    "db:migrate": "tsx services/api/src/db/migrate.ts",
+    "lint": "node scripts/run-workspace-command.mjs lint",
+    "test": "node scripts/run-workspace-command.mjs test",
+    "test:browser": "node apps/web/tests/smoke.mjs && node apps/web/tests/review-regressions.mjs"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
+    "@types/node": "24.5.2",
+    "tsx": "4.20.5",
+    "typescript": "5.9.2"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "executedAt": "2026-09-07T03:52:12.109Z",
+  "baseURL": "http://qa-app:4173",
+  "phase": "restart-pre",
+  "checks": [
+    "two durable schedules committed before worker stop: one missed window and one recoverable window"
+  ]
+}
