@@ -15,3 +15,6 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0009](0009-google-keep-import-first.md) | Keep share/import before continuous sync | Proposed |
 | [0010](0010-rewards-and-claimable-tasks.md) | Support individual and shared rewards | Accepted product direction |
 | [0011](0011-typescript-m1-postgresql-scheduler.md) | TypeScript M1 and PostgreSQL-backed scheduling | Accepted for M1 |
+| [0012](0012-ai-provider-foundation.md) | Household-scoped AI providers, encrypted credentials, local compatible endpoints and deferred ChatGPT bridge | Accepted for M2.1; extended for M2.2 |
+| [0013](0013-general-ai-task-monitor.md) | General approved AI tasks, source change detection and M1 notification reconciliation | Accepted for M2.3 |
+| [0014](0014-person-account-household-foundation.md) | Separate people/accounts, protected owner succession, optional birthdays and controlled live bootstrap | Accepted |

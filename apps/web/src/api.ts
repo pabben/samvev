@@ -2,6 +2,7 @@ export class ApiError extends Error {
   constructor(
     public code: string,
     public status = 0,
+    public details?: Record<string, unknown>,
   ) {
     super(code);
   }
@@ -14,6 +15,7 @@ export async function api<T = unknown>(
   path: string,
   method = "GET",
   body?: unknown,
+  options: { timeoutMs?: number } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -27,7 +29,7 @@ export async function api<T = unknown>(
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(options.timeoutMs ?? 12000),
     });
   } catch {
     throw new ApiError("OFFLINE");
@@ -37,6 +39,7 @@ export async function api<T = unknown>(
     throw new ApiError(
       result?.error?.code ?? "INTERNAL_ERROR",
       response.status,
+      result?.error?.details,
     );
   }
   return response.status === 204

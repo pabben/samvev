@@ -6,13 +6,18 @@ A **person** represents someone in the household. A **user account** is an authe
 
 ## Starting role templates
 
-### Installation administrator
+### Installation owner
 
-Can manage deployment-wide settings, upgrades, household creation and security configuration. This role should be rare.
+Can manage installation-wide settings and every household function, including
+people, accounts, capabilities, displays, integrations and AI settings. Only an
+existing installation owner may assign this role. Samvev prevents demotion or
+deactivation of the last usable installation owner.
 
 ### Household administrator
 
-Can manage household membership, permissions, displays, integrations, retention and household-wide tasks.
+Can manage household membership, accounts, permissions, messages, displays,
+integrations, retention, household-wide tasks and AI settings. It cannot grant
+installation-owner access.
 
 ### Adult/member
 
@@ -48,6 +53,11 @@ integration.manage
 ```
 
 Role templates grant capabilities, but administrators can adjust them. Sensitive capabilities should require recent authentication.
+
+The implemented administrator templates are exact capability sets. Adult/member
+and restricted/child templates do not gain administration capabilities merely
+because a login exists. A person remains a separate record from its optional
+account, and an owner may add an account to an existing profile later.
 
 ## Visibility scopes
 

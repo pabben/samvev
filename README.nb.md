@@ -12,9 +12,11 @@ Samvev lagrer dette som et varig oppdrag, følger kilden, bruker en godkjent AI-
 
 ## Status
 
-**M1 har bestått lokal akseptansetesting og er klar til å prøves. Git-leveransen er blokkert fordi Git-metadata er skrivebeskyttet. Det finnes ingen produksjonsutgave.**
+**M1 har bestått akseptansetesting og Git-leveransen er verifisert. M2.3 legger til administratorgodkjente KI-oppdrag for offentlige HTML/PDF-kilder og M1-varsler. Det finnes ingen produksjonsutgave.**
 
 Den første kjørbare delen omfatter husholdningsoppsett, personer og roller, parkoblede skjermer, umiddelbare og planlagte beskjeder, norsk bokmål og engelsk samt lys og mørk visning. Start med [lokal demo](docs/implementation/M1_DEMO.md), [leveranse og testresultater](docs/implementation/M1_DELIVERY.md) og [veiledning for lokal kjøring](docs/implementation/M1_OPERATIONS.md). Produktvisjonen nedenfor beskriver også fremtidige funksjoner. M1 har ingen eksterne integrasjoner, AI, egen iOS-app, belønninger eller stemmestyring.
+
+M2.3 bygger videre på leverandørene med generelle og kontrollerbare oppdrag som følger offentlige HTML-sider eller tekstbaserte PDF-er, hopper over KI når normalisert innhold er uendret, og håndterer fremtidige funn gjennom den eksisterende meldings- og skjermmotoren. KI er deaktivert i utgangspunktet, og automatisk betalt fallback finnes ikke. ChatGPT-abonnement er fortsatt delvis utredet og utilgjengelig. Se [leveransen for M2.3](docs/implementation/M2_3.md), [M2.2](docs/implementation/M2_2.md) og [arkitekturbeslutningen](docs/decisions/0013-general-ai-task-monitor.md).
 
 [Read the English introduction](README.md)
 

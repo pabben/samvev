@@ -1,12 +1,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { loginPresentation, initialDisplayGrants } from "../src/person-policy.ts";
+import { ageOnDate, loginPresentation, initialDisplayGrants } from "../src/person-policy.ts";
 import { en } from "../src/locales/en.ts";
 import { nb } from "../src/locales/nb.ts";
 
 test("account labels and icons distinguish active, disabled, profile and undisclosed in both locales", () => {
   const cases = [
     [{ has_login: true, has_active_login: true }, "Can sign in", "Kan logge inn", "check"],
+    [{ has_login: true, has_active_login: false, account_status: "pending" }, "Invitation pending", "Invitasjon venter", "clock"],
     [{ has_login: true, has_active_login: false }, "Sign-in disabled", "Innlogging er deaktivert", "lock"],
     [{ has_login: false }, "Profile only", "Kun profil", "people"],
     [{ has_login: true }, "Has an account", "Har en konto", "people"],
@@ -17,6 +18,11 @@ test("account labels and icons distinguish active, disabled, profile and undiscl
     assert.equal(nb[presentation.label], bokmal);
     assert.equal(presentation.icon, icon);
   }
+});
+
+test("age is derived from full birth date across the birthday", () => {
+  assert.equal(ageOnDate("2012-09-10", "2026-09-09"), 13);
+  assert.equal(ageOnDate("2012-09-10", "2026-09-10"), 14);
 });
 
 test("editor drops only initially unavailable grants and retains choices across concurrent revocation", () => {

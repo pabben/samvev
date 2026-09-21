@@ -1,0 +1,11 @@
+{
+  "executedAt": "2026-09-08T10:58:34.871Z",
+  "completed": true,
+  "checks": 7,
+  "screenshots": [
+    "ai-settings-en-mobile-light.png",
+    "ai-settings-nb-desktop-dark.png"
+  ],
+  "providerCalls": "test-only intercepted response; no live inference",
+  "credential": "synthetic dummy removed; no pre-existing credential changed"
+}

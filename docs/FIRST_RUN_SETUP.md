@@ -31,13 +31,19 @@ The first-run experience must let a non-technical household create a safe, usabl
 For each person:
 
 - display name or nickname
-- optional age group, not full birth date by default
+- optional full birth date; the UI explains that it is personal data and derives age dynamically
+- optional age group when an exact birth date is not known
 - profile icon or generated avatar
 - personal accent token
 - whether the person needs a login now
 - whether the person is an administrator, adult/member or child/limited member
+- password now or a one-time invitation when a login is created
 
 A person profile must be possible without a login, for example a young child represented in schedules and tasks.
+An installation owner can also choose Household administrator directly in this
+flow. Administrator roles enable login setup and show their fixed capability
+set before the person is saved. Assigning another installation owner requires
+an explicit confirmation.
 
 ### 5. Review permissions
 
@@ -95,6 +101,8 @@ The wizard creates no hidden permanent automation. Instead it guides the user th
 ## Example-data mode
 
 Developers, reviewers and prospective users must be able to launch Samvev with synthetic people, messages and schedules. Example data must never resemble or contain the maintainer's real household data.
+Synthetic/demo households are marked separately from live households and are
+never merged into a live household by the local bootstrap transition.
 
 ## Recovery and repeatability
 

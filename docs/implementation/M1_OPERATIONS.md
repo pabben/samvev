@@ -1,8 +1,8 @@
 # M1 local operations
 
-This guide applies only to the local Compose project `samvev-m1`. It does not
-configure a reverse proxy, firewall, system service, host database, or any
-other Docker project.
+This guide applies only to the local Compose project `samvev-m1`. It documents
+the application boundary for a reverse proxy, but does not configure Pangolin,
+a firewall, a system service, a host database, or any other Docker project.
 
 ## Runtime contract
 
@@ -100,6 +100,54 @@ no automatic schema down migration: restore a verified PostgreSQL backup before
 returning to an earlier application version. Initial M1 migrations are additive
 and tracked by the API migration ledger.
 
+## Move a local installation from synthetic to live data
+
+The local bootstrap command stages a separate live household. It does not merge
+or delete the synthetic household and it does not disable its accounts during
+the prepare phase. Put personal input only in the ignored `.local/` directory,
+set file mode 0600, and use a unique operation key:
+
+```bash
+chmod 600 .local/household-prepare.json
+docker compose --profile tools run --rm migrate npm run bootstrap:local --workspace @samvev/api -- \
+  .local/household-prepare.json .local/household-invitations.json
+```
+
+The prepare JSON has `phase: "prepare"`, `operationKey`,
+`sourceHouseholdId`, household name/timezone/locale, the birthday setting,
+and a people array. Each person has a display name, role preset, optional
+`birthDate`, optional age group and optional email. Exactly one person must
+be the installation owner and have an email. Accounts are invitation-only;
+no bootstrap password is accepted or stored.
+
+Keep the mode-0600 output: it is the only copy of the clear invitation tokens.
+Opening an `/invitation#token=...` link sends the token in the URL fragment,
+which is not included in HTTP request URLs. Acceptance sets a password and
+starts a normal Samvev session. Prepare is idempotent, but a repeated call does
+not reveal the already-hashed tokens again.
+The CLI refuses group/world-readable input and refuses to overwrite an existing
+output file.
+If an invitation output is lost, leaked or expired before activation, use a
+new mode-0600 input with `phase: "rotate"`, the same operation key and
+`confirmRotateInvitations: true`, and choose a new output filename. This
+revokes every still-pending bootstrap invitation before issuing replacements.
+
+Only after the new installation owner has accepted the invitation and created
+a newer authenticated session, create a second private file with
+`phase: "finalize"`, the same `operationKey`, and
+`confirmDisableSourceAccounts: true`:
+
+```bash
+chmod 600 .local/household-finalize.json
+docker compose --profile tools run --rm migrate npm run bootstrap:local --workspace @samvev/api -- \
+  .local/household-finalize.json .local/household-finalized.json
+```
+
+Finalize disables every account attached to the source synthetic household and
+revokes its sessions. It retains people, messages, audit history and the source
+household for controlled recovery. Finalize refuses to proceed if a source
+account is shared with another household.
+
 ## Local configuration
 
 `.env.example` contains synthetic development values only. Copy it to `.env`
@@ -108,6 +156,69 @@ The PostgreSQL port is intentionally not published to the host.
 
 Browser dependencies are installed while building the Compose `browser` image;
 no host Node, npm, browser, or global package installation is required.
+
+## Pangolin / reverse proxy deployment
+
+Claim the installation through the private loopback URL before exposing it.
+Do not publish a demo-seeded database: the API refuses to start with a public
+HTTPS origin until the installation is claimed, `demo_mode` is false, and
+`SAMVEV_DEMO_MODE=false`. Use these deployment values in the ignored `.env`:
+
+```dotenv
+SAMVEV_BIND_ADDRESS=0.0.0.0
+SAMVEV_PORT=4173
+SAMVEV_DEMO_MODE=false
+SAMVEV_PUBLIC_ORIGIN=https://samvev.pabben.org
+SAMVEV_TRUST_PROXY=192.168.0.188/32
+```
+
+The bind makes port 4173 reachable on every IPv4 interface of `claude`,
+including its LAN interface. Do not add a router/NAT port-forward for 4173.
+If only Newt should reach it, enforce a host or network firewall allow-rule for
+source `192.168.0.188` and deny other sources to TCP 4173. The trusted proxy is
+only the verified Synology host `nas.lan.pabben.no` at `192.168.0.188`; direct traffic from other
+LAN addresses cannot supply trusted forwarding headers. Confirm the immediate
+peer after the first tunneled request and after network changes; never trust an
+entire LAN subnet or set proxy trust to `true` or `*`. The app does not redirect
+internal HTTP to HTTPS. Pangolin terminates TLS, so this avoids a redirect loop
+while cookies remain `Secure` because the canonical public origin uses HTTPS.
+
+Configure the existing Pangolin/Newt resource on the Synology as follows:
+
+| Pangolin field | Value |
+| --- | --- |
+| Public hostname | `samvev.pabben.org` |
+| Target protocol | `HTTP` |
+| Target host | `192.168.0.144` |
+| Target port | `4173` |
+| Health path | `/api/v1/health` |
+| Pangolin authentication | `Off` |
+
+Have Pangolin/Traefik discard client-supplied `Forwarded`,
+`X-Forwarded-Proto`, and `X-Forwarded-Host`, then set
+`X-Forwarded-Proto: https` and `X-Forwarded-Host: samvev.pabben.org`. It must
+replace or correctly append `X-Forwarded-For` with the authenticated client
+chain rather than pass an unverified value unchanged. Preserve the public
+`Host` header when that option is available. Disable response buffering for
+`/api/v1/display/events` and keep the upstream idle timeout longer than the
+15-second SSE heartbeat. No WebSocket configuration is needed.
+
+Pangolin authentication stays off because Samvev validates its own member
+sessions and paired-display credentials. Health and the claimed setup status
+are intentionally anonymous; household, admin, message, AI, display projection,
+and live-display data remain protected by Samvev authentication and permissions.
+Use `https://samvev.pabben.org` both at home and away, and sign in there again
+after the change. Open `https://samvev.pabben.org/display` and pair each display
+again after moving from localhost because host-scoped cookies do not transfer
+between origins. The localhost browser URL is only for the initial private setup.
+
+`claude.lan.pabben.no` resolved to the same address during deployment, but use
+the numeric target unless the Synology resolver also confirms that hostname.
+Direct `http://192.168.0.144:4173` is an internal reachability and health target,
+not an authenticated browser origin. Its HTTP Origin is rejected for mutations,
+and HTTPS-configured session/display cookies remain `Secure`; users
+continue to sign in through `https://samvev.pabben.org`. This also means direct
+LAN requests cannot create an alternate insecure session path.
 
 ## Troubleshooting
 
@@ -121,12 +232,10 @@ no host Node, npm, browser, or global package installation is required.
 - Browser tests deliberately use fictional owner/Robin fixtures. Runtime
   replay preserves existing people/history and creates test displays. See
   [the demo guide](M1_DEMO.md) before using these commands.
-- After a direct development asset rebuild, restart the scoped app so its
-  static asset routes reflect the new build:
-
-  ```bash
-  docker compose -p samvev-m1 -f compose.yaml restart app
-  ```
+- New hashed frontend assets written by a build are resolved dynamically; an
+  API restart is not needed merely for a new asset hash. Missing `/assets/*`
+  paths return JSON 404 responses, never the SPA HTML. Restart the scoped app
+  only when backend code changes must be loaded.
 
 - A migration checksum failure must be investigated; do not edit the migration
   ledger or an applied SQL file to suppress it. The QA helper resets only its

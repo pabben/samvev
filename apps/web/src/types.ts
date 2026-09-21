@@ -22,15 +22,30 @@ export interface Person {
   id: string;
   display_name: string;
   age_group: string;
+  birth_date?: string | null;
+  calculated_age?: number;
+  person_revision?: number;
   membership_id: string;
   role_preset: string;
   capabilities: string[];
   revision: number;
   has_login: boolean;
   has_active_login?: boolean;
+  account_status?: "profile" | "pending" | "active" | "disabled";
   email: string | null;
+  account_id?: string | null;
+  account_revision?: number | null;
   display_ids: string[];
 }
+export interface UpcomingBirthday {
+  personId: string;
+  displayName: string;
+  date: string;
+  daysUntil: number;
+  ageTurning: number;
+}
+export interface HouseholdDashboard { upcomingBirthday: UpcomingBirthday | null }
+export interface HouseholdSettings { show_upcoming_birthday: boolean; revision: number }
 export interface Display {
   id: string;
   name: string;
@@ -66,6 +81,21 @@ export interface Message {
     displayedAt: string | null;
     revision: number | null;
   }[];
+}
+export interface MonitorTask {
+  id:string;name:string;instruction:string;sourceUrl:string;state:'draft'|'active'|'paused';
+  checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;providerPolicy:'default'|'local'|'openai';modelTier:'routine'|'strong';
+  targets:{personIds:string[];displayIds:string[]};interpretedRule:{resultKind?:'events'|'answer';summary:string;eventTypes:string[];keywords:string[];people:string[];noticeDaysBefore:number;noticeLocalTime:string;checkIntervalMinutes:number}|null;
+  events:{date:string;time:string|null;type:string;description:string;actions:string[];who:string[];evidence:{quote:string;sourceUrl:string};confidence:number;uncertainty:string|null}[];
+  revision:number;approvedRevision:number|null;lastCheckedAt:string|null;nextCheckAt:string|null;lastResult:string|null;lastChangedAt:string|null;errorCode:string|null;
+  stats:{checks:number;aiCalls:number;unchanged:number};
+  source?:{finalUrl:string|null};
+  latestResult?:Omit<MonitorRunResult,'outcome'>|null;
+}
+export interface MonitorRunResult {
+  outcome:'changed'|'unchanged';resultKind:'events'|'answer'|null;
+  result:{answer?:string;events?:MonitorTask['events'];evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
+  sourceUrl:string;checkedAt:string;
 }
 export interface Card {
   id: string;
