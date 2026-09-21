@@ -270,3 +270,26 @@ directory cannot be reused. Do not use reset commands for this recovery.
 The M1 pre-upgrade synthetic backup was checked for checksum, nonempty contents
 and expected SQL markers. A restore was not exercised, so this is not a claim
 of tested disaster recovery. No automatic schema down migration is supplied.
+
+### Isolated restore verification
+
+The supported recovery gate uses a fresh PostgreSQL container, a new temporary
+volume and an internal restore-only network. It must never reuse the live volume,
+live database URL or live network, and it must not start a worker. Use the same
+PostgreSQL major version and matching immutable application runtime as the
+selected backup.
+
+Before restoring, verify mode, size and SHA-256 and require `pg_restore --list`
+to parse the custom archive. Restore into the empty clone with
+`pg_restore --exit-on-error --single-transaction --no-owner --no-privileges`.
+Then require the supported migrator to accept every stored checksum, verify the
+schema/constraints and sanitized data presence, and start only the isolated app
+for health, anonymous authorization and synthetic login/read/logout checks.
+Remove only the named clone containers, network and volume, retain the backup,
+and compare live container identity and health before and after.
+
+The 2026-09-20 execution of this procedure is recorded in
+[M1_RESTORE_GATE.md](M1_RESTORE_GATE.md). It passed for the PostgreSQL 17 backup
+from deployed candidate `f82951b`. Physical display validation remains
+**DEFERRED BY OWNER — NOT VERIFIED — NON-BLOCKING for the current merge**. It is
+separate follow-up work and is not represented as tested by this procedure.

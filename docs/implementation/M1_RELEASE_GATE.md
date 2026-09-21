@@ -126,9 +126,18 @@ Evidence: [delivery](M1_DELIVERY.md), [QA](M1_QA.md),
 
 ## Limits and handoff
 
-Physical iPhone/Shelly hardware and actual backup restoration remain untested
-and documented. This acceptance concerns the local, loopback-bound M1. Broader
-integrations and production readiness are not claimed.
+The later isolated recovery drill restored the deployed f829 PostgreSQL 17
+backup, checked migrations 001–016 and structural integrity, started the
+matching immutable app, completed synthetic authentication/read checks, and
+removed the clone without changing live services. The technical backup-restore
+gate is **PASS**; see [M1_RESTORE_GATE.md](M1_RESTORE_GATE.md).
+
+**Physical display validation is DEFERRED BY OWNER — NOT VERIFIED —
+NON-BLOCKING FOR THIS MERGE.** This is a process-risk acceptance, not a test
+result. No real Shelly Wall Display XL or kitchen iPad/large-display validation
+is claimed. Cold load/reload, SSE/reconnect, touch, scrolling/clipping,
+distance readability and light/dark/system modes remain explicit follow-up
+work. Broader production readiness is not claimed.
 
 The release reviewer changed no files or runtime data. The coordinator recorded
 this report and updated delivery status afterward; no production source or
