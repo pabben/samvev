@@ -31,7 +31,7 @@ try {
  const oldMessages=(await admin(`${base}/messages`)).messages;
  for(const message of oldMessages)if(message.body.startsWith('Syntetisk familiehilsen:')&&['published','scheduled'].includes(message.state))await admin(`${base}/messages/${message.id}/withdraw`,'POST',{expectedRevision:message.revision});
  await admin(`${base}/messages`,'POST',{body:'Syntetisk familiehilsen: Gleder meg til middag sammen. Det er plass til en liten pause i dag. ♡',importance:'normal',audience:{household:true,personIds:[],displayIds:[displayId]},expiresAt:expire,idempotencyKey:randomBytes(24).toString('hex')});
- const payload=(id,kind,title,body,personIds=[],extras={})=>({externalId:id,expectedRevision:0,kind,title,body,entries:[],priority:'normal',publishAt:new Date(Date.now()-60000).toISOString(),startsAt:null,endsAt:null,expiresAt:expire,targets:{household:!personIds.length,personIds,displayIds:[displayId]},source,metadata:{},...extras});
+ const payload=(id,kind,title,body,personIds=[],extras={})=>({externalId:id,expectedRevision:0,contentLocale:'nb',kind,title,body,entries:[],priority:'normal',publishAt:new Date(Date.now()-60000).toISOString(),startsAt:null,endsAt:null,expiresAt:expire,targets:{household:!personIds.length,personIds,displayIds:[displayId]},source,metadata:{},...extras});
  // Revoke prior harness connections so repeat runs have a deterministic family board.
  const listed=await admin(`${base}/integrations`);for(const c of listed.connections)if(c.id!==connection.connection.id&&c.name.startsWith('Syntetisk familiebrief')&&!c.revokedAt)await admin(`${base}/integrations/${c.id}/revoke`,'POST',{expectedRevision:c.revision});
  const fixtures=[
@@ -51,12 +51,22 @@ try {
  const events=[];await page.addInitScript(()=>{window.__m3Events=[];const Native=window.EventSource;window.EventSource=class extends Native{constructor(...args){super(...args);this.addEventListener('projection-invalidated',e=>window.__m3Events.push(e.data));}}});
  await page.goto('/');await screen.goto('/display');await expect(page.locator('.hub-hero h1')).toBeVisible();await expect(screen.locator('.hub-hero h1')).toBeVisible();
  await expect.poll(async()=>{const messages=(await admin(`${base}/messages`)).messages;return messages.some(message=>message.body.startsWith('Syntetisk familiehilsen:')&&message.deliveries.some(delivery=>delivery.displayId===displayId&&delivery.state==='displayed'))}).toBe(true);record('visible family-hub message retains actual display render acknowledgment');
+ await expect(page.locator('.hub-important h3').first()).toHaveAttribute('lang','nb');
+ await expect(screen.locator('.hub-important h3').first()).toHaveAttribute('lang','nb');
+ const english=payload('locale-proof','summary','An English family brief','The source language stays English.',[],{contentLocale:'en'});
+ await machine('/integrations/items','POST',english);
+ await expect(page.getByRole('heading',{name:english.title,exact:true})).toHaveAttribute('lang','en');
+ await expect(page.locator('html')).toHaveAttribute('lang','nb');
+ await expect(screen.getByRole('heading',{name:english.title,exact:true})).toHaveAttribute('lang','en');
+ await machine('/integrations/items/locale-proof','DELETE',{expectedRevision:1});
+ await expect(page.getByRole('heading',{name:english.title,exact:true})).toHaveCount(0);
+ record('producer NB/EN content language is declared independently of viewer locale without translation');
  const before=navigations;const live=payload('live-proof','reminder','Direkte fra familiebriefen','Denne kom uten å laste siden på nytt.',[people[0].id]);await machine('/integrations/items','POST',live);
  await expect(page.locator('.hub-important').getByText(live.title,{exact:true})).toBeVisible();await expect(screen.locator('.hub-important').getByText(live.title,{exact:true})).toBeVisible();await expect.poll(()=>page.evaluate(()=>window.__m3Events.length)).toBeGreaterThan(0);expect(navigations).toBe(before);
  await machine('/integrations/items/live-proof','DELETE',{expectedRevision:1});await expect(page.getByText(live.title,{exact:true})).toHaveCount(0);await expect(screen.getByText(live.title,{exact:true})).toHaveCount(0);record('real bearer POST → PostgreSQL → member/display SSE → DOM and withdrawal without reload');
  expect((await machine('/integrations/items','POST',fixtures[0])).result).toBe('unchanged');record('canonical repeat is idempotent');
  await expect(page.locator('.hub-person')).toHaveCount(people.length);await expect(page.locator('.hub-day').nth(1)).toContainText('Ut på tur');
- await page.locator('.hub-agenda .hub-item-title').first().click();await page.getByRole('dialog').locator('summary').click();await expect(page.getByRole('dialog')).toContainText('Usikkerhet: Lav');await page.getByRole('dialog').getByRole('button',{name:'Lukk',exact:true}).click();record('target-person columns, event-time Today/Tomorrow, structured lists and expandable provenance');
+ await page.locator('.hub-agenda .hub-item-title').first().click();await page.getByRole('dialog').locator('summary').click();await expect(page.getByRole('dialog')).toContainText('Usikkerhet: Lav');await expect(page.getByRole('dialog').locator('h2')).toHaveAttribute('lang','nb');await page.getByRole('dialog').getByRole('button',{name:'Lukk',exact:true}).click();record('target-person columns, event-time Today/Tomorrow, structured lists and expandable provenance');
  const axe=async(p,label)=>{const result=await new AxeBuilder({page:p}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();expect(result.violations.map(v=>({id:v.id,nodes:v.nodes.map(n=>({target:n.target,summary:n.failureSummary,data:n.any.map(a=>a.data)}))})),label).toEqual([])};
  const shot=async(p,name,width,height)=>{await expect(p.locator('.family-hub')).toBeVisible();await p.setViewportSize({width,height});await p.evaluate(()=>scrollTo(0,0));await p.screenshot({path:`${out}/${name}.png`,fullPage:false});if(name.startsWith('mobile-')||name.startsWith('tv-'))await p.screenshot({path:`${out}/${name}-full.png`,fullPage:true});expect(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${name} overflow`).toBe(true);await axe(p,name)};
  for(const theme of ['light','dark']){

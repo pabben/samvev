@@ -1,6 +1,7 @@
 import type { Locale, UpcomingBirthday } from './types';
 export interface HubPerson { id: string; displayName: string; ageGroup?: string }
 export interface HubItem {
+  contentLocale: 'en'|'nb'|null;
   id: string; kind: 'reminder'|'alert'|'event'|'summary'|'list'|'observation';
   targets: { household: boolean; personIds: string[] }; title: string; body: string;
   entries: { label: string; detail?: string }[]; priority: 'low'|'normal'|'high'|'urgent';

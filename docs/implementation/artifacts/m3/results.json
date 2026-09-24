@@ -1,7 +1,8 @@
 {
-  "executedAt": "2026-09-24T22:53:04.612Z",
+  "executedAt": "2026-09-24T23:13:06.108Z",
   "checks": [
     "visible family-hub message retains actual display render acknowledgment",
+    "producer NB/EN content language is declared independently of viewer locale without translation",
     "real bearer POST → PostgreSQL → member/display SSE → DOM and withdrawal without reload",
     "canonical repeat is idempotent",
     "target-person columns, event-time Today/Tomorrow, structured lists and expandable provenance",

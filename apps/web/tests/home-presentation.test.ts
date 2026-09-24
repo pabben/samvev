@@ -5,7 +5,7 @@ import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
 const now=Date.parse('2026-03-28T23:30:00Z');
-const item:HubItem={id:'i',kind:'event',targets:{household:false,personIds:['p']},title:'Synthetic event',body:'',entries:[],priority:'normal',publishAt:null,startsAt:'2026-03-29T00:00:00Z',endsAt:null,expiresAt:null,source:{label:'Synthetic',observedAt:new Date(now).toISOString(),uncertainty:'unknown'},metadata:{},revision:1,updatedAt:new Date(now).toISOString()};
+const item:HubItem={contentLocale:'en',id:'i',kind:'event',targets:{household:false,personIds:['p']},title:'Synthetic event',body:'',entries:[],priority:'normal',publishAt:null,startsAt:'2026-03-29T00:00:00Z',endsAt:null,expiresAt:null,source:{label:'Synthetic',observedAt:new Date(now).toISOString(),uncertainty:'unknown'},metadata:{},revision:1,updatedAt:new Date(now).toISOString()};
 test('today and tomorrow use household day across DST; events use startsAt, not publication',()=>{
  const tomorrow={...item,id:'tomorrow',startsAt:'2026-03-29T22:10:00Z'};
  assert.deepEqual(dayEvents([item,tomorrow],now,'Europe/Oslo').map(i=>i.id),['i']);

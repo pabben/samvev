@@ -45,6 +45,7 @@ export function MemberApp({
   const { t, locale } = useI18n();
   const [household, setHousehold] = useState(me.memberships[0]!.household_id);
   const member = me.memberships.find((m) => m.household_id === household)!;
+  const canManageHousehold = member.capabilities.includes("household.manage");
   const base = `/households/${household}`;
   const [tab, setTab] = useState<MemberTab>("home");
   const [lane, setLane] = useState<"now" | "planned" | "history">("now");
@@ -97,10 +98,10 @@ export function MemberApp({
       );
   }, [member.id]);
   useEffect(() => {
-    if (["ai", "monitors"].includes(tab) && !member.capabilities.includes("household.manage")) {
+    if (["ai", "monitors", "integrations"].includes(tab) && !canManageHousehold) {
       setTab("messages");
     }
-  }, [member.id, tab]);
+  }, [member.id, tab, canManageHousehold]);
   const nextStep = async (next: string) => {
     await api("/setup/progress", "PATCH", { setupStep: next });
     setStep(next);

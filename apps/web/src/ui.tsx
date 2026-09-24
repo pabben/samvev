@@ -454,11 +454,13 @@ export function Loading() {
 }
 export function Dialog({
   title,
+  titleLang,
   children,
   onClose,
   wide = false,
 }: {
   title: string;
+  titleLang?: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
@@ -499,7 +501,7 @@ export function Dialog({
       }}
     >
       <div className="dialog-header">
-        <h2 id={titleId}>{title}</h2>
+        <h2 id={titleId} lang={titleLang}>{title}</h2>
         <button
           className="icon-button"
           onClick={onClose}
