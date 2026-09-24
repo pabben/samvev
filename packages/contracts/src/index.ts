@@ -161,7 +161,7 @@ const safeHttpUrlSchema = z.string().url().max(2048).refine((value) => {
       'password','secret','clientsecret','signature','sharedaccesssignature','sastoken','sig','session','cookie','securitytoken',
       'sr','st','spr'
     ]);
-    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.hash
       && [...url.searchParams.keys()].every((key)=>{
         const compact=key.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g,'');
         return !credentialQueryKeys.has(compact)&&!/^(?:xamz|xgoog)(?:signature|credential|securitytoken)$/.test(compact);
@@ -204,6 +204,7 @@ export const integrationItemUpsertSchema = z.object({
   externalId: integrationExternalIdSchema,
   expectedRevision: z.number().int().nonnegative(),
   kind: z.enum(integrationItemKinds),
+  contentLocale: localeSchema,
   targets: integrationTargetsSchema,
   title: z.string().trim().min(1).max(160),
   body: z.string().trim().min(1).max(4000),

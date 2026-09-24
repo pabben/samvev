@@ -17,7 +17,7 @@ script:
     mode: single
     fields:
       item:
-        description: "Validated item with stable externalId and expectedRevision"
+        description: "Validated item with stable externalId, expectedRevision and contentLocale"
         required: true
         selector:
           object:

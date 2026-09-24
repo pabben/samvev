@@ -12,7 +12,7 @@ The stable identity is an integration connection. Administrators manage it with 
 - `integration.items.delete`
 - `integration.items.read`
 
-The clear credential is returned once with `Cache-Control: no-store`. Listings contain metadata only. Credentials are hashed at rest and are always confined to their connection and household.
+The clear credential is returned once. All browser administration responses use `Cache-Control: private, no-store`; listings contain metadata only. Credentials are hashed at rest and are always confined to their connection and household.
 
 ## Browser administration
 
@@ -66,11 +66,14 @@ Machine routes never use browser or display cookies:
 
 Supported `kind` values are `reminder`, `alert`, `event`, `summary`, `list` and `observation`. Priority is `low`, `normal`, `high` or `urgent`.
 
+Every new item must declare `contentLocale` as `en` or `nb`. The external producer owns translation and should publish separate items with explicit person/display targets when audiences need different languages. Samvev preserves and projects the declared language; it does not translate automatically or hide an item because its content language differs from an account or display locale. Existing development items from before migration 018 retain `contentLocale: null` because their language cannot be inferred safely.
+
 ```json
 {
   "externalId": "family-brief:2026-09-25:rain",
   "expectedRevision": 0,
   "kind": "reminder",
+  "contentLocale": "nb",
   "targets": {
     "household": true,
     "personIds": ["00000000-0000-4000-8000-000000000020"],
@@ -103,7 +106,7 @@ Targets require at least one household, person or display target. A display targ
 
 `list` requires one or more `{ "label", "detail"? }` entries. Other kinds reject entries. `event` requires `startsAt`; optional `endsAt` may not precede it. `publishAt` is independent of event time. `expiresAt`, when present, must be after publication and event start.
 
-Source and metadata are strict. Source uncertainty is `low`, `medium`, `high` or `unknown`. URLs permit HTTP(S) without URL user information or credential-like query keys. Metadata permits only `category`, `icon`, `location`, `allDay` and `actionUrl`. Raw provider responses do not belong in metadata.
+Source and metadata are strict. Source uncertainty is `low`, `medium`, `high` or `unknown`. URLs permit HTTP(S) without URL user information, credential-like query keys or fragments. M3 conservatively rejects all URL fragments, including benign anchors. Metadata permits only `category`, `icon`, `location`, `allDay` and `actionUrl`. Raw provider responses do not belong in metadata.
 
 Create returns HTTP 201 and `result: "created"`. A material update with the current revision returns HTTP 200 and `result: "updated"`. A byte-equivalent canonical retry returns `result: "unchanged"` without incrementing the revision, even if the retry carries a stale expected revision. A different payload with a stale revision returns `REVISION_CONFLICT`.
 
@@ -129,7 +132,7 @@ Do not include an `Origin` header in a machine request. If one is supplied, it m
 
 ## Home and live projection
 
-`GET /api/v1/households/:householdId/home` requires `household.view` and returns household settings, viewer identity, people, the existing birthday summary, relevant current external items, current/upcoming messages and `serverNow`. The older `/dashboard` birthday response remains unchanged.
+`GET /api/v1/households/:householdId/home` requires `household.view`, uses `Cache-Control: private, no-store`, and returns household settings, viewer identity, people, the existing birthday summary, relevant current external items, current/upcoming messages and `serverNow`. The older `/dashboard` birthday response remains unchanged.
 
 `GET /api/v1/households/:householdId/events` is a member SSE stream. `projection-invalidated` means refetch `/home`; `authorization-changed` requires an immediate refetch; `authorization-revoked` means clear protected state and stop. Heartbeats carry listener health and preserve the existing polling fallback.
 
@@ -183,4 +186,4 @@ Google Calendar / Spond / school plan / weather / Nest / other HA data
 
 ## Rollback
 
-Migration 017 is additive. Rolling application code back leaves the new tables and `displays.external_items_enabled` unused. Do not drop the tables to roll back; use a pre-migration backup for a complete database rollback. Revoked credentials and withdrawn tombstones are retained audit state.
+Migrations 017 and 018 are additive. Migration 018 leaves prior items nullable rather than guessing their content language; all new API writes require a locale. Rolling application code back leaves the new tables, locale column and `displays.external_items_enabled` unused. Do not drop them to roll back; use a pre-migration backup for a complete database rollback. Revoked credentials and withdrawn tombstones are retained audit state.

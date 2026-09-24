@@ -2,6 +2,7 @@
   "externalId": "family-brief:2026-09-25:summary",
   "expectedRevision": 0,
   "kind": "summary",
+  "contentLocale": "nb",
   "targets": { "household": true, "personIds": [], "displayIds": [] },
   "title": "Morgendagens familiebrief",
   "body": "Syntetisk eksempel: Pakk regntøy til turen. Kontroller tidspunktet for aktiviteten; de to eksempelplanene er uenige.",

@@ -4,6 +4,7 @@ import fastifyStatic from '@fastify/static';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
+import type { Writable } from 'node:stream';
 import type pg from 'pg';
 import { ZodError, type ZodType } from 'zod';
 import {
@@ -77,6 +78,10 @@ function parse<T>(schema: ZodType<T>, body: unknown): T {
 }
 
 function isUnsafe(method: string): boolean { return !['GET', 'HEAD', 'OPTIONS'].includes(method); }
+
+function safeRequestLog(request:{method?:string;routeOptions?:{url?:string};id?:string}):Record<string,unknown>{
+  return {method:request.method,route:request.routeOptions?.url??'unmatched',requestId:request.id};
+}
 
 async function durableRateLimit(bucket: string, key: string, limit: number, windowSeconds: number): Promise<void> {
   await pool.query(`DELETE FROM rate_limits WHERE window_started_at < clock_timestamp()-interval '1 hour'`);
@@ -215,7 +220,7 @@ async function lockIntegrationAuthority(client:pg.PoolClient,integration:Integra
 }
 
 interface ExternalItemRow {
-  id:string; external_id:string; kind:string; target_household:boolean; title:string; body:string;
+  id:string; external_id:string; kind:string; content_locale:'en'|'nb'|null; target_household:boolean; title:string; body:string;
   entries:Array<{label:string;detail?:string}>; priority:string; publish_at:Date|null; starts_at:Date|null;
   ends_at:Date|null; expires_at:Date|null; source:Record<string,unknown>; metadata:Record<string,unknown>;
   status:string; revision:number; updated_at:Date; person_ids:string[]; display_ids:string[];
@@ -231,7 +236,7 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
   return {
     id:row.id,
     ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
-    kind:row.kind,
+    kind:row.kind,contentLocale:row.content_locale,
     targets:{household:row.target_household,personIds:row.person_ids,...(options.includeExternalId?{displayIds:row.display_ids}:{})},
     title:row.title,body:row.body,entries:row.entries,priority:row.priority,
     publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
@@ -240,7 +245,7 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
   };
 }
 
-const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.target_household,i.title,i.body,i.entries,i.priority,
+const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.content_locale,i.target_household,i.title,i.body,i.entries,i.priority,
   i.publish_at,i.starts_at,i.ends_at,i.expires_at,i.source,i.metadata,i.status,i.revision,i.updated_at,
   COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_targets t WHERE t.item_id=i.id),'[]') AS person_ids,
   COALESCE((SELECT json_agg(t.display_id ORDER BY t.display_id) FROM integration_item_display_targets t WHERE t.item_id=i.id),'[]') AS display_ids`;
@@ -351,9 +356,12 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
-  const app = Fastify({ logger: process.env.NODE_ENV !== 'test', trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
+  const logger=process.env.NODE_ENV==='test'&&!options.logStream?false:{
+    level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
+  };
+  const app = Fastify({ logger, trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
   const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
@@ -815,8 +823,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {upcomingBirthday:nextBirthday(people.rows.map((row)=>({id:row.id,displayName:row.display_name,birthDate:row.birth_date})),localDateInTimezone(new Date(),household.timezone))};
   });
 
-  app.get('/api/v1/households/:householdId/home',async(request)=>{
+  app.get('/api/v1/households/:householdId/home',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    reply.header('Cache-Control','private, no-store');
     const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:'en'|'nb';show_upcoming_birthday:boolean}>(`SELECT id,name,timezone,default_locale,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
     const people=await pool.query<{id:string;display_name:string;age_group:string;birth_date:string|null}>(`SELECT id,display_name,age_group,birth_date::text FROM persons WHERE household_id=$1 ORDER BY created_at,id`,[auth.householdId]);
     const canViewAll=auth.capabilities.includes('household.manage');
@@ -873,14 +882,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     response.once('close',cleanup);
   });
 
-  app.get('/api/v1/households/:householdId/integrations',async(request)=>{
+  app.get('/api/v1/households/:householdId/integrations',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    reply.header('Cache-Control','private, no-store');
     const ids=await pool.query<{id:string}>('SELECT id FROM integration_connections WHERE household_id=$1 ORDER BY created_at,id',[auth.householdId]);
     return {connections:await Promise.all(ids.rows.map((row)=>integrationConnectionResponse(row.id,auth.householdId)))};
   });
 
   app.post('/api/v1/households/:householdId/integrations',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    reply.header('Cache-Control','private, no-store');
     const body=parse(integrationConnectionCreateSchema,request.body);
     const credentialToken=body.credential?`samvev_it_${opaqueToken()}`:undefined;
     const connectionId=await transaction(async(client)=>{
@@ -895,12 +906,12 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       await audit(client,auth,'integration.connection_created','integration_connection',connection.id,{displayCount:body.displayIds.length,credentialCreated:Boolean(body.credential)});
       return connection.id;
     });
-    if(credentialToken)reply.header('Cache-Control','no-store');
     return reply.status(201).send({connection:await integrationConnectionResponse(connectionId,auth.householdId),...(credentialToken?{credentialToken}:{})});
   });
 
-  app.patch('/api/v1/households/:householdId/integrations/:connectionId',async(request)=>{
+  app.patch('/api/v1/households/:householdId/integrations/:connectionId',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    reply.header('Cache-Control','private, no-store');
     const body=parse(integrationConnectionUpdateSchema,request.body);const connectionId=params(request).connectionId!;
     await transaction(async(client)=>{
       const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
@@ -914,8 +925,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {connection:await integrationConnectionResponse(connectionId,auth.householdId)};
   });
 
-  app.post('/api/v1/households/:householdId/integrations/:connectionId/revoke',async(request)=>{
+  app.post('/api/v1/households/:householdId/integrations/:connectionId/revoke',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    reply.header('Cache-Control','private, no-store');
     const body=parse(integrationConnectionRevisionSchema,request.body);const connectionId=params(request).connectionId!;
     await transaction(async(client)=>{
       const current=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
@@ -930,6 +942,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.post('/api/v1/households/:householdId/integrations/:connectionId/credentials',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    reply.header('Cache-Control','private, no-store');
     const body=parse(integrationCredentialCreateSchema,request.body);const connectionId=params(request).connectionId!;const credentialToken=`samvev_it_${opaqueToken()}`;
     const credentialId=await transaction(async(client)=>{
       const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
@@ -938,12 +951,12 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       const credential=(await client.query<{id:string}>('INSERT INTO integration_credentials(connection_id,name,token_hash,capabilities,expires_at) VALUES($1,$2,$3,$4,$5) RETURNING id',[connectionId,body.name,tokenHash(credentialToken),JSON.stringify(body.capabilities),body.expiresAt])).rows[0]!;
       await audit(client,auth,'integration.credential_created','integration_credential',credential.id,{connectionId,capabilities:body.capabilities,expiresAt:body.expiresAt});return credential.id;
     });
-    reply.header('Cache-Control','no-store');
     return reply.status(201).send({credentialId,credentialToken,connection:await integrationConnectionResponse(connectionId,auth.householdId)});
   });
 
-  app.post('/api/v1/households/:householdId/integrations/:connectionId/credentials/:credentialId/revoke',async(request)=>{
+  app.post('/api/v1/households/:householdId/integrations/:connectionId/credentials/:credentialId/revoke',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    reply.header('Cache-Control','private, no-store');
     const body=parse(integrationCredentialRevokeSchema,request.body);const connectionId=params(request).connectionId!;const credentialId=params(request).credentialId!;
     await transaction(async(client)=>{
       const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
@@ -957,6 +970,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.post('/api/v1/integrations/items',async(request,reply)=>{
     const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.write');
     await durableRateLimit('integration_items_write',integration.credentialId,120,60);
+    await durableRateLimit('integration_items_write_connection',integration.connectionId,120,60);
     const parsed=parse(integrationItemUpsertSchema,request.body);const canonical=canonicalIntegrationPayload(parsed);
     const outcome=await transaction(async(client)=>{
       await lockIntegrationAuthority(client,integration,'integration.items.write');
@@ -979,20 +993,20 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if(existing.rowCount){
         const current=existing.rows[0]!;itemId=current.id;
         if(current.revision!==canonical.body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
-        await client.query(`UPDATE integration_items SET kind=$2,target_household=$3,title=$4,body=$5,entries=$6,priority=$7,publish_at=$8,starts_at=$9,ends_at=$10,expires_at=$11,source=$12,metadata=$13,request_hash=$14,revision=revision+1,updated_at=clock_timestamp()
-          WHERE id=$1`,[itemId,canonical.body.kind,canonical.body.targets.household,canonical.body.title,canonical.body.body,JSON.stringify(canonical.body.entries),canonical.body.priority,canonical.body.publishAt,canonical.body.startsAt,canonical.body.endsAt,canonical.body.expiresAt,JSON.stringify(canonical.body.source),JSON.stringify(canonical.body.metadata),canonical.hash]);
+        await client.query(`UPDATE integration_items SET kind=$2,content_locale=$3,target_household=$4,title=$5,body=$6,entries=$7,priority=$8,publish_at=$9,starts_at=$10,ends_at=$11,expires_at=$12,source=$13,metadata=$14,request_hash=$15,revision=revision+1,updated_at=clock_timestamp()
+          WHERE id=$1`,[itemId,canonical.body.kind,canonical.body.contentLocale,canonical.body.targets.household,canonical.body.title,canonical.body.body,JSON.stringify(canonical.body.entries),canonical.body.priority,canonical.body.publishAt,canonical.body.startsAt,canonical.body.endsAt,canonical.body.expiresAt,JSON.stringify(canonical.body.source),JSON.stringify(canonical.body.metadata),canonical.hash]);
         await client.query('DELETE FROM integration_item_person_targets WHERE item_id=$1',[itemId]);
         await client.query('DELETE FROM integration_item_display_targets WHERE item_id=$1',[itemId]);
         result='updated';
       }else{
         if(canonical.body.expectedRevision!==0)throw new DomainError('REVISION_CONFLICT',409,{revision:0});
-        itemId=(await client.query<{id:string}>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,entries,priority,publish_at,starts_at,ends_at,expires_at,source,metadata,request_hash)
-          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,[integration.householdId,integration.connectionId,canonical.body.externalId,canonical.body.kind,canonical.body.targets.household,canonical.body.title,canonical.body.body,JSON.stringify(canonical.body.entries),canonical.body.priority,canonical.body.publishAt,canonical.body.startsAt,canonical.body.endsAt,canonical.body.expiresAt,JSON.stringify(canonical.body.source),JSON.stringify(canonical.body.metadata),canonical.hash])).rows[0]!.id;
+        itemId=(await client.query<{id:string}>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,content_locale,target_household,title,body,entries,priority,publish_at,starts_at,ends_at,expires_at,source,metadata,request_hash)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,[integration.householdId,integration.connectionId,canonical.body.externalId,canonical.body.kind,canonical.body.contentLocale,canonical.body.targets.household,canonical.body.title,canonical.body.body,JSON.stringify(canonical.body.entries),canonical.body.priority,canonical.body.publishAt,canonical.body.startsAt,canonical.body.endsAt,canonical.body.expiresAt,JSON.stringify(canonical.body.source),JSON.stringify(canonical.body.metadata),canonical.hash])).rows[0]!.id;
         result='created';
       }
       for(const personId of canonical.body.targets.personIds)await client.query('INSERT INTO integration_item_person_targets(household_id,item_id,person_id) VALUES($1,$2,$3)',[integration.householdId,itemId,personId]);
       for(const displayId of canonical.body.targets.displayIds)await client.query('INSERT INTO integration_item_display_targets(household_id,item_id,display_id) VALUES($1,$2,$3)',[integration.householdId,itemId,displayId]);
-      await auditIntegration(client,integration,result==='created'?'integration.item_created':'integration.item_updated','integration_item',itemId,{externalIdHash:tokenHash(canonical.body.externalId),kind:canonical.body.kind,priority:canonical.body.priority});
+      await auditIntegration(client,integration,result==='created'?'integration.item_created':'integration.item_updated','integration_item',itemId,{kind:canonical.body.kind,priority:canonical.body.priority});
       const row=(await client.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns} FROM integration_items i WHERE i.id=$1 AND i.connection_id=$2`,[itemId,integration.connectionId])).rows[0]!;
       return {result,item:mapExternalItem(row,{includeExternalId:true})};
     });
@@ -1002,6 +1016,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/integrations/items',async(request,reply)=>{
     const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.read');
     await durableRateLimit('integration_items_read',integration.credentialId,300,60);
+    await durableRateLimit('integration_items_read_connection',integration.connectionId,300,60);
     const rows=await transaction(async(client)=>{await lockIntegrationAuthority(client,integration,'integration.items.read');return client.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns} FROM integration_items i WHERE i.connection_id=$1 AND i.household_id=$2 ORDER BY i.updated_at DESC,i.id LIMIT 500`,[integration.connectionId,integration.householdId]);});
     reply.header('Cache-Control','no-store');return {items:rows.rows.map((row)=>mapExternalItem(row,{includeExternalId:true}))};
   });
@@ -1009,6 +1024,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/integrations/items/:externalId',async(request,reply)=>{
     const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.read');
     await durableRateLimit('integration_items_read',integration.credentialId,300,60);
+    await durableRateLimit('integration_items_read_connection',integration.connectionId,300,60);
     const externalId=params(request).externalId!;if(!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(externalId))throw new DomainError('NOT_FOUND',404);
     const row=await transaction(async(client)=>{await lockIntegrationAuthority(client,integration,'integration.items.read');return (await client.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns} FROM integration_items i WHERE i.connection_id=$1 AND i.household_id=$2 AND i.external_id=$3`,[integration.connectionId,integration.householdId,externalId])).rows[0];});
     if(!row)throw new DomainError('NOT_FOUND',404);reply.header('Cache-Control','no-store');return {item:mapExternalItem(row,{includeExternalId:true})};
@@ -1017,6 +1033,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.delete('/api/v1/integrations/items/:externalId',async(request,reply)=>{
     const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.delete');
     await durableRateLimit('integration_items_delete',integration.credentialId,60,60);
+    await durableRateLimit('integration_items_delete_connection',integration.connectionId,60,60);
     const body=parse(integrationItemWithdrawSchema,request.body);const externalId=params(request).externalId!;if(!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(externalId))throw new DomainError('NOT_FOUND',404);
     const outcome=await transaction(async(client)=>{
       await lockIntegrationAuthority(client,integration,'integration.items.delete');
@@ -1025,7 +1042,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if(item.status==='withdrawn')return {result:'unchanged' as const,item:{externalId,status:'withdrawn',revision:item.revision}};
       if(item.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:item.revision});
       const updated=(await client.query<{revision:number}>('UPDATE integration_items SET status=\'withdrawn\',withdrawn_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING revision',[item.id])).rows[0]!;
-      await auditIntegration(client,integration,'integration.item_withdrawn','integration_item',item.id,{externalIdHash:tokenHash(externalId)});
+      await auditIntegration(client,integration,'integration.item_withdrawn','integration_item',item.id);
       return {result:'withdrawn' as const,item:{externalId,status:'withdrawn',revision:updated.revision}};
     });
     reply.header('Cache-Control','no-store');return outcome;
