@@ -2,16 +2,20 @@
 
 ## M3 local development — 2026-09-24
 
-Current work is on `feat/m3-family-hub`. Backend, Home/design and initial browser
-QA are committed with DCO (`bae2ac1`, `16e897d`, `10d7379`). M3 adds scoped
-integration credentials/items, migration 017, member/display live projections
-and warm light/navy dark FamilyHub. Existing M1 message ACK semantics remain.
+Current branch: `feat/m3-family-hub`. Implementation, design iteration and full
+local QA are complete; final independent release-gate review is pending. No PR,
+push, merge, release, deployment or GitHub Actions run was performed.
 
-Initial evidence: backend 175/175 workspace tests; independent 149/149 API retest;
-frontend 22/22 tests; nine M3 browser groups and 15 synthetic screenshots. Fresh
-001–017/rerun and 016→017 preserving legacy messages passed. Independent UX review
-passes; expanded final QA and remaining reviews are in progress. See
-[M3_STATUS.md](M3_STATUS.md) for the current acceptance state. No PR or deployment.
+M3 adds scoped integration credentials, six generic item types, additive
+migrations 017–018, member/display live projections and the responsive warm
+light/navy dark Family Hub. Existing M1 message ACK semantics remain intact.
+
+Final QA: 182 workspace tests, 10 E2E harness unit tests, synthetic E2E browser
+flow, legacy smoke 16/review 10/UX 10, and all 10 M3 browser groups with 15
+screenshots pass. Check/build pass. The lint dispatcher exits zero but has no
+configured workspace linter. Fresh/rerun 001–018 and upgrade preservation pass.
+Security, requirements and visual reviews pass; see [M3_STATUS.md](M3_STATUS.md)
+and [M3_QA_REPORT.md](M3_QA_REPORT.md) for evidence and limits.
 
 The dated M1/M2 entries below are historical evidence, not the current M3 gate.
 

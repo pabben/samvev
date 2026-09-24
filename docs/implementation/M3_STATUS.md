@@ -1,49 +1,136 @@
-# M3 Family Hub — local development status
+# M3 Family Hub — local completion status
 
-Branch: `feat/m3-family-hub`. No PR, push, merge, release, deploy or Actions run.
+Branch: `feat/m3-family-hub`. Implementation, visual refinement and full local QA
+are complete. Final independent release-gate review is pending. No PR, push,
+merge, tag, release, deployment, immutable release build or Actions run occurred.
 
-Implementation and initial browser QA are complete. Independent review and
-expanded complete QA are in progress; this is not yet a final acceptance claim.
+## Implemented architecture and behavior
 
-## Implemented
+[ADR 0020](../decisions/0020-external-intelligence-family-hub.md) retains
+Fastify/PostgreSQL/React and existing realtime infrastructure. External items are
+separate from human messages and their render acknowledgments.
 
-- [ADR 0020](../decisions/0020-external-intelligence-family-hub.md): stable connections, scoped hashed credentials, strict generic items and independent member/display disclosure.
-- Additive migration 017, without old migration rewrites or message conversion.
-- Six kinds: reminder, alert, event, summary, list and observation.
-- Canonical idempotency, revision CAS, connection-scoped reads and permanent tombstones.
-- Primary Home, target-person columns, Today/Tomorrow, Important, summaries/lists and family messages.
-- Member/display SSE, polling and bounded offline expiry; message ACK preserved.
-- Warm light/navy dark/system tokens, responsive mobile/iPad/TV/Shelly views.
-- [15 screenshots and visual refinements](artifacts/m3/README.md).
-- [API contract](M3_API.md), synthetic JSON/YAML and [future validation issue](../backlog/M3_INTEGRATION_VALIDATION.md).
+- Additive migrations 017–018 provide stable connections, hashed revocable
+  credentials, items, person/display targets, display grants and producer locale.
+  Existing migrations were not rewritten.
+- The [API](M3_API.md) supports reminder, alert, event, summary, list and observation.
+  Strict envelopes preserve sources, observed/generated timestamps, uncertainty
+  and contentLocale en/nb. Legacy unknown language stays NULL; no translation or
+  locale-based hiding is implied.
+- Bearer credentials are household/connection scoped with independent read,
+  write and delete capabilities, one-time reveal, expiry, revocation, audit and
+  IP/credential/connection rate limits. Administration requires session/CSRF and
+  server-side household.manage authorization.
+- Connection + externalId survives token rotation. Canonical retries do not
+  duplicate or increment revisions; material updates require the current revision.
+  Withdrawal leaves a permanent non-resurrectable tombstone.
+- Primary Home contains dynamic person columns, event-time Today/Tomorrow timeline,
+  Important, summaries, structured lists and family messages. Full text and
+  provenance remain available through accessible dialogs.
+- Child permissions, targeting and household isolation are enforced server-side.
+  Display publication requires item targeting, connection grant and display opt-in.
+  Privacy mode clears content; URLs and unrelated people are stripped from display
+  projections.
+- POST → PostgreSQL → SSE invalidation → authorized member/display refetch works
+  without reload. Polling recovers missed notifications. Offline item expiry and
+  the existing maximum 15-minute authorization-cache deadline remain enforced.
+  Human-message render ACK is preserved.
+- AI Oppdrag remains secondary/experimental under More. No direct external-data
+  adapter or fake device control was introduced.
 
-## Evidence so far
+## Design and evidence
 
-- Baseline: 170/170 workspace tests.
-- Backend checkpoint: 175/175 workspace tests; coordinator independently reran 149/149 API tests after final hardening.
-- Frontend: 22/22 tests, check/build, nine M3 browser groups including ten viewport/theme Axe combinations, real SSE mutation/withdrawal, credential UI, dynamic people, offline expiry and render ACK.
-- Independent fresh 001–017/rerun and upgrade 016→017 preserving synthetic legacy message IDs/bodies.
-- UX review passes after screenshot-based refinements. Security/requirements follow-ups and expanded final QA are pending.
+The authoritative light reference (23_51_09.png) informs warm surfaces, pastel
+person cards, rounded cards and mobile feed. The dark reference (23_52_06 (4).png)
+informs navy glass surfaces, layered background, Today/Tomorrow and the broad
+family-message area. Shared semantic CSS tokens and system fonts implement one
+application with light/dark/system modes.
 
-## Local checkpoints
+[15 committed screenshots and iteration notes](artifacts/m3/README.md) cover
+390×844, 1920×1080, 1280×752, iPad portrait/landscape, both themes, full-page views
+and eight-person stress. Final independent QA reproduced all 15 under the ignored
+`.local/m3/final-m3/`. Coordinator and UX reviewer actually viewed screenshots.
 
-- `bae2ac1`: external intelligence backend and contract.
-- `16e897d`: family hub, semantic themes, cache/presentation tests.
-- `10d7379`: real browser coverage and screenshots.
+Actual refinements reduced oversized header/hero, placed Important beside the
+agenda, enlarged useful TV text, moved detailed provenance into dialogs and
+raised the family-message band. Mobile presents both Important cards initially.
+Secondary content scrolls without clipping. Axe, landmarks, keyboard/dialog focus,
+reduced motion and responsive touch layouts were exercised.
 
-All use DCO sign-off. Pre-existing `.npmrc` edits and the empty untracked
-`database` file are preserved outside these commits.
+## Final verification
 
-## Boundaries and rollback
+See [M3_QA_REPORT.md](M3_QA_REPORT.md) for commands, logs and detailed scope.
 
-Only synthetic data and local dev credentials are used. No real HA/OpenAI/Homey,
-calendar, weather, push, live database or production secret was introduced.
-Fonts use the existing system stack; scenery is CSS. Provenance is a producer
-claim, not verification by Samvev. Stop ingress before reverting app/worker code;
-retain additive tables and tombstones. A complete DB rollback requires a verified
-pre-migration backup. No destructive down migration is supplied.
+| Check | Result |
+| --- | --- |
+| Workspace tests | 182 pass, zero failed/skipped: web22, contracts5, core3, API152 |
+| Typecheck/build | Pass in Node24 project containers |
+| Lint | Dispatcher exits0; no workspace linter is configured |
+| Legacy browser | Smoke16, review10, UX10 pass |
+| E2E harness | 10 unit tests plus synthetic intercepted browser flow pass |
+| M3 real API/browser | 10 groups, 15 screenshots, no page errors; viewport/theme Axe |
+| Database | Fresh001–018/rerun; 016→017 preserves legacy messages; populated017→018 preserves item with unknown locale |
+| Security | Four findings fixed; independent re-review PASS; expanded child/scope/rotation/revocation/SSE tests pass |
+| Requirements/UX | PASS after locale addition and screenshot-based refinements |
 
-Physical Shelly and subjective visual preferences remain unvalidated. Long and
-secondary content scrolls rather than being clipped. PR/release requires a new
-explicit instruction. Disk baseline: filesystem 15 GiB used / 77 GiB available;
-repository 47 MiB. Final measurements will follow QA.
+The coordinator independently checked final logs/counts, migration ledger and
+preserved-data evidence, DCO sign-offs, branch/worktree and actual screenshots.
+The old 2026-09-07 pixel comparator remains unchanged and unrun because its visual
+direction is superseded by the user's M3 references. No thresholds or old baselines
+were weakened. Worker has zero standalone unit tests; its lifecycle was exercised
+by API and actual browser scheduling tests.
+
+## Local commits and changed files
+
+All checkpoints use DCO sign-off:
+
+- bae2ac1: external intelligence backend/contract/migration017.
+- 16e897d: responsive Home, themes and integration administration.
+- 10d7379: real browser/visual coverage.
+- 10ae27c: architecture/API and synthetic HA handoff documentation.
+- 02ec309: security hardening and content-language migration018.
+- 16cac35: producer-language declaration and lost-access clearing.
+- 175a20b: unavailable administrator-role UI guard.
+- 1a32cdf: expanded API isolation and full regression QA.
+
+Changed areas: services/api source and migrations017–018; packages/contracts;
+packages/design-tokens/tokens.css; apps/web Home/member/display/integration/person
+controls and NB/EN locales; API/web/E2E tests; architecture/product/ADR/status/API/QA
+documents; integrations/home-assistant; M3 screenshots. Exact file inventory:
+`git diff --name-only 7ae7b4c..HEAD`.
+
+Only pre-existing .npmrc edits and the empty untracked database file remain outside
+commits. They were preserved. No real household/child/location data, production
+credentials or private source data was introduced. Fixtures and QA credentials
+are synthetic.
+
+## Handoff, limits and rollback
+
+[Synthetic JSON](../../integrations/home-assistant/synthetic-family-brief.json),
+[manual illustrative HA YAML](../../integrations/home-assistant/synthetic-family-brief.yaml)
+and API curl example document tomorrow's family brief. A deterministic producer
+must validate model output, targets, provenance and stable identity before ingress.
+Actual compatibility is unvalidated in [M3-HA-001](../backlog/M3_INTEGRATION_VALIDATION.md).
+Nothing contacted real HA, OpenAI, Homey, calendar, weather or push services.
+
+Stop ingress before rolling app/worker code back together. Retain additive
+schema and tombstones; use a verified pre-migration backup for a full DB rollback.
+No destructive down migration exists. Withdrawn payload retention needs a future
+policy; M3 retains tombstones. Offline revocation remains bounded by 15 minutes.
+
+Rounded disk measurements: filesystem used15GiB at initial inspection →26GiB after
+local Docker/browser/test setup; available77→67GiB. Repository47→89MiB including
+ignored evidence. These are filesystem measurements, not exclusive Docker layer
+accounting. Only samvev-m1 Docker resources were operated. Accidentally started
+regular dev app/worker/db were stopped; isolated QA/test and synthetic legacy
+services remain locally available.
+
+Physical Shelly/touch/distance readability and subjective preference for the
+restrained abstract background/system fonts/initials versus more photographic
+reference styling remain for owner review. Mobile places person cards before the
+longer agenda; that is a presentation preference, not missing content.
+
+Before PR/release: explicit instruction, owner design feedback and diff review,
+a versioned M3 visual baseline where appropriate, then environment-specific
+release/backup/security checks. Real integrations and physical hardware validation
+are separate follow-ups. Local completion does not authorize production actions.
