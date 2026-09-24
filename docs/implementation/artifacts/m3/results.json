@@ -1,0 +1,16 @@
+{
+  "executedAt": "2026-09-24T22:53:04.612Z",
+  "checks": [
+    "visible family-hub message retains actual display render acknowledgment",
+    "real bearer POST → PostgreSQL → member/display SSE → DOM and withdrawal without reload",
+    "canonical repeat is idempotent",
+    "target-person columns, event-time Today/Tomorrow, structured lists and expandable provenance",
+    "10 requested mobile/iPad/TV/Shelly light/dark screenshots; no horizontal overflow; Axe WCAG A/AA",
+    "NB/EN, system color changes, keyboard skip/focus and reduced motion",
+    "1/4/8 dynamic people, long names/content, mobile/desktop overflow and stress Axe",
+    "integration UI scoped credential creation, one-time reveal, no local token persistence and revoke",
+    "external item expires while offline before authorization-cache deadline"
+  ],
+  "errors": [],
+  "screenshots": 15
+}

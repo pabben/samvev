@@ -43,11 +43,12 @@ const openPeople = async () => {
   await expect(page.locator('.person-card')).toHaveCount((await people()).length);
 };
 const editRobin = async () => {
-  await page.locator('.person-card').filter({ has: page.getByRole('heading', { name: 'Robin · example', exact: true }) }).getByRole('button', { name: 'Edit permissions' }).click();
+  await page.locator('.person-card').filter({ has: page.getByRole('heading', { name: 'Robin · example', exact: true }) }).getByRole('button', { name: 'Edit person' }).click();
   return page.getByRole('dialog');
 };
 const pair = async (p, name) => {
   await p.goto('/display');
+  if (await p.getByLabel('Språk', { exact: true }).count()) await p.getByLabel('Språk', { exact: true }).selectOption('en');
   const startResponse = p.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/display/pairing/start'));
   await p.getByRole('button', { name: 'Get a pairing code', exact: true }).click();
   const started = await startResponse;

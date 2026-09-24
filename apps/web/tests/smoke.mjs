@@ -331,6 +331,7 @@ try {
   else
     await page.getByRole("button", { name: "Displays", exact: true }).click();
   await screen.goto("/display");
+  if (await screen.getByLabel("Språk", { exact: true }).count()) await screen.getByLabel("Språk", { exact: true }).selectOption("en");
   const pairingStartResponse = screen.waitForResponse(response =>
     response.request().method() === "POST" && response.url().endsWith("/display/pairing/start"));
   await screen
@@ -384,7 +385,7 @@ try {
   const robin = page.locator(".person-card").filter({
     has: page.getByRole("heading", { name: limitedName, exact: true }),
   });
-  await robin.getByRole("button", { name: "Edit permissions" }).click();
+  await robin.getByRole("button", { name: "Edit person" }).click();
   dialog = page.getByRole("dialog");
   await dialog.getByLabel(displayName, { exact: true }).last().check();
   await dialog
