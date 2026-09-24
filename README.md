@@ -2,6 +2,15 @@
 
 > Everyday life, woven together.
 
+**M3 local development:** Samvev now has a family Home dashboard and a general
+External Intelligence API. People, Today/Tomorrow, important reminders, messages,
+summaries and lists share warm light and navy dark themes. External systems
+publish through household-scoped credentials; Samvev owns storage, permissions
+and live projections. AI monitoring remains experimental and secondary. No
+external service or production deployment is enabled by this milestone. See
+[M3 status](docs/implementation/M3_STATUS.md), [API contract](docs/implementation/M3_API.md)
+and [reviewed screenshots](docs/implementation/artifacts/m3/README.md).
+
 **Samvev** is a free and open-source platform for turning information into useful, timely messages, reminders and actions for a household or other small group.
 
 A user should be able to write something such as:

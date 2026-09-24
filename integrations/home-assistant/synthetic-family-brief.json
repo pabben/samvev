@@ -1,0 +1,22 @@
+{
+  "externalId": "family-brief:2026-09-25:summary",
+  "expectedRevision": 0,
+  "kind": "summary",
+  "targets": { "household": true, "personIds": [], "displayIds": [] },
+  "title": "Morgendagens familiebrief",
+  "body": "Syntetisk eksempel: Pakk regntøy til turen. Kontroller tidspunktet for aktiviteten; de to eksempelplanene er uenige.",
+  "entries": [],
+  "priority": "normal",
+  "publishAt": "2026-09-24T18:00:00Z",
+  "startsAt": null,
+  "endsAt": null,
+  "expiresAt": "2026-09-25T21:00:00Z",
+  "source": {
+    "label": "Syntetisk familiebrief",
+    "links": [{ "label": "Eksempelplan", "url": "https://example.invalid/synthetic-plan" }],
+    "observedAt": "2026-09-24T17:55:00Z",
+    "generatedAt": "2026-09-24T17:56:00Z",
+    "uncertainty": "medium"
+  },
+  "metadata": { "category": "other" }
+}

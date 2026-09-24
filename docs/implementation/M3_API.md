@@ -121,7 +121,7 @@ curl --fail-with-body \
   --request POST \
   --header "Authorization: Bearer ${SAMVEV_INTEGRATION_TOKEN}" \
   --header 'Content-Type: application/json' \
-  --data @synthetic-family-brief.json \
+  --data @integrations/home-assistant/synthetic-family-brief.json \
   "${SAMVEV_ORIGIN}/api/v1/integrations/items"
 ```
 
@@ -137,57 +137,38 @@ Do not include an `Origin` header in a machine request. If one is supplied, it m
 
 ## Illustrative Home Assistant handoff
 
-This shows the intended future boundary; it has not been tested against a real Home Assistant installation and is not a claim of a supported adapter. Store the Samvev token in Home Assistant secrets rather than YAML committed to source control.
+Checked-in [synthetic JSON](../../integrations/home-assistant/synthetic-family-brief.json)
+and [manual HA REST/script YAML](../../integrations/home-assistant/synthetic-family-brief.yaml)
+show the future boundary. Neither is installed or executed against HA. Update the
+sample dates before a later local demonstration; the checked-in example is dated
+and will expire. Replace placeholder IDs only with authorized synthetic IDs.
 
-```yaml
-rest_command:
-  samvev_family_brief:
-    url: "https://samvev.example.invalid/api/v1/integrations/items"
-    method: POST
-    headers:
-      authorization: "Bearer {{ samvev_integration_token }}"
-      content-type: "application/json"
-    payload: >-
-      {{ payload | tojson }}
-```
+The YAML uses a private `!secret` for the entire Authorization header instead of
+passing the bearer secret as script action data. Its manual script accepts an
+already-validated item and checks the REST action response. Persist the exact
+payload and returned revision outside an AI prompt; retry that payload verbatim.
+On 409, read/reconcile the current item with a read-scoped credential before a
+material update. Do not blindly retry newly generated text with revision zero.
 
-```yaml
-script:
-  publish_synthetic_family_brief:
-    sequence:
-      - action: rest_command.samvev_family_brief
-        data:
-          samvev_integration_token: !secret samvev_integration_token
-          payload:
-            externalId: "family-brief:2026-09-25:summary"
-            expectedRevision: 0
-            kind: summary
-            targets:
-              household: true
-              personIds: []
-              displayIds: []
-            title: "Morgendagens familiebrief"
-            body: "Syntetisk eksempel: én avtale og én husketing."
-            entries: []
-            priority: normal
-            publishAt: "2026-09-24T18:00:00.000Z"
-            startsAt: null
-            endsAt: null
-            expiresAt: "2026-09-25T21:00:00.000Z"
-            source:
-              label: "Syntetisk Home Assistant-eksempel"
-              links: []
-              observedAt: "2026-09-24T17:55:00.000Z"
-              generatedAt: "2026-09-24T17:56:00.000Z"
-              uncertainty: low
-            metadata:
-              category: other
-```
+Home Assistant documents JSON payload/header configuration and action responses
+in [RESTful Command](https://www.home-assistant.io/integrations/rest_command/),
+and structured generation through an operator-configured provider in
+[AI Task](https://www.home-assistant.io/integrations/ai_task/).
+Documentation checked 2026-09-24. This supports the illustrative shape only;
+actual compatibility, provider setup and secret/log behavior remain unvalidated.
+
+For a future “tomorrow's family brief”, HA collects permitted calendar, school
+and weather facts; the AI Task produces concise relevant text/conflicts. A
+trusted deterministic step builds separate summary/reminder/event/list envelopes,
+assigns authorized people/displays, preserves evidence and uncertainty, and
+submits them to Samvev. Never let model output choose credential permissions,
+household identity or display grants. Spond, Nest and other HA data are possible
+future inputs, not implemented Samvev adapters.
 
 The planned pipeline is:
 
 ```text
-Calendar / school plan / weather / other household data
+Google Calendar / Spond / school plan / weather / Nest / other HA data
                          ↓
                   Home Assistant
                          ↓
@@ -198,7 +179,7 @@ Calendar / school plan / weather / other household data
        PostgreSQL → SSE invalidation → projections
 ```
 
-Integration validation task `M3-HA-001`: before describing this as supported, validate the exact `rest_command` templating and secret handling against the chosen Home Assistant release, exercise create/update/withdraw retries, document its timeout/retry behavior and capture only synthetic evidence. Real Home Assistant, OpenAI and household credentials remain out of scope for M3.
+[Integration validation task M3-HA-001](../backlog/M3_INTEGRATION_VALIDATION.md): before describing this as supported, validate the exact `rest_command` templating and secret handling against the chosen Home Assistant release, exercise create/update/withdraw retries, document its timeout/retry behavior and capture only synthetic evidence. Real Home Assistant, OpenAI and household credentials remain out of scope for M3.
 
 ## Rollback
 

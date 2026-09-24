@@ -2,6 +2,21 @@
 
 Status: **Draft foundation requirements**
 
+## M3 family-hub increment
+
+M3 prioritizes Home: dynamic people, Today/Tomorrow, chronological events,
+important reminders, messages, structured summaries/lists and live updates.
+AI tasks remain experimental and secondary. A generic External Intelligence API
+accepts already-derived items without source-specific endpoints or live external
+connections. [ADR 0020](decisions/0020-external-intelligence-family-hub.md) defines
+the contract and disclosure boundaries.
+
+The two September 24, 2026 PNGs identified in the
+[M3 visual review](implementation/artifacts/m3/README.md) override older mockups.
+Warm light, navy glass dark and system appearance belong to one application,
+covering mobile, both iPad orientations, 1920×1080 and 1280×752 touch displays.
+The foundation roadmap below remains broader than the delivered M3 scope.
+
 ## 1. Product goals
 
 Samvev must:

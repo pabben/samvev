@@ -1,5 +1,20 @@
 # M1 implementation status
 
+## M3 local development — 2026-09-24
+
+Current work is on `feat/m3-family-hub`. Backend, Home/design and initial browser
+QA are committed with DCO (`bae2ac1`, `16e897d`, `10d7379`). M3 adds scoped
+integration credentials/items, migration 017, member/display live projections
+and warm light/navy dark FamilyHub. Existing M1 message ACK semantics remain.
+
+Initial evidence: backend 175/175 workspace tests; independent 149/149 API retest;
+frontend 22/22 tests; nine M3 browser groups and 15 synthetic screenshots. Fresh
+001–017/rerun and 016→017 preserving legacy messages passed. Independent UX review
+passes; expanded final QA and remaining reviews are in progress. See
+[M3_STATUS.md](M3_STATUS.md) for the current acceptance state. No PR or deployment.
+
+The dated M1/M2 entries below are historical evidence, not the current M3 gate.
+
 Updated: 2026-09-20. Branch: `feat/m1-first-runnable-slice`.
 Overall status: **PASS — local acceptance and backup restoration passed; Git
 delivery is verified; physical display validation is owner-deferred and

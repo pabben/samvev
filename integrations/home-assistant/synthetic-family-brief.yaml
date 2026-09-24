@@ -1,0 +1,38 @@
+# Illustrative MANUAL example; not installed or executed by M3.
+# Private HA secrets.yaml: samvev_authorization: "Bearer <one-time token>"
+# Never commit a real token or pass it as script action data.
+rest_command:
+  samvev_publish_item:
+    url: "https://samvev.example.invalid/api/v1/integrations/items"
+    method: POST
+    headers:
+      authorization: !secret samvev_authorization
+    content_type: "application/json"
+    payload: "{{ item | tojson }}"
+    timeout: 15
+
+script:
+  samvev_synthetic_family_brief:
+    alias: "Samvev synthetic family brief — manual example"
+    mode: single
+    fields:
+      item:
+        description: "Validated item with stable externalId and expectedRevision"
+        required: true
+        selector:
+          object:
+    sequence:
+      - action: rest_command.samvev_publish_item
+        data:
+          item: "{{ item }}"
+        response_variable: samvev_result
+      - if:
+          - condition: template
+            value_template: "{{ samvev_result.status not in [200, 201] }}"
+        then:
+          - stop: "Samvev rejected the item; reconcile status and revision."
+            error: true
+
+# Future upstream: ai_task.generate_data with an operator-configured provider.
+# Build/validate the Samvev envelope deterministically after generation. Never
+# let a model select household/person IDs, display grants or credentials.

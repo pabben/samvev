@@ -1,6 +1,27 @@
 # Architecture
 
-Status: **Proposed architecture for validation**
+Status: **Implemented TypeScript foundation through local M3; future surfaces remain proposed**
+
+## Current M3 foundation
+
+ADRs [0011](decisions/0011-typescript-m1-postgresql-scheduler.md) and
+[0020](decisions/0020-external-intelligence-family-hub.md) govern the working
+React/Vite, Fastify/TypeScript and PostgreSQL implementation. Home is the primary
+family-hub surface. External intelligence is an optional producer of information.
+
+Stable connections own separately revocable hashed credentials and six generic
+item kinds. Strict items carry targets, publication/event times, expiry and
+provenance. Connection plus external ID is durable identity; canonical retries,
+optimistic revisions and withdrawal tombstones prevent duplicates and stale
+resurrection. Browser administration uses sessions/CSRF; machine routes require
+capability-scoped bearer credentials. Member and paired-display projections
+enforce different disclosure policies server-side. External display content
+requires item targeting, a connection grant and display opt-in. PostgreSQL drives
+SSE invalidations; clients refetch snapshots, poll as fallback and expire caches.
+
+No real HA/OpenAI/Homey/calendar/school/weather/push connection is added. See the
+[handoff contract](implementation/M3_API.md) and
+[future validation issue](backlog/M3_INTEGRATION_VALIDATION.md).
 
 ## 1. Design approach
 
@@ -38,7 +59,7 @@ The shared display must run as a restricted client, not an administrator session
 
 ### API service
 
-A Python/FastAPI service is currently proposed for:
+A Fastify/TypeScript service currently implements the M1–M3 subset of:
 
 - authentication/session integration
 - household and permission enforcement
@@ -48,7 +69,8 @@ A Python/FastAPI service is currently proposed for:
 - MCP tool endpoints
 - integration configuration
 
-The language/framework choice remains a draft until the first implementation ADR is accepted.
+ADR 0011 supersedes the provisional Python/FastAPI proposal. MCP and physical
+actions in the list above remain future work.
 
 ### Scheduler and worker
 
@@ -208,7 +230,7 @@ docs
 
 ## 13. Open architectural decisions
 
-- final backend and job-queue stack
+- whether later scale requires a queue beyond the current PostgreSQL scheduler
 - identity provider versus first-party authentication
 - object storage abstraction
 - local bridge protocol and update model
