@@ -81,9 +81,11 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
   const needsOwnerConfirmation = role === "installation_admin" && (!person || person.role_preset !== "installation_admin");
   const canManageAccount = member.capabilities.includes("account.manage");
   const canAssignOwner = member.capabilities.includes("installation.manage");
+  const canAssignHouseholdAdmin = member.capabilities.includes("household.manage");
   const capabilitiesChanged = person ? role !== person.role_preset || JSON.stringify([...permissions].sort()) !== JSON.stringify([...person.capabilities].sort()) || JSON.stringify([...displayIds].sort()) !== JSON.stringify([...person.display_ids].sort()) : true;
 
   const chooseRole = (next: string) => {
+    if ((next === "household_admin" && !canAssignHouseholdAdmin) || (next === "installation_admin" && !canAssignOwner)) return;
     setRole(next); setPermissions(roleCapabilities(next, member.capabilities)); setOwnerConfirmed(false);
     if (["household_admin", "installation_admin"].includes(next) && !login) setLogin(true);
   };
@@ -128,7 +130,7 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
         {calculatedAge !== null && <p className="calculated-age" aria-live="polite">{t("calculatedAge", { age: calculatedAge })}</p>}
       </section>
       <section className="editor-section"><h3>{t("roleAndAccess")}</h3>
-        <Field label={t("role")}><select value={role} onChange={(event) => chooseRole(event.target.value)}>{["member", "limited", "household_admin", ...(canAssignOwner ? ["installation_admin"] : [])].map((value) => <option key={value} value={value}>{t(value as TranslationKey)}</option>)}</select></Field>
+        <Field label={t("role")}><select value={role} onChange={(event) => chooseRole(event.target.value)}>{["member", "limited", "household_admin", ...(canAssignOwner ? ["installation_admin"] : [])].map((value) => <option key={value} value={value} disabled={value === "household_admin" && !canAssignHouseholdAdmin}>{t(value as TranslationKey)}</option>)}</select></Field>
         {canManageAccount && !person?.has_login && <><Check label={t("withLogin")} checked={login} disabled={adminRole} onChange={setLogin} />{adminRole && <p className="field-hint">{t("adminLoginRequired")}</p>}</>}
         {login && !person?.has_login && <div className="account-setup"><Field label={t("email")}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} autoComplete="off" /></Field>
           <fieldset><legend>{t("loginSetup")}</legend><label className="radio-row"><input name="loginMethod" type="radio" checked={loginMethod === "invitation"} onChange={() => setLoginMethod("invitation")} />{t("sendInvitation")}</label><label className="radio-row"><input name="loginMethod" type="radio" checked={loginMethod === "password"} onChange={() => setLoginMethod("password")} />{t("setPasswordNow")}</label></fieldset>
