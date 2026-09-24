@@ -14,6 +14,7 @@ export async function keyboardActivate(page, target) {
 export async function navigateTasks(page, locale = 'nb', reload = false) {
   if (reload) await page.reload(); else await page.goto('/');
   const name = locale === 'nb' ? 'Oppdrag' : 'Tasks';
+  await keyboardActivate(page, page.getByRole('button', { name: locale === 'nb' ? 'Mer' : 'More', exact: true }));
   await keyboardActivate(page, page.getByRole('button', { name, exact: true }));
   const heading = page.getByRole('heading', { name, exact: true });
   // Panel data loads after navigation. Bound the UI observation without tying

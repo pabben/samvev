@@ -23,6 +23,9 @@ let ungrantedDisplayId:string;
 let displayToken:string;
 let adminCookie:string;
 let adminCsrf:string;
+let childCookie:string;
+let otherAdminCookie:string;
+let otherAdminCsrf:string;
 
 function cookies(response:LightMyRequestResponse):string{
   const values=response.headers['set-cookie'];const list=Array.isArray(values)?values:values?[values]:[];
@@ -33,6 +36,7 @@ function bearer(token:string,extra:Record<string,string>={}){return {authorizati
 const future=(minutes:number)=>new Date(Date.now()+minutes*60_000).toISOString();
 
 before(async()=>{
+  process.env.SAMVEV_SSE_REVALIDATE_MS='50';
   const databaseUrl=new URL(process.env.DATABASE_URL??'');
   if(databaseUrl.hostname!=='test-db'||databaseUrl.pathname!=='/samvev_test')throw new Error('External Intelligence tests refuse non-isolated DATABASE_URL');
   await migrate();await pool.query('TRUNCATE installations,pairing_requests,rate_limits RESTART IDENTITY CASCADE');
@@ -44,6 +48,10 @@ before(async()=>{
   otherPersonId=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic Other','adult') RETURNING id`,[otherHouseholdId])).rows[0]!.id;
   const account=(await pool.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'m3-owner@test.invalid',$2,'nb','system') RETURNING id`,[installation.id,await hashPassword(password)])).rows[0]!;
   ownerMembershipId=(await pool.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'installation_admin',$4) RETURNING id`,[householdId,account.id,ownerPersonId,JSON.stringify(roleCapabilityPresets.installation_admin)])).rows[0]!.id;
+  const childAccount=(await pool.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'m3-child@test.invalid',$2,'nb','system') RETURNING id`,[installation.id,await hashPassword(password)])).rows[0]!;
+  await pool.query(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'limited',$4)`,[householdId,childAccount.id,childPersonId,JSON.stringify(roleCapabilityPresets.limited)]);
+  const otherAccount=(await pool.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'m3-other-admin@test.invalid',$2,'en','system') RETURNING id`,[installation.id,await hashPassword(password)])).rows[0]!;
+  await pool.query(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'household_admin',$4)`,[otherHouseholdId,otherAccount.id,otherPersonId,JSON.stringify(roleCapabilityPresets.household_admin)]);
   displayToken='synthetic-display-token-with-enough-entropy-0001';
   displayId=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme,credential_hash,credential_expires_at) VALUES($1,'Kitchen','nb','system',$2,clock_timestamp()+interval '1 day') RETURNING id`,[householdId,tokenHash(displayToken)])).rows[0]!.id;
   secondDisplayId=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme) VALUES($1,'Hallway','nb','light') RETURNING id`,[householdId])).rows[0]!.id;
@@ -51,6 +59,10 @@ before(async()=>{
   app=await buildApp({runtimeConfig:{publicOrigin:origin,secureCookies:true,trustProxy:false}});
   const login=await app.inject({method:'POST',url:'/api/v1/auth/login',headers:{origin},payload:{email:'m3-owner@test.invalid',password}});
   assert.equal(login.statusCode,200,login.body);adminCookie=cookies(login);adminCsrf=login.json().csrfToken;
+  const childLogin=await app.inject({method:'POST',url:'/api/v1/auth/login',headers:{origin},payload:{email:'m3-child@test.invalid',password}});
+  assert.equal(childLogin.statusCode,200,childLogin.body);childCookie=cookies(childLogin);
+  const otherLogin=await app.inject({method:'POST',url:'/api/v1/auth/login',headers:{origin},payload:{email:'m3-other-admin@test.invalid',password}});
+  assert.equal(otherLogin.statusCode,200,otherLogin.body);otherAdminCookie=cookies(otherLogin);otherAdminCsrf=otherLogin.json().csrfToken;
 });
 
 after(async()=>{await app.close();await pool.end();});
@@ -153,6 +165,88 @@ test('pre-locale development items remain explicitly unknown instead of being gu
     VALUES($1,$2,'legacy:unknown-locale','summary',true,'Synthetic legacy item','Language intentionally unknown','normal',$3,$4)`,[householdId,connectionId,JSON.stringify({label:'Synthetic legacy source',links:[],observedAt:new Date().toISOString(),uncertainty:'unknown'}),'0'.repeat(64)]);
   const home=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/home`,headers:{cookie:adminCookie}});
   const legacy=home.json().items.find((item:{title:string})=>item.title==='Synthetic legacy item');assert.ok(legacy);assert.equal(legacy.contentLocale,null);
+});
+
+test('limited household views, scoped credentials, cross-household administration and both SSE audiences stay isolated',async()=>{
+  const connection=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/integrations`,headers:adminHeaders(),payload:{
+    name:'Synthetic scope proof',displayIds:[],credential:{name:'Write only',capabilities:['integration.items.write'],expiresAt:null}
+  }});
+  assert.equal(connection.statusCode,201,connection.body);
+  const connectionId=connection.json().connection.id as string;
+  const writeToken=connection.json().credentialToken as string;
+  const writeCredentialId=connection.json().connection.credentials[0].id as string;
+  const base={kind:'reminder',contentLocale:'nb',targets:{household:true,personIds:[],displayIds:[]},title:'Synthetic scope item',body:'Only synthetic test content.',entries:[],priority:'normal',publishAt:null,startsAt:null,endsAt:null,expiresAt:future(30),source:{label:'Synthetic scope proof',links:[],observedAt:new Date().toISOString(),uncertainty:'unknown'},metadata:{}};
+  const created=await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(writeToken),payload:{...base,externalId:'scope:household',expectedRevision:0}});
+  assert.equal(created.statusCode,201,created.body);
+  assert.equal((await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(writeToken)})).statusCode,403,'write-only credentials cannot read');
+  assert.equal((await app.inject({method:'DELETE',url:'/api/v1/integrations/items/scope:household',headers:bearer(writeToken),payload:{expectedRevision:1}})).statusCode,403,'write-only credentials cannot withdraw');
+
+  const current=async()=>{
+    const response=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/integrations`,headers:{cookie:adminCookie}});
+    assert.equal(response.statusCode,200,response.body);
+    return response.json().connections.find((candidate:{id:string})=>candidate.id===connectionId);
+  };
+  let connectionState=await current();
+  const reader=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/integrations/${connectionId}/credentials`,headers:adminHeaders(),payload:{name:'Read only',capabilities:['integration.items.read'],expiresAt:null,expectedRevision:connectionState.revision}});
+  assert.equal(reader.statusCode,201,reader.body);const readToken=reader.json().credentialToken as string;
+  connectionState=await current();
+  const deleter=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/integrations/${connectionId}/credentials`,headers:adminHeaders(),payload:{name:'Delete only',capabilities:['integration.items.delete'],expiresAt:null,expectedRevision:connectionState.revision}});
+  assert.equal(deleter.statusCode,201,deleter.body);const deleteToken=deleter.json().credentialToken as string;
+  assert.equal((await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(readToken)})).statusCode,200,'read-only credentials read their connection');
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(readToken),payload:{...base,externalId:'scope:read-post',expectedRevision:0}})).statusCode,403,'read-only credentials cannot write');
+  assert.equal((await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(deleteToken)})).statusCode,403,'delete-only credentials cannot read');
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(deleteToken),payload:{...base,externalId:'scope:delete-post',expectedRevision:0}})).statusCode,403,'delete-only credentials cannot write');
+  const deleted=await app.inject({method:'DELETE',url:'/api/v1/integrations/items/scope:household',headers:bearer(deleteToken),payload:{expectedRevision:1}});
+  assert.equal(deleted.statusCode,200,deleted.body);
+
+  connectionState=await current();
+  const expiring=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/integrations/${connectionId}/credentials`,headers:adminHeaders(),payload:{name:'Expired synthetic reader',capabilities:['integration.items.read'],expiresAt:future(30),expectedRevision:connectionState.revision}});
+  assert.equal(expiring.statusCode,201,expiring.body);const expiredToken=expiring.json().credentialToken as string;const expiredCredentialId=expiring.json().credentialId as string;
+  await pool.query(`UPDATE integration_credentials SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`,[expiredCredentialId]);
+  assert.equal((await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(expiredToken)})).statusCode,401,'expired credentials cannot read');
+  const revoked=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/integrations/${connectionId}/credentials/${writeCredentialId}/revoke`,headers:adminHeaders(),payload:{expectedRevision:1}});
+  assert.equal(revoked.statusCode,200,revoked.body);
+  assert.equal((await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(writeToken),payload:{...base,externalId:'scope:revoked-post',expectedRevision:0}})).statusCode,401,'individual credential revocation leaves the stable connection intact');
+  assert.equal((await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(readToken)})).statusCode,200,'a rotated sibling credential remains active');
+
+  const foreignHeaders={cookie:otherAdminCookie,'x-csrf-token':otherAdminCsrf,origin};
+  assert.equal((await app.inject({method:'GET',url:`/api/v1/households/${householdId}/integrations`,headers:{cookie:otherAdminCookie}})).statusCode,404,'another household administrator cannot list this household integrations');
+  assert.equal((await app.inject({method:'POST',url:`/api/v1/households/${householdId}/integrations`,headers:foreignHeaders,payload:{name:'Foreign attempt',displayIds:[]}})).statusCode,404,'another household administrator cannot create here');
+  assert.equal((await app.inject({method:'PATCH',url:`/api/v1/households/${otherHouseholdId}/integrations/${connectionId}`,headers:foreignHeaders,payload:{name:'Foreign rename',expectedRevision:1}})).statusCode,404,'guessed connection identifiers cannot cross household administration boundaries');
+
+  const privateConnection=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/integrations`,headers:adminHeaders(),payload:{name:'Synthetic projection proof',displayIds:[],credential:{name:'Projection writer',capabilities:['integration.items.write'],expiresAt:null}}});
+  assert.equal(privateConnection.statusCode,201,privateConnection.body);const projectionToken=privateConnection.json().credentialToken as string;
+  for(const item of [
+    {...base,externalId:'projection:household',expectedRevision:0,title:'Synthetic household item',targets:{household:true,personIds:[],displayIds:[]}},
+    {...base,externalId:'projection:child',expectedRevision:0,title:'Synthetic child item',targets:{household:false,personIds:[childPersonId],displayIds:[]}},
+    {...base,externalId:'projection:owner',expectedRevision:0,title:'Synthetic owner item',targets:{household:false,personIds:[ownerPersonId],displayIds:[]}}
+  ]){const response=await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(projectionToken),payload:item});assert.equal(response.statusCode,201,response.body);}
+  const childHome=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/home`,headers:{cookie:childCookie}});
+  assert.equal(childHome.statusCode,200,childHome.body);const childTitles=childHome.json().items.map((item:{title:string})=>item.title);
+  assert.ok(childTitles.includes('Synthetic household item'));assert.ok(childTitles.includes('Synthetic child item'));assert.equal(childTitles.includes('Synthetic owner item'),false,'limited children never receive another person’s item');
+
+  const streamDisplayToken='synthetic-display-stream-token-with-enough-entropy-0002';
+  const streamDisplayId=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme,credential_hash,credential_expires_at) VALUES($1,'Synthetic stream display','nb','system',$2,clock_timestamp()+interval '1 day') RETURNING id`,[householdId,tokenHash(streamDisplayToken)])).rows[0]!.id;
+  const listener=app.server.address();if(!listener||typeof listener==='string')throw new Error('expected member SSE listener from preceding test');
+  const address=`http://127.0.0.1:${listener.port}`;
+  const displayAbort=new AbortController();const displayStream=await fetch(`${address}/api/v1/display/events`,{headers:{cookie:`samvev_display=${streamDisplayToken}`},signal:displayAbort.signal});assert.equal(displayStream.status,200);
+  const displayReader=displayStream.body!.getReader();const decoder=new TextDecoder();assert.match(decoder.decode((await displayReader.read()).value),/event: ready/);
+  const displayMutation=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${streamDisplayId}`,headers:adminHeaders(),payload:{privacyMode:true}});assert.equal(displayMutation.statusCode,200,displayMutation.body);
+  let displayEvents='';for(let attempt=0;attempt<10&&!displayEvents.includes('projection-invalidated');attempt++){const chunk=await Promise.race([displayReader.read(),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('display SSE mutation timeout')),1000))]);displayEvents+=decoder.decode(chunk.value);}
+  assert.match(displayEvents,/event: projection-invalidated/,'display settings mutations invalidate the paired projection');
+  const displayRevocation=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${streamDisplayId}`,headers:adminHeaders(),payload:{revoked:true}});assert.equal(displayRevocation.statusCode,200,displayRevocation.body);
+  for(let attempt=0;attempt<10&&!displayEvents.includes('authorization-revoked');attempt++){const chunk=await Promise.race([displayReader.read(),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('display SSE revocation timeout')),1000))]);displayEvents+=decoder.decode(chunk.value);}
+  assert.match(displayEvents,/event: authorization-revoked/);displayAbort.abort();
+
+  const memberAbort=new AbortController();const memberStream=await fetch(`${address}/api/v1/households/${householdId}/events`,{headers:{cookie:adminCookie},signal:memberAbort.signal});assert.equal(memberStream.status,200);
+  const memberReader=memberStream.body!.getReader();assert.match(decoder.decode((await memberReader.read()).value),/event: ready/);
+  await pool.query(`UPDATE memberships SET role_preset='limited',capabilities=$2,revision=revision+1 WHERE id=$1`,[ownerMembershipId,JSON.stringify(roleCapabilityPresets.limited)]);
+  let memberEvents='';for(let attempt=0;attempt<10&&!memberEvents.includes('authorization-changed');attempt++){const chunk=await Promise.race([memberReader.read(),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('member SSE downgrade timeout')),1000))]);memberEvents+=decoder.decode(chunk.value);}
+  assert.match(memberEvents,/event: authorization-changed/);memberAbort.abort();
+  const downgradedHome=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/home`,headers:{cookie:adminCookie}});
+  assert.equal(downgradedHome.statusCode,200,downgradedHome.body);const downgradedTitles=downgradedHome.json().items.map((item:{title:string})=>item.title);
+  assert.ok(downgradedTitles.includes('Synthetic household item'));assert.ok(downgradedTitles.includes('Synthetic owner item'));assert.equal(downgradedTitles.includes('Synthetic child item'),false,'authorization-changed requires a safe refetch that removes lost personal access');
+  await pool.query(`UPDATE memberships SET role_preset='installation_admin',capabilities=$2,revision=revision+1 WHERE id=$1`,[ownerMembershipId,JSON.stringify(roleCapabilityPresets.installation_admin)]);
 });
 
 test('invalid bearer attempts are durably bounded and a revocation that wins the connection lock prevents commit',async()=>{

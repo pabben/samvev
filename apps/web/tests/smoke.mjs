@@ -328,10 +328,14 @@ try {
   );
   if (await page.getByRole("button", { name: "Continue", exact: true }).count())
     await page.getByRole("button", { name: "Continue", exact: true }).click();
-  else
-    await page.getByRole("button", { name: "Displays", exact: true }).click();
+  else {
+    await page.getByRole("button", { name: "More", exact: true }).click();
+    await page.locator(".hub-more-card").filter({
+      has: page.getByRole("heading", { name: "Displays", exact: true }),
+    }).click();
+  }
   await screen.goto("/display");
-  if (await screen.getByLabel("Språk", { exact: true }).count()) await screen.getByLabel("Språk", { exact: true }).selectOption("en");
+  await screen.getByRole("combobox", { name: /^(Språk|Language)$/ }).selectOption("en");
   const pairingStartResponse = screen.waitForResponse(response =>
     response.request().method() === "POST" && response.url().endsWith("/display/pairing/start"));
   await screen
@@ -460,6 +464,8 @@ try {
     .fill(limitedEmail);
   await limited.getByLabel("Password", { exact: true }).fill(password);
   await limited.getByRole("button", { name: "Sign in", exact: true }).click();
+  const scheduledMessage = `Remember gym clothes tomorrow · synthetic ${Date.now()}`;
+  const updatedScheduledMessage = `${scheduledMessage} and a water bottle`;
   await limited
     .getByRole("button", { name: "New message", exact: true })
     .first()
@@ -467,7 +473,7 @@ try {
   dialog = limited.getByRole("dialog");
   await dialog
     .getByLabel("Your message", { exact: true })
-    .fill("Remember gym clothes tomorrow");
+    .fill(scheduledMessage);
   await dialog.getByLabel(displayName, { exact: true }).last().check();
   await dialog.getByRole("button", { name: "Schedule", exact: true }).click();
   await dialog
@@ -477,22 +483,23 @@ try {
     .getByRole("button", { name: "Schedule message", exact: true })
     .click();
   await expect(dialog).not.toBeVisible();
+  await limited.getByRole("button", { name: "Messages", exact: true }).click();
   await limited.getByRole("tab", { name: /Planned/ }).click();
   let card = limited
     .locator(".message-card")
-    .filter({ hasText: "Remember gym clothes tomorrow" });
+    .filter({ hasText: scheduledMessage });
   await card.getByRole("button", { name: "Edit", exact: true }).click();
   dialog = limited.getByRole("dialog");
   await dialog
     .getByLabel("Your message", { exact: true })
-    .fill("Remember gym clothes and a water bottle tomorrow");
+    .fill(updatedScheduledMessage);
   await dialog
     .getByRole("button", { name: "Save changes", exact: true })
     .click();
   await expect(dialog).not.toBeVisible();
   card = limited
     .locator(".message-card")
-    .filter({ hasText: "Remember gym clothes and a water bottle tomorrow" });
+    .filter({ hasText: updatedScheduledMessage });
   await expect(card).toBeVisible();
   await screenshot(limited, "limited-scheduled-mobile-en-light");
   await card.getByRole("button", { name: "Withdraw", exact: true }).click();
@@ -503,13 +510,13 @@ try {
   await expect(
     limited
       .locator(".message-card")
-      .filter({ hasText: "Remember gym clothes and a water bottle tomorrow" }),
+      .filter({ hasText: updatedScheduledMessage }),
   ).toHaveCount(0);
   await limited.getByRole("tab", { name: /History/ }).click();
   await expect(
     limited
       .locator(".message-card")
-      .filter({ hasText: "Remember gym clothes and a water bottle tomorrow" })
+      .filter({ hasText: updatedScheduledMessage })
       .first(),
   ).toBeVisible();
   record(

@@ -227,7 +227,7 @@ try {
   ).toHaveCount(0);
   await expect(
     personDialog
-      .getByLabel("Starting permissions")
+      .getByLabel("Role", { exact: true })
       .locator('option[value="household_admin"]'),
   ).toBeDisabled();
   await expect(
@@ -252,22 +252,16 @@ try {
   personDialog = page.getByRole("dialog");
   await expect(
     personDialog
-      .getByLabel("Starting permissions")
-      .locator('option[value="household_admin"]'),
-  ).toBeDisabled();
-  await personDialog.getByLabel("Give this person a sign-in").check();
-  await expect(
-    personDialog
-      .getByLabel("Starting permissions")
+      .getByLabel("Role", { exact: true })
       .locator('option[value="household_admin"]'),
   ).toBeEnabled();
   await personDialog
-    .getByLabel("Starting permissions")
+    .getByLabel("Role", { exact: true })
     .selectOption("household_admin");
-  await personDialog.getByLabel("Give this person a sign-in").uncheck();
-  await expect(personDialog.getByLabel("Starting permissions")).toHaveValue(
-    "member",
-  );
+  await expect(personDialog.getByLabel("Give this person a sign-in")).toBeChecked();
+  await expect(personDialog.getByLabel("Give this person a sign-in")).toBeDisabled();
+  await personDialog.getByLabel("Role", { exact: true }).selectOption("member");
+  await expect(personDialog.getByLabel("Give this person a sign-in")).toBeEnabled();
   await expect(
     personDialog.getByLabel("Manage displays", { exact: true }),
   ).not.toBeChecked();
@@ -304,6 +298,7 @@ try {
   });
   const limited = await limitedContext.newPage();
   await limited.goto("/");
+  await limited.getByRole("button", { name: "Messages", exact: true }).click();
   await limited.getByRole("tab", { name: /History/ }).click();
   const changed = limited
     .locator(".message-card")
@@ -327,6 +322,7 @@ try {
   });
   const bound = await displayContext.newPage();
   await bound.goto("/display");
+  await bound.getByRole("combobox", { name: /^(Språk|Language)$/ }).selectOption("en");
   await bound.getByRole("button", { name: "Get a pairing code" }).click();
   const code = await bound.getByTestId("pairing-code").textContent();
   const paired = await mutate(`${base}/displays/pairing/approve`, {

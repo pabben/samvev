@@ -48,7 +48,7 @@ const editRobin = async () => {
 };
 const pair = async (p, name) => {
   await p.goto('/display');
-  if (await p.getByLabel('Språk', { exact: true }).count()) await p.getByLabel('Språk', { exact: true }).selectOption('en');
+  await p.getByRole('combobox', { name: /^(Språk|Language)$/ }).selectOption('en');
   const startResponse = p.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/display/pairing/start'));
   await p.getByRole('button', { name: 'Get a pairing code', exact: true }).click();
   const started = await startResponse;
