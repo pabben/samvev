@@ -13,6 +13,9 @@ import {
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,
   monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskUpdateSchema,
+  integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
+  integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
+  integrationCapabilities,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
 import {
@@ -49,7 +52,23 @@ interface AuthContext {
   capabilities: Capability[];
 }
 
-interface DisplayContext { id: string; householdId: string; locale: 'en' | 'nb'; theme: 'light' | 'dark' | 'system'; privacyMode: boolean }
+interface DisplayContext {
+  id: string;
+  householdId: string;
+  locale: 'en' | 'nb';
+  theme: 'light' | 'dark' | 'system';
+  privacyMode: boolean;
+  externalItemsEnabled: boolean;
+}
+type IntegrationCapability = (typeof integrationCapabilities)[number];
+interface IntegrationContext {
+  credentialId: string;
+  credentialRevision: number;
+  connectionId: string;
+  householdId: string;
+  installationId: string;
+  capabilities: IntegrationCapability[];
+}
 
 function parse<T>(schema: ZodType<T>, body: unknown): T {
   const result = schema.safeParse(body);
@@ -118,13 +137,160 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
 async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
   const token = request.cookies[DISPLAY_COOKIE];
   if (!token) throw new DomainError('UNAUTHENTICATED', 401);
-  const result = await pool.query<{ id: string; household_id: string; locale: 'en'|'nb'; theme: 'light'|'dark'|'system'; privacy_mode: boolean }>(`
-    SELECT id,household_id,locale,theme,privacy_mode FROM displays
+  const result = await pool.query<{ id: string; household_id: string; locale: 'en'|'nb'; theme: 'light'|'dark'|'system'; privacy_mode: boolean; external_items_enabled:boolean }>(`
+    SELECT id,household_id,locale,theme,privacy_mode,external_items_enabled FROM displays
     WHERE credential_hash=$1 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()`, [tokenHash(token)]);
   const row = result.rows[0];
   if (!row) throw new DomainError('UNAUTHENTICATED', 401);
   await pool.query('UPDATE displays SET last_seen_at=clock_timestamp() WHERE id=$1', [row.id]);
-  return { id: row.id, householdId: row.household_id, locale: row.locale, theme: row.theme, privacyMode: row.privacy_mode };
+  return {
+    id: row.id, householdId: row.household_id, locale: row.locale, theme: row.theme,
+    privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled
+  };
+}
+
+async function integrationAuth(request: FastifyRequest): Promise<IntegrationContext> {
+  await durableRateLimit('integration_auth_ip', request.ip, 90, 60);
+  const authorization = request.headers.authorization;
+  const match = typeof authorization === 'string' ? /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(authorization) : null;
+  if (!match) throw new DomainError('UNAUTHENTICATED', 401);
+  const result = await pool.query<{
+    credential_id:string; credential_revision:number; connection_id:string; household_id:string; installation_id:string; capabilities:IntegrationCapability[];
+  }>(`SELECT cr.id AS credential_id,cr.revision AS credential_revision,cr.connection_id,c.household_id,h.installation_id,cr.capabilities
+      FROM integration_credentials cr
+      JOIN integration_connections c ON c.id=cr.connection_id
+      JOIN households h ON h.id=c.household_id
+      WHERE cr.token_hash=$1 AND cr.revoked_at IS NULL AND (cr.expires_at IS NULL OR cr.expires_at>clock_timestamp())
+        AND c.revoked_at IS NULL`, [tokenHash(match[1]!)]) ;
+  const row = result.rows[0];
+  if (!row) {
+    await durableRateLimit('integration_auth_invalid', request.ip, 20, 60);
+    throw new DomainError('UNAUTHENTICATED', 401);
+  }
+  await pool.query('UPDATE integration_credentials SET last_used_at=clock_timestamp() WHERE id=$1', [row.credential_id]);
+  return {
+    credentialId: row.credential_id, credentialRevision:row.credential_revision, connectionId: row.connection_id, householdId: row.household_id,
+    installationId: row.installation_id, capabilities: row.capabilities
+  };
+}
+
+function requireIntegrationCapability(actual: readonly IntegrationCapability[], required: IntegrationCapability): void {
+  if (!actual.includes(required)) throw new DomainError('FORBIDDEN', 403);
+}
+
+function canonicalIntegrationPayload(body: ReturnType<typeof integrationItemUpsertSchema.parse>): { hash:string; body:typeof body } {
+  const normalized = {
+    ...body,
+    targets: {
+      household: body.targets.household,
+      personIds: [...body.targets.personIds].sort(),
+      displayIds: [...body.targets.displayIds].sort()
+    },
+    publishAt: body.publishAt ? new Date(body.publishAt).toISOString() : null,
+    startsAt: body.startsAt ? new Date(body.startsAt).toISOString() : null,
+    endsAt: body.endsAt ? new Date(body.endsAt).toISOString() : null,
+    expiresAt: body.expiresAt ? new Date(body.expiresAt).toISOString() : null,
+    source: {
+      ...body.source,
+      observedAt: new Date(body.source.observedAt).toISOString(),
+      ...(body.source.generatedAt ? { generatedAt: new Date(body.source.generatedAt).toISOString() } : {})
+    }
+  };
+  const { expectedRevision: _expectedRevision, ...canonical } = normalized;
+  return { hash: createHash('sha256').update(JSON.stringify(canonical)).digest('hex'), body: normalized };
+}
+
+async function auditIntegration(client: DbClient, integration: IntegrationContext, action:string, subjectType:string, subjectId:string, metadata:Record<string,unknown>={}):Promise<void>{
+  await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata)
+    VALUES ($1,$2,'integration',$3,$4,$5,$6,$7)`, [integration.installationId,integration.householdId,integration.connectionId,action,subjectType,subjectId,JSON.stringify({...metadata,credentialId:integration.credentialId,credentialRevision:integration.credentialRevision})]);
+}
+
+async function lockIntegrationAuthority(client:pg.PoolClient,integration:IntegrationContext,capability:IntegrationCapability):Promise<void>{
+  const connection=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[integration.connectionId,integration.householdId]);
+  if(!connection.rowCount)throw new DomainError('UNAUTHENTICATED',401);
+  const credential=await client.query<{capabilities:IntegrationCapability[]}>(`SELECT capabilities FROM integration_credentials
+    WHERE id=$1 AND connection_id=$2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>clock_timestamp()) FOR UPDATE`,[integration.credentialId,integration.connectionId]);
+  if(!credential.rowCount)throw new DomainError('UNAUTHENTICATED',401);
+  requireIntegrationCapability(credential.rows[0]!.capabilities,capability);
+}
+
+interface ExternalItemRow {
+  id:string; external_id:string; kind:string; target_household:boolean; title:string; body:string;
+  entries:Array<{label:string;detail?:string}>; priority:string; publish_at:Date|null; starts_at:Date|null;
+  ends_at:Date|null; expires_at:Date|null; source:Record<string,unknown>; metadata:Record<string,unknown>;
+  status:string; revision:number; updated_at:Date; person_ids:string[]; display_ids:string[];
+}
+
+function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean}={}):Record<string,unknown>{
+  const source=options.forDisplay
+    ? Object.fromEntries(Object.entries(row.source).filter(([key])=>!['url','links'].includes(key)))
+    : row.source;
+  const metadata=options.forDisplay
+    ? Object.fromEntries(Object.entries(row.metadata).filter(([key])=>key!=='actionUrl'))
+    : row.metadata;
+  return {
+    id:row.id,
+    ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
+    kind:row.kind,
+    targets:{household:row.target_household,personIds:row.person_ids,...(options.includeExternalId?{displayIds:row.display_ids}:{})},
+    title:row.title,body:row.body,entries:row.entries,priority:row.priority,
+    publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
+    endsAt:row.ends_at?.toISOString()??null,expiresAt:row.expires_at?.toISOString()??null,
+    source,metadata,revision:row.revision,updatedAt:row.updated_at.toISOString()
+  };
+}
+
+const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.target_household,i.title,i.body,i.entries,i.priority,
+  i.publish_at,i.starts_at,i.ends_at,i.expires_at,i.source,i.metadata,i.status,i.revision,i.updated_at,
+  COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_targets t WHERE t.item_id=i.id),'[]') AS person_ids,
+  COALESCE((SELECT json_agg(t.display_id ORDER BY t.display_id) FROM integration_item_display_targets t WHERE t.item_id=i.id),'[]') AS display_ids`;
+
+async function homeItems(householdId:string,personId:string,canViewAll:boolean):Promise<Record<string,unknown>[]>{
+  const rows=await pool.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
+    FROM integration_items i JOIN integration_connections c ON c.id=i.connection_id AND c.household_id=i.household_id
+    WHERE i.household_id=$1 AND i.status='active' AND c.revoked_at IS NULL
+      AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp())
+      AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
+      AND ($3 OR i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets vt WHERE vt.item_id=i.id AND vt.person_id=$2))
+    ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 300`,[householdId,personId,canViewAll]);
+  return rows.rows.map((row)=>mapExternalItem(row));
+}
+
+async function displayHub(display:DisplayContext):Promise<Record<string,unknown>|undefined>{
+  if(display.privacyMode || !display.externalItemsEnabled)return undefined;
+  const rows=await pool.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
+    FROM integration_items i
+    JOIN integration_connections c ON c.id=i.connection_id AND c.household_id=i.household_id AND c.revoked_at IS NULL
+    JOIN integration_connection_display_grants g ON g.connection_id=i.connection_id AND g.household_id=i.household_id AND g.display_id=$1
+    JOIN integration_item_display_targets dt ON dt.item_id=i.id AND dt.household_id=i.household_id AND dt.display_id=$1
+    WHERE i.household_id=$2 AND i.status='active'
+      AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp())
+      AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
+    ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200`,[display.id,display.householdId]);
+  const personIds=[...new Set(rows.rows.flatMap((row)=>row.person_ids))];
+  const people=personIds.length?(await pool.query<{id:string;display_name:string}>(`SELECT id,display_name FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY display_name,id`,[display.householdId,personIds])).rows:[];
+  return {people:people.map((person)=>({id:person.id,displayName:person.display_name})),items:rows.rows.map((row)=>mapExternalItem(row,{forDisplay:true}))};
+}
+
+async function integrationConnectionResponse(connectionId:string,householdId:string):Promise<Record<string,unknown>>{
+  const connection=(await pool.query<{id:string;name:string;revision:number;revoked_at:Date|null;created_at:Date;updated_at:Date}>(`SELECT id,name,revision,revoked_at,created_at,updated_at FROM integration_connections WHERE id=$1 AND household_id=$2`,[connectionId,householdId])).rows[0];
+  if(!connection)throw new DomainError('NOT_FOUND',404);
+  const [displays,credentials]=await Promise.all([
+    pool.query<{display_id:string}>('SELECT display_id FROM integration_connection_display_grants WHERE connection_id=$1 AND household_id=$2 ORDER BY display_id',[connectionId,householdId]),
+    pool.query<{id:string;name:string;capabilities:IntegrationCapability[];expires_at:Date|null;last_used_at:Date|null;revoked_at:Date|null;created_at:Date;revision:number}>(`SELECT id,name,capabilities,expires_at,last_used_at,revoked_at,created_at,revision FROM integration_credentials WHERE connection_id=$1 ORDER BY created_at,id`,[connectionId])
+  ]);
+  return {
+    id:connection.id,name:connection.name,revision:connection.revision,revokedAt:connection.revoked_at?.toISOString()??null,
+    createdAt:connection.created_at.toISOString(),updatedAt:connection.updated_at.toISOString(),
+    displayIds:displays.rows.map((row)=>row.display_id),
+    credentials:credentials.rows.map((credential)=>({
+      id:credential.id,name:credential.name,capabilities:credential.capabilities,expiresAt:credential.expires_at?.toISOString()??null,
+      lastUsedAt:credential.last_used_at?.toISOString()??null,revokedAt:credential.revoked_at?.toISOString()??null,
+      createdAt:credential.created_at.toISOString(),revision:credential.revision
+    }))
+  };
 }
 
 function params(request: FastifyRequest): Record<string, string> { return request.params as Record<string, string>; }
@@ -174,9 +340,14 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
       AND EXISTS(SELECT 1 FROM displays d WHERE d.id=t.display_id AND d.revoked_at IS NULL)
       AND (t.delivery_state='queued' OR t.delivered_revision IS DISTINCT FROM m.revision)`,[display.id,cardIds]);
   }
+  const hub=await displayHub(display);
   return {
-    display: { id: display.id, name: label.rows[0]?.display_name, householdName: label.rows[0]?.household_name, timezone: label.rows[0]?.timezone, locale: display.locale, theme: display.theme, privacyMode: display.privacyMode },
-    cards, serverNow: now.toISOString(), generatedAt: now.toISOString(), cacheUntil: hardCache.toISOString(), maxStaleSeconds: 900
+    display: {
+      id: display.id, name: label.rows[0]?.display_name, householdName: label.rows[0]?.household_name,
+      timezone: label.rows[0]?.timezone, locale: display.locale, theme: display.theme,
+      privacyMode: display.privacyMode, externalItemsEnabled: display.externalItemsEnabled
+    },
+    cards,...(hub?{hub}:{}),serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
   };
 }
 
@@ -197,6 +368,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     if (!isUnsafe(request.method)) return;
     const origin = request.headers.origin;
     if (!origin) {
+      const pathname=request.url.split('?',1)[0]??request.url;
+      const integrationWrite=request.method==='POST'&&pathname==='/api/v1/integrations/items';
+      const integrationDelete=request.method==='DELETE'&&/^\/api\/v1\/integrations\/items\/[^/]+$/.test(pathname);
+      if(integrationWrite||integrationDelete)return;
       if (runtime.secureCookies) throw new DomainError('CSRF_REQUIRED', 403);
       return;
     }
@@ -640,6 +815,222 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {upcomingBirthday:nextBirthday(people.rows.map((row)=>({id:row.id,displayName:row.display_name,birthDate:row.birth_date})),localDateInTimezone(new Date(),household.timezone))};
   });
 
+  app.get('/api/v1/households/:householdId/home',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:'en'|'nb';show_upcoming_birthday:boolean}>(`SELECT id,name,timezone,default_locale,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
+    const people=await pool.query<{id:string;display_name:string;age_group:string;birth_date:string|null}>(`SELECT id,display_name,age_group,birth_date::text FROM persons WHERE household_id=$1 ORDER BY created_at,id`,[auth.householdId]);
+    const canViewAll=auth.capabilities.includes('household.manage');
+    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,p.display_name AS author_name,m.publish_at,m.expires_at,m.revision,m.audience_household,
+      COALESCE((SELECT json_agg(pa.person_id ORDER BY pa.person_id) FROM message_person_audiences pa WHERE pa.message_id=m.id),'[]') AS person_ids
+      FROM messages m JOIN memberships am ON am.id=m.author_membership_id JOIN persons p ON p.id=am.person_id
+      WHERE m.household_id=$1 AND m.state IN ('scheduled','published') AND m.expires_at>clock_timestamp()
+        AND m.publish_at<clock_timestamp()+interval '2 days'
+        AND ($2 OR m.audience_household OR m.author_membership_id=$3 OR EXISTS(SELECT 1 FROM message_person_audiences va WHERE va.message_id=m.id AND va.person_id=$4))
+      ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id LIMIT 200`,[auth.householdId,canViewAll,auth.membershipId,auth.personId]);
+    const upcomingBirthday=household.show_upcoming_birthday
+      ? nextBirthday(people.rows.filter((person)=>person.birth_date).map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date!})),localDateInTimezone(new Date(),household.timezone))
+      : null;
+    return {
+      household:{id:household.id,name:household.name,timezone:household.timezone,locale:household.default_locale},
+      viewer:{personId:auth.personId,membershipId:auth.membershipId},
+      people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,ageGroup:person.age_group})),
+      upcomingBirthday,items:await homeItems(auth.householdId,auth.personId,canViewAll),
+      messages:messages.rows.map((message)=>({
+        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,
+        publishAt:message.publish_at.toISOString(),expiresAt:message.expires_at.toISOString(),revision:message.revision,
+        targets:{household:message.audience_household,personIds:message.person_ids}
+      })),serverNow:new Date().toISOString()
+    };
+  });
+
+  app.get('/api/v1/households/:householdId/events',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    let canViewAll=auth.capabilities.includes('household.manage');
+    let responseClosed=false;
+    let authorizationCheckUnavailable=false;
+    const send=(event:{type:string;data:Record<string,unknown>})=>{if(!responseClosed)reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);};
+    const unsubscribe=projectionEvents.subscribe(`member:${auth.membershipId}`,auth.householdId,send,()=>reply.raw.end());
+    reply.hijack();
+    const response=reply.raw;
+    response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
+    const initiallyConnected=projectionEvents.listenerConnected();
+    send({type:'ready',data:{generatedAt:new Date().toISOString(),listenerConnected:initiallyConnected,pollingFallback:!initiallyConnected}});
+    const revalidateMs=Math.max(50,Number(process.env.SAMVEV_SSE_REVALIDATE_MS??15_000));
+    const timer=setInterval(async()=>{
+      try{
+        const current=await authForHousehold(request,auth.householdId);requireCapability(current.capabilities,'household.view');
+        const currentCanViewAll=current.capabilities.includes('household.manage');
+        if(currentCanViewAll!==canViewAll){canViewAll=currentCanViewAll;send({type:'authorization-changed',data:{refetchRequired:true}});}
+        if(authorizationCheckUnavailable){authorizationCheckUnavailable=false;if(projectionEvents.listenerConnected())send({type:'listener-restored',data:{pollingFallback:true,listenerConnected:true,refetchRequired:true}});}
+        const listenerConnected=projectionEvents.listenerConnected();
+        send({type:'heartbeat',data:{serverNow:new Date().toISOString(),listenerConnected,pollingFallback:!listenerConnected}});
+      }catch(error){
+        if(error instanceof DomainError&&(error.status===401||error.status===403||error.status===404)){send({type:'authorization-revoked',data:{}});response.end();return;}
+        if(!authorizationCheckUnavailable){authorizationCheckUnavailable=true;send({type:'listener-degraded',data:{pollingFallback:true,listenerConnected:projectionEvents.listenerConnected(),reason:'authorization-check-unavailable'}});}
+      }
+    },revalidateMs);
+    const cleanup=()=>{if(responseClosed)return;responseClosed=true;clearInterval(timer);unsubscribe();};
+    response.once('close',cleanup);
+  });
+
+  app.get('/api/v1/households/:householdId/integrations',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const ids=await pool.query<{id:string}>('SELECT id FROM integration_connections WHERE household_id=$1 ORDER BY created_at,id',[auth.householdId]);
+    return {connections:await Promise.all(ids.rows.map((row)=>integrationConnectionResponse(row.id,auth.householdId)))};
+  });
+
+  app.post('/api/v1/households/:householdId/integrations',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(integrationConnectionCreateSchema,request.body);
+    const credentialToken=body.credential?`samvev_it_${opaqueToken()}`:undefined;
+    const connectionId=await transaction(async(client)=>{
+      if(body.displayIds.length){
+        const displays=await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL',[auth.householdId,body.displayIds]);
+        if(displays.rowCount!==new Set(body.displayIds).size)throw new DomainError('NOT_FOUND',404);
+      }
+      if(body.credential?.expiresAt&&new Date(body.credential.expiresAt)<=new Date())throw new DomainError('VALIDATION_FAILED',400,{reason:'credential_expiry_must_be_future'});
+      const connection=(await client.query<{id:string}>('INSERT INTO integration_connections(household_id,name) VALUES($1,$2) RETURNING id',[auth.householdId,body.name])).rows[0]!;
+      for(const displayId of body.displayIds)await client.query('INSERT INTO integration_connection_display_grants(household_id,connection_id,display_id) VALUES($1,$2,$3)',[auth.householdId,connection.id,displayId]);
+      if(body.credential)await client.query(`INSERT INTO integration_credentials(connection_id,name,token_hash,capabilities,expires_at) VALUES($1,$2,$3,$4,$5)`,[connection.id,body.credential.name,tokenHash(credentialToken!),JSON.stringify(body.credential.capabilities),body.credential.expiresAt]);
+      await audit(client,auth,'integration.connection_created','integration_connection',connection.id,{displayCount:body.displayIds.length,credentialCreated:Boolean(body.credential)});
+      return connection.id;
+    });
+    if(credentialToken)reply.header('Cache-Control','no-store');
+    return reply.status(201).send({connection:await integrationConnectionResponse(connectionId,auth.householdId),...(credentialToken?{credentialToken}:{})});
+  });
+
+  app.patch('/api/v1/households/:householdId/integrations/:connectionId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(integrationConnectionUpdateSchema,request.body);const connectionId=params(request).connectionId!;
+    await transaction(async(client)=>{
+      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
+      if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
+      if(body.displayIds){const displays=await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL',[auth.householdId,body.displayIds]);if(displays.rowCount!==new Set(body.displayIds).size)throw new DomainError('NOT_FOUND',404);}
+      const updated=await client.query(`UPDATE integration_connections SET name=COALESCE($3,name),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$4 RETURNING id`,[connectionId,auth.householdId,body.name??null,body.expectedRevision]);
+      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      if(body.displayIds){await client.query('DELETE FROM integration_connection_display_grants WHERE connection_id=$1',[connectionId]);for(const displayId of body.displayIds)await client.query('INSERT INTO integration_connection_display_grants(household_id,connection_id,display_id) VALUES($1,$2,$3)',[auth.householdId,connectionId,displayId]);}
+      await audit(client,auth,'integration.connection_updated','integration_connection',connectionId,{displayCount:body.displayIds?.length});
+    });
+    return {connection:await integrationConnectionResponse(connectionId,auth.householdId)};
+  });
+
+  app.post('/api/v1/households/:householdId/integrations/:connectionId/revoke',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(integrationConnectionRevisionSchema,request.body);const connectionId=params(request).connectionId!;
+    await transaction(async(client)=>{
+      const current=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
+      if(!current.rowCount)throw new DomainError('NOT_FOUND',404);if(current.rows[0]!.revoked_at)throw new DomainError('CONFLICT',409,{reason:'connection_already_revoked'});
+      const updated=await client.query('UPDATE integration_connections SET revoked_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND revision=$2 RETURNING id',[connectionId,body.expectedRevision]);
+      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      await client.query('UPDATE integration_credentials SET revoked_at=COALESCE(revoked_at,clock_timestamp()),revision=CASE WHEN revoked_at IS NULL THEN revision+1 ELSE revision END WHERE connection_id=$1',[connectionId]);
+      await audit(client,auth,'integration.connection_revoked','integration_connection',connectionId);
+    });
+    return {connection:await integrationConnectionResponse(connectionId,auth.householdId)};
+  });
+
+  app.post('/api/v1/households/:householdId/integrations/:connectionId/credentials',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(integrationCredentialCreateSchema,request.body);const connectionId=params(request).connectionId!;const credentialToken=`samvev_it_${opaqueToken()}`;
+    const credentialId=await transaction(async(client)=>{
+      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
+      if(body.expiresAt&&new Date(body.expiresAt)<=new Date())throw new DomainError('VALIDATION_FAILED',400,{reason:'credential_expiry_must_be_future'});
+      const bumped=await client.query('UPDATE integration_connections SET revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND revision=$2 RETURNING id',[connectionId,body.expectedRevision]);if(!bumped.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      const credential=(await client.query<{id:string}>('INSERT INTO integration_credentials(connection_id,name,token_hash,capabilities,expires_at) VALUES($1,$2,$3,$4,$5) RETURNING id',[connectionId,body.name,tokenHash(credentialToken),JSON.stringify(body.capabilities),body.expiresAt])).rows[0]!;
+      await audit(client,auth,'integration.credential_created','integration_credential',credential.id,{connectionId,capabilities:body.capabilities,expiresAt:body.expiresAt});return credential.id;
+    });
+    reply.header('Cache-Control','no-store');
+    return reply.status(201).send({credentialId,credentialToken,connection:await integrationConnectionResponse(connectionId,auth.householdId)});
+  });
+
+  app.post('/api/v1/households/:householdId/integrations/:connectionId/credentials/:credentialId/revoke',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=parse(integrationCredentialRevokeSchema,request.body);const connectionId=params(request).connectionId!;const credentialId=params(request).credentialId!;
+    await transaction(async(client)=>{
+      const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
+      const credential=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_credentials WHERE id=$1 AND connection_id=$2 FOR UPDATE',[credentialId,connectionId]);if(!credential.rowCount)throw new DomainError('NOT_FOUND',404);if(credential.rows[0]!.revoked_at)throw new DomainError('CONFLICT',409,{reason:'credential_already_revoked'});
+      const updated=await client.query('UPDATE integration_credentials SET revoked_at=clock_timestamp(),revision=revision+1 WHERE id=$1 AND connection_id=$2 AND revision=$3 RETURNING id',[credentialId,connectionId,body.expectedRevision]);if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      await audit(client,auth,'integration.credential_revoked','integration_credential',credentialId,{connectionId});
+    });
+    return {connection:await integrationConnectionResponse(connectionId,auth.householdId)};
+  });
+
+  app.post('/api/v1/integrations/items',async(request,reply)=>{
+    const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.write');
+    await durableRateLimit('integration_items_write',integration.credentialId,120,60);
+    const parsed=parse(integrationItemUpsertSchema,request.body);const canonical=canonicalIntegrationPayload(parsed);
+    const outcome=await transaction(async(client)=>{
+      await lockIntegrationAuthority(client,integration,'integration.items.write');
+      const existing=await client.query<{id:string;revision:number;request_hash:string;status:string}>(`SELECT id,revision,request_hash,status FROM integration_items WHERE connection_id=$1 AND external_id=$2 FOR UPDATE`,[integration.connectionId,canonical.body.externalId]);
+      if(existing.rows[0]?.status==='withdrawn')throw new DomainError('CONFLICT',409,{reason:'item_permanently_withdrawn',revision:existing.rows[0].revision});
+      if(existing.rows[0]?.request_hash===canonical.hash){
+        const row=(await client.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns} FROM integration_items i WHERE i.id=$1 AND i.connection_id=$2`,[existing.rows[0].id,integration.connectionId])).rows[0]!;
+        return {result:'unchanged' as const,item:mapExternalItem(row,{includeExternalId:true})};
+      }
+      if(canonical.body.targets.personIds.length){
+        const people=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])',[integration.householdId,canonical.body.targets.personIds]);
+        if(people.rowCount!==canonical.body.targets.personIds.length)throw new DomainError('NOT_FOUND',404,{reason:'person_target_not_found'});
+      }
+      if(canonical.body.targets.displayIds.length){
+        const displays=await client.query(`SELECT d.id FROM displays d JOIN integration_connection_display_grants g ON g.display_id=d.id AND g.household_id=d.household_id
+          WHERE d.household_id=$1 AND g.connection_id=$2 AND d.id=ANY($3::uuid[]) AND d.revoked_at IS NULL`,[integration.householdId,integration.connectionId,canonical.body.targets.displayIds]);
+        if(displays.rowCount!==canonical.body.targets.displayIds.length)throw new DomainError('FORBIDDEN',403,{reason:'display_target_not_granted'});
+      }
+      let itemId:string;let result:'created'|'updated';
+      if(existing.rowCount){
+        const current=existing.rows[0]!;itemId=current.id;
+        if(current.revision!==canonical.body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
+        await client.query(`UPDATE integration_items SET kind=$2,target_household=$3,title=$4,body=$5,entries=$6,priority=$7,publish_at=$8,starts_at=$9,ends_at=$10,expires_at=$11,source=$12,metadata=$13,request_hash=$14,revision=revision+1,updated_at=clock_timestamp()
+          WHERE id=$1`,[itemId,canonical.body.kind,canonical.body.targets.household,canonical.body.title,canonical.body.body,JSON.stringify(canonical.body.entries),canonical.body.priority,canonical.body.publishAt,canonical.body.startsAt,canonical.body.endsAt,canonical.body.expiresAt,JSON.stringify(canonical.body.source),JSON.stringify(canonical.body.metadata),canonical.hash]);
+        await client.query('DELETE FROM integration_item_person_targets WHERE item_id=$1',[itemId]);
+        await client.query('DELETE FROM integration_item_display_targets WHERE item_id=$1',[itemId]);
+        result='updated';
+      }else{
+        if(canonical.body.expectedRevision!==0)throw new DomainError('REVISION_CONFLICT',409,{revision:0});
+        itemId=(await client.query<{id:string}>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,entries,priority,publish_at,starts_at,ends_at,expires_at,source,metadata,request_hash)
+          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id`,[integration.householdId,integration.connectionId,canonical.body.externalId,canonical.body.kind,canonical.body.targets.household,canonical.body.title,canonical.body.body,JSON.stringify(canonical.body.entries),canonical.body.priority,canonical.body.publishAt,canonical.body.startsAt,canonical.body.endsAt,canonical.body.expiresAt,JSON.stringify(canonical.body.source),JSON.stringify(canonical.body.metadata),canonical.hash])).rows[0]!.id;
+        result='created';
+      }
+      for(const personId of canonical.body.targets.personIds)await client.query('INSERT INTO integration_item_person_targets(household_id,item_id,person_id) VALUES($1,$2,$3)',[integration.householdId,itemId,personId]);
+      for(const displayId of canonical.body.targets.displayIds)await client.query('INSERT INTO integration_item_display_targets(household_id,item_id,display_id) VALUES($1,$2,$3)',[integration.householdId,itemId,displayId]);
+      await auditIntegration(client,integration,result==='created'?'integration.item_created':'integration.item_updated','integration_item',itemId,{externalIdHash:tokenHash(canonical.body.externalId),kind:canonical.body.kind,priority:canonical.body.priority});
+      const row=(await client.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns} FROM integration_items i WHERE i.id=$1 AND i.connection_id=$2`,[itemId,integration.connectionId])).rows[0]!;
+      return {result,item:mapExternalItem(row,{includeExternalId:true})};
+    });
+    reply.header('Cache-Control','no-store');return reply.status(outcome.result==='created'?201:200).send(outcome);
+  });
+
+  app.get('/api/v1/integrations/items',async(request,reply)=>{
+    const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.read');
+    await durableRateLimit('integration_items_read',integration.credentialId,300,60);
+    const rows=await transaction(async(client)=>{await lockIntegrationAuthority(client,integration,'integration.items.read');return client.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns} FROM integration_items i WHERE i.connection_id=$1 AND i.household_id=$2 ORDER BY i.updated_at DESC,i.id LIMIT 500`,[integration.connectionId,integration.householdId]);});
+    reply.header('Cache-Control','no-store');return {items:rows.rows.map((row)=>mapExternalItem(row,{includeExternalId:true}))};
+  });
+
+  app.get('/api/v1/integrations/items/:externalId',async(request,reply)=>{
+    const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.read');
+    await durableRateLimit('integration_items_read',integration.credentialId,300,60);
+    const externalId=params(request).externalId!;if(!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(externalId))throw new DomainError('NOT_FOUND',404);
+    const row=await transaction(async(client)=>{await lockIntegrationAuthority(client,integration,'integration.items.read');return (await client.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns} FROM integration_items i WHERE i.connection_id=$1 AND i.household_id=$2 AND i.external_id=$3`,[integration.connectionId,integration.householdId,externalId])).rows[0];});
+    if(!row)throw new DomainError('NOT_FOUND',404);reply.header('Cache-Control','no-store');return {item:mapExternalItem(row,{includeExternalId:true})};
+  });
+
+  app.delete('/api/v1/integrations/items/:externalId',async(request,reply)=>{
+    const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.delete');
+    await durableRateLimit('integration_items_delete',integration.credentialId,60,60);
+    const body=parse(integrationItemWithdrawSchema,request.body);const externalId=params(request).externalId!;if(!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/.test(externalId))throw new DomainError('NOT_FOUND',404);
+    const outcome=await transaction(async(client)=>{
+      await lockIntegrationAuthority(client,integration,'integration.items.delete');
+      const current=await client.query<{id:string;revision:number;status:string}>('SELECT id,revision,status FROM integration_items WHERE connection_id=$1 AND household_id=$2 AND external_id=$3 FOR UPDATE',[integration.connectionId,integration.householdId,externalId]);
+      if(!current.rowCount)throw new DomainError('NOT_FOUND',404);const item=current.rows[0]!;
+      if(item.status==='withdrawn')return {result:'unchanged' as const,item:{externalId,status:'withdrawn',revision:item.revision}};
+      if(item.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:item.revision});
+      const updated=(await client.query<{revision:number}>('UPDATE integration_items SET status=\'withdrawn\',withdrawn_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING revision',[item.id])).rows[0]!;
+      await auditIntegration(client,integration,'integration.item_withdrawn','integration_item',item.id,{externalIdHash:tokenHash(externalId)});
+      return {result:'withdrawn' as const,item:{externalId,status:'withdrawn',revision:updated.revision}};
+    });
+    reply.header('Cache-Control','no-store');return outcome;
+  });
+
   app.get('/api/v1/households/:householdId/settings',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
     const settings=await pool.query(`SELECT show_upcoming_birthday,revision FROM households WHERE id=$1`,[auth.householdId]);
@@ -658,7 +1049,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/households/:householdId/displays', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.view');
-    const result = await pool.query(`SELECT id,name,locale,theme,privacy_mode,revoked_at,last_seen_at,created_at FROM displays WHERE household_id=$1 ORDER BY created_at`, [auth.householdId]);
+    const result = await pool.query(`SELECT id,name,locale,theme,privacy_mode,external_items_enabled,revoked_at,last_seen_at,created_at FROM displays WHERE household_id=$1 ORDER BY created_at`, [auth.householdId]);
     return { displays: result.rows };
   });
 
@@ -667,11 +1058,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'display.manage');
     const body = parse(displayUpdateSchema, request.body);
     return transaction(async(client)=>{
-      const result = await client.query(`UPDATE displays SET locale=COALESCE($3,locale),theme=COALESCE($4,theme),privacy_mode=COALESCE($5,privacy_mode),revoked_at=CASE WHEN $6::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $6::boolean IS TRUE THEN NULL ELSE credential_hash END
-        WHERE id=$1 AND household_id=$2 RETURNING id,name,locale,theme,privacy_mode,revoked_at`, [params(request).displayId,auth.householdId,body.locale ?? null,body.theme ?? null,body.privacyMode ?? null,body.revoked ?? null]);
+      const result = await client.query(`UPDATE displays SET locale=COALESCE($3,locale),theme=COALESCE($4,theme),privacy_mode=COALESCE($5,privacy_mode),external_items_enabled=COALESCE($6,external_items_enabled),revoked_at=CASE WHEN $7::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $7::boolean IS TRUE THEN NULL ELSE credential_hash END
+        WHERE id=$1 AND household_id=$2 RETURNING id,name,locale,theme,privacy_mode,external_items_enabled,revoked_at`, [params(request).displayId,auth.householdId,body.locale ?? null,body.theme ?? null,body.privacyMode ?? null,body.externalItemsEnabled ?? null,body.revoked ?? null]);
       if (!result.rowCount) throw new DomainError('NOT_FOUND', 404);
       if(body.revoked) await client.query(`UPDATE message_display_targets SET delivery_state='failed',failure_code='DISPLAY_REVOKED' WHERE display_id=$1 AND delivery_state='queued'`,[params(request).displayId]);
-      await audit(client,auth,body.revoked === true?'display.revoked':'display.updated','display',params(request).displayId,{ privacyMode: body.privacyMode });
+      await audit(client,auth,body.revoked === true?'display.revoked':'display.updated','display',params(request).displayId,{privacyMode:body.privacyMode,externalItemsEnabled:body.externalItemsEnabled});
       return result.rows[0];
     });
   });

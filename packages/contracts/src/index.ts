@@ -141,9 +141,115 @@ export const pairingApproveSchema = z.object({
 }).strict();
 export const pairingRedeemSchema = z.object({ pairingId: uuidSchema, verifier: z.string().min(43).max(256) }).strict();
 export const displayUpdateSchema = z.object({
-  locale: localeSchema.optional(), theme: themeSchema.optional(), privacyMode: z.boolean().optional(), revoked: z.literal(true).optional()
+  locale: localeSchema.optional(), theme: themeSchema.optional(), privacyMode: z.boolean().optional(),
+  externalItemsEnabled: z.boolean().optional(), revoked: z.literal(true).optional()
 }).strict().refine((value) => Object.keys(value).length > 0);
 export const renderAckSchema = z.object({ cardId: uuidSchema, revision: z.number().int().positive(), renderedAt: isoInstant }).strict();
+
+export const integrationItemKinds = ['reminder', 'alert', 'event', 'summary', 'list', 'observation'] as const;
+export const integrationItemPriorities = ['low', 'normal', 'high', 'urgent'] as const;
+export const integrationCapabilities = ['integration.items.write', 'integration.items.delete', 'integration.items.read'] as const;
+export const integrationUncertaintyLevels = ['low', 'medium', 'high', 'unknown'] as const;
+export const integrationItemCategories = ['school', 'childcare', 'activity', 'meal', 'travel', 'weather', 'home', 'other'] as const;
+
+export const integrationCapabilitySchema = z.enum(integrationCapabilities);
+const safeHttpUrlSchema = z.string().url().max(2048).refine((value) => {
+  try {
+    const url = new URL(value);
+    const credentialQueryKeys=new Set([
+      'token','accesstoken','refreshtoken','idtoken','apikey','key','auth','authorization','bearer','jwt','credential',
+      'password','secret','clientsecret','signature','sharedaccesssignature','sastoken','sig','session','cookie','securitytoken',
+      'sr','st','spr'
+    ]);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password
+      && [...url.searchParams.keys()].every((key)=>{
+        const compact=key.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g,'');
+        return !credentialQueryKeys.has(compact)&&!/^(?:xamz|xgoog)(?:signature|credential|securitytoken)$/.test(compact);
+      });
+  } catch { return false; }
+}, 'safe_http_url_required');
+const integrationExternalIdSchema = z.string().trim().min(1).max(160)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/, 'external_id_invalid');
+const integrationTargetsSchema = z.object({
+  household: z.boolean().default(false),
+  personIds: z.array(uuidSchema).max(50).default([]),
+  displayIds: z.array(uuidSchema).max(50).default([])
+}).strict().refine((value) => value.household || value.personIds.length > 0 || value.displayIds.length > 0, 'targets_required')
+  .refine((value) => new Set(value.personIds).size === value.personIds.length, 'duplicate_person_target')
+  .refine((value) => new Set(value.displayIds).size === value.displayIds.length, 'duplicate_display_target');
+const integrationSourceSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+  url: safeHttpUrlSchema.optional(),
+  links: z.array(z.object({
+    label: z.string().trim().min(1).max(120),
+    url: safeHttpUrlSchema
+  }).strict()).max(8).default([]),
+  observedAt: isoInstant,
+  generatedAt: isoInstant.optional(),
+  uncertainty: z.enum(integrationUncertaintyLevels)
+}).strict().refine((value) => new TextEncoder().encode(JSON.stringify(value)).byteLength <= 3500, 'source_too_large');
+const integrationMetadataSchema = z.object({
+  category: z.enum(integrationItemCategories).optional(),
+  icon: z.string().regex(/^[a-z0-9-]{1,40}$/).optional(),
+  location: z.string().trim().min(1).max(160).optional(),
+  allDay: z.boolean().optional(),
+  actionUrl: safeHttpUrlSchema.optional()
+}).strict().refine((value) => new TextEncoder().encode(JSON.stringify(value)).byteLength <= 3500, 'metadata_too_large');
+const integrationEntrySchema = z.object({
+  label: z.string().trim().min(1).max(200),
+  detail: z.string().trim().min(1).max(500).optional()
+}).strict();
+
+export const integrationItemUpsertSchema = z.object({
+  externalId: integrationExternalIdSchema,
+  expectedRevision: z.number().int().nonnegative(),
+  kind: z.enum(integrationItemKinds),
+  targets: integrationTargetsSchema,
+  title: z.string().trim().min(1).max(160),
+  body: z.string().trim().min(1).max(4000),
+  entries: z.array(integrationEntrySchema).max(40).default([]),
+  priority: z.enum(integrationItemPriorities).default('normal'),
+  publishAt: isoInstant.nullable().default(null),
+  startsAt: isoInstant.nullable().default(null),
+  endsAt: isoInstant.nullable().default(null),
+  expiresAt: isoInstant.nullable().default(null),
+  source: integrationSourceSchema,
+  metadata: integrationMetadataSchema.default({})
+}).strict().superRefine((value, context) => {
+  if (value.kind === 'list' && value.entries.length === 0) context.addIssue({ code: 'custom', path: ['entries'], message: 'list_entries_required' });
+  if (value.kind !== 'list' && value.entries.length > 0) context.addIssue({ code: 'custom', path: ['entries'], message: 'entries_only_supported_for_list' });
+  if (value.kind === 'event' && !value.startsAt) context.addIssue({ code: 'custom', path: ['startsAt'], message: 'event_start_required' });
+  if (value.source.generatedAt && new Date(value.source.generatedAt) < new Date(value.source.observedAt)) context.addIssue({ code: 'custom', path: ['source', 'generatedAt'], message: 'generated_before_observed' });
+  if (value.startsAt && value.endsAt && new Date(value.endsAt) < new Date(value.startsAt)) context.addIssue({ code: 'custom', path: ['endsAt'], message: 'ends_before_start' });
+  if (value.publishAt && value.expiresAt && new Date(value.expiresAt) <= new Date(value.publishAt)) context.addIssue({ code: 'custom', path: ['expiresAt'], message: 'expires_before_publish' });
+  if (value.startsAt && value.expiresAt && new Date(value.expiresAt) <= new Date(value.startsAt)) context.addIssue({ code: 'custom', path: ['expiresAt'], message: 'expires_before_start' });
+});
+
+export const integrationItemWithdrawSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const integrationConnectionCreateSchema = z.object({
+  name: nameSchema,
+  displayIds: z.array(uuidSchema).max(50).default([]),
+  credential: z.object({
+    name: nameSchema,
+    capabilities: z.array(integrationCapabilitySchema).min(1).max(integrationCapabilities.length)
+      .refine((value) => new Set(value).size === value.length, 'duplicate_capability'),
+    expiresAt: isoInstant.nullable().default(null)
+  }).strict().optional()
+}).strict();
+export const integrationConnectionUpdateSchema = z.object({
+  name: nameSchema.optional(),
+  displayIds: z.array(uuidSchema).max(50).optional(),
+  expectedRevision: z.number().int().positive()
+}).strict().refine((value) => value.name !== undefined || value.displayIds !== undefined, 'update_required');
+export const integrationConnectionRevisionSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const integrationCredentialCreateSchema = z.object({
+  name: nameSchema,
+  capabilities: z.array(integrationCapabilitySchema).min(1).max(integrationCapabilities.length)
+    .refine((value) => new Set(value).size === value.length, 'duplicate_capability'),
+  expiresAt: isoInstant.nullable().default(null),
+  expectedRevision: z.number().int().positive()
+}).strict();
+export const integrationCredentialRevokeSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
 
 export const aiOperations = ['generate', 'extract', 'classify', 'plan'] as const;
 export const aiModelTiers = ['routine', 'strong'] as const;

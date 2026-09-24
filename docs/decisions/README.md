@@ -23,3 +23,4 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0017](0017-durable-asynchronous-monitor-executions.md) | Persistent background monitor runs with bounded local-AI latency classes | Accepted for the M2.4 follow-up |
 | [0018](0018-synthetic-live-e2e-identity.md) | Registered synthetic household, normal authentication and execution-scoped deployed-runtime E2E | Accepted for implementation; live gate pending |
 | [0019](0019-daily-conditional-weather-rules.md) | Calendar-based daily weather rules with deterministic rain/wind evaluation | Accepted for implementation; live verification pending |
+| [0020](0020-external-intelligence-family-hub.md) | Scoped external intelligence connections and durable family-hub items | Accepted for M3 implementation |
