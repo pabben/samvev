@@ -48,6 +48,7 @@ export interface UpcomingBirthday {
 export interface HouseholdDashboard { upcomingBirthday: UpcomingBirthday | null }
 export interface HouseholdSettings { show_upcoming_birthday: boolean; revision: number }
 export interface Display {
+  external_items_enabled?: boolean;
   id: string;
   name: string;
   locale: Locale;
@@ -127,6 +128,7 @@ export interface Card {
   revision: number;
 }
 export interface Projection {
+  hub?: {people: import("./home-types").HubPerson[];items:import("./home-types").HubItem[]};
   display: {
     id: string;
     name: string;

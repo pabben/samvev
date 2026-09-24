@@ -46,3 +46,12 @@ export function currentCards(
           Date.parse(card.expiresAt) > now && Date.parse(card.publishAt) <= now,
       );
 }
+
+/** External content shares the exact authorization deadline and monotonic clock. */
+export function currentHub(projection: Projection, clock: CacheClock, monotonicNow: number) {
+ const now=serverTime(clock,monotonicNow);
+ if(now>=clock.deadline || !projection.hub)return undefined;
+ const items=projection.hub.items.filter(item=>(!item.publishAt||Date.parse(item.publishAt)<=now)&&(!item.expiresAt||Date.parse(item.expiresAt)>now));
+ const ids=new Set(items.flatMap(item=>item.targets.personIds));
+ return {items,people:projection.hub.people.filter(person=>ids.has(person.id))};
+}

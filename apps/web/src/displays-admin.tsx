@@ -100,6 +100,7 @@ export function DisplaysPanel({
                     </select>
                   </Field>
                 </div>
+                <Check label={t("integrationExternalDisplay")} checked={Boolean(d.external_items_enabled)} onChange={(v) => void run(() => update(d, {externalItemsEnabled:v}))} />
                 <Check
                   label={t("displayPrivacy")}
                   checked={d.privacy_mode}

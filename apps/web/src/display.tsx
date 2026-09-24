@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { FamilyHub } from "./family-hub";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { api, ApiError } from "./api";
 import type { Card, Projection } from "./types";
@@ -24,6 +25,7 @@ import {
 } from "./stream-health";
 import {
   currentCards,
+  currentHub,
   restoreCache,
   serverTime,
   type CacheClock,
@@ -348,6 +350,7 @@ function DisplayRuntime({
     projection?.display.id,
     tick,
   ]);
+  const hub = projection && clock.current ? currentHub(projection, clock.current, performance.now()) : undefined;
   const paired = useCallback(async () => {
     generation.current++;
     await refresh();
@@ -371,7 +374,7 @@ function DisplayRuntime({
     );
   return (
     <div
-      className={`display-page layout-${layout}`}
+      className={`display-page layout-${layout} ${hub ? "family-display-page" : ""}`}
       data-timezone={projection?.display.timezone ?? "UTC"}
       data-cache-state={
         projection ? "current" : cacheExpired ? "expired" : "unavailable"
@@ -411,7 +414,7 @@ function DisplayRuntime({
         </button>
       </header>
       <main className="display-main">
-        <div className="display-section-title">
+        {!hub && <div className="display-section-title">
           <div>
             <p className="eyebrow">{t("displayNow")}</p>
             <h1>{t("displayGreeting")}</h1>
@@ -433,7 +436,7 @@ function DisplayRuntime({
                   : "offline",
             )}
           </span>
-        </div>
+        </div>}
         {!online && (
           <div className="notice offline" role="status">
             <Icon name="offline" />
@@ -452,7 +455,7 @@ function DisplayRuntime({
         {projection && !projection.display.timezone && (
           <p className="field-hint">{t("timezoneFallback")}</p>
         )}
-        {cards.length ? (
+        {hub ? <FamilyHub display people={hub.people} items={hub.items} messages={cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision}))} zone={zone} householdName={projection!.display.householdName} now={clock.current ? serverTime(clock.current, performance.now()) : Date.now()} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/> : cards.length ? (
           <div className="display-cards">
             {layout === "board"
               ? cards.map((card, i) => (
@@ -512,7 +515,7 @@ function DisplayRuntime({
       <footer className="display-footer">
         <span>
           <Icon name="shield" />
-          {t("allowedContent")}
+          {t(hub ? "hubAllowedContent" : "allowedContent")}
         </span>
         <span>
           {lastUpdated
@@ -531,7 +534,7 @@ function DisplayRuntime({
             {t("displayTheme")} · {t("displayLocale")}
           </p>
           <p>{t("restrictedNotice")}</p>
-          <label className="field">
+          {!hub && <label className="field">
             <span>{t("displayLayout")}</span>
             <select
               value={layout}
@@ -546,7 +549,7 @@ function DisplayRuntime({
               <option value="board">{t("board")}</option>
               <option value="timeline">{t("timeline")}</option>
             </select>
-          </label>
+          </label>}
           <button
             className="button"
             onClick={() => {

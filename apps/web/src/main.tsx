@@ -25,6 +25,7 @@ import { Workbench } from "./workbench";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 import "../../../packages/design-tokens/tokens.css";
 import "./style.css";
+import "./home.css";
 function App() {
   const [prefs, setPrefs, hadStoredPreferences] = usePreferences();
   const [me, setMe] = useState<Me | null>(null);

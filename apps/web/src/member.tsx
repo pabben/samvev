@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { Home } from "./home";
+import { IntegrationsPanel } from "./integrations";
 import { api } from "./api";
 import type { Display, HouseholdDashboard, HouseholdSettings, Me, Message, Person } from "./types";
 import {
@@ -25,7 +27,7 @@ import { AiSettingsPanel } from "./ai-settings";
 import { MonitorsPanel } from "./monitors";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 
-type MemberTab = "messages" | "people" | "displays" | "monitors" | "ai";
+type MemberTab = "home" | "more" | "integrations" | "messages" | "people" | "displays" | "monitors" | "ai";
 
 export function MemberApp({
   me,
@@ -44,7 +46,7 @@ export function MemberApp({
   const [household, setHousehold] = useState(me.memberships[0]!.household_id);
   const member = me.memberships.find((m) => m.household_id === household)!;
   const base = `/households/${household}`;
-  const [tab, setTab] = useState<MemberTab>("messages");
+  const [tab, setTab] = useState<MemberTab>("home");
   const [lane, setLane] = useState<"now" | "planned" | "history">("now");
   const [people, setPeople] = useState<Person[]>([]);
   const [displays, setDisplays] = useState<Display[]>([]);
@@ -120,13 +122,10 @@ export function MemberApp({
   );
   const can = (cap: string) => member.capabilities.includes(cap);
   const navigation: MemberTab[] = [
-    "messages",
-    "people",
-    "displays",
-    ...(can("household.manage") ? (["monitors", "ai"] as const) : []),
+    "home", "messages", "people", "more",
   ];
   const goHome = () => {
-    setTab("messages");
+    setTab("home");
     setLane("now");
     setCompose(undefined);
     setWithdraw(null);
@@ -173,7 +172,7 @@ export function MemberApp({
             >
               <Icon
                 name={
-                  key === "messages"
+                  key === "home" ? "home" : key === "more" ? "more" : key === "messages"
                     ? "message"
                     : key === "displays"
                       ? "display"
@@ -265,7 +264,13 @@ export function MemberApp({
           )}
           <ErrorNotice error={error} />
           <ErrorNotice error={loadError} />
-          {tab === "monitors" && can("household.manage") ? (
+          {tab === "home" ? (
+            <Home key={household} householdId={household} onSessionChange={onSessionChange} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
+          ) : tab === "integrations" && can("household.manage") ? (
+            <IntegrationsPanel key={household} member={member} displays={displays}/>
+          ) : tab === "more" ? (
+            <><section className="section-heading"><div><p className="eyebrow">Samvev</p><h1>{t("more")}</h1><p>{t("hubMoreBody")}</p></div></section><div className="hub-more-grid"><button className="surface-card hub-more-card" onClick={() => setTab("displays")}><Icon name="display" size={30}/><h2>{t("displays")}</h2><p>{t("displaysBody")}</p></button>{can("household.manage") && <><button className="surface-card hub-more-card" onClick={() => setTab("integrations")}><Icon name="spark" size={30}/><h2>{t("integrations")}</h2><p>{t("integrationBody")}</p></button><section className="surface-card hub-experimental"><p className="eyebrow">{t("hubExperimental")}</p><button className="button" onClick={() => setTab("monitors")}>{t("monitors")}</button><button className="button" onClick={() => setTab("ai")}>{t("ai")}</button></section></>}</div></>
+          ) : tab === "monitors" && can("household.manage") ? (
             <MonitorsPanel householdId={household} timezone={member.timezone} people={people} displays={displays}/>
           ) : tab === "ai" && can("household.manage") ? (
             <AiSettingsPanel
