@@ -1,9 +1,10 @@
 # M1 implementation status
 
-## M3 local development — 2026-09-24
+## M3 local development — 2026-09-25
 
 Current branch: `feat/m3-family-hub`. Implementation, design iteration and full
-local QA are complete; final independent release-gate review is pending. No PR,
+local QA are complete. **Independent final gate: PASS at `80d0df0`, with no
+blocking findings.** Final documentation records that result only. No PR,
 push, merge, release, deployment or GitHub Actions run was performed.
 
 M3 adds scoped integration credentials, six generic item types, additive

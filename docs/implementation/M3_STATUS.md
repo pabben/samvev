@@ -1,7 +1,8 @@
 # M3 Family Hub — local completion status
 
 Branch: `feat/m3-family-hub`. Implementation, visual refinement and full local QA
-are complete. Final independent release-gate review is pending. No PR, push,
+are complete. **Independent release gate: PASS at `80d0df0` (2026-09-25), no
+blocking findings.** The final documentation commit only records that result. No PR, push,
 merge, tag, release, deployment, immutable release build or Actions run occurred.
 
 ## Implemented architecture and behavior
@@ -72,6 +73,7 @@ See [M3_QA_REPORT.md](M3_QA_REPORT.md) for commands, logs and detailed scope.
 | Database | Fresh001–018/rerun; 016→017 preserves legacy messages; populated017→018 preserves item with unknown locale |
 | Security | Four findings fixed; independent re-review PASS; expanded child/scope/rotation/revocation/SSE tests pass |
 | Requirements/UX | PASS after locale addition and screenshot-based refinements |
+| Independent final gate | PASS: 9 focused tests independently rerun, read-only SQL/health/Docker inspection and six final screenshots reviewed |
 
 The coordinator independently checked final logs/counts, migration ledger and
 preserved-data evidence, DCO sign-offs, branch/worktree and actual screenshots.
@@ -92,6 +94,8 @@ All checkpoints use DCO sign-off:
 - 16cac35: producer-language declaration and lost-access clearing.
 - 175a20b: unavailable administrator-role UI guard.
 - 1a32cdf: expanded API isolation and full regression QA.
+- 80d0df0: complete local QA/status documentation; independently gated code state.
+- Final documentation checkpoint: records the gate PASS without code changes.
 
 Changed areas: services/api source and migrations017–018; packages/contracts;
 packages/design-tokens/tokens.css; apps/web Home/member/display/integration/person
@@ -118,8 +122,8 @@ schema and tombstones; use a verified pre-migration backup for a full DB rollbac
 No destructive down migration exists. Withdrawn payload retention needs a future
 policy; M3 retains tombstones. Offline revocation remains bounded by 15 minutes.
 
-Rounded disk measurements: filesystem used15GiB at initial inspection →26GiB after
-local Docker/browser/test setup; available77→67GiB. Repository47→89MiB including
+Rounded disk measurements: filesystem used 15 GiB at initial inspection → 26 GiB after
+local Docker/browser/test setup; available 77 → 67 GiB. Repository 47 → 89 MiB including
 ignored evidence. These are filesystem measurements, not exclusive Docker layer
 accounting. Only samvev-m1 Docker resources were operated. Accidentally started
 regular dev app/worker/db were stopped; isolated QA/test and synthetic legacy
