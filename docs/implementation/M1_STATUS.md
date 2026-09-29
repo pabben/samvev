@@ -1,5 +1,27 @@
 # M1 implementation status
 
+## M3 design-review mailbox — 2026-09-29
+
+The local review routine is documented in
+[the design-review README](../design/review/README.md). It uses the existing
+synthetic QA environment, publishes real member Home screenshots and a source-SHA
+manifest to `docs/design/review/latest/`, and archives previous successful rounds.
+The mailbox `NEXT_CODEX_PROMPT.md` requires explicit user invocation; it is never
+automatically executed. This is QA/documentation tooling, with no UI changes or
+database migration. TV and Shelly dimensions capture member Home, not the paired
+display projection or physical hardware.
+
+First round `20260929230125-390f6a6a-76ac151b` completed: 10 light/dark viewport
+captures plus four mobile/desktop full-page images. The source UI SHA is
+`390f6a6a6027e257a5250cfed1cc0517b6974bd3`; the later evidence commit contains the
+new routine. All 14 images were visually inspected as actual Family Hub UI,
+without login/error screens. Manifest hashes and PNG dimensions were independently
+verified. Shell/Node syntax, diff checks and three archive/rollback tests passed.
+Only a signed-off commit and push to `feat/m3-family-hub` are authorized; no PR,
+Actions dispatch, merge, release or deployment is authorized. No secrets or
+private data were introduced; there is no migration and rollback is a Git revert
+of the review tooling/evidence.
+
 ## M3 local development — 2026-09-25
 
 Current branch: `feat/m3-family-hub`. Implementation, design iteration and full
