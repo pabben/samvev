@@ -30,6 +30,8 @@ export const en = {
   hubMedium: "Medium",
   hubHigh: "High",
   hubUnknown: "Unknown",
+  hubFamilyHeading: 'Family',
+  hubForYou: 'For you',
   hubUpcoming: "Coming up",
   hubExperimental: "Experimental · secondary features",
   hubMoreBody: "Your household, displays and connections.",

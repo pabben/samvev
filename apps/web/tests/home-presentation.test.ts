@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {currentItems,dayEvents,personItems,importantItems} from '../src/home-presentation';
+import {currentItems,dayEvents,personItems,importantItems,hubSectionOrder} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
@@ -32,4 +32,22 @@ test('external offline cache removes expired items and associated people before 
  projection.hub!.items[0]!.expiresAt=null;
  assert.equal(currentHub(projection,clock,899050)?.items.length,1);
  assert.equal(currentHub(projection,clock,900050),undefined);
+});
+
+test('published past events remain personal information without being presented as upcoming',()=>{
+ const past={...item,startsAt:'2026-03-27T12:00:00Z'};
+ assert.equal(personItems(currentItems([past],now),'p')[0],past);
+ assert.deepEqual(dayEvents([past],now,'Europe/Oslo'),[]);
+});
+
+
+test('responsive compositions contain each stable section once, with communication before secondary widgets',()=>{
+ for(const dark of [false,true])for(const compact of [false,true]){
+  const order=hubSectionOrder(dark,compact);
+  assert.equal(new Set(order).size,6);
+  assert.deepEqual([...order].sort(),['briefs','important','messages','people','today','tomorrow']);
+  assert.ok(order.indexOf('messages')<order.indexOf('briefs'));
+  if(compact){assert.ok(order.indexOf('today')<order.indexOf('people'));assert.ok(order.indexOf('messages')<order.indexOf('people'));}
+ }
+ assert.deepEqual(hubSectionOrder(true,false).slice(0,4),['today','tomorrow','people','important']);
 });

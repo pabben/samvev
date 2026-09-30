@@ -31,6 +31,8 @@ export const nb: Record<TranslationKey, string> = {
   hubMedium: "Middels",
   hubHigh: "Høy",
   hubUnknown: "Ukjent",
+  hubFamilyHeading: 'Familien',
+  hubForYou: 'Til deg',
   hubUpcoming: "Kommende",
   hubExperimental: "Eksperimentelt · tilleggsfunksjoner",
   hubMoreBody: "Husstanden, skjermene og tilkoblingene dine.",

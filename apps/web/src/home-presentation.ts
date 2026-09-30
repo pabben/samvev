@@ -14,3 +14,10 @@ export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
 }
 export function personItems(items:HubItem[],personId:string) { return items.filter(i=>i.targets.personIds.includes(personId)); }
 export function importantItems(items:HubItem[]) { return items.filter(i=>i.kind==='alert'||i.kind==='reminder'||['high','urgent'].includes(i.priority)); }
+
+// Stable keys preserve open details when theme or viewport changes the order.
+export function hubSectionOrder(dark:boolean, compact:boolean):string[] {
+  if (compact) return ['important','today','tomorrow','messages','people','briefs'];
+  return dark ? ['today','tomorrow','people','important','messages','briefs']
+    : ['people','today','tomorrow','important','messages','briefs'];
+}

@@ -4,12 +4,15 @@ import AxeBuilder from '@axe-core/playwright';
 import {mkdir,writeFile} from 'node:fs/promises';
 import {randomBytes,createHash} from 'node:crypto';
 const baseURL=process.env.BASE_URL??'http://qa-app:4173';
-if(!['qa-app','127.0.0.1','localhost'].includes(new URL(baseURL).hostname))throw Error('M3 harness requires isolated local QA origin');
+if(!['http://qa-app:4173','http://127.0.0.1:4173','http://localhost:4173','http://192.168.0.220:4173'].includes(baseURL))throw Error('M3 harness requires an exact isolated local QA origin');
 const out=process.env.M3_ARTIFACT_DIR??'docs/implementation/artifacts/m3';await mkdir(out,{recursive:true});
 const browser=await chromium.launch();const context=await browser.newContext({baseURL,reducedMotion:'reduce',viewport:{width:1440,height:1000}});const screenContext=await browser.newContext({baseURL,reducedMotion:'reduce',viewport:{width:1920,height:1080}});
+const blockedRequests=[];
+for(const ctx of [context,screenContext])await ctx.route('**/*',route=>{const url=new URL(route.request().url());if(url.origin!==baseURL){blockedRequests.push(url.origin);return route.abort()}return route.continue()});
 const checks=[];const errors=[];const record=t=>{checks.push(t);console.log(`PASS ${t}`)};
 const req=async(ctx,path,method='GET',data,headers={})=>{const r=await ctx.request.fetch(`/api/v1${path}`,{method,data,headers});expect(r.ok(),`${method} ${path}: ${await r.text()}`).toBeTruthy();return r.status()===204?null:r.json()};
 try {
+ expect((await req(context,'/setup/status')).demo,'M3 harness requires synthetic demo mode before mutations').toBe(true);
  const login=await req(context,'/auth/login','POST',{email:'admin@demo.invalid',password:'Synthetic-demo-pass-42'});
  const me=await req(context,'/me');const member=me.memberships[0];const base=`/households/${member.household_id}`;const csrf={'X-CSRF-Token':me.csrfToken};
  const admin=(path,method='GET',data)=>req(context,path,method,data,csrf);
@@ -97,5 +100,6 @@ try {
  const card=page.locator('.integration-card').filter({has:page.getByRole('heading',{name:uiName,exact:true})});await card.getByRole('button',{name:'Revoke connection',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Revoke access',exact:true}).click();await expect(card).toContainText('Access revoked');record('integration UI scoped credential creation, one-time reveal, no local token persistence and revoke');
  // Expiring item must leave the offline projection before the 15-minute cache expires.
  await machine('/integrations/items','POST',payload('offline-expiry','reminder','Kortlevd syntetisk huskelapp','Forsvinner også uten nett.',[],{expiresAt:new Date(Date.now()+8000).toISOString()}));await expect(screen.getByText('Kortlevd syntetisk huskelapp',{exact:true})).toBeVisible();await screenContext.setOffline(true);await expect(screen.getByText('Kortlevd syntetisk huskelapp',{exact:true})).toHaveCount(0,{timeout:15000});await screenContext.setOffline(false);record('external item expires while offline before authorization-cache deadline');
+ expect(blockedRequests,'no browser requests outside the selected QA origin').toEqual([]);
  expect(errors).toEqual([]);await writeFile(`${out}/results.json`,JSON.stringify({executedAt:new Date().toISOString(),checks,errors,screenshots:15},null,2));
 } finally {await context.close();await screenContext.close();await browser.close()}

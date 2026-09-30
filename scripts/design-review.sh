@@ -28,12 +28,15 @@ grep -qx 'POSTGRES_DB=samvev_qa' <<<"$db_env"
 grep -qx 'POSTGRES_USER=samvev_qa' <<<"$db_env"
 grep -qx 'POSTGRES_PASSWORD=synthetic-qa-data-only' <<<"$db_env"
 grep -qx 'samvev-m1-qa-postgres-data' <<<"$db_mount"
+base_url="$(sed -n 's/^SAMVEV_PUBLIC_ORIGIN=//p' <<<"$app_env")"
+case "$base_url" in
+  http://qa-app:4173|http://192.168.0.220:4173) ;;
+  *) echo "Refusing non-local QA public origin: $base_url" >&2; exit 2 ;;
+esac
 
-# The browser service is on the isolated samvev-m1 network. The capture module
-# has no URL argument and always uses http://qa-app:4173.
-source_sha="$(git rev-parse HEAD)"
+proof="$(node scripts/design-review-provenance.mjs verify)"
+source_sha="$(node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).sourceSha))' <<<"$proof")"
+working_tree_dirty="$(node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).workingTreeDirty))' <<<"$proof")"
 [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]] || { echo 'Invalid source SHA.' >&2; exit 2; }
-working_tree_dirty=false
-[[ -n "$(git status --porcelain)" ]] && working_tree_dirty=true
 docker compose --project-directory "$ROOT" --env-file "$ROOT/.env.example" -p samvev-m1 -f "$ROOT/compose.yaml" --profile qa \
-  run --rm --no-deps -e DESIGN_REVIEW_SOURCE_SHA="$source_sha" -e DESIGN_REVIEW_WORKING_TREE_DIRTY="$working_tree_dirty" qa-browser node scripts/design-review.mjs
+  run --rm --no-deps -e DESIGN_REVIEW_SOURCE_SHA="$source_sha" -e DESIGN_REVIEW_WORKING_TREE_DIRTY="$working_tree_dirty" -e DESIGN_REVIEW_PROOF_PATH=.local/design-review/build-provenance.json -e DESIGN_REVIEW_BASE_URL="$base_url" qa-browser node scripts/design-review.mjs

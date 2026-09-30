@@ -9,7 +9,8 @@ import { randomUUID } from 'node:crypto';
 import { publishRound } from './design-review-publication.mjs';
 
 const root = process.cwd();
-const baseURL = 'http://qa-app:4173';
+const baseURL = process.env.DESIGN_REVIEW_BASE_URL;
+if (!['http://qa-app:4173', 'http://192.168.0.220:4173'].includes(baseURL ?? '')) throw new Error('DESIGN_REVIEW_BASE_URL must be the configured isolated QA origin.');
 const reviewRoot = resolve(root, 'docs/design/review');
 const latest = resolve(reviewRoot, 'latest');
 const archive = resolve(reviewRoot, 'archive');
@@ -19,6 +20,10 @@ const dirtyValue = process.env.DESIGN_REVIEW_WORKING_TREE_DIRTY;
 if (!/^[a-f0-9]{40}$/.test(sourceSha ?? '')) throw new Error('DESIGN_REVIEW_SOURCE_SHA must be a commit SHA from the host wrapper.');
 if (!['true', 'false'].includes(dirtyValue ?? '')) throw new Error('DESIGN_REVIEW_WORKING_TREE_DIRTY must be true or false from the host wrapper.');
 const workingTreeDirty = dirtyValue === 'true';
+const proofFile = resolve(root, process.env.DESIGN_REVIEW_PROOF_PATH ?? '');
+if (proofFile !== resolve(root, '.local/design-review/build-provenance.json')) throw new Error('Unexpected provenance path.');
+const proof = JSON.parse(await readFile(proofFile, 'utf8'));
+if (proof.sourceSha !== sourceSha || !proof.distHashes || typeof proof.inputFingerprint !== 'string') throw new Error('Capture provenance does not match canonical source.');
 const now = new Date();
 const timestamp = now.toISOString();
 const roundId = `${timestamp.replace(/[-:.TZ]/g, '').slice(0, 14)}-${sourceSha.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
@@ -35,6 +40,20 @@ const json = async response => {
   expect(response.ok(), `API response ${response.status()} from ${response.url()}`).toBeTruthy();
   return response.status() === 204 ? null : response.json();
 };
+async function verifyServed(context) {
+  const index = await context.request.get('/', { maxRedirects: 0 });
+  expect(index.ok(), 'served index').toBeTruthy();
+  const indexBody = await index.body();
+  expect(sha256(indexBody), 'served index hash').toBe(proof.distHashes['index.html']);
+  const urls = [...indexBody.toString('utf8').matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(match => match[1]);
+  expect(urls.length, 'served index assets').toBeGreaterThan(0);
+  for (const url of urls) {
+    const response = await context.request.get(url, { maxRedirects: 0 });
+    expect(response.ok(), `served ${url}`).toBeTruthy();
+    expect(sha256(await response.body()), `served hash ${url}`).toBe(proof.distHashes[url.slice(1)]);
+  }
+  return new Set(urls);
+}
 
 async function assertFamilyHub(page, verification, title, theme) {
   await expect(page).toHaveURL(`${baseURL}/`);
@@ -70,6 +89,7 @@ try {
     return route.continue();
   });
   const api = async (path, method = 'GET', data, headers = {}) => json(await context.request.fetch(`/api/v1${path}`, { method, data, headers, maxRedirects: 0 }));
+  const expectedAssets = await verifyServed(context);
   const setup = await api('/setup/status');
   expect(setup.demo, 'QA must be in synthetic demo mode').toBe(true);
   const login = await api('/auth/login', 'POST', { email: 'admin@demo.invalid', password: 'Synthetic-demo-pass-42' });
@@ -87,9 +107,12 @@ try {
   const errors = [];
   await api('/me/preferences', 'PATCH', { locale: 'nb', theme: 'light' }, { 'X-CSRF-Token': original.csrf });
   const page = await context.newPage();
+  const loadedAssets = new Set();
+  page.on('request', request => { const url = new URL(request.url()); if (url.origin === baseURL && url.pathname.startsWith('/assets/')) loadedAssets.add(url.pathname); });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await assertFamilyHub(page, verification, proofTitle, 'light');
+  for (const asset of expectedAssets) expect(loadedAssets, `page loaded ${asset}`).toContain(asset);
   for (const theme of ['light', 'dark']) {
     await api('/me/preferences', 'PATCH', { locale: 'nb', theme }, { 'X-CSRF-Token': original.csrf });
     await page.reload();
@@ -111,6 +134,7 @@ try {
   }
   expect(errors, `browser page errors: ${errors.join('; ')}`).toEqual([]);
   expect(blocked, `external browser requests: ${blocked.join('; ')}`).toEqual([]);
+  await verifyServed(context);
   for (const image of screenshots) image.sha256 = sha256(await readFile(resolve(stage, image.filename)));
   await api('/me/preferences', 'PATCH', { locale: original.locale, theme: original.theme }, { 'X-CSRF-Token': original.csrf });
   const restored = await api('/me');
@@ -119,7 +143,7 @@ try {
   await api('/auth/logout', 'POST', undefined, { 'X-CSRF-Token': sessionCsrf });
   sessionActive = false;
   original = undefined;
-  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, source: { origin: baseURL, account: 'admin@demo.invalid', syntheticDemo: true }, screenshots }, null, 2)}\n`);
+  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...expectedAssets] }, source: { origin: baseURL, account: 'admin@demo.invalid', syntheticDemo: true }, screenshots }, null, 2)}\n`);
   await mkdir(archive, { recursive: true });
   await publishRound({ stage, latest, archive });
   console.log(`Published ${screenshots.length} verified screenshots to docs/design/review/latest (round ${roundId}).`);

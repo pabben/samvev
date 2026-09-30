@@ -135,7 +135,7 @@ export function MemberApp({
     requestAnimationFrame(() => document.getElementById("main")?.focus());
   };
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${tab === "home" ? "home-shell" : ""}`}>
       <a className="skip-link" href="#main">
         {t("skip")}
       </a>
@@ -194,7 +194,7 @@ export function MemberApp({
             <Icon name="leaf" size={32} />
             <p>{t("tagline")}</p>
           </div>
-          <button className="account-button" onClick={() => setSettings(true)}>
+          <button className="account-button" aria-label={t("preferences")} onClick={() => setSettings(true)}>
             <Avatar name={member.display_name} />
             <span>
               <strong>{member.display_name}</strong>
@@ -206,8 +206,8 @@ export function MemberApp({
       </aside>
       <div className="main-wrap">
         <header className="member-topbar">
-          <span className="topbar-title">{t(tab)}</span>
-          <span className="topbar-date">
+          {tab === "home" ? <Brand onHome={goHome} /> : <span className="topbar-title">{t(tab)}</span>}
+          <span className="topbar-date" hidden={tab === "home"}>
             {formatDate(Date.now(), locale, member.timezone, {
               weekday: "long",
               day: "numeric",

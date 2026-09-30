@@ -3,12 +3,26 @@
 Run a new local review round from the repository root:
 
 ```bash
+bash scripts/design-review-build.sh
 bash scripts/design-review.sh
 ```
 
+`design-review-build.sh` is an explicit checkpoint build. It uses the committed
+canonical checkout at `.local/design-review-publish`, verifies every tracked
+build input mounted from this worktree against that checkout's Git blobs before
+and after building, and records hashes for `dist/index.html` and every built
+asset in ignored `.local/design-review/build-provenance.json`. It builds only
+the existing healthy `qa-app` container's web workspace; it does not restart,
+remount, reset, or change QA data. `design-review.sh` never builds: it rejects a
+missing/stale proof, changed build input, changed local bundle, or served index/
+asset whose SHA-256 differs from the proof. The manifest records the source
+commit, input fingerprint, artifact hashes, and served-asset verification.
+
 The command only uses the running, isolated `samvev-m1` `qa-db`, `qa-worker`,
 `qa-app`, and a one-shot `qa-browser`. It captures the real synthetic member
-Home at `http://qa-app:4173`; it does not start services, add fixtures, change
+Home using the existing `qa-app` `SAMVEV_PUBLIC_ORIGIN`: only
+`http://qa-app:4173` or the trusted local LAN preview `http://192.168.0.220:4173`
+are accepted. It does not start services, add fixtures, change
 product content, use a remote origin, commit, push, create a PR, or trigger
 GitHub Actions. It checks demo mode, synthetic login, populated Home people and
 items, the expected Family Hub UI, themes, page errors, and outbound browser
@@ -67,10 +81,20 @@ After reviewing a new round, stage the validated review files, commit with DCO
 sign-off, and explicitly push only the feature branch:
 
 ```bash
-git add docs/design/review scripts/design-review.sh scripts/design-review.mjs scripts/design-review-publication.mjs scripts/design-review-publication.test.mjs
+git add docs/design/review scripts/design-review.sh scripts/design-review-build.sh scripts/design-review.mjs scripts/design-review-provenance.mjs scripts/design-review-provenance.test.mjs scripts/design-review-publication.mjs scripts/design-review-publication.test.mjs
 git commit -s -m "docs(design): add M3 review round"
 git push origin feat/m3-family-hub
 ```
 
 Those are manual operator steps; this command does not commit, push, open a PR,
 or trigger Actions.
+
+For a new UI round, first copy all intended source and review-pipeline changes
+into the canonical publishing checkout and create its DCO-signed source
+checkpoint. Then make the root build inputs byte-identical to that checkpoint,
+run the explicit build command above, run capture, inspect the committed image
+links, and create the later evidence commit. The source SHA identifies rendered
+code; the evidence commit only carries screenshots. The routine reads canonical
+checkout metadata with a command-scoped Git work tree and records an honest
+working-tree-dirty flag; it does not repoint or modify the protected root Git
+metadata.
