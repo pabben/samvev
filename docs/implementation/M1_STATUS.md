@@ -1,5 +1,23 @@
 # M1 implementation status
 
+## M3 design round 2 — 2026-09-30
+
+The explicitly activated mailbox `127a3b7` is implemented: independent low-height
+panels, earlier reminders/messages, real message/support composition, compact
+mobile agenda, original local dusk landscape and verified photo-backed contrast.
+The synthetic LAN QA UI accepts literal `admin/admin` through ordinary hash
+verification. Its guarded idempotent credential procedure preserves other accounts
+and household data; ordinary email and strong new-password rules are unchanged.
+
+Signed source `99185975a758548dacbe11210834c9fbd9a06c55`: Node 24 web check,
+28/28 web tests, 4/4 QA credential tests, 6/6 policy/core tests, 7/7 tooling tests;
+focused browser and one canonical M3 run (10/10 groups) pass. All 14 final
+screenshots are visually/hash verified, round `20260930035832-99185975-5a933bde`;
+post-capture literal admin login and UI logout pass. Review evidence is prepared
+for signed feature-branch publication. Full evidence
+and limits are recorded in [the round 2 report](../design/review/ROUND_2_REPORT.md).
+Protected root Git metadata and isolated running QA data are preserved.
+
 ## M3 design round 1 — 2026-09-30
 
 The explicitly activated [design mailbox](../design/review/NEXT_CODEX_PROMPT.md)
