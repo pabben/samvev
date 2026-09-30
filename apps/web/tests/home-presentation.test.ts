@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {currentItems,dayEvents,personItems,importantItems,hubSectionOrder} from '../src/home-presentation';
+import {currentItems,dayEvents,personItems,importantItems,hubSectionOrder,splitBriefs} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
@@ -44,10 +44,32 @@ test('published past events remain personal information without being presented 
 test('responsive compositions contain each stable section once, with communication before secondary widgets',()=>{
  for(const dark of [false,true])for(const compact of [false,true]){
   const order=hubSectionOrder(dark,compact);
-  assert.equal(new Set(order).size,6);
-  assert.deepEqual([...order].sort(),['briefs','important','messages','people','today','tomorrow']);
-  assert.ok(order.indexOf('messages')<order.indexOf('briefs'));
+  assert.equal(new Set(order).size,7);
+  assert.deepEqual([...order].sort(),['briefs','companion','important','messages','people','today','tomorrow']);
+  assert.ok(order.indexOf('messages')<order.indexOf('companion'));
+  assert.ok(order.indexOf('companion')<order.indexOf('briefs'));
   if(compact){assert.ok(order.indexOf('today')<order.indexOf('people'));assert.ok(order.indexOf('messages')<order.indexOf('people'));}
  }
+ assert.deepEqual(hubSectionOrder(false,false).slice(0,4),['people','today','important','tomorrow']);
  assert.deepEqual(hubSectionOrder(true,false).slice(0,4),['today','tomorrow','people','important']);
+});
+
+
+test('the message companion uses a real observation once and preserves remaining source order',()=>{
+ const summary={...item,id:'summary',kind:'summary' as const};
+ const list={...item,id:'list',kind:'list' as const};
+ const observation={...item,id:'observation',kind:'observation' as const};
+ const input=[summary,list,observation];
+ const result=splitBriefs(input);
+ assert.equal(result.companion,observation);
+ assert.deepEqual(result.remaining,[summary,list]);
+ assert.deepEqual(input,[summary,list,observation]);
+ assert.equal(new Set([result.companion,...result.remaining].map(i=>i.id)).size,input.length);
+});
+test('no observation falls back to a real support item; an empty feed creates no companion',()=>{
+ const summary={...item,id:'summary',kind:'summary' as const};
+ const list={...item,id:'list',kind:'list' as const};
+ assert.deepEqual(splitBriefs([summary,list]),{companion:summary,remaining:[list]});
+ assert.deepEqual(splitBriefs([summary]),{companion:summary,remaining:[]});
+ assert.deepEqual(splitBriefs([]),{companion:undefined,remaining:[]});
 });

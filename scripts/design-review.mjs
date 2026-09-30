@@ -45,8 +45,8 @@ async function verifyServed(context) {
   expect(index.ok(), 'served index').toBeTruthy();
   const indexBody = await index.body();
   expect(sha256(indexBody), 'served index hash').toBe(proof.distHashes['index.html']);
-  const urls = [...indexBody.toString('utf8').matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map(match => match[1]);
-  expect(urls.length, 'served index assets').toBeGreaterThan(0);
+  const urls = Object.keys(proof.distHashes).filter(path => path.startsWith('assets/')).map(path => `/${path}`);
+  expect(urls.length, 'built assets in provenance').toBeGreaterThan(0);
   for (const url of urls) {
     const response = await context.request.get(url, { maxRedirects: 0 });
     expect(response.ok(), `served ${url}`).toBeTruthy();
@@ -92,7 +92,7 @@ try {
   const expectedAssets = await verifyServed(context);
   const setup = await api('/setup/status');
   expect(setup.demo, 'QA must be in synthetic demo mode').toBe(true);
-  const login = await api('/auth/login', 'POST', { email: 'admin@demo.invalid', password: 'Synthetic-demo-pass-42' });
+  const login = await api('/auth/login', 'POST', { email: 'admin@demo.invalid', password: 'admin' });
   sessionActive = true;
   sessionCsrf = login.csrfToken;
   const me = await api('/me');
@@ -112,7 +112,6 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await assertFamilyHub(page, verification, proofTitle, 'light');
-  for (const asset of expectedAssets) expect(loadedAssets, `page loaded ${asset}`).toContain(asset);
   for (const theme of ['light', 'dark']) {
     await api('/me/preferences', 'PATCH', { locale: 'nb', theme }, { 'X-CSRF-Token': original.csrf });
     await page.reload();
@@ -132,6 +131,7 @@ try {
       screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: true, uiVerification: verification });
     }
   }
+  for (const asset of expectedAssets) expect(loadedAssets, `page loaded ${asset}`).toContain(asset);
   expect(errors, `browser page errors: ${errors.join('; ')}`).toEqual([]);
   expect(blocked, `external browser requests: ${blocked.join('; ')}`).toEqual([]);
   await verifyServed(context);
@@ -143,7 +143,7 @@ try {
   await api('/auth/logout', 'POST', undefined, { 'X-CSRF-Token': sessionCsrf });
   sessionActive = false;
   original = undefined;
-  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...expectedAssets] }, source: { origin: baseURL, account: 'admin@demo.invalid', syntheticDemo: true }, screenshots }, null, 2)}\n`);
+  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...expectedAssets] }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
   await mkdir(archive, { recursive: true });
   await publishRound({ stage, latest, archive });
   console.log(`Published ${screenshots.length} verified screenshots to docs/design/review/latest (round ${roundId}).`);

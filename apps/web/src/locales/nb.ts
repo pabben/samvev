@@ -3,6 +3,10 @@ export const nb: Record<TranslationKey, string> = {
   home: "Hjem",
   more: "Mer",
   integrations: "Integrasjoner",
+  hubMorningCompact: "God morgen!",
+  hubDayCompact: "Hei, familien!",
+  hubEveningCompact: "God kveld!",
+  hubPersonDetails: "Åpne alle {count} punkter for {name}",
   hubMorning: "God morgen, alle sammen.",
   hubDay: "Hei, alle sammen.",
   hubEvening: "God kveld, alle sammen.",
@@ -104,9 +108,10 @@ export const nb: Record<TranslationKey, string> = {
     "Oppretter en eksempelhusstand med fiktive personer og ekte, fungerende beskjeder.",
   demoBadge: "Syntetisk demo · fiktive personer og beskjeder",
   demoAccounts: "Demoinnlogginger",
-  demoPassword: "Demopassord: Synthetic-demo-pass-42",
+  demoPassword:
+    "Klargjort QA-demo: brukernavn admin, passord admin. Andre demokontoer bruker Synthetic-demo-pass-42.",
   demoNote:
-    "Bruk admin@demo.invalid, member@demo.invalid eller limited@demo.invalid.",
+    "Brukernavnet admin peker til den interne testkontoen admin@demo.invalid. Andre innlogginger er member@demo.invalid og limited@demo.invalid.",
   localNotice:
     "Husstandens eget, selvdriftede sted. Beskjeder og kontoer lagres på denne installasjonen.",
   privacy: "Personvern og kildekode",
@@ -125,6 +130,7 @@ export const nb: Record<TranslationKey, string> = {
   ownerName: "Ditt visningsnavn",
   householdName: "Husstandens navn",
   email: "E-post",
+  usernameOrEmail: "Brukernavn eller e-post",
   password: "Passord",
   passwordHint:
     "Bruk 8–128 tegn med minst én stor bokstav og ett tall. Spesialtegn er valgfritt.",

@@ -2,6 +2,10 @@ export const en = {
   home: "Home",
   more: "More",
   integrations: "Integrations",
+  hubMorningCompact: "Good morning!",
+  hubDayCompact: "Hello, family!",
+  hubEveningCompact: "Good evening!",
+  hubPersonDetails: "Open all {count} items for {name}",
   hubMorning: "Good morning, everyone.",
   hubDay: "Hello, everyone.",
   hubEvening: "Good evening, everyone.",
@@ -103,9 +107,10 @@ export const en = {
     "Creates an example household with fictional people and real, working messages.",
   demoBadge: "Synthetic demo · fictional people & messages",
   demoAccounts: "Demo sign-ins",
-  demoPassword: "Demo password: Synthetic-demo-pass-42",
+  demoPassword:
+    "Prepared QA demo: username admin, password admin. Other demo accounts use Synthetic-demo-pass-42.",
   demoNote:
-    "Use admin@demo.invalid, member@demo.invalid or limited@demo.invalid.",
+    "The admin username maps to the internal admin@demo.invalid test account. Other sign-ins are member@demo.invalid and limited@demo.invalid.",
   localNotice:
     "Your self-hosted household space. Messages and accounts are stored on this installation.",
   privacy: "Privacy & source",
@@ -124,6 +129,7 @@ export const en = {
   ownerName: "Your display name",
   householdName: "Household name",
   email: "Email",
+  usernameOrEmail: "Username or email",
   password: "Password",
   passwordHint:
     "Use 8–128 characters with at least one uppercase letter and one number. Special characters are optional.",

@@ -3,9 +3,19 @@
 Run a new local review round from the repository root:
 
 ```bash
+bash scripts/qa-demo-admin-password.sh
 bash scripts/design-review-build.sh
 bash scripts/design-review.sh
 ```
+
+The first command is an idempotent, synthetic-QA-only credential preparation.
+Run it again after a fresh demo provisioning. It verifies the exact
+`samvev-m1` Compose project, healthy `qa-db`/`qa-app`, QA database identity,
+local runtime origin, database demo marker, and existing enabled installation
+administrator before changing only `admin@demo.invalid`'s password hash. The UI
+accepts `admin` as an alias for that internal account only when setup status is
+simultaneously claimed, synthetic-demo, and demo-enabled. The submitted
+password still goes through the normal server hash verification.
 
 `design-review-build.sh` is an explicit checkpoint build. It uses the committed
 canonical checkout at `.local/design-review-publish`, verifies every tracked
@@ -25,7 +35,8 @@ Home using the existing `qa-app` `SAMVEV_PUBLIC_ORIGIN`: only
 are accepted. It does not start services, add fixtures, change
 product content, use a remote origin, commit, push, create a PR, or trigger
 GitHub Actions. It checks demo mode, synthetic login, populated Home people and
-items, the expected Family Hub UI, themes, page errors, and outbound browser
+items, the expected Family Hub UI, themes, every proven built asset, page
+errors, and outbound browser
 requests before publishing. Account locale/theme are restored and the session
 is logged out. A failed run leaves `latest/` intact.
 
@@ -81,7 +92,7 @@ After reviewing a new round, stage the validated review files, commit with DCO
 sign-off, and explicitly push only the feature branch:
 
 ```bash
-git add docs/design/review scripts/design-review.sh scripts/design-review-build.sh scripts/design-review.mjs scripts/design-review-provenance.mjs scripts/design-review-provenance.test.mjs scripts/design-review-publication.mjs scripts/design-review-publication.test.mjs
+git add docs/design/review scripts/design-review.sh scripts/design-review-build.sh scripts/design-review.mjs scripts/design-review-provenance.mjs scripts/design-review-provenance.test.mjs scripts/design-review-publication.mjs scripts/design-review-publication.test.mjs scripts/qa-demo-admin-password.mts scripts/qa-demo-admin-password.test.mts scripts/qa-demo-admin-password.sh
 git commit -s -m "docs(design): add M3 review round"
 git push origin feat/m3-family-hub
 ```

@@ -15,9 +15,16 @@ export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
 export function personItems(items:HubItem[],personId:string) { return items.filter(i=>i.targets.personIds.includes(personId)); }
 export function importantItems(items:HubItem[]) { return items.filter(i=>i.kind==='alert'||i.kind==='reminder'||['high','urgent'].includes(i.priority)); }
 
-// Stable keys preserve open details when theme or viewport changes the order.
+// Stable section keys preserve open details while visual and reading order move together.
 export function hubSectionOrder(dark:boolean, compact:boolean):string[] {
-  if (compact) return ['important','today','tomorrow','messages','people','briefs'];
-  return dark ? ['today','tomorrow','people','important','messages','briefs']
-    : ['people','today','tomorrow','important','messages','briefs'];
+  if (compact) return ['important','today','tomorrow','messages','people','companion','briefs'];
+  return dark ? ['today','tomorrow','people','important','messages','companion','briefs']
+    : ['people','today','important','tomorrow','messages','companion','briefs'];
+}
+
+// A small, real update accompanies the human message. Never fabricate a widget
+// or repeat an item in the remaining support group.
+export function splitBriefs(items:HubItem[]) {
+  const companion=items.find(item=>item.kind==='observation')??items[0];
+  return {companion,remaining:items.filter(item=>item.id!==companion?.id)};
 }

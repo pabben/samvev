@@ -5,10 +5,22 @@ These images contain only synthetic local QA content. The harness signs in to th
 Run from the repository root after starting the isolated `qa-app`, `qa-worker` and `qa-db` services and applying migrations:
 
 ```bash
-docker compose --env-file .env.example -p samvev-m1 run --rm --no-deps qa-browser node apps/web/tests/m3-family-hub.mjs
+bash scripts/qa-demo-admin-password.sh
+BASE_URL=http://192.168.0.220:4173 \
+M3_ARTIFACT_DIR=.local/m3/design-round2/regression/final \
+docker compose --env-file .env.example -p samvev-m1 run --rm --no-deps \
+  -e BASE_URL -e M3_ARTIFACT_DIR qa-browser \
+  node apps/web/tests/m3-family-hub.mjs
 ```
 
-The supported default origin is `http://qa-app:4173`. The harness uses the synthetic demo account and normal admin APIs; it refuses nonlocal origins. Repeated visual iterations can legitimately exhaust the login rate limit. Do not change the application rate-limit policy to run tests.
+The Round 2 LAN run uses the configured `http://192.168.0.220:4173` origin so
+browser requests carry the same Origin accepted by `qa-app`. The harness uses
+the internal `admin@demo.invalid` identity and the QA-only `admin` password
+through normal authentication; the visible sign-in page exposes `admin` as its
+username alias. Re-run the guarded, idempotent password procedure after a fresh
+synthetic demo provision. The harness refuses nonlocal origins. Repeated visual
+iterations can legitimately exhaust the login rate limit. Do not change the
+application rate-limit policy to run tests.
 
 ## Captures
 

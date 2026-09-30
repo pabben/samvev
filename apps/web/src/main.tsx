@@ -23,6 +23,10 @@ import { MemberApp } from "./member";
 import { DisplayApp } from "./display";
 import { Workbench } from "./workbench";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
+import {
+  allowsSyntheticAdminAlias,
+  loginEmailForIdentifier,
+} from "./demo-login";
 import "../../../packages/design-tokens/tokens.css";
 import "./style.css";
 import "./home.css";
@@ -112,7 +116,10 @@ function App() {
             <PrefControls prefs={prefs} onChange={setPrefs} />
           </header>
           {status?.claimed ? (
-            <SignIn onSuccess={refresh} />
+            <SignIn
+              allowSyntheticAdminAlias={allowsSyntheticAdminAlias(status)}
+              onSuccess={refresh}
+            />
           ) : claim ? (
             <Claim
               prefs={prefs}
@@ -353,7 +360,13 @@ function Claim({
     </main>
   );
 }
-function SignIn({ onSuccess }: { onSuccess: () => Promise<void> }) {
+function SignIn({
+  allowSyntheticAdminAlias,
+  onSuccess,
+}: {
+  allowSyntheticAdminAlias: boolean;
+  onSuccess: () => Promise<void>;
+}) {
   const { t } = useI18n();
   const { busy, error, run } = useAction();
   return (
@@ -370,15 +383,27 @@ function SignIn({ onSuccess }: { onSuccess: () => Promise<void> }) {
           const data = new FormData(event.currentTarget);
           void run(async () => {
             await api("/auth/login", "POST", {
-              email: data.get("email"),
+              email: loginEmailForIdentifier(
+                data.get("email"),
+                allowSyntheticAdminAlias,
+              ),
               password: data.get("password"),
             });
             await onSuccess();
           });
         }}
       >
-        <Field label={t("email")}>
-          <input name="email" type="email" autoComplete="username" required />
+        <Field
+          label={
+            allowSyntheticAdminAlias ? t("usernameOrEmail") : t("email")
+          }
+        >
+          <input
+            name="email"
+            type={allowSyntheticAdminAlias ? "text" : "email"}
+            autoComplete="username"
+            required
+          />
         </Field>
         <Field label={t("password")}>
           <input

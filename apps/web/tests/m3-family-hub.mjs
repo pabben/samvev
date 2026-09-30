@@ -13,7 +13,7 @@ const checks=[];const errors=[];const record=t=>{checks.push(t);console.log(`PAS
 const req=async(ctx,path,method='GET',data,headers={})=>{const r=await ctx.request.fetch(`/api/v1${path}`,{method,data,headers});expect(r.ok(),`${method} ${path}: ${await r.text()}`).toBeTruthy();return r.status()===204?null:r.json()};
 try {
  expect((await req(context,'/setup/status')).demo,'M3 harness requires synthetic demo mode before mutations').toBe(true);
- const login=await req(context,'/auth/login','POST',{email:'admin@demo.invalid',password:'Synthetic-demo-pass-42'});
+ const login=await req(context,'/auth/login','POST',{email:'admin@demo.invalid',password:'admin'});
  const me=await req(context,'/me');const member=me.memberships[0];const base=`/households/${member.household_id}`;const csrf={'X-CSRF-Token':me.csrfToken};
  const admin=(path,method='GET',data)=>req(context,path,method,data,csrf);
  await admin('/me/preferences','PATCH',{locale:'nb',theme:'light'});
