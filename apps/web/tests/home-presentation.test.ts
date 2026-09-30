@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {currentItems,dayEvents,personItems,importantItems,hubSectionOrder,splitBriefs} from '../src/home-presentation';
+import {currentItems,dayEvents,personItems,importantItems,hubSectionOrder,splitBriefs,resolveHubDetail,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
@@ -69,7 +69,49 @@ test('the message companion uses a real observation once and preserves remaining
 test('no observation falls back to a real support item; an empty feed creates no companion',()=>{
  const summary={...item,id:'summary',kind:'summary' as const};
  const list={...item,id:'list',kind:'list' as const};
- assert.deepEqual(splitBriefs([summary,list]),{companion:summary,remaining:[list]});
- assert.deepEqual(splitBriefs([summary]),{companion:summary,remaining:[]});
- assert.deepEqual(splitBriefs([]),{companion:undefined,remaining:[]});
+ assert.deepEqual(splitBriefs([summary,list]),{agendaCompanion:undefined,companion:summary,remaining:[list]});
+ assert.deepEqual(splitBriefs([summary]),{agendaCompanion:undefined,companion:summary,remaining:[]});
+ assert.deepEqual(splitBriefs([]),{agendaCompanion:undefined,companion:undefined,remaining:[]});
+});
+
+
+test('stacked agenda redistributes existing support without duplication, fabrication or mutation',()=>{
+ const observation={...item,id:'observation',kind:'observation' as const};
+ const summary={...item,id:'summary',kind:'summary' as const};
+ const list={...item,id:'list',kind:'list' as const};
+ const input=[list,summary,observation];
+ assert.deepEqual(splitBriefs(input,true),{agendaCompanion:observation,companion:summary,remaining:[list]});
+ assert.deepEqual(input,[list,summary,observation]);
+ assert.deepEqual(splitBriefs([observation],true),{agendaCompanion:observation,companion:undefined,remaining:[]});
+ assert.deepEqual(splitBriefs([],true),{agendaCompanion:undefined,companion:undefined,remaining:[]});
+ assert.deepEqual(splitBriefs([list,summary],true),{agendaCompanion:list,companion:summary,remaining:[]});
+});
+
+test('personal disclosure count describes only entries beyond the current preview',()=>{
+ assert.equal(hiddenPersonalCount(2,1),1);
+ assert.equal(hiddenPersonalCount(2,3),0);
+ assert.equal(hiddenPersonalCount(4,3),1);
+ assert.equal(hiddenPersonalCount(8,1),7);
+ assert.equal(hiddenPersonalCount(0,3),0);
+ const summary={...item,id:'summary',kind:'summary' as const};
+ const household={...item,id:'household',targets:{household:true,personIds:[]}};
+ assert.deepEqual(personalPreviewItems([item,summary,household],'p'),[item]);
+});
+
+test('detail identities resolve current revisions and discard withdrawn, expired or unavailable items',()=>{
+ const selected={kind:'item' as const,id:item.id};
+ const revised={...item,title:'Updated permitted detail',revision:2};
+ assert.deepEqual(resolveHubDetail(selected,[],[revised]),{kind:'item',item:revised});
+ assert.equal(resolveHubDetail(selected,[],[]),undefined);
+ assert.equal(resolveHubDetail(selected,[],currentItems([{...revised,expiresAt:new Date(now).toISOString()}],now)),undefined);
+ assert.equal(resolveHubDetail(null,[],[item]),undefined);
+});
+
+test('person detail resolves only current targeted entries and disappears with that projected person',()=>{
+ const person={id:'p',displayName:'Synthetic person'};
+ const selected={kind:'person' as const,id:person.id};
+ const unrelated={...item,id:'other',targets:{household:false,personIds:['other']}};
+ assert.deepEqual(resolveHubDetail(selected,[person],[item,unrelated]),{kind:'person',person,items:[item]});
+ assert.deepEqual(resolveHubDetail(selected,[person],[]),{kind:'person',person,items:[]});
+ assert.equal(resolveHubDetail(selected,[],[item]),undefined);
 });

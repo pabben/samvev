@@ -1,4 +1,4 @@
-import type { HubItem } from './home-types';
+import type { HubItem, HubPerson } from './home-types';
 import { wallInput } from './time';
 export function currentItems(items:HubItem[], now:number):HubItem[] {
   return items.filter(item => (!item.publishAt || Date.parse(item.publishAt)<=now) && (!item.expiresAt || Date.parse(item.expiresAt)>now));
@@ -24,7 +24,28 @@ export function hubSectionOrder(dark:boolean, compact:boolean):string[] {
 
 // A small, real update accompanies the human message. Never fabricate a widget
 // or repeat an item in the remaining support group.
-export function splitBriefs(items:HubItem[]) {
-  const companion=items.find(item=>item.kind==='observation')??items[0];
-  return {companion,remaining:items.filter(item=>item.id!==companion?.id)};
+export function splitBriefs(items:HubItem[], stackAgenda=false) {
+  const preferred=items.find(item=>item.kind==='observation')??items[0];
+  const agendaCompanion=stackAgenda?preferred:undefined;
+  const available=items.filter(item=>item.id!==agendaCompanion?.id);
+  const companion=stackAgenda?(available.find(item=>item.kind==='summary')??available[0]):preferred;
+  return {agendaCompanion,companion,remaining:items.filter(item=>item.id!==companion?.id&&item.id!==agendaCompanion?.id)};
 }
+
+export type HubDetailSelection={kind:'item'|'person';id:string};
+// Keep only identity in dialog state. Every render resolves the current permitted,
+// unexpired projection, so SSE updates and withdrawal cannot leave stale details.
+export function resolveHubDetail(selection:HubDetailSelection|null, people:HubPerson[], active:HubItem[]) {
+  if(!selection)return undefined;
+  if(selection.kind==='item') {
+    const item=active.find(item=>item.id===selection.id);
+    return item?{kind:'item' as const,item}:undefined;
+  }
+  const person=people.find(person=>person.id===selection.id);
+  return person?{kind:'person' as const,person,items:personalPreviewItems(active,person.id)}:undefined;
+}
+export function personalPreviewItems(active:HubItem[],personId:string) {
+  return personItems(active,personId).filter(item=>item.kind!=='summary'&&item.kind!=='list');
+}
+export function hiddenPersonalCount(itemCount:number,previewLimit:number) {return Math.max(0,itemCount-previewLimit);}
+
