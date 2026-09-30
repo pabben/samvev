@@ -1,11 +1,11 @@
 {
-  "roundId": "20260930021038-11d43fd9-727d21a4",
-  "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
+  "roundId": "20260930020142-947d2205-d1024603",
+  "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
   "workingTreeDirty": true,
-  "capturedAt": "2026-09-30T02:10:38.156Z",
+  "capturedAt": "2026-09-30T02:01:42.503Z",
   "provenance": {
-    "sourceSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-    "inputFingerprint": "994ca70b334c79680d43e1e430552d455223c0cdada8e612972e14d6a2c36ea2",
+    "sourceSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+    "inputFingerprint": "446a6c3a7866e47e78a8a8438616c6ff83c834425661ea49ae90f78bb5fbb59c",
     "inputFileHashes": {
       ".env.example": "80be97daace182ec1058b152bc5fff9ed543737a530bb8b3082965f7893e7144",
       ".npmrc": "0a37c4e83e89507cb7b225e26df5a436e4620dd3237bc49a90bfa292ad5b00f7",
@@ -21,7 +21,7 @@
       "apps/web/src/family-hub.tsx": "4d6e6d183839f18c2c99ada844652fc7ecc281cd32cd2a3d9791fe4f2e96a84a",
       "apps/web/src/home-presentation.ts": "e31c19838dd9f175cf57df91f45c8faa691499dd6c4d89341dd456236b85dba0",
       "apps/web/src/home-types.ts": "a1347e107899d0c8547779ec70a1a62c4db7070e6d834aadde7d44030d8fc0ee",
-      "apps/web/src/home.css": "f18692ebc3d13ba03c349371431226e21af1e47c60e52b3f9ac8f8daac91614a",
+      "apps/web/src/home.css": "c8324799d1ef7a162f52db6133517d55de3084503015deaed7a64c7a996815e3",
       "apps/web/src/home.tsx": "0d1d081cec9227e0745a2c262bda2c566f7304d33716bf014bdff1eeaf82b975",
       "apps/web/src/integrations.tsx": "4f6f929273c0649ad44c49bc0d9c954c5b8fed71ca8e6ec75a42fe3f3345943a",
       "apps/web/src/locales/en.ts": "37461339ae9bac9f3b99f9f44ee9f6a75a7456c8344efde37ce88fb0f3caac10",
@@ -166,16 +166,16 @@
       "tsconfig.json": "0d1dd5b189a89a33a62b5aaac24cc84f85bebcb7495f6aa68bc5e15861694870"
     },
     "distHashes": {
-      "assets/index-BOFRhtOf.js": "05cb1b7d6523c6e14f98c172b577857d1024b48c46d1c051d02109ee9530ec94",
-      "assets/index-DQhtPoAn.css": "956033f23ad7bb91a4ced02ac8fae59e5830c5244f6f026c3118018aae2f1556",
-      "index.html": "af6fbeefa8eb14be349fc33bc75c9482b6c33566916dbcae7bad333eea1b0ed6"
+      "assets/index-YvgcFUUf.css": "a638368dbbc45a6fa3fb591318691a145f5eb46a3138a203c8039c94e1761756",
+      "assets/index-tB3nBx6j.js": "05cb1b7d6523c6e14f98c172b577857d1024b48c46d1c051d02109ee9530ec94",
+      "index.html": "73420d89d78059835e68a03986b6b89e2b8ca800a1d2539e5670e7cfac5df99c"
     },
-    "builtAt": "2026-09-30T02:10:26.227Z",
+    "builtAt": "2026-09-30T01:56:04.702Z",
     "containerId": "13b86f7ac1962e2d89ec7ea10a6966a1b872d27557f8eb586c4b5f12c6e02fe1",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
-      "/assets/index-BOFRhtOf.js",
-      "/assets/index-DQhtPoAn.css"
+      "/assets/index-tB3nBx6j.js",
+      "/assets/index-YvgcFUUf.css"
     ]
   },
   "source": {
@@ -185,8 +185,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:40.193Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:44.607Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -202,11 +202,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "a7e26a3f080464a3ed1a9d861a13628b76179f1dd68a71d6bbddec3da382157c"
+      "sha256": "22215044f8ce757e2c46f13f46d90c631bcb9caba9004f621569c46d0c1074b6"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:40.328Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:44.749Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -222,11 +222,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "2ac461dbe018548cd9ddf26cd2afe8ef38365140ca7466ace0750f00978a3a9c"
+      "sha256": "6b903149bb458f1b12d2bea96e76ec3ef9c11a27f45b42e733cdf2e39d173ae5"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:40.698Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:45.119Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -242,11 +242,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "c660f6ec2f05c4d4de5e68e433c3c7ee65d5c906110f1e8172074df0102ee003"
+      "sha256": "7a93733a24cdb959d9bd847633bb83dff2cdf0aafa158ae47287ebb1a49cf82d"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:40.965Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:45.386Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -262,11 +262,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "7b16f869fabb8d75f3aa65458a7fb929dbd080afe6451a6ee26dd4ade27ee6f1"
+      "sha256": "acae4d721b9f3335f681a7713199f54dd2e2dbaa787f1d12fdd16175824d1ea8"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:41.226Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:45.647Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -282,11 +282,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "2d3078eb65a6c2ff77e519e79176ed56263bd49eef239723f99f48c4e6436b8e"
+      "sha256": "5dd8d08b8e1f35991c66cc4eea1149bb1928d18f406cdbe77f057dc258ec2167"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:41.507Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:45.928Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -302,11 +302,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "0d6478870c75871655991d4a122204b12165a70f82c7e2c7d0c71e598e5c612f"
+      "sha256": "e1feead271f8d6cdb3a2f82238461f5046c3659fc576e5b60a0e4657f2d6a56f"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:42.417Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:46.859Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -322,11 +322,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "ba703ec250bb03204f30bad1c09b0f142a81e7e5f9a93f4cd921530349107b7a"
+      "sha256": "99eddb23a15ebbc7fdf7f2de58b4b4480a4ad3d7e72f35fbbcaf37bd859ea6d6"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:43.701Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:48.123Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -342,11 +342,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "fc978ac06d3453ff3e1a17cb84576c1bb73dfd52426386c8dc5135385cf4d460"
+      "sha256": "ac2dc351b24fbddaeb393b25ef50c3ff560c3d40539098f6aaedfa8d46ca0205"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:43.892Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:48.314Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -362,11 +362,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "cb1b72d757f0936876afc7a8c165f3b02ae772ecef43d56df7ce9202c8d0ea6a"
+      "sha256": "f3ee99cd406220e2688ecac7f54288045a3f2b6f6a1f636d67fa134ceb7e5a52"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:44.402Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:48.814Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -382,11 +382,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "6d857d1c0e104d906bd2725615a37200236677959c2f3dfd68df196ff5d34913"
+      "sha256": "3e4ff5989ccb35d573a5537f8e2dd7083ad997a834d556cb97e02516451568c1"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:44.967Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:49.198Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -402,11 +402,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "ab3fa7da2ddc5c28c6a2385c64f30a66575e440d656d1212bf344ff7efb4f03c"
+      "sha256": "ea2efd2646ba424c9193cf39abbbfe116310c2c80de6ddd99f1597a8dc5a910a"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:45.425Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:49.774Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -422,11 +422,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "8b3c690397bdd52c443a92460ec4cb570881c6a4c2f4db99c1a18b293b829dc8"
+      "sha256": "9d89b33c7ea29a7b44d4ca04be38d0a48707651d10989ff1177fc0b4ef62972a"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:45.905Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:50.231Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -442,11 +442,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "f821d33d8dda709932c789cb2cb48b5803fe699c2c01c4fde01d9201af6b0fda"
+      "sha256": "febe3f96049d25305305056f5b01a504cec2e8f5c8049967cc9e6e2d85cde374"
     },
     {
-      "commitSha": "11d43fd93c6a0be4f7d37978071866c237629c91",
-      "capturedAt": "2026-09-30T02:10:47.026Z",
+      "commitSha": "947d2205eefb826ffdc6fedf14d04950d03b7f32",
+      "capturedAt": "2026-09-30T02:01:51.164Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -462,7 +462,7 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "18e6292ac39672b70945cadd3408e9e480e5f09ba46796072bcb459ade62febc"
+      "sha256": "916823aa46a0167b6373f3d8bfba453e9f500991c2eb5892d067233979c54460"
     }
   ]
 }

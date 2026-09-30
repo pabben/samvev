@@ -1,5 +1,28 @@
 # M1 implementation status
 
+## M3 design round 1 — 2026-09-30
+
+The explicitly activated [design mailbox](../design/review/NEXT_CODEX_PROMPT.md)
+is implemented in member Home and the shared paired-display Family Hub:
+compact Home navigation; early light person/day-plan composition; dark adjacent
+Today/Tomorrow/Family/Remember panels; named compact identities and early agenda
+on smaller surfaces; human messages before support cards; local decorative
+landscape; consistent initial avatars and neutral personal-content labels.
+There are no backend/API changes or migrations. The protected main checkout Git
+metadata remains untouched; signed checkpoints are published through the existing
+`.local/design-review-publish` checkout on `feat/m3-family-hub`.
+
+Build/capture provenance now compares mounted source bytes with the canonical
+checkpoint, records bundle SHA-256 hashes and verifies the actual served HTML
+and assets. Capture uses only the exact configured synthetic QA origin, including
+`http://192.168.0.220:4173`, rather than misidentifying the stale main-checkout HEAD
+as the new UI source. Full evidence, source SHA, final review manifest and limits
+are recorded in [the round report](../design/review/ROUND_1_REPORT.md).
+Final source `11d43fd93c6a0be4f7d37978071866c237629c91`: web check/build,
+24/24 web tests, 7/7 tooling tests and 10/10 complete M3 browser groups pass.
+All 14 final images were opened; security, requirements, UX and independent
+release gate pass. No production changes or private data were introduced.
+
 ## M3 design-review mailbox — 2026-09-29
 
 The local review routine is documented in
