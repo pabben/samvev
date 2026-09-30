@@ -1,5 +1,21 @@
 # M1 implementation status
 
+## M3 design round 3 — 2026-09-30
+
+Activated mailbox `de14831`: dark Tomorrow/support column and balanced portrait,
+clear reminder/person detail controls, stronger light identity/message hierarchy
+and calmer dark materials. Final signed source
+`da31a7d757d81b4a8308b9a41f6239c2367d3952` fixes proven disclosure relocation
+focus/open-state loss. Node 24 web check and 32/32 tests pass; complete focused
+LAN QA and fresh actual composited contrast pass. Admin/admin, ordinary hash
+authentication and existing synthetic data are preserved. No mutating M3 harness
+was needed for presentation-only work. All 14 final Home images are opened/hash
+verified, round `20260930182826-da31a7d7-1886d5b2`; post-capture literal
+admin/admin UI login/logout and unchanged content/authentication aggregates pass.
+Evidence is prepared for signed feature-branch publication;
+see [Round 3 evidence and limits](../design/review/ROUND_3_REPORT.md).
+
+
 ## M3 design round 2 — 2026-09-30
 
 The explicitly activated mailbox `127a3b7` is implemented: independent low-height
