@@ -27,3 +27,5 @@ body{font-family:var(--font-sans)}
 /* Leave room for a populated Today and Tomorrow without shrinking content. */
 .hub-wide .hub-hero{padding-top:4px;padding-bottom:4px;margin-bottom:8px}
 .family-display-page .display-header>.icon-button{align-self:center;margin-top:0}
+/* Keep the Home brand a full touch target within the compact top bar. */
+.home-shell .brand{display:inline-flex;align-items:center;min-height:44px}
