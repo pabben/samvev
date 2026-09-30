@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ReactNode } from 'react';
 import type { HubItem, HubMessage, HubPerson } from './home-types';
@@ -7,7 +7,7 @@ import { Avatar, Dialog, Icon, useI18n } from './ui';
 import { formatDate, wallInput } from './time';
 const kindKeys={event:'hubEvent',reminder:'hubReminder',alert:'hubAlert',summary:'hubSummary',list:'hubList',observation:'hubObservation'} as const;
 const kindIcons={event:'calendar',reminder:'sun',alert:'bell',summary:'spark',list:'list',observation:'leaf'};
-type DetailAccess={open:(selection:HubDetailSelection,trigger:HTMLButtonElement)=>void;provenance:Record<string,boolean>;setProvenance:(id:string,open:boolean)=>void};
+type DetailAccess={open:(selection:HubDetailSelection,trigger:HTMLButtonElement)=>void;provenance:Record<string,boolean>;setProvenance:(id:string,open:boolean)=>void;rememberProvenanceFocus:(id:string,node:HTMLElement)=>void};
 const HubDetails=createContext<DetailAccess|null>(null);
 export function FamilyHub({people,items,messages,zone,householdName,display=false,now:givenNow,onCompose,connection}:{people:HubPerson[];items:HubItem[];messages:HubMessage[];zone:string;householdName:string;display?:boolean;now?:number;onCompose?:()=>void;connection?:string}) {
   const {t,locale}=useI18n();
@@ -21,6 +21,21 @@ export function FamilyHub({people,items,messages,zone,householdName,display=fals
   const hubRoot=useRef<HTMLDivElement>(null);
   const [selection,setSelection]=useState<HubDetailSelection|null>(null);
   const [provenance,setProvenance]=useState<Record<string,boolean>>({});
+  const provenanceFocus=useRef<{id:string;node:HTMLElement}|null>(null);
+  // Record semantic focus at the interaction, before media-query callbacks or
+  // reparenting can detach/reuse the old node. Restore after the actual commit.
+  useLayoutEffect(()=>{
+    const remembered=provenanceFocus.current;
+    if(!remembered)return;
+    const active=document.activeElement;
+    const stillSame=remembered.node.isConnected&&remembered.node.closest<HTMLElement>('[data-provenance-id]')?.dataset.provenanceId===remembered.id;
+    if(stillSame&&active===remembered.node)return;
+    if(active!==document.body&&active!==remembered.node){provenanceFocus.current=null;return;}
+    const candidates=Array.from(document.querySelectorAll<HTMLElement>('[data-provenance-id]'));
+    const replacement=candidates.find(node=>node.dataset.provenanceId===remembered.id&&node.getClientRects().length)?.querySelector<HTMLElement>('summary');
+    if(replacement){provenanceFocus.current={id:remembered.id,node:replacement};replacement.focus();}
+    else provenanceFocus.current=null;
+  });
   const returnTo=useRef<{node:HTMLButtonElement;scope?:string;personId?:string;selection:HubDetailSelection}|null>(null);
   const detail=resolveHubDetail(selection,people,active);
   const closeDetail=()=>{
@@ -40,6 +55,7 @@ export function FamilyHub({people,items,messages,zone,householdName,display=fals
   const detailAccess:DetailAccess={
     open:(next,trigger)=>{returnTo.current={node:trigger,selection:next,scope:trigger.closest<HTMLElement>('[data-hub-scope]')?.dataset.hubScope,personId:trigger.closest<HTMLElement>('[data-person-id]')?.dataset.personId};setSelection(next);},
     provenance,setProvenance:(id,open)=>setProvenance(previous=>previous[id]===open?previous:{...previous,[id]:open}),
+    rememberProvenanceFocus:(id,node)=>{provenanceFocus.current={id,node};},
   };
   const important=importantItems(active);
   const briefs=active.filter(i=>['summary','list','observation'].includes(i.kind)&&!important.includes(i));
@@ -81,16 +97,7 @@ function useHubComposition() {
   const [composition,setComposition]=useState(read);
   useEffect(()=>{
     const media=queries.map(query=>matchMedia(query));
-    const update=()=>{
-      const focused=document.activeElement as HTMLElement|null;
-      const provenanceId=focused?.matches('.hub-provenance summary')?focused.closest<HTMLElement>('[data-provenance-id]')?.dataset.provenanceId:undefined;
-      setComposition(read());
-      if(provenanceId)requestAnimationFrame(()=>{
-        if(focused?.isConnected)return;
-        const replacement=Array.from(document.querySelectorAll<HTMLElement>('[data-provenance-id]')).find(node=>node.dataset.provenanceId===provenanceId&&node.getClientRects().length);
-        replacement?.querySelector<HTMLElement>('summary')?.focus();
-      });
-    };
+    const update=()=>setComposition(read());
     const observer=new MutationObserver(update);
     observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
     media.forEach(query=>query.addEventListener('change',update));update();
@@ -116,7 +123,11 @@ export function ItemCard({item,people,zone,display=false}:{item:HubItem;people:H
  return <article className={`hub-item kind-${item.kind} priority-${item.priority}`} data-item-id={item.id}><div className="hub-item-label"><span><Icon name={kindIcons[item.kind]} size={18}/>{t(kindKeys[item.kind])}</span><small>{targetNames(item,people,t('hubFamily'))}</small></div><h3 lang={item.contentLocale ?? ""}>{item.title}</h3>{item.startsAt&&<p className="hub-item-when"><Icon name="calendar" size={16}/><time dateTime={item.startsAt}>{formatDate(item.startsAt,locale,zone,item.metadata.allDay?{weekday:'long',day:'numeric',month:'long'}:{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</time></p>}{item.body&&<p className="hub-item-body" lang={item.contentLocale ?? ""}>{item.body}</p>}{item.entries.length>0&&<ul className="hub-list">{item.entries.map((entry,i)=><li key={i}><span aria-hidden="true">•</span><div lang={item.contentLocale ?? ""}><strong>{entry.label}</strong>{entry.detail&&<p>{entry.detail}</p>}</div></li>)}</ul>}<Provenance item={item} zone={zone} display={display}/></article>;
 }
 
-function Provenance({item,zone,display}:{item:HubItem;zone:string;display:boolean}) {const {t,locale}=useI18n();const details=useContext(HubDetails);return <details className="hub-provenance" data-provenance-id={item.id} open={details?Boolean(details.provenance[item.id]):undefined} onToggle={event=>details?.setProvenance(item.id,event.currentTarget.open)}><summary lang={item.contentLocale ?? ""}>{item.source.label}</summary><p>{t('hubObserved',{time:formatDate(item.source.observedAt,locale,zone)})}</p>{item.source.generatedAt&&<p>{t('hubGenerated',{time:formatDate(item.source.generatedAt,locale,zone)})}</p>}<p>{t('hubUncertainty',{level:t(({low:'hubLow',medium:'hubMedium',high:'hubHigh',unknown:'hubUnknown'} as const)[item.source.uncertainty])})}</p>{!display&&item.source.url&&<a href={item.source.url} target="_blank" rel="noreferrer">{t('hubSource')} <Icon name="arrow" size={14}/></a>}{!display&&item.source.links?.map(link=><a lang={item.contentLocale ?? ""} key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</details>;}
+function Provenance({item,zone,display}:{item:HubItem;zone:string;display:boolean}) {const {t,locale}=useI18n();const details=useContext(HubDetails);return <details className="hub-provenance" data-provenance-id={item.id} open={details?Boolean(details.provenance[item.id]):undefined}><summary lang={item.contentLocale ?? ""} onFocus={event=>details?.rememberProvenanceFocus(item.id,event.currentTarget)} onClick={event=>{
+ // A controlled disclosure records intent synchronously. Native toggle events
+ // arrive later and can refer to a detached or reused card after relocation.
+ if(details){event.preventDefault();details.setProvenance(item.id,!details.provenance[item.id]);}
+ }}>{item.source.label}</summary><p>{t('hubObserved',{time:formatDate(item.source.observedAt,locale,zone)})}</p>{item.source.generatedAt&&<p>{t('hubGenerated',{time:formatDate(item.source.generatedAt,locale,zone)})}</p>}<p>{t('hubUncertainty',{level:t(({low:'hubLow',medium:'hubMedium',high:'hubHigh',unknown:'hubUnknown'} as const)[item.source.uncertainty])})}</p>{!display&&item.source.url&&<a href={item.source.url} target="_blank" rel="noreferrer">{t('hubSource')} <Icon name="arrow" size={14}/></a>}{!display&&item.source.links?.map(link=><a lang={item.contentLocale ?? ""} key={link.url} href={link.url} target="_blank" rel="noreferrer">{link.label}</a>)}</details>;}
 
 function ItemTitle({item,heading=false,indicator=false}:{item:HubItem;people:HubPerson[];zone:string;display:boolean;heading?:boolean;indicator?:boolean}) {
  const details=useContext(HubDetails);
