@@ -77,3 +77,18 @@ body{font-family:var(--font-sans)}
 @supports not (backdrop-filter:blur(1px)){
  .hub-dark{--hub-panel:#0c1a28f5}
 }
+
+/* Browser zoom can leave less than 320 CSS px. Reflow the existing header
+   and navigation instead of shrinking text or covering neighbouring controls. */
+@media(max-width:319px){
+ .hub-hero{grid-template-columns:minmax(0,1fr);gap:4px}
+ .hub-hero h1{grid-column:1;grid-row:1;max-width:none;overflow-wrap:anywhere}
+ .hub-hero-clock>span:first-child{grid-column:1;grid-row:2}
+ .hub-hero-clock>strong{grid-column:1;grid-row:3;justify-self:start;text-align:left}
+ .hub-hero-clock .connection-pill{grid-column:1;grid-row:4;max-width:100%}
+ .hub-compose{grid-column:1;grid-row:5;justify-self:start;max-width:100%;white-space:normal}
+ .hub-identities{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .home-shell .sidebar nav.admin-navigation{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .home-shell .sidebar .nav-item{min-width:44px;min-height:58px;padding-inline:4px;overflow-wrap:anywhere;white-space:normal}
+ .home-shell .main-wrap{padding-bottom:calc(148px + env(safe-area-inset-bottom))}
+}
