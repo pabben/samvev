@@ -1,36 +1,32 @@
-# Samvev M3 – designrunde 4: familiepreg og materialer
+# Samvev M3 – review etter runde 4: klar for brukerreview
 
-Passiv mailbox. Utfør først når brukeren ber Codex om å aktivere denne filen. Når aktivert: fullfør denne avgrensede runden autonomt, inklusive visuell iterasjon, relevante tester, nytt review-sett og push til featurebranchen. Work er design-/produktreviewer; Codex implementerer.
+Passiv mailbox. Runde 4 er vurdert av Work. Dette dokumentet erstatter den utførte runde-4-instruksen og bestiller ikke en ny implementeringsrunde.
 
-## Grunnlag
+## Status og grunnlag
 
 - Repository: pabben/samvev
 - Branch: feat/m3-family-hub
-- Review/head før denne mailbox-commiten: e236413cb19c76b5770eb4070e1b8d869040aab2
-- Vurdert source SHA: da31a7d757d81b4a8308b9a41f6239c2367d3952
-- Round ID: 20260930182826-da31a7d7-1886d5b2
-- Forrige vurderte source: 99185975a758548dacbe11210834c9fbd9a06c55
-- Forrige review SHA: aa416f25bd7daeca8155593c23965072e263176e
-- Forrige round ID: 20260930035832-99185975-5a933bde
+- Vurdert source SHA: 8cc0236b4a3dd4ce43eee36591f74e75de6f4e88
+- Review/head før denne mailbox-commiten: 9a570b4932dac133222768955806a94b2cd22cf7
+- Round ID: 20261001144432-8cc0236b-66eead31
+- Capture: 2026-10-01T14:44:32.232Z
+- Sammenlignet med runde 3, source da31a7d757d81b4a8308b9a41f6239c2367d3952, review e236413cb19c76b5770eb4070e1b8d869040aab2, round 20260930182826-da31a7d7-1886d5b2.
 
-Work har faktisk sett begge autoritative referanser og alle 14 bilder fra runde 3, samt sammenlignet relevante bilder fra runde 2. De 14 PNG-filenes dimensjoner og SHA-256 samsvarer med manifestet. Referansenes Git-blobber er uendret. Runtime-/testpåstander kommer fra ROUND_3_REPORT.md; Work har ikke selv kjørt LAN-testene.
+Work har faktisk åpnet begge autoritative originalreferanser og alle 14 screenshots fra runde 4, og sett relevante sammenligningsbilder fra runde 3. SHA-256 og dimensjoner er kontrollert for alle 14 nye PNG-er. Referansenes Git-blobber er uendret.
 
-Vurdering: 7,5/10 visuell referanseparitet, opp fra 7/10. Ingen ny P0 er dokumentert. Komposisjonen godkjennes som utgangspunkt for videre arbeid; høy visuell referanseparitet er ikke ferdig oppnådd.
+Samlet visuell vurdering: omtrent 8/10, opp fra 7,5/10. Lys ligger fortsatt noe lengre fra sin referanses personlighet enn mørk. Dette er en skjønnsmessig designvurdering, ikke et automatisk testresultat.
 
-Runde 3 har løst hovedproblemet under I morgen på mørk desktop og iPad portrait. Familiemeldingen har bedre avsender-/teksthierarki, og detaljkontrollene er forståeligere. Mobil beholder tre komplette dagsplanrader. Disse forbedringene skal beholdes.
+Runde 4 er ferdig innenfor det bestilte omfanget. Strukturen og materialene er klare til Pabbens samlede vurdering. Dette er ikke en erklæring om full referanseparitet eller en godkjenning for produksjonssetting.
 
-Neste runde er én avgrenset art direction-/materialrunde med én konkret justeringsfeil. Ikke bygg om grid eller flytt seksjoner på nytt for marginal gevinst. Etter denne runden leveres et samlet resultat til brukerens designreview; ikke start en ny selvbestilt designrunde.
+## Fasit og faktisk vurderte bilder
 
-Les AGENTS.md, docs/design/review/README.md, latest/manifest.json, ROUND_3_REPORT.md og denne filen. Følg relevante prosjektroller med én integrator og sekvensielle skribenter. Bevar hovedcheckoutens beskyttede .git og bruk etablert .local/design-review-publish til Git-operasjoner. Arbeid bare i /home/administrator/apper/samvev og eksisterende isolerte samvev-m1 QA-ressurser. Hent siste featurebranch, bevar uvedkommende arbeid og ikke reset/repoint/unlock beskyttede metadata.
-
-## Autoritative originaler og vurderte screenshots
-
+Autoritative referanser:
 - docs/design/ChatGPT Image 24. sep. 2026, 23_51_09.png
 - docs/design/ChatGPT Image 24. sep. 2026, 23_52_06 (4).png
 
-Originalenes appflater er visuell fasit. Eldre mockups/SVG-er overstyrer dem ikke. Ikke kopier skjermrammer, rom, markedsføringstekst, navnet FamilieOS eller konkrete eksempeldata. Produktet heter Samvev.
+Originalenes appflater er fasit; eldre SVG-er overstyrer dem ikke. Produktet heter Samvev. Referansenes navn, rom, skjermrammer og eksempeldata er ikke produktkrav.
 
-Vurderte viewport-filer under docs/design/review/latest/:
+Alle viewport-filer under docs/design/review/latest/ er vurdert:
 
 | Størrelse | Lys | Mørk |
 |---|---|---|
@@ -43,104 +39,68 @@ Vurderte viewport-filer under docs/design/review/latest/:
 Full-page supplementer:
 - desktop-1920-light-full.png – 1920×1302
 - desktop-1920-dark-full.png – 1920×1202
-- mobile-light-full.png – 390×2687
-- mobile-dark-full.png – 390×2700
+- mobile-light-full.png – 390×2508
+- mobile-dark-full.png – 390×2521
 
-Viewportene er primære. Full-page mobilens fixed-nav-stripe er et kjent capture-fenomen, ikke alene en runtime-feil. Shelly viser member Home ved den oppgitte størrelsen; dette er ikke fysisk Shelly-/paret-display-sertifisering.
+Viewportene er primære. Full-page mobilens fixed-nav-stripe er det dokumenterte capture-fenomenet. Shelly viser member Home ved 1280×752, ikke fysisk eller paret-display-sertifisering.
 
-## Prioritering og konkrete endringer
+## Hva som faktisk ble bedre
 
-### P0 – ingen nye funn
+1. Lys bakgrunn er friskere blå/mint og nærmere originalens lyse skjermflate. Myke personfelt og varme leseflater fungerer sammen uten ekstra dekorativ høyde.
+2. Mørke paneler har mindre ensartet blåfarge og mer dyp navy. Hovedglass, innvendige påminnelser og menneskelig melding har tydeligere materialforskjell.
+3. Avatar, navn og metadata er sentrert i lys iPad landscape/Shelly også når Detaljer-kontrollen vises. Kontrollen er fortsatt synlig.
+4. Hilsen, personfarger, familiemeldingens hierarki og navigasjon er bevart. Mobil, portrait og de lave skjermene oppleves som samme produkt.
+5. Tom I morgen vises som et kort, forståelig panel. Ingen synlig ny klipping, kollisjon eller tapt prioritering er funnet i de ti ordinære viewportene.
 
-Bevar dagens førsteside og responsive struktur. Ikke konstruer nye blokkerende avvik fordi et kort har mindre innhold enn nabokortet. Det åpne feltet ved den nederste mørke huskelisten trenger ikke fylles.
+## P0/P1/P2 og gjenværende designforskjeller
 
-### P1.1 – Lys modus trenger tydeligere familiepreg
+### P0
+Ingen ny blokkerende visuell feil er dokumentert.
 
-Største gjenværende forskjell er art direction. Referansen har levende personområder, lys himmelfølelse, organiske aksenter og vennlige innholdsikoner. Dagens lyse flate har riktige pasteller og en god struktur, men uttrykket bæres nesten bare av initialer over hvite kort og en beige/grønn gradient.
+### P1 – kjent paritetsgap, ikke ny automatisk kodebestilling
+Den lyse originalens store illustrerte personer og menneskelige bildebruk gir en personlighet som initialer ikke gjenskaper. Dette er fortsatt det viktigste restavviket mot høy designparitet.
 
-Gjør en samlet, begrenset forbedring:
-- Behold personfargene blå/rosa/mint/lavendel, dagens kortstørrelser og navn-/innholdshierarki. Gi identitetsfelt og avatar en gjennomarbeidet, myk materialitet uten lysende ringer, kraftig glød eller større kort.
-- Gi bakgrunnen ved hilsen og personområde mer av referansens lyse blå/mint atmosfære, med varm off-white leseflate og en svært diskret organisk form/lysfordeling mot ytterkantene. Unngå at hele siden bare blir mer mettet eller mer beige. Hold tekstsonene rolige.
-- Løs dette primært med eksisterende lokale ressurser og CSS. Ingen ny ekstern asset-/fonttjeneste, runtime-avhengighet eller separat bildeproduksjonsprosjekt.
-- Familiemeldingen skal beholde sin nå bedre prioritering, naturlige høyde og moderate linjelengde. Ikke gjør den tilbake til en sekundær administrativ statusboks.
-- Initialer er fortsatt en gyldig fallback. Manglende illustrerte personavatarer er en ærlig restforskjell mot referansen. Ikke lag oppdiktede ansikter knyttet til navn, hardkod demobilder eller innfør avataropplasting/datamodell bare for å oppnå et penere screenshot.
+Runde 4 skulle bevare initialer som fallback og ikke innføre profilbilder, avataropplasting eller oppdiktede ansikter. Den avgrensningen er fulgt. Ikke gjenta flere CSS-runder og påstå at de alene lukker dette gapet. En eventuell utvidelse av personuttrykket skal bygge på Pabbens neste produktretning.
 
-Akseptanse: på lys desktop er den samlede atmosfæren tydelig lettere og mer familievennlig enn runde 3, samtidig som personnavn og innhold fortsatt er mest fremtredende. Den samme material-/fargefamilien finnes på mobil og nettbrett uten ekstra dekorativ høyde.
+### P2 – kjente visuelle forskjeller
+- Typografi og ikonbruk er fortsatt mer nøktern enn lysreferansens lekne uttrykk. Forbedringen i denne runden er moderat, mens hierarkiet fungerer.
+- Mørk viser fortsatt mer landskap mellom panelene enn referansens tettere dashboard. Materialene er bedre; ikke start ny bakgrunnsproduksjon eller grid-ombygging uten ny retning.
+- Rolige dager gir åpne arealer under korte agendapaneler. Dette er særlig synlig ved siden av de høyere personområdene. Det er et relevant inntrykk å få brukerens vurdering av, men ulik datamengde er ikke i seg selv en layoutregresjon. Ikke strekk tomme paneler eller finn opp innhold for å fylle arealet.
 
-### P1.2 – Mørk modus: tydeligere glass, roligere blå masse
+Ingen av disse punktene bestiller en ny runde nå.
 
-Landskapet og den nedtonede forgrunnen er forbedret. Selve panelene oppleves fortsatt mer som jevnt blå, solide kort enn den mørke referansens lagdelte glass.
+## Datoskifte og bevisgrenser
 
-- Behold nordic-dusk-v2, utsnittets hovedidé og nederste navy-overlegg. Ikke bytt bakgrunnsasset eller bygg om plasseringen.
-- Juster hovedpanelenes materialer med en kontrollert mørk toning, svært diskret lysgradient/refleksjon og en fin lyskant. La bakgrunnens lys påvirke glasset moderat; ikke senk opacity globalt til fjell og kontrastfelt konkurrerer med tekst.
-- Skill hovedglass, innvendige påminnelseskort og menneskelig meldingsflate med rolige materialforskjeller. Unngå at alle lag får samme blå flate eller at alle kanter lyser likt.
-- Begrens ekstra blur og skygger. En lesbar fallback uten backdrop-filter skal beholde både hierarki og kontrast. Ingen animert glans eller tung effekt på mobil/Shelly.
+Capture er tatt 1. oktober i Europe/Oslo. I dag har én hendelse og I morgen ingen; runde 3 hadde tre/én. Fire personer og ni aktive innholdselementer er fortsatt registrert i manifestet, med samme tittelhash.
 
-Akseptanse: i side-ved-side-kontroll er det synlig forskjell mellom bakgrunn, hovedglass og innvendig kort. Uttrykket er dypere navy og mindre jevnt blått enn runde 3, uten tapt lesbarhet eller bakgrunnsatmosfære. Vurder endringen på faktisk bildebakgrunn i begge store og små viewporter.
+At familiemeldingen starter tidligere på mobil er derfor ikke en ny layoutgevinst. Dagens screenshots kan heller ikke på egen hånd bekrefte det tidligere kravet om tre komplette dagsplanrader.
 
-### P2.1 – Samlet typografi- og ikonkarakter
+Personforhåndsvisningene viser også lagrede onsdagsoppføringer, og syntetiske tekster som «i morgen» er uendret. Dette kan påvirke hvor tidsaktuelt demoen oppleves. Det dokumenterer ikke alene en feil i dato-/utløpslogikken. Ikke omskriv meldinger, redater avtaler, endre klokke eller reseed for å pynte denne reviewen.
 
-Typografi og små outline-ikoner er fortsatt mer generelle og administrative enn referansene. Semantiske farger er allerede innført i runde 3; viderefør dette, ikke etabler en ny konkurrerende ikonstil.
+ROUND_4_REPORT.md dokumenterer TypeScript, 32/32 tester, målrettet nettleser-QA, 200 % faktisk nettleserzoom, fallback, kontrastmåling og admin/admin-smoke. Work har gjennomgått rapporten, men har ikke selv kjørt disse runtime-testene. De ordinære 14 bildene beviser ikke zoom/fokus/kontrastmålingen alene.
 
-- Bruk eksisterende font-/ikonressurser. Samordne fontvekt, linjehøyde, ikonstørrelse og optisk plassering i hilsen, personområder, agenda og støttewidgets. Navn, aktiviteter og meldingsbudskap skal komme før metadata.
-- Gjør de eksisterende semantiske ikonaksentene litt tydeligere der det gir reell lesestøtte. Unngå farget bakplate på hvert ikon eller en regnbue av dekor.
-- Velg ikoner fra faktisk strukturert innholdstype. Ikke utled «fotball», «middag» eller personlighet fra hardkodede demotitler. Kalender er riktig fallback når bare typen avtale er kjent.
-- Behold lokalisering, klokke/tidssone, kontrast og rolige metadata. Ikke legg til håndskriftfont, nye slagord eller dekorative innholdskort.
-- Bevar Samvev-logo, navigasjon, handlinger og gode radius-/spacing-proporsjoner.
+## Neste steg – instruks til Codex hvis mailboxen aktiveres
 
-Akseptanse: ikoner og tekstnivåer virker som ett sammenhengende system i begge temaer. Endringer skal kunne vises konkret i før/etter, ikke bare beskrives som «premium». Typografiske justeringer må ikke gjøre at dagens gode førsteside mister innhold.
+1. Les denne filen, docs/design/review/README.md, latest/manifest.json og ROUND_4_REPORT.md fra siste featurebranch gjennom etablert publishing-checkout. Bevar beskyttet hoved-.git og uvedkommende arbeid.
+2. Bekreft kort at runde-4-kandidaten er identifisert med riktig source/review/round ID. Hvis branchen har fått nyere UI-evidence, oppgi dette; ikke gå tilbake eller overskriv nyere arbeid.
+3. Behold kandidaten til samlet brukerreview på den eksisterende LAN-demoen http://192.168.0.220:4173. Behold eksisterende admin/admin og ordinær passordverifisering. Ingen ny passordprosedyre, provisioning eller dataendring.
+4. Ikke start ny implementering, omplassering av widgets, avatarfunksjon, testing, build eller capture bare fordi denne filen er lest. Utført arbeid skal ikke gjentas. Det er ingen ny commit/push-oppgave for Codex i denne avslutningen.
+5. Meld at runde 4 er ferdig innenfor bestillingen, at dokumenterte restforskjeller finnes, og at neste konkrete designrunde skal kombinere Pabbens tilbakemeldinger med Work-reviewen.
 
-### P2.2 – Rett avatarens sentrering ved «Detaljer»
+Stoppunktet følger vurderingen av denne leveransen og den avtalte samlede brukerreviewen etter materialrunden. Det er ikke en teknisk tilgangsblokkering.
 
-I lys iPad landscape og Shelly skyver den bredere Detaljer-kontrollen avatarene i personkort med kontroll til venstre for navnets/kortets senter. Dette sees på Morgan og Robin i dagens fixture; kort uten kontroll har sentrert avatar.
+## Krav som beholdes ved en senere bestilt endring
 
-- Sentrer identitetsgruppen konsekvent i kortets fulle bredde når denne kortvarianten skal være sentrert. Kontrollens tilstedeværelse skal ikke forskyve avatarens optiske akse.
-- Behold synlig og lokaliserbar «Detaljer»/«Details», minst 44×44 trykkflate, klar avstand og forståelig fokusrekkefølge.
-- Bruk en robust løsning for smale kort og lengre oversettelser; ingen absolutte fixture-koordinater, overlapp eller tilbakegang til tvetydige tre prikker.
-- Kontroller også desktop og øvrige kortvarianter. Mørke kompakte personrader skal fortsatt være venstrejusterte; ikke sentrer alle avatarer globalt.
+- Bevar dagens grid/sekvens, innholdsstyrte panelhøyder, personfarger, familiemelding, observasjonens gruppering og mobilnavigasjon til ny produktretning sier noe annet.
+- Bevar responsive regler ved 1920×1080, 390×844, 820×1180, 1180×820 og 1280×752. Med tilsvarende innholdsmengde skal dagens førsteside ikke miste relevant innhold.
+- Bevar NB/EN, light/dark/system, minst 44×44 trykkflater, lesbar tekst, WCAG AA på faktisk kompositerte flater, tastaturfokus, reduced-motion, zoom og fallback uten blur.
+- Bevar detaljdialoger, beregnet «1 til», kildeopplysningenes åpne tilstand/fokus ved regrouping, datorelevans, SSE, utløp/offline, tillatelser og kilde/proveniens.
+- Bevar syntetiske data og autentisering. Ingen API-/datamodell-/migrasjonsutvidelse som skjult del av estetisk polering.
 
-Akseptanse: ved 1180×820 og 1280×752 ligger avatar, navn og sentrert metadata på samme vertikale akse, både med og uten detaljkontroll. Detaljknappen er tydelig, treffer riktig innhold og kolliderer ikke med lange navn.
+Hvis det senere bestilles konkrete UI-endringer, gjelder fortsatt den etablerte sekvensen:
+1. Relevante implementeringsendringer og målrettet validering: npm run check --workspace @samvev/web og npm run test --workspace @samvev/web; nettleser-QA for de berørte flatene og faktisk kontrast/fokus/zoom der endringen tilsier det.
+2. DCO-signert source-checkpoint i canonical publishing-checkout, byte-identiske QA-build-inputs og bash scripts/design-review-build.sh før kandidatens nettleser-QA.
+3. Etter ferdige endringer og stabil, testet kandidat: bash scripts/design-review.sh. Regenerer og åpne alle 14 filene ovenfor, med full-page som supplement. Arkiver forrige gyldige sett; verifiser source SHA, round ID, hasher og serverte assets. Ingen ekstra build etter capture.
+4. DCO-signerte source-/evidence-commits og eksplisitt git push origin feat/m3-family-hub når den senere implementeringsrunden faktisk er bestilt.
 
-## Behold funksjon og responsive resultater
-
-- Ingen ny seksjonsrekkefølge, flytting av widgets, tvungen lik panelhøyde eller større hero. Behold observasjonen under I morgen der runde 3 grupperer den. Ikke dupliser støtteinnhold.
-- 1920×1080: behold hovedinnhold, begge påminnelser, den korte menneskelige meldingen og minst én reell støttewidget i første viewport.
-- 390×844 med runde 3s innholdsmengde: alle fire navn, begge påminnelsestitler/mottakere og tre komplette dagsplanrader før bunnavigasjonen, med klaring. Navigasjonen og dens trykkflater beholdes. Naturlig scrolling er riktig for ekstra innhold.
-- 820×1180: behold todagersområdet med eksisterende støtteinnhold i høyrekolonnen og familiemelding før detaljerte personkort.
-- 1180×820 og 1280×752: behold alle fire navn med minst én komplett reell opplysning per person, en komplett dagsplanrad, begge viktige titler/mottakere og en kort menneskelig melding med avsender.
-- Førsteviewport-krav er innholdsbaserte regresjonsgrenser, ikke krav om å bevare utløpte avtaler. Klokke/dag/utløp skal virke naturlig. Ikke redater, reseed, endre klokke eller opprett innhold for capture. Dokumenter naturlige forskjeller; hvis for lite reelt QA-innhold hindrer rutinen, bevar siste gyldige sett og rapporter den konkrete blokkeringen.
-- Behold hovedtekst rundt 16 px eller større, lesbar metadata, minst 44×44 trykkflater, synlig tastaturfokus og reduced-motion. Ingen zoom, klipping eller mindre tekst for å bestå geometri.
-- WCAG AA på faktisk kompositerte flater, også etter endret gradient/glass. Informasjon skal ikke avhenge av farge alene; dekor skal ikke bli støy i tilgjengelighetstreet.
-- Ingen horisontal side-overflow med 1/4/8 personer, lange navn/tekster eller tomtilstander. NB/EN, light/dark/system og native zoom skal beholde innhold og handlinger.
-- Behold «1 til» som beregnet antall skjulte oppføringer, påminnelsens ene detaljknapp, full tekst/kilde og persondialoger. Behold runde 3s retting av åpne kildeopplysninger og fokus ved regrouping, samt dialogenes oppdatering/lukking ved endret eller utløpt innhold.
-- Behold startsAt-basert daginndeling, SSE, offline/utløp, rolle-/displaygrenser, render acknowledgments, kilde/proveniens og skillet mellom menneskelig melding og generert oppsummering.
-- Ingen API-/auth-/datamodellendring, migrasjon eller ny produktfunksjon. Behold testinnlogging admin/admin og eksisterende ordinære passordverifisering. Ikke implementer eller kjør passordendringen på nytt i et allerede fungerende miljø.
-
-## Gjennomføring og validering
-
-1. Åpne begge originalreferanser og bildene fra runde 3 før endringer. Fullfør de fire prioriterte områdene samlet. Iterer på faktisk visuell kontroll; ikke stopp ved første CSS-justering. Hvis et foreslått materialgrep gjør resultatet dårligere, juster eller forkast det og dokumenter hvorfor.
-2. Kjør i eksisterende Node 24-miljø:
-   - npm run check --workspace @samvev/web
-   - npm run test --workspace @samvev/web
-   Test endret atferd hvis nødvendig; ikke lag tester som bare speiler CSS.
-3. Før nettleser-QA: lag DCO-signert source-checkpoint i canonical publishing-checkout. Gjør QA-worktreets build-inputs byte-identiske og kjør bash scripts/design-review-build.sh. Bruk akkurat denne kandidaten og verifiserte LAN-assets i nettleseren.
-4. Kjør eksisterende målrettet nettleser-QA i begge temaer/alle fem størrelser. Kontroller førsteside, overflow, 44px-kontroller, Axe, faktisk kompositert tekstkontrast, fokus og detaljåpning. Nye bakgrunner/glass krever nye kontrastmålinger; tidligere verdier er ikke automatisk gyldige. Verifiser materialfallback uten backdrop-filter. Kontroller berørte NB/EN-etiketter, lange navn, zoom og smale kort.
-5. Bevar regresjonsdekningen for tema/rotasjon, kildeopplysningenes åpne tilstand/fokus og dialoglukking/oppdatering. Gjenbruk de målrettede kontrollene fra runde 3. Ingen ny bred testinfrastruktur for denne poleringen.
-6. Gjør én faktisk UI-smoke med admin/admin på http://192.168.0.220:4173: ordinær innlogging, Home, utlogging. Gjenopprett midlertidige tema-/språkpreferanser.
-7. Full muterende M3-harness er ikke standard ved ren material-/CSS-polish. Kjør bare hvis konkret endret funksjonslogikk eller relevant repo-gate krever det, og begrunn. Review-tooling holdes uendret; hvis en nødvendig toolingfeil faktisk må rettes, kjør node --test scripts/design-review-publication.test.mjs scripts/design-review-provenance.test.mjs.
-8. Ingen bred reset, ny provisioning, bash scripts/m1.sh qa-test, npm ci/install, global installasjon, broad prune/down eller Actions-dispatch under denne runden. Behold eksisterende healthy QA-tjenester.
-9. Når kandidaten er stabil, verifiser samsvar mellom siste testede source-checkpoint, build-proof, arbeidsfiler og serverte assets. Ved kildeendring: nytt checkpoint/build og berørte kontroller. Kjør deretter fra prosjektroten:
-   - bash scripts/design-review.sh
-   Bygget i steg 3 er produksjonsbuild-kontrollen. Ingen ekstra build etter capture som ugyldiggjør proof.
-10. Regenerer alle 14 filer med de eksisterende navnene og viewportene ovenfor; full-page-høyder er innholdsstyrte. Åpne alle bildene faktisk, sammenlign mot originalene og runde 3. Kontroller ny source SHA, round ID, tema, dimensjoner, bildehash og serverte assets. Ved bekreftet feil: rett, nytt checkpoint/build, relevante kontroller og nytt komplett sett.
-11. Bevar korrekt workingTreeDirty-rapportering og la rutinen arkivere forrige gyldige sett. Ikke erstatt ekte innloggede screenshots med browser-mock/stressbilder.
-12. Skriv ROUND_4_REPORT.md med konkrete før/etter-resultater, tester, endrede filer, naturlige datoforskjeller og ærlige restavvik. Bevar tidligere rapporter, arkiver, mailbox og originalreferanser. Oppdater nødvendig prosjektstatus etter repoets rutine.
-13. Commit relevante UI-/test-/dokumentasjonsendringer og validert evidence med DCO/sign-off. Push eksplisitt kun git push origin feat/m3-family-hub.
-
-Ingen PR, merge, deploy, main-push, force-push, tag, release eller Actions-dispatch. Ingen private data eller nye hemmeligheter.
-
-## Ferdigmelding og stoppunkt
-
-Oppgi source SHA, review SHA, round ID og manifest-lenke; konkrete forbedringer per tema/skjermgruppe; restavvik; tester som faktisk ble kjørt; admin/admin-smoke; endrede filer og eventuelle naturlige fixtureendringer. Skill rapportert test-PASS fra visuell referanseparitet.
-
-Lever hele runden til ny Work-/brukerreview når dette er ferdig. Komposisjonen er stabil; ikke start enda en ombygging av layouten. Dersom illustrerte avatarer eller annet nytt produktomfang fortsatt begrenser pariteten, dokumenter dette som en gjenværende designbeslutning fremfor å omgå avgrensningen med falskt innhold.
+Ingen av disse kommandoene skal kjøres nå som en ny rutinerunde. Ingen PR, merge, deploy, main-push, force-push, tag, release eller Actions-dispatch.
