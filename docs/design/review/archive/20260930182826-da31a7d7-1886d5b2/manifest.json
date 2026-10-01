@@ -1,11 +1,11 @@
 {
-  "roundId": "20261001144432-8cc0236b-66eead31",
-  "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
+  "roundId": "20260930182826-da31a7d7-1886d5b2",
+  "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
   "workingTreeDirty": true,
-  "capturedAt": "2026-10-01T14:44:32.232Z",
+  "capturedAt": "2026-09-30T18:28:26.849Z",
   "provenance": {
-    "sourceSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-    "inputFingerprint": "05902eed6d411fc787d2c52ae94c05a14bb25d2cc36faa613950384927f80811",
+    "sourceSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+    "inputFingerprint": "d20166437883b5c102f8415d40a239a83ff1fae10b0cbaafa7a8d7ca60253dc5",
     "inputFileHashes": {
       ".env.example": "80be97daace182ec1058b152bc5fff9ed543737a530bb8b3082965f7893e7144",
       ".npmrc": "0a37c4e83e89507cb7b225e26df5a436e4620dd3237bc49a90bfa292ad5b00f7",
@@ -24,7 +24,7 @@
       "apps/web/src/family-hub.tsx": "021a8a11a08489ad5f01bb073f71b97a2f2fef0869659937b5c02183aa64991d",
       "apps/web/src/home-presentation.ts": "f882f9ca444589b13fbbc596fa61cd49245fdb4c06b30021ec82fca7a336439d",
       "apps/web/src/home-types.ts": "a1347e107899d0c8547779ec70a1a62c4db7070e6d834aadde7d44030d8fc0ee",
-      "apps/web/src/home.css": "2286ec964b5eaeb4c25d7905651d7fbd87ab4d48bd357e40e41414830f810b27",
+      "apps/web/src/home.css": "38b03deb4e9325b75635d9f21df06227456ce8ae70747d31f72cc1af6ef1db75",
       "apps/web/src/home.tsx": "0d1d081cec9227e0745a2c262bda2c566f7304d33716bf014bdff1eeaf82b975",
       "apps/web/src/integrations.tsx": "4f6f929273c0649ad44c49bc0d9c954c5b8fed71ca8e6ec75a42fe3f3345943a",
       "apps/web/src/locales/en.ts": "d958141ffedbf58030453eea85b6c073979f97295f6859d0b77e078d3851df8f",
@@ -173,17 +173,17 @@
       "tsconfig.json": "0d1dd5b189a89a33a62b5aaac24cc84f85bebcb7495f6aa68bc5e15861694870"
     },
     "distHashes": {
-      "assets/index-BpH9pj8X.js": "a1d0703b3a965d551f8a6a47373cf9060da3017ca2f9e9df42494183502720e5",
-      "assets/index-Cr5X0_K0.css": "2bf0a4e858b91589c6c777f3eef66a0bf51dc53ebd933b1cc8aa1c4fd77b7e41",
+      "assets/index-ChZaRm7P.css": "aeb22879fab957cf0e86addb5cbc4b00d76faf5782229cecd52feb5a1914ba33",
+      "assets/index-EK0FuhFA.js": "a1d0703b3a965d551f8a6a47373cf9060da3017ca2f9e9df42494183502720e5",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
-      "index.html": "b626b25e4b8516f5a5c2a37db3f6435fd49ff0c3e1a1196abaec5449a6b148ca"
+      "index.html": "cbf7f6223eb20c8befa661ea7d633444559a1b23df38cbfed8323a5caa8c27ac"
     },
-    "builtAt": "2026-10-01T14:34:59.873Z",
+    "builtAt": "2026-09-30T18:19:28.633Z",
     "containerId": "13b86f7ac1962e2d89ec7ea10a6966a1b872d27557f8eb586c4b5f12c6e02fe1",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
-      "/assets/index-BpH9pj8X.js",
-      "/assets/index-Cr5X0_K0.css",
+      "/assets/index-ChZaRm7P.css",
+      "/assets/index-EK0FuhFA.js",
       "/assets/nordic-dusk-v2-JZmjLCmU.png"
     ]
   },
@@ -195,8 +195,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:34.053Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:28.707Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -212,11 +212,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "b7d4cf954b82a1d4c34392f528886f83786d0d76607d3d5ceb12ae8aa24fbcdd"
+      "sha256": "1a3719d5e90091af3b3c6f1d6104d5dca287d115d391a4ea006a0bba9b4995ee"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:34.242Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:28.895Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -232,11 +232,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "970c837b814fa18db33fe5c6e141903c7328ed2dc1686bb484a1f7fd95074c99"
+      "sha256": "058213782ab6485ffb6742c04951f45c015ecb9b3c5c589becff3db4543a8800"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:34.572Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:29.134Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -252,11 +252,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "2777171d1c8aa057a5d274fb8d9fae5ec62f3ec2c9a47a41815441fff3d60b52"
+      "sha256": "823915f9653d226b0b14d5badda4275fc09cb4b905c81aa3e6a36bf25eb0e7d9"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:34.843Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:29.470Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -272,11 +272,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "3f9beb3075730367ac891e9c5f22be9c8f497bf732e18227cbf45693133cbf59"
+      "sha256": "c8633d902c1e3beb1313307ab51ebf9ddc2c84a10afb0b777a17fded5206c364"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:35.086Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:29.797Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -292,11 +292,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "177a4a5f254830195c8ee450767d6f1a8dfafafc88aab01fb51927669074ea95"
+      "sha256": "cdf5d1bb92777b3f3e8fd197a9d9d7a8d1a17b2724a1a2af8ac7c0709fce2b3d"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:35.445Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:30.060Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -312,11 +312,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "7a2e41047fa07fd7b5d4eb284ed8831bdb4f6a29639a7d42f2174d2245358c6e"
+      "sha256": "32a45dbd64bb3423085bb686342c1b10e5bbfe4c66f8e5d49fa990f587248965"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:36.193Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:30.787Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -332,11 +332,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "a12b9fd76117edc8996db48d9c2965d4ea64f378411ddf7dc39154036e57ac4f"
+      "sha256": "edc4133a2d62e1920782ab750271637297e46d5d112f0ec80b2469cf054599e5"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:37.290Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:31.970Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -352,11 +352,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "759905ac4d50a92c92f7349a36799a296d685004aada6a6c8b4126abb8a587f0"
+      "sha256": "0577a7c72f7f0d2a194cbe295d7e27ad77b0a5b02598dfe2ce822bd1fb9c8a4e"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:37.518Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:32.205Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -372,11 +372,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "805c8ae5c23d9ade7cd5fb1c30b59611cfcd4db825b5332f19e8152f976ccd63"
+      "sha256": "2bef71a8292147946e4a027be866037ba23510593d751e057c19771cbf4652cf"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:38.043Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:32.698Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -392,11 +392,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "57b21ba11a07beaabb19f445b021563f7be1d13baabd5b515f3292851f9425a1"
+      "sha256": "1f128b802467709dd13d2795ea83f7636dd3bd000db43bb017cde5e71141ef33"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:38.547Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:33.227Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -412,11 +412,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "173ee2215c12642ec1165ed8076be8f17ccdc529a4c3120168447b5dd02e7ef4"
+      "sha256": "c5d9eb9d12aef20bd4ac99b19f2487b881d0491b3def8e986b13737023d53430"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:39.065Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:33.842Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -432,11 +432,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "5431f3687ea4403b8b1bcd1d8ece3f995fccea5e694c6b9ca34f0ec764d78220"
+      "sha256": "20ac13176b648270fd717af67fddbae38b0bd323fae329ae051761c27b2475f0"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:39.501Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:34.329Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -452,11 +452,11 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "8e7eabef907c281a3c4f86f0665b3abeed5351aeba4ecf21a5d7f9f1768cea47"
+      "sha256": "78367937380efafcdc5fcda595a51afca22aacd3180552a44fb6472a3e6e683f"
     },
     {
-      "commitSha": "8cc0236b4a3dd4ce43eee36591f74e75de6f4e88",
-      "capturedAt": "2026-10-01T14:44:40.503Z",
+      "commitSha": "da31a7d757d81b4a8308b9a41f6239c2367d3952",
+      "capturedAt": "2026-09-30T18:28:35.457Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -472,7 +472,7 @@
         "itemCount": 9,
         "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
       },
-      "sha256": "6bc5f69e2c4c4a8c5a0864c4a8ce88cb480d5dd196b8cb1c06a637f423319049"
+      "sha256": "985967790a0071c6c951c73e896aa69e77bcc12238049316e3a1f22be5849960"
     }
   ]
 }

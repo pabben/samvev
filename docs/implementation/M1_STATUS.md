@@ -1,5 +1,23 @@
 # M1 implementation status
 
+## M3 design round 4 — 2026-10-01
+
+Activated mailbox `4ec2c24`: CSS-only sky/mint family atmosphere, layered navy
+glass, coherent existing icons and full-card identity-axis correction. Final
+DCO source `8cc0236b4a3dd4ce43eee36591f74e75de6f4e88` also fixes genuine 200% native-zoom
+heading/hero/navigation collisions without changing the five normal layouts.
+Node 24 check and 32/32 tests; complete focused LAN regressions/14 read-only
+stress cases; 12 NB/EN axis cases, fallback/Axe and native zoom PASS. Fresh
+actual composited contrast normal/fallback minimum 5.031:1 PASS. Existing
+admin/admin and synthetic QA data are preserved; natural October 1 Today1 /
+Tomorrow0 is documented. All 14 actual Home images are opened/hash verified, round
+`20261001144432-8cc0236b-66eead31`; post-capture literal admin/admin UI login/logout
+and unchanged content/authentication snapshots PASS. Independent final release
+gate PASS. Final capture/publication
+evidence is recorded in
+[Round 4 report](../design/review/ROUND_4_REPORT.md). No mutating M3 harness,
+production change or private data introduced; protected root Git is untouched.
+
 ## M3 design round 3 — 2026-09-30
 
 Activated mailbox `de14831`: dark Tomorrow/support column and balanced portrait,
