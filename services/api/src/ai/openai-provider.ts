@@ -14,7 +14,7 @@ const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 const MAX_RESPONSE_BYTES = 256 * 1024;
 const MAX_STORED_TOKENS = 2_147_483_647;
 
-interface OpenAiPayload { status?: unknown; incomplete_details?: unknown; output?: unknown; usage?: unknown; }
+interface OpenAiPayload { status?: unknown; incomplete_details?: unknown; output?: unknown; usage?: unknown;model?:unknown;service_tier?:unknown; }
 type JsonSchema=Record<string,unknown>;
 
 function schemaObject(value:unknown):value is JsonSchema{return Boolean(value)&&typeof value==='object'&&!Array.isArray(value);}
@@ -80,13 +80,16 @@ export function normalizeOpenAiStrictOutput(output:string,schema:unknown):string
   try{return JSON.stringify(normalizeStrictValue(JSON.parse(output),schema));}catch{return output;}
 }
 
-export function normalizedResponsesUsage(value: unknown): { inputTokens?: number; outputTokens?: number } | undefined {
+export function normalizedResponsesUsage(value: unknown): { inputTokens?: number; outputTokens?: number;cachedInputTokens?:number;cacheWriteTokens?:number;reasoningTokens?:number } | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const row = value as Record<string, unknown>;
   const inputTokens = Number.isInteger(row.input_tokens) && Number(row.input_tokens) >= 0 && Number(row.input_tokens) <= MAX_STORED_TOKENS ? Number(row.input_tokens) : undefined;
   const outputTokens = Number.isInteger(row.output_tokens) && Number(row.output_tokens) >= 0 && Number(row.output_tokens) <= MAX_STORED_TOKENS ? Number(row.output_tokens) : undefined;
+  const inputDetails=row.input_tokens_details&&typeof row.input_tokens_details==='object'?row.input_tokens_details as Record<string,unknown>:{};const outputDetails=row.output_tokens_details&&typeof row.output_tokens_details==='object'?row.output_tokens_details as Record<string,unknown>:{};
+  const safe=(value:unknown)=>Number.isInteger(value)&&Number(value)>=0&&Number(value)<=MAX_STORED_TOKENS?Number(value):undefined;
+  const cachedInputTokens=safe(inputDetails.cached_tokens);const cacheWriteTokens=safe(inputDetails.cache_write_tokens);const reasoningTokens=safe(outputDetails.reasoning_tokens);
   return inputTokens === undefined && outputTokens === undefined ? undefined : {
-    ...(inputTokens === undefined ? {} : { inputTokens }), ...(outputTokens === undefined ? {} : { outputTokens })
+    ...(inputTokens === undefined ? {} : { inputTokens }), ...(outputTokens === undefined ? {} : { outputTokens }),...(cachedInputTokens===undefined?{}:{cachedInputTokens}),...(cacheWriteTokens===undefined?{}:{cacheWriteTokens}),...(reasoningTokens===undefined?{}:{reasoningTokens})
   };
 }
 
@@ -109,7 +112,7 @@ function parsedArguments(value: unknown): unknown {
 
 export function responsesTurn(payload: OpenAiPayload): AiProviderTurn {
   const usage = normalizedResponsesUsage(payload.usage);
-  if (payload.status !== 'completed' || payload.incomplete_details || !Array.isArray(payload.output)) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
+  if (payload.status !== 'completed' || payload.incomplete_details || !Array.isArray(payload.output)) throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,undefined,typeof payload.model==='string'?payload.model:undefined,typeof payload.service_tier==='string'?payload.service_tier:undefined);
   const texts: string[] = []; const toolCalls: Array<{id:string;name:string;arguments:unknown}> = [];
   for (const item of payload.output) {
     if (!item || typeof item !== 'object') continue;
@@ -127,7 +130,7 @@ export function responsesTurn(payload: OpenAiPayload): AiProviderTurn {
   // valid function call. Intermediary text is not a final answer: the internal
   // contract deliberately remains a strict output/tool-call XOR.
   const output = toolCalls.length ? '' : texts.join('\n').trim();
-  const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(), ...(usage ? { usage } : {}) });
+  const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(),...(typeof payload.model==='string'?{actualModel:payload.model}:{}),...(typeof payload.service_tier==='string'?{actualServiceTier:payload.service_tier}:{}), ...(usage ? { usage } : {}) });
   if (!parsed.success) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage);
   return parsed.data;
 }
@@ -163,8 +166,13 @@ class OpenAiResponsesSession implements AiProviderSession {
       this.pending.clear();
     }
     const active = combinedSignal(this.externalSignal, this.timeoutMs);
-    const aborted=new Promise<never>((_resolve,reject)=>active.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}));
+    let rejectAbort:(error:Error)=>void=()=>{};const onAbort=()=>rejectAbort(new DOMException('aborted','AbortError'));let aborted:Promise<never>|undefined;
     try {
+      if(active.signal.aborted)throw new DOMException('aborted','AbortError');
+      await this.configuration.beforeDispatch?.();
+      if(active.signal.aborted)throw new DOMException('aborted','AbortError');
+      this.configuration.onWireStart?.();
+      aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=reject;active.signal.addEventListener('abort',onAbort,{once:true});});
       const response = await Promise.race([this.transport(OPENAI_RESPONSES_URL, {
         method: 'POST', headers: { authorization: `Bearer ${this.configuration.apiKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({
@@ -188,7 +196,7 @@ class OpenAiResponsesSession implements AiProviderSession {
       const timedOut=active.signal.aborted;this.close();if (timedOut) throw new AiProviderFailure('AI_TIMEOUT');
       if (error instanceof AiProviderFailure) throw error;
       throw new AiProviderFailure('AI_UPSTREAM_ERROR');
-    } finally { active.close(); }
+    } finally { if(aborted)active.signal.removeEventListener('abort',onAbort);active.close(); }
   }
 }
 
@@ -205,7 +213,7 @@ export class OpenAiProvider implements AiProvider {
 
   async execute(rawTask: AiTask, configuration: AiProviderConfiguration): Promise<AiResult> {
     const task = aiTaskSchema.parse(rawTask);const session=this.createSession(task,configuration);
-    try{const turn=await session.next();if(!turn.output)throw new AiProviderFailure('AI_RESPONSE_INVALID',turn.usage);return aiResultSchema.parse({ output: turn.output, generatedAt: turn.generatedAt, uncertainty: 'unknown', sources: task.sources, ...(turn.usage ? { usage: turn.usage } : {}) });}
+    try{const turn=await session.next();if(!turn.output)throw new AiProviderFailure('AI_RESPONSE_INVALID',turn.usage);return aiResultSchema.parse({ output: turn.output, generatedAt: turn.generatedAt, uncertainty: 'unknown', sources: task.sources,...(turn.actualModel?{actualModel:turn.actualModel}:{}),...(turn.actualServiceTier?{actualServiceTier:turn.actualServiceTier}:{}), ...(turn.usage ? { usage: turn.usage } : {}) });}
     finally{session.close();}
   }
 

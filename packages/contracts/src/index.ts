@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const locales = ['en', 'nb'] as const;
 export const themes = ['light', 'dark', 'system'] as const;
+export const avatarKeys = ['avatar-01','avatar-02','avatar-03','avatar-04','avatar-05','avatar-06'] as const;
 export const ageGroups = ['adult', 'teen', 'child', 'unspecified'] as const;
 export const rolePresets = ['installation_admin', 'household_admin', 'member', 'limited'] as const;
 export const capabilities = [
@@ -51,6 +52,7 @@ export const preferencesSchema = z.object({ locale: localeSchema.optional(), the
 
 export const personCreateSchema = z.object({
   displayName: nameSchema,
+  avatarKey: z.enum(avatarKeys).nullable().optional(),
   birthDate: birthDateSchema.nullable().optional(),
   ageGroup: z.enum(ageGroups).optional(),
   rolePreset: rolePresetSchema,
@@ -68,10 +70,11 @@ export const personCreateSchema = z.object({
 
 export const personUpdateSchema = z.object({
   displayName: nameSchema.optional(),
+  avatarKey: z.enum(avatarKeys).nullable().optional(),
   birthDate: birthDateSchema.nullable().optional(),
   ageGroup: z.enum(ageGroups).optional(),
   expectedRevision: z.number().int().positive()
-}).strict().refine((value) => value.displayName !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
+}).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
 
 const loginSetupSchema = z.object({
   email: emailSchema,
@@ -284,7 +287,10 @@ export const aiTaskSchema = z.object({
 
 export const aiUsageSchema = z.object({
   inputTokens: z.number().int().nonnegative().optional(),
-  outputTokens: z.number().int().nonnegative().optional()
+  outputTokens: z.number().int().nonnegative().optional(),
+  cachedInputTokens: z.number().int().nonnegative().optional(),
+  cacheWriteTokens: z.number().int().nonnegative().optional(),
+  reasoningTokens: z.number().int().nonnegative().optional()
 }).strict();
 
 export const aiResultSchema = z.object({
@@ -292,6 +298,8 @@ export const aiResultSchema = z.object({
   generatedAt: isoInstant,
   uncertainty: z.enum(aiUncertaintyLevels),
   sources: z.array(aiSourceEvidenceSchema).max(20),
+  actualModel: z.string().trim().min(1).max(100).optional(),
+  actualServiceTier: z.string().trim().min(1).max(80).optional(),
   usage: aiUsageSchema.optional()
 }).strict();
 
@@ -318,6 +326,8 @@ export const aiProviderTurnSchema = z.object({
   output: z.string().trim().min(1).max(32_000).optional(),
   toolCalls: z.array(aiToolCallSchema).max(8).default([]),
   generatedAt: isoInstant,
+  actualModel: z.string().trim().min(1).max(100).optional(),
+  actualServiceTier: z.string().trim().min(1).max(80).optional(),
   usage: aiUsageSchema.optional()
 }).strict().refine((value) => Boolean(value.output) !== (value.toolCalls.length > 0), {
   message: 'exactly_one_of_output_or_tool_calls'
@@ -336,6 +346,31 @@ export const aiSettingsUpdateSchema = z.object({
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'expectedRevision'));
 
 export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers) }).strict();
+
+export const aiChatGptCredentialRecordSchema = z.object({
+  version: z.literal(1),
+  label: nameSchema,
+  email: emailSchema.optional(),
+  issuer: z.literal('https://auth.openai.com'),
+  subject: z.string().min(1).max(500),
+  clientId: z.string().min(8).max(300).refine((value)=>value!=='dynamic_agent_client'),
+  extAgentHostId: z.string().regex(/^urn:uuid:[0-9a-f-]{36}$/),
+  idToken: z.string().min(20).max(16_000),
+  accessToken: z.string().min(20).max(16_000),
+  refreshToken: z.string().min(20).max(16_000),
+  tokenType: z.literal('Bearer'),
+  expiresAt: isoInstant,
+  earliestRefreshAt: isoInstant.optional(),
+  scopes: z.array(z.string().min(1).max(160)).max(30),
+  savedAt: isoInstant
+}).strict();
+export const aiChatGptImportSchema = z.object({
+  credential: aiChatGptCredentialRecordSchema,
+  expectedRevision: z.number().int().nonnegative()
+}).strict();
+export const aiChatGptDisconnectSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const aiChatGptSelectSchema = z.object({ expectedRevision: z.number().int().nonnegative() }).strict();
+export const aiUsageQuerySchema = z.object({ days: z.coerce.number().int().refine((value)=>value===7||value===30).default(30) }).strict();
 
 export const monitorProviderPolicies = ['default', 'local', 'openai'] as const;
 export const monitorToolNames = ['web.open', 'weather.forecast'] as const;
@@ -503,6 +538,7 @@ export type ErrorCode =
   | 'CLAIM_EXPIRED' | 'INVITATION_INVALID' | 'INVITATION_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID'
   | 'AI_CONFIGURATION_INVALID' | 'AI_DISABLED' | 'AI_PROVIDER_UNAVAILABLE' | 'AI_UPSTREAM_ERROR'
   | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED'
+  | 'AI_REAUTHORIZATION_REQUIRED' | 'AI_PLAN_PERMISSION_REQUIRED' | 'AI_PLAN_USAGE_LIMITED' | 'AI_PLAN_NOT_ELIGIBLE' | 'AI_STREAM_INTERRUPTED'
   | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'
   | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_SOURCE_REQUIRED' | 'MONITOR_SOURCE_AMBIGUOUS'
   | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_INTERPRETATION_SCHEMA_INVALID'

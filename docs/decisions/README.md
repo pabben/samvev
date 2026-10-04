@@ -24,3 +24,4 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0018](0018-synthetic-live-e2e-identity.md) | Registered synthetic household, normal authentication and execution-scoped deployed-runtime E2E | Accepted for implementation; live gate pending |
 | [0019](0019-daily-conditional-weather-rules.md) | Calendar-based daily weather rules with deterministic rain/wind evaluation | Accepted for implementation; live verification pending |
 | [0020](0020-external-intelligence-family-hub.md) | Scoped external intelligence connections and durable family-hub items | Accepted for M3 implementation |
+| [0021](0021-chatgpt-plan-oauth-and-usage-accounting.md) | Owner-bound ChatGPT OAuth, public Responses dispatch and auditable route-specific usage | Accepted for M3 preview |

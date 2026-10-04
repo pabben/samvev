@@ -266,7 +266,7 @@ export function MemberApp({
           <ErrorNotice error={error} />
           <ErrorNotice error={loadError} />
           {tab === "home" ? (
-            <Home key={household} householdId={household} onSessionChange={onSessionChange} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
+            <Home key={household} householdId={household} onSessionChange={onSessionChange} onManagePeople={can("people.manage") ? () => setTab("people") : undefined} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
           ) : tab === "integrations" && can("household.manage") ? (
             <IntegrationsPanel key={household} member={member} displays={displays}/>
           ) : tab === "more" ? (
@@ -277,6 +277,7 @@ export function MemberApp({
             <AiSettingsPanel
               key={household}
               householdId={household}
+              ownerAccountId={me.account.id}
               timezone={member.timezone}
             />
           ) : !loaded ? (
@@ -543,10 +544,7 @@ export function MemberApp({
             </>
           )}
         </main>
-        <footer className="member-footer">
-          <span>samvev.</span>
-          <span>{t("tagline")}</span>
-        </footer>
+
       </div>
       {compose !== undefined && (
         <Composer

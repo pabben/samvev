@@ -12,7 +12,7 @@ import {
   invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
-  aiConnectionTestSchema, aiSettingsUpdateSchema,
+  aiConnectionTestSchema, aiSettingsUpdateSchema,aiChatGptImportSchema,aiChatGptDisconnectSchema,aiChatGptSelectSchema,aiUsageQuerySchema,
   monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskUpdateSchema,
   integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
@@ -564,17 +564,17 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return { setupStep: step };
   });
 
-  app.get('/api/v1/households/:householdId/ai/settings', async (request) => {
+  app.get('/api/v1/households/:householdId/ai/settings', async (request,reply) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.manage');
-    return aiAdmin.settings(auth.householdId);
+    reply.header('Cache-Control','private, no-store');return aiAdmin.settings(auth.householdId,{installationId:auth.installationId,accountId:auth.accountId,membershipId:auth.membershipId});
   });
 
   app.patch('/api/v1/households/:householdId/ai/settings', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.manage');
     const body = parse(aiSettingsUpdateSchema, request.body);
-    const result = await aiAdmin.updateSettings(auth.householdId, body);
+    const result = await aiAdmin.updateSettings(auth.householdId, body,{installationId:auth.installationId,accountId:auth.accountId,membershipId:auth.membershipId});
     await audit(pool, auth, 'ai.settings_changed', 'ai_settings', auth.householdId, {
       fields: Object.keys(body).filter((key) => !['apiKey','expectedRevision'].includes(key)),
       apiKeyAction: body.apiKey === undefined ? 'unchanged' : body.apiKey === null ? 'removed' : 'replaced'
@@ -587,18 +587,32 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'household.manage');
     const body = parse(aiConnectionTestSchema, request.body);
     await durableRateLimit('ai_connection_test', auth.householdId, 10, 3600);
-    const result = await aiAdmin.testConnection(auth.householdId, body.modelTier);
+    const result = await aiAdmin.testConnection(auth.householdId,body.modelTier,{ownerAccountId:auth.accountId,ownerMembershipId:auth.membershipId,category:'test',phase:'connection_test'});
     await audit(pool, auth, 'ai.connection_tested', 'ai_settings', auth.householdId, {
       provider: result.provider, modelTier: body.modelTier, available: result.available
     });
     return result;
   });
 
-  app.get('/api/v1/households/:householdId/ai/usage', async (request) => {
+  app.get('/api/v1/households/:householdId/ai/usage', async (request,reply) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.manage');
-    return aiAdmin.usage(auth.householdId);
+    reply.header('Cache-Control','private, no-store');const query=parse(aiUsageQuerySchema,request.query??{});return aiAdmin.usage(auth.householdId,query.days,auth.accountId);
   });
+
+  app.post('/api/v1/households/:householdId/ai/chatgpt/import',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    if(!runtime.secureCookies)throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'secure_import_required',command:'npm run ai:chatgpt-import'});
+    const body=parse(aiChatGptImportSchema,request.body);const registration=await aiAdmin.chatgpt.import(auth,body.credential,body.expectedRevision);await audit(pool,auth,'ai.chatgpt_imported','ai_chatgpt_registration',(registration as {id:string}).id);return reply.status(201).send({registration});
+  });
+  app.get('/api/v1/households/:householdId/ai/chatgpt/:registrationId/models',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store');return aiAdmin.chatgpt.models(auth,params(request).registrationId!);
+  });
+  app.post('/api/v1/households/:householdId/ai/chatgpt/:registrationId/disconnect',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(aiChatGptDisconnectSchema,request.body);const result=await aiAdmin.chatgpt.disconnect(auth,params(request).registrationId!,body.expectedRevision);await audit(pool,auth,'ai.chatgpt_disconnected','ai_chatgpt_registration',params(request).registrationId!,{revocationConfirmed:result.revocationConfirmed});return result;
+  });
+  app.post('/api/v1/households/:householdId/ai/chatgpt/:registrationId/resume',async(request)=>{const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(aiChatGptDisconnectSchema,request.body);return{registration:await aiAdmin.chatgpt.resume(auth,params(request).registrationId!,body.expectedRevision)};});
+  app.post('/api/v1/households/:householdId/ai/chatgpt/:registrationId/select',async(request)=>{const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(aiChatGptSelectSchema,request.body);const result=await aiAdmin.chatgpt.select(auth,params(request).registrationId!,body.expectedRevision);await audit(pool,auth,'ai.chatgpt_selected','ai_chatgpt_registration',params(request).registrationId!);return result;});
 
   app.get('/api/v1/households/:householdId/monitors', async (request) => {
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
@@ -645,7 +659,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const canManageAccounts=auth.capabilities.includes('account.manage');
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone);
-    const result = await pool.query(`SELECT p.id,p.display_name,p.age_group,p.revision AS person_revision,
+    const result = await pool.query(`SELECT p.id,p.display_name,p.avatar_key AS "avatarKey",p.age_group,p.revision AS person_revision,
       CASE WHEN $2 THEN p.birth_date::text ELSE NULL END AS birth_date,m.id AS membership_id,m.role_preset,
       CASE WHEN $2 THEN m.capabilities ELSE '[]'::jsonb END AS capabilities,m.revision,
       (m.account_id IS NOT NULL) AS has_login,(m.account_id IS NOT NULL AND a.password_hash IS NOT NULL AND a.disabled_at IS NULL) AS has_active_login,
@@ -683,7 +697,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const passwordHash=body.login?.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result = await transaction(async (client) => {
       await validateAudience(client, auth, [], body.displayIds, false);
-      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group,birth_date) VALUES ($1,$2,$3,$4) RETURNING id`, [auth.householdId,body.displayName,ageGroup,body.birthDate??null]);
+      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group,birth_date) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,body.displayName,body.avatarKey??null,ageGroup,body.birthDate??null]);
       let accountId: string|null = null;
       if (body.login) {
         accountId = (await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.installationId,body.login.email,passwordHash,body.login.locale,body.login.theme])).rows[0]!.id;
@@ -706,7 +720,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
       const birthDate=body.birthDate===undefined?current.rows[0]!.birth_date:body.birthDate;
       const ageGroup=body.ageGroup??(body.birthDate===undefined?current.rows[0]!.age_group:deriveAgeGroup(birthDate,localDateInTimezone(new Date(),household.timezone)));
-      const updated=await client.query(`UPDATE persons SET display_name=COALESCE($3,display_name),birth_date=$4,age_group=$5,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$6 RETURNING id,display_name,birth_date::text,age_group,revision`,[params(request).personId,auth.householdId,body.displayName??null,birthDate,ageGroup,body.expectedRevision]);
+      const updated=await client.query(`UPDATE persons SET display_name=COALESCE($3,display_name),avatar_key=CASE WHEN $4 THEN $5 ELSE avatar_key END,birth_date=$6,age_group=$7,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$8 RETURNING id,display_name,avatar_key AS "avatarKey",birth_date::text,age_group,revision`,[params(request).personId,auth.householdId,body.displayName??null,body.avatarKey!==undefined,body.avatarKey??null,birthDate,ageGroup,body.expectedRevision]);
       if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       await audit(client,auth,'person.updated','person',params(request).personId,{fields:Object.keys(body).filter((key)=>key!=='expectedRevision')});
       return updated.rows[0];
@@ -827,9 +841,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
     reply.header('Cache-Control','private, no-store');
     const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:'en'|'nb';show_upcoming_birthday:boolean}>(`SELECT id,name,timezone,default_locale,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
-    const people=await pool.query<{id:string;display_name:string;age_group:string;birth_date:string|null}>(`SELECT id,display_name,age_group,birth_date::text FROM persons WHERE household_id=$1 ORDER BY created_at,id`,[auth.householdId]);
+    const people=await pool.query<{id:string;display_name:string;avatar_key:string|null;age_group:string;birth_date:string|null}>(`SELECT id,display_name,avatar_key,age_group,birth_date::text FROM persons WHERE household_id=$1 ORDER BY created_at,id`,[auth.householdId]);
     const canViewAll=auth.capabilities.includes('household.manage');
-    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,p.display_name AS author_name,m.publish_at,m.expires_at,m.revision,m.audience_household,
+    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_person_id:string;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,p.display_name AS author_name,p.id AS author_person_id,m.publish_at,m.expires_at,m.revision,m.audience_household,
       COALESCE((SELECT json_agg(pa.person_id ORDER BY pa.person_id) FROM message_person_audiences pa WHERE pa.message_id=m.id),'[]') AS person_ids
       FROM messages m JOIN memberships am ON am.id=m.author_membership_id JOIN persons p ON p.id=am.person_id
       WHERE m.household_id=$1 AND m.state IN ('scheduled','published') AND m.expires_at>clock_timestamp()
@@ -842,10 +856,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {
       household:{id:household.id,name:household.name,timezone:household.timezone,locale:household.default_locale},
       viewer:{personId:auth.personId,membershipId:auth.membershipId},
-      people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,ageGroup:person.age_group})),
+      people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,ageGroup:person.age_group})),
       upcomingBirthday,items:await homeItems(auth.householdId,auth.personId,canViewAll),
       messages:messages.rows.map((message)=>({
-        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,
+        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,authorPersonId:message.author_person_id,
         publishAt:message.publish_at.toISOString(),expiresAt:message.expires_at.toISOString(),revision:message.revision,
         targets:{household:message.audience_household,personIds:message.person_ids}
       })),serverNow:new Date().toISOString()

@@ -214,7 +214,7 @@ export function chatCompletionTurn(payload: Record<string, unknown>): AiProvider
   // This preserves the provider-neutral strict output/tool-call XOR.
   const output = toolCalls.length ? '' : contentText(row);
   if(!toolCalls.length&&!output)throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,'empty_content');
-  const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(), ...(usage ? { usage } : {}) });
+  const parsed = aiProviderTurnSchema.safeParse({ ...(output ? { output } : {}), toolCalls, generatedAt: new Date().toISOString(),...(typeof payload.model==='string'?{actualModel:payload.model}:{}), ...(usage ? { usage } : {}) });
   if (!parsed.success) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage,toolCalls.length?'invalid_tool_calls':'invalid_turn_shape');
   return parsed.data;
 }
@@ -251,8 +251,9 @@ class ChatCompletionSession implements AiProviderSession {
     if(this.pending.size!==toolResults.length||toolResults.some((result)=>this.pending.get(result.callId)!==result.name)){this.close();throw new AiProviderFailure('AI_RESPONSE_INVALID');}
     if(toolResults.length){this.messages.push(...toolResults.map((result)=>({role:'tool',tool_call_id:result.callId,name:this.aliases.toWire(result.name),content:result.output})));this.pending.clear();}
     const active=combinedSignal(this.externalSignal,this.timeoutMs);
-    const aborted=new Promise<never>((_resolve,reject)=>active.signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}));
+    let rejectAbort:(error:Error)=>void=()=>{};const onAbort=()=>rejectAbort(new DOMException('aborted','AbortError'));let aborted:Promise<never>|undefined;
     try{
+      if(active.signal.aborted)throw new DOMException('aborted','AbortError');
       const headers:Record<string,string>={'content-type':'application/json'};if(this.configuration.apiKey)headers.authorization=`Bearer ${this.configuration.apiKey}`;
       const structuredOutput=this.aliases.wireTools.length===0&&this.pending.size===0&&['plan','extract','classify'].includes(this.task.operation);
       // OpenAI-compatible servers vary in which JSON-Schema dialect and
@@ -260,6 +261,10 @@ class ChatCompletionSession implements AiProviderSession {
       // wire and keep the complete provider-neutral schema authoritative in
       // Samvev's server-side validation.
       const responseFormat=structuredOutput?{type:'json_object'}:undefined;
+      await this.configuration.beforeDispatch?.();
+      if(active.signal.aborted)throw new DOMException('aborted','AbortError');
+      this.configuration.onWireStart?.();
+      aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=reject;active.signal.addEventListener('abort',onAbort,{once:true});});
       const response=await Promise.race([this.transport(completionUrl(this.target.baseUrl),{method:'POST',headers,body:JSON.stringify({
         model:this.configuration.model,messages:this.messages,max_tokens:this.task.maxOutputTokens??64,
         reasoning_effort:this.configuration.reasoningEffort??'none',stream:false,
@@ -273,7 +278,7 @@ class ChatCompletionSession implements AiProviderSession {
       const turn=internalizeAiProviderTurn(chatCompletionTurn(payload),this.aliases);
       this.messages.push(normalizedAssistantContinuation(turn,this.aliases));this.pending=new Map(turn.toolCalls.map((call)=>[call.id,call.name]));return turn;
     }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error');}
-    finally{active.close();}
+    finally{if(aborted)active.signal.removeEventListener('abort',onAbort);active.close();}
   }
 }
 
@@ -297,7 +302,7 @@ export class OpenAiCompatibleProvider implements AiProvider {
 
   async execute(rawTask: AiTask, configuration: AiProviderConfiguration): Promise<AiResult> {
     const task=aiTaskSchema.parse(rawTask);const session=this.createSession(task,configuration);
-    try{const turn=await session.next();if(!turn.output)throw new AiProviderFailure('AI_RESPONSE_INVALID',turn.usage);return aiResultSchema.parse({output:turn.output,generatedAt:turn.generatedAt,uncertainty:'unknown',sources:task.sources,...(turn.usage?{usage:turn.usage}:{})});}
+    try{const turn=await session.next();if(!turn.output)throw new AiProviderFailure('AI_RESPONSE_INVALID',turn.usage);return aiResultSchema.parse({output:turn.output,generatedAt:turn.generatedAt,uncertainty:'unknown',sources:task.sources,...(turn.actualModel?{actualModel:turn.actualModel}:{}),...(turn.usage?{usage:turn.usage}:{})});}
     finally{session.close();}
   }
 

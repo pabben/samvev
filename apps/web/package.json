@@ -6,7 +6,8 @@
   "scripts": {
     "build": "vite build",
     "check": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts"
+    "test": "tsx --test tests/*.test.ts",
+    "test:round5-design": "node tests/round5-design.mjs"
   },
   "dependencies": {
     "react": "19.2.8",

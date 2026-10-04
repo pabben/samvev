@@ -16,10 +16,9 @@ export function personItems(items:HubItem[],personId:string) { return items.filt
 export function importantItems(items:HubItem[]) { return items.filter(i=>i.kind==='alert'||i.kind==='reminder'||['high','urgent'].includes(i.priority)); }
 
 // Stable section keys preserve open details while visual and reading order move together.
-export function hubSectionOrder(dark:boolean, compact:boolean):string[] {
-  if (compact) return ['important','today','tomorrow','messages','people','companion','briefs'];
-  return dark ? ['today','tomorrow','people','important','messages','companion','briefs']
-    : ['people','today','important','tomorrow','messages','companion','briefs'];
+export function hubSectionOrder(dark:boolean, compact:boolean, mobile=false):string[] {
+  if (mobile) return dark ? ['important','quickActions','today','tomorrow','messages','companion','briefs'] : ['important','messages','today','tomorrow','companion','briefs'];
+  return dark ? ['today','tomorrow','people','important','messages','companion','briefs'] : ['people','dayPlan','messages','important','companion','briefs'];
 }
 
 // A small, real update accompanies the human message. Never fabricate a widget
@@ -42,7 +41,7 @@ export function resolveHubDetail(selection:HubDetailSelection|null, people:HubPe
     return item?{kind:'item' as const,item}:undefined;
   }
   const person=people.find(person=>person.id===selection.id);
-  return person?{kind:'person' as const,person,items:personalPreviewItems(active,person.id)}:undefined;
+  return person?{kind:'person' as const,person,items:personItems(active,person.id)}:undefined;
 }
 export function personalPreviewItems(active:HubItem[],personId:string) {
   return personItems(active,personId).filter(item=>item.kind!=='summary'&&item.kind!=='list');

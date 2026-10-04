@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {promises as fs} from 'node:fs';
+import {resolve} from 'node:path';
 import test, {after,before} from 'node:test';
 import {roleCapabilityPresets} from '@samvev/contracts';
 import {DomainError,tokenHash} from '@samvev/core';
@@ -7,10 +9,12 @@ import {buildApp} from '../app.ts';
 import {pool} from '../db.ts';
 import {migrate} from '../db/migrate.ts';
 import {MonitorExecutionQueue,runMonitorExecutionBatch} from './execution.ts';
+import {MonitorEngine} from './engine.ts';
 import {MonitorService} from './service.ts';
 import type {MonitorActor} from './service.ts';
 import type {MonitorSourceFetcher,SourceDocument} from './source-fetcher.ts';
 import {nextMonitorCheckAt} from './schedule.ts';
+import {AiAdminService} from '../ai/admin-service.ts';
 
 const guard=new URL(process.env.DATABASE_URL??'');assert.equal(guard.hostname,'test-db');assert.equal(guard.pathname,'/samvev_test');
 let actor:MonitorActor;let taskId:string;let now=Date.parse('2026-09-13T12:00:00Z');let app:FastifyInstance;let sessionToken:string;let csrfToken:string;
@@ -66,6 +70,19 @@ test('real interpretation service and agent runner accept a provider result afte
   const fetcher={fetch:async()=>document} as unknown as MonitorSourceFetcher;const service=new MonitorService(ai as any,fetcher);const queue=new MonitorExecutionQueue(service,{runManual:async()=>{throw new Error('unused');},runScheduled:async()=>{throw new Error('unused');}} as any,profile,()=>Date.now());
   const run=await queue.enqueue(actor,taskId,1,'interpretation');const completion=queue.runOne();await slowTurn;t.mock.timers.tick(240_000);assert.equal(providerSignal?.aborted,false);assert.equal(await completion,'succeeded');
   const stored=await queue.get(actor,taskId,run.id);assert.equal(stored.status,'succeeded');assert.equal(stored.timing?.totalMs,240_000);assert.equal(turn,2);assert.equal((await pool.query<{revision:number;interpreted_rule:unknown}>('SELECT revision,interpreted_rule FROM monitor_tasks WHERE id=$1',[taskId])).rows[0]!.revision,2);
+});
+
+test('interpretation publication is fenced when the AI route changes after the final provider response',async()=>{
+  await fixture();await pool.query(`UPDATE monitor_tasks SET instruction='Read the approved synthetic page.',tool_plan='["web.open"]'::jsonb WHERE id=$1`,[taskId]);
+  const rule={version:1,resultKind:'answer',summary:'Read the approved synthetic page.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};let turn=0;
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{turn++;if(turn===1)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:'https://example.test/plan'}}],generatedAt:new Date().toISOString()};await pool.query(`UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1`,[actor.householdId]);return{output:JSON.stringify(rule),toolCalls:[],generatedAt:new Date().toISOString()};}})};
+  const document:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',title:'Synthetic page',headings:['Synthetic heading'],text:'Synthetic heading',fingerprint:'synthetic-v1',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:17,links:[]};const service=new MonitorService(ai as any,{fetch:async()=>document} as unknown as MonitorSourceFetcher);
+  await assert.rejects(()=>service.interpret(actor,taskId,1),(error:any)=>error.code==='AI_CONFIGURATION_INVALID');const stored=(await pool.query<{revision:number;interpreted_rule:unknown}>('SELECT revision,interpreted_rule FROM monitor_tasks WHERE id=$1',[taskId])).rows[0]!;assert.equal(stored.revision,1);assert.equal(stored.interpreted_rule,null);
+});
+
+test('manual publication keeps usage but rejects the result when AI is disabled after the last response',async()=>{
+  await fixture();const rule={version:1,resultKind:'answer',summary:'Read synthetic source.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision WHERE id=$1`,[taskId,JSON.stringify(rule)]);let turn=0;const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{turn++;if(turn===1)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};await pool.query(`UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1`,[actor.householdId]);return{output:JSON.stringify({version:1,outputLocale:'nb',answer:'Synthetic heading',evidence:{quote:'Synthetic heading',sourceUrl:'https://example.com/plan',claims:['Synthetic heading']},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};}})};const document:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',title:'Synthetic page',headings:['Synthetic heading'],text:'Synthetic heading',fingerprint:'synthetic-v1',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:17,links:[],evidenceComplete:true,evidenceKind:'web'};const engine=new MonitorEngine({fetch:async()=>document} as unknown as MonitorSourceFetcher,ai as any);
+  await assert.rejects(()=>engine.runManual(actor,taskId,1,'manual'),(error:any)=>error.code==='CONFLICT');assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_runs WHERE task_id=$1 AND outcome='changed'`,[taskId])).rows[0].count,0);assert.equal((await pool.query(`SELECT count(*)::int count FROM messages`,[])).rows[0].count,0);
 });
 
 test('production HTTP actions return durable 202 runs and expose the authenticated run projection',async()=>{
@@ -151,6 +168,36 @@ test('scheduler configuration failures are isolated from an already queued user 
   const rejectingProfile={executionProfile:async(_householdId:string,policyName:string)=>{if(policyName==='openai')throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);return profile.executionProfile();}};const queue=new MonitorExecutionQueue({interpret:async()=>{throw new Error('unused');}} as any,{runManual:async()=>({outcome:'unchanged',resultKind:'answer',result:null,sourceUrl:null,checkedAt:new Date().toISOString(),sources:[]}),runScheduled:async()=>{throw new Error('unused');}} as any,rejectingProfile as any,()=>now);await queue.enqueue(actor,taskId,1,'manual');
   const broken=(await pool.query<{id:string}>(`INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,tool_plan,interpreted_rule,state,approved_revision,next_check_at,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier) SELECT household_id,owner_membership_id,'Broken scheduled fixture',instruction,source_url,tool_plan,$2,'active',1,clock_timestamp()-interval '1 minute',60,1,'18:00','openai','routine' FROM monitor_tasks WHERE id=$1 RETURNING id`,[taskId,JSON.stringify(rule)])).rows[0]!;
   const batch=await runMonitorExecutionBatch(1,queue);assert.equal(batch.claimed,1);assert.equal(batch.succeeded,1);const rejected=(await pool.query<{error_code:string;next_check_at:Date}>(`SELECT error_code,next_check_at FROM monitor_tasks WHERE id=$1`,[broken.id])).rows[0]!;assert.equal(rejected.error_code,'AI_PROVIDER_UNAVAILABLE');assert.ok(rejected.next_check_at.getTime()>Date.now());assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int AS count FROM monitor_runs WHERE task_id=$1 AND outcome='failed'`,[broken.id])).rows[0]!.count,1);
+});
+
+test('terminal plan admission failures pause scheduled work without queueing or retrying',async(t)=>{
+  const rule={version:1,resultKind:'answer',summary:'Synthetic answer',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  for(const code of ['AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_PLAN_PERMISSION_REQUIRED','AI_REAUTHORIZATION_REQUIRED','MONITOR_OWNER_UNAUTHORIZED'])await t.test(code,async()=>{
+    await fixture();await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,state='active',approved_revision=revision,next_check_at=clock_timestamp()-interval '1 minute' WHERE id=$1`,[taskId,JSON.stringify(rule)]);
+    let engineCalls=0;const blockedProfile={executionProfile:async()=>{throw new DomainError(code,422);}};const queue=new MonitorExecutionQueue({interpret:async()=>{throw new Error('unused');}} as any,{runManual:async()=>{engineCalls++;throw new Error('unused');},runScheduled:async()=>{engineCalls++;throw new Error('unused');}} as any,blockedProfile as any,()=>now);
+    assert.equal(await queue.enqueueScheduled(),0);assert.equal(engineCalls,0);assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM monitor_executions WHERE task_id=$1`,[taskId])).rows[0]!.count,0);
+    const paused=(await pool.query<{state:string;revision:number;next_check_at:Date|null;error_code:string}>(`SELECT state,revision,next_check_at,error_code FROM monitor_tasks WHERE id=$1`,[taskId])).rows[0]!;assert.deepEqual(paused,{state:'paused',revision:2,next_check_at:null,error_code:code});
+    const run=(await pool.query<{error_code:string;ai_called:boolean;ai_call_count:number}>(`SELECT error_code,ai_called,ai_call_count FROM monitor_runs WHERE task_id=$1`,[taskId])).rows[0]!;assert.deepEqual(run,{error_code:code,ai_called:false,ai_call_count:0});
+    assert.equal(await queue.enqueueScheduled(),0);assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM monitor_runs WHERE task_id=$1`,[taskId])).rows[0]!.count,1,'a paused task must not create a retry run');
+  });
+});
+
+test('a disabled scheduled-task owner is paused before profile lookup or execution',async()=>{
+  await fixture();const rule={version:1,resultKind:'answer',summary:'Synthetic answer',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,state='active',approved_revision=revision,next_check_at=clock_timestamp()-interval '1 minute' WHERE id=$1`,[taskId,JSON.stringify(rule)]);await pool.query(`UPDATE accounts SET disabled_at=clock_timestamp() WHERE id=$1`,[actor.accountId]);
+  let profileCalls=0,engineCalls=0;const queue=new MonitorExecutionQueue({interpret:async()=>{throw new Error('unused');}} as any,{runManual:async()=>{engineCalls++;throw new Error('unused');},runScheduled:async()=>{engineCalls++;throw new Error('unused');}} as any,{executionProfile:async()=>{profileCalls++;throw new Error('profile must not be reached for a missing active owner');}} as any,()=>now);
+  assert.equal(await queue.enqueueScheduled(),0);assert.equal(profileCalls,0);assert.equal(engineCalls,0);assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM monitor_executions WHERE task_id=$1`,[taskId])).rows[0]!.count,0);assert.deepEqual((await pool.query<{state:string;next_check_at:Date|null;error_code:string}>(`SELECT state,next_check_at,error_code FROM monitor_tasks WHERE id=$1`,[taskId])).rows[0]!,{state:'paused',next_check_at:null,error_code:'MONITOR_OWNER_UNAUTHORIZED'});assert.equal(await queue.enqueueScheduled(),0);
+});
+
+test('queued interpretation, manual and scheduled work recheck the real AI binding at dispatch',async(t)=>{
+  const rule={version:1,resultKind:'answer',summary:'Synthetic answer',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  for(const kind of ['interpretation','manual','scheduled'] as const)await t.test(kind,async()=>{
+    await fixture();const keyDir=resolve(process.cwd(),`.local/execution-binding-${kind}`);await fs.rm(keyDir,{recursive:true,force:true});let wireCalls=0;const ai=new AiAdminService({keyFile:resolve(keyDir,'master-key'),transport:async()=>{wireCalls++;return new Response('',{status:500});}});await ai.updateSettings(actor.householdId,{enabled:true,provider:'openai_compatible',apiKey:'synthetic-api-key-with-enough-entropy',baseUrl:'http://127.0.0.1:11434/v1',defaultModel:'synthetic-routine',strongModel:'synthetic-strong',defaultReasoningEffort:'none',strongReasoningEffort:'medium',expectedRevision:1});
+    if(kind!=='interpretation')await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,state='active',approved_revision=revision,next_check_at=CASE WHEN $3='scheduled' THEN clock_timestamp()-interval '1 minute' ELSE NULL END WHERE id=$1`,[taskId,JSON.stringify(rule),kind]);
+    const fetcher={fetch:async()=>({finalUrl:'https://example.com/plan',contentType:'text/html',title:'Synthetic',headings:['Synthetic answer'],text:'Synthetic answer',fingerprint:'synthetic',fetchedAt:new Date().toISOString(),links:[],evidenceComplete:true,evidenceKind:'web'})} as any;const service=new MonitorService(ai,fetcher);const engine=new MonitorEngine(fetcher,ai);const queue=new MonitorExecutionQueue(service,engine,ai,()=>now);
+    if(kind==='scheduled')assert.equal(await queue.enqueueScheduled(),1);else await queue.enqueue(actor,taskId,1,kind);
+    const blocker=await pool.connect();try{await blocker.query('BEGIN');const blockerPid=(await blocker.query<{pid:number}>('SELECT pg_backend_pid() pid')).rows[0]!.pid;await blocker.query('SELECT household_id FROM ai_settings WHERE household_id=$1 FOR UPDATE',[actor.householdId]);const running=queue.runOne();let waiting=false;for(let attempt=0;attempt<200;attempt++){const result=await pool.query<{waiting:boolean}>(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))) waiting`,[blockerPid]);if(result.rows[0]!.waiting){waiting=true;break;}await new Promise((resolve)=>setTimeout(resolve,5));}const debug=(await pool.query(`SELECT status,error_code,error_details FROM monitor_executions WHERE task_id=$1`,[taskId])).rows;assert.equal(waiting,true,`real AiAdmin authorization must reach a database fence held after queue admission: ${JSON.stringify({wireCalls,debug})}`);await blocker.query('UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1',[actor.householdId]);await blocker.query('COMMIT');assert.equal(await running,'failed');}finally{try{await blocker.query('ROLLBACK');}catch{}blocker.release();await fs.rm(keyDir,{recursive:true,force:true});}
+    assert.equal(wireCalls,0);const attempts=(await pool.query<{actual_dispatch:boolean;outcome:string}>(`SELECT actual_dispatch,outcome FROM ai_usage_events WHERE household_id=$1`,[actor.householdId])).rows;assert.deepEqual(attempts,[{actual_dispatch:false,outcome:'preflight_rejected'}]);
+  });
 });
 
 test('lease recovery reconciles a committed terminal run instead of reporting worker interruption',async()=>{

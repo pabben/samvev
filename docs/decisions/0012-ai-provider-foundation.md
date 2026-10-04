@@ -68,3 +68,10 @@ test always forces `none` so health checks do not incur reasoning work, while
 normal work uses its selected tier setting. The single local deadline covers
 DNS, transport and body consumption; timeout classification wins over a late
 provider failure.
+
+Extended for the M3 preview, 2026-10-04: the historical M2.1 conclusion above
+describes that older slice. The current implementation adds the documented
+ChatGPT agent OAuth flow and public Responses preview behind an explicit,
+owner-bound connection. ADR 0021 defines the new authorization, persistence,
+dispatch and usage-accounting boundaries. OpenAI API credentials and ChatGPT
+subscription authorization remain separate routes and are never substitutes.

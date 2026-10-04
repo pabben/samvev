@@ -1,3 +1,4 @@
+import { avatarImages, avatarLabels } from "./avatars";
 import { useMemo, useState } from "react";
 import { api } from "./api";
 import { ageOnDate, initialDisplayGrants, loginPresentation } from "./person-policy";
@@ -41,7 +42,7 @@ export function PeoplePanel({ people, displays, member, householdSettings, refre
     <div className="person-grid">{people.map((person, index) => {
       const login = loginPresentation(person);
       return <article className="person-card" key={person.id}>
-        <Avatar name={person.display_name} index={index} /><h2>{person.display_name}</h2>
+        <Avatar name={person.display_name} index={index} avatarKey={person.avatarKey}/><h2>{person.display_name}</h2>
         <p>{t(person.role_preset as TranslationKey)}</p>
         <span className={`person-login ${person.account_status ?? "profile"}`}><Icon name={login.icon} />{t(login.label)}</span>
         {member.capabilities.includes("people.manage") && person.birth_date && <p className="person-birth-date">{t("bornWithAge", { date: new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${person.birth_date}T12:00:00Z`)), age: person.calculated_age ?? "" })}</p>}
@@ -63,6 +64,7 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
   const { t } = useI18n();
   const { busy, error, run } = useAction();
   const [name, setName] = useState(person?.display_name ?? "");
+  const [avatarKey, setAvatarKey] = useState<string | null>(person?.avatarKey ?? null);
   const [birthDate, setBirthDate] = useState(person?.birth_date ?? "");
   const [ageGroup, setAgeGroup] = useState(person?.age_group ?? "unspecified");
   const [role, setRole] = useState(person?.role_preset ?? "member");
@@ -99,16 +101,16 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
 
   return <Dialog title={t(person ? "editPerson" : "addPerson")} onClose={onClose}>
     <form className="form-stack person-editor" onSubmit={(event) => { event.preventDefault(); void run(async () => {
-      const personChanged = person && (name !== person.display_name || birthDate !== (person.birth_date ?? "") || ageGroup !== person.age_group);
+      const personChanged = person && (name !== person.display_name || birthDate !== (person.birth_date ?? "") || ageGroup !== person.age_group || avatarKey !== (person.avatarKey ?? null));
       if (!person) {
         const created = await api<{ invitationToken: string | null }>(`/households/${member.household_id}/people`, "POST", {
-          displayName: name, birthDate: birthDate || null, ageGroup, rolePreset: role, capabilities: permissions, displayIds,
+          displayName: name, avatarKey, birthDate: birthDate || null, ageGroup, rolePreset: role, capabilities: permissions, displayIds,
           ...(login ? { login: loginPayload } : {}), ...ownerConfirmation,
         });
         await onSaved();
         if (created.invitationToken) { setInvitationToken(created.invitationToken); return; }
       } else {
-        if (personChanged) await api(`/households/${member.household_id}/people/${person.id}`, "PATCH", { displayName: name, birthDate: birthDate || null, ageGroup, expectedRevision: person.person_revision! });
+        if (personChanged) await api(`/households/${member.household_id}/people/${person.id}`, "PATCH", { displayName: name, avatarKey, birthDate: birthDate || null, ageGroup, expectedRevision: person.person_revision! });
         if (!person.has_login && login) {
           const created = await api<{ invitationToken: string | null }>(`/households/${member.household_id}/memberships/${person.membership_id}/account`, "POST", { login: loginPayload, rolePreset: role, capabilities: permissions, displayIds, expectedRevision: person.revision, ...ownerConfirmation });
           await onSaved();
@@ -125,6 +127,7 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
     }); }}>
       <section className="editor-section"><h3>{t("personDetails")}</h3>
         <Field label={t("personName")}><input value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoFocus /></Field>
+        <fieldset className="avatar-picker"><legend>{t("avatarChoose")}</legend><p className="field-hint">{t("avatarChooseHint")}</p><div className="avatar-options">{[null,...Object.keys(avatarImages)].map((key,index)=><label key={key??"initials"} className={avatarKey===key?"selected":""}><input type="radio" name="person-avatar" checked={avatarKey===key} onChange={()=>setAvatarKey(key)}/><Avatar name={name} avatarKey={key}/><span>{t(index===0?"avatarInitials":avatarLabels[index-1]!)}</span></label>)}</div></fieldset>
         <div className="form-grid"><Field label={t("birthDate")} hint={t("birthDateHint")}><input type="date" value={birthDate} max={householdToday} min="1900-01-01" onChange={(event) => { const value=event.target.value; setBirthDate(value); if(value){const age=ageOnDate(value,householdToday);setAgeGroup(age>=18?"adult":age>=13?"teen":"child");} }} /></Field>
           <Field label={t("ageGroup")} hint={t("ageGroupHint")}><select value={ageGroup} onChange={(event) => setAgeGroup(event.target.value)}>{(["unspecified", "adult", "teen", "child"] as const).map((value) => <option key={value} value={value}>{t(value)}</option>)}</select></Field></div>
         {calculatedAge !== null && <p className="calculated-age" aria-live="polite">{t("calculatedAge", { age: calculatedAge })}</p>}

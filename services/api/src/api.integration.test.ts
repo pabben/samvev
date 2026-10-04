@@ -61,11 +61,19 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   const wrongOrigin=await app.inject({method:'PATCH',url:'/api/v1/me/preferences',headers:{...auth(adminCookie,adminCsrf),origin:'https://attacker.invalid'},payload:{theme:'light'}});
   assert.equal(wrongOrigin.statusCode,403);
 
-  for(const displayName of ['No login one','No login two']){
-    const created=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(adminCookie,adminCsrf),payload:{displayName,ageGroup:'child',rolePreset:'limited',capabilities:['household.view'],displayIds:[]}});
+  let avatarPersonId='';
+  for(const [index,displayName] of ['No login one','No login two'].entries()){
+    const created=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(adminCookie,adminCsrf),payload:{displayName,avatarKey:index===0?'avatar-01':null,ageGroup:'child',birthDate:index===0?'2018-04-03':undefined,rolePreset:'limited',capabilities:['household.view'],displayIds:[]}});
     assert.equal(created.statusCode,201,created.body);
     assert.equal(created.json().hasLogin,false);
+    if(index===0)avatarPersonId=created.json().personId;
   }
+  const avatarList=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/people`,headers:{cookie:adminCookie}});
+  const avatarListed=avatarList.json().people.find((person:{id:string})=>person.id===avatarPersonId);assert.equal(avatarListed.avatarKey,'avatar-01');assert.equal(avatarListed.birth_date,'2018-04-03');
+  const avatarHome=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/home`,headers:{cookie:adminCookie}});const avatarProjected=avatarHome.json().people.find((person:{id:string})=>person.id===avatarPersonId);assert.deepEqual(avatarProjected,{id:avatarPersonId,displayName:'No login one',avatarKey:'avatar-01',ageGroup:'child'});assert.equal('birthDate' in avatarProjected,false);assert.equal('birth_date' in avatarProjected,false);assert.equal('email' in avatarProjected,false);
+  const changedAvatar=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${avatarPersonId}`,headers:auth(adminCookie,adminCsrf),payload:{avatarKey:'avatar-06',expectedRevision:1}});assert.equal(changedAvatar.statusCode,200,changedAvatar.body);assert.equal(changedAvatar.json().avatarKey,'avatar-06');
+  const invalidAvatar=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${avatarPersonId}`,headers:auth(adminCookie,adminCsrf),payload:{avatarKey:'avatar-99',expectedRevision:2}});assert.equal(invalidAvatar.statusCode,400);assert.equal((await pool.query<{avatar_key:string}>('SELECT avatar_key FROM persons WHERE id=$1',[avatarPersonId])).rows[0]!.avatar_key,'avatar-06');
+  const clearedAvatar=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${avatarPersonId}`,headers:auth(adminCookie,adminCsrf),payload:{avatarKey:null,expectedRevision:2}});assert.equal(clearedAvatar.statusCode,200,clearedAvatar.body);assert.equal(clearedAvatar.json().avatarKey,null);
 
   const verifier='one-use-browser-verifier-with-enough-entropy-0123456789';
   const pairing=await app.inject({method:'POST',url:'/api/v1/display/pairing/start',payload:{verifierHash:sha(verifier)}});
@@ -118,6 +126,8 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   const limitedLogin=await app.inject({method:'POST',url:'/api/v1/auth/login',payload:{email:'limited@test.invalid',password:'Synthetic-limited-pass-42'}});
   assert.equal(limitedLogin.statusCode,200);
   const limitedCookie=cookies(limitedLogin);
+  const limitedAvatarChange=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${avatarPersonId}`,headers:auth(limitedCookie,limitedLogin.json().csrfToken),payload:{avatarKey:'avatar-02',expectedRevision:3}});assert.equal(limitedAvatarChange.statusCode,403);
+  const foreignHousehold=(await pool.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) SELECT id,'Avatar isolation fixture','Europe/Oslo','en' FROM installations WHERE singleton RETURNING id`)).rows[0]!.id;const foreignPerson=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Foreign avatar fixture','adult') RETURNING id`,[foreignHousehold])).rows[0]!.id;const foreignAvatarChange=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${foreignPerson}`,headers:auth(adminCookie,adminCsrf),payload:{avatarKey:'avatar-02',expectedRevision:1}});assert.equal(foreignAvatarChange.statusCode,404);assert.equal((await pool.query<{avatar_key:string|null}>('SELECT avatar_key FROM persons WHERE id=$1',[foreignPerson])).rows[0]!.avatar_key,null);
   const limitedCsrf=limitedLogin.json().csrfToken as string;
   const expiresAt=new Date(Date.now()+60_000).toISOString();
   const immediatePayload={body:'Synthetic gym clothes reminder',importance:'attention',audience:{household:false,personIds:[],displayIds:[displayId]},expiresAt,idempotencyKey:'immediate-test-0001'};
@@ -240,7 +250,8 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '015_live_e2e_registration.sql',
     '016_monitor_failure_diagnostics.sql',
     '017_external_intelligence.sql',
-    '018_integration_item_content_locale.sql'
+    '018_integration_item_content_locale.sql',
+    '019_round5_ai_connections_and_avatars.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
 });

@@ -13,6 +13,11 @@ export interface AiProviderConfiguration {
   baseUrl?: string;
   /** Optional provider hint. OpenAI-compatible defaults to none; OpenAI Responses ignores it. */
   reasoningEffort?: AiReasoningEffort;
+  /** Called immediately before a request is handed to the HTTP transport. */
+  beforeDispatch?: () => Promise<void>;
+  /** Synchronous boundary called after every await and abort guard, immediately
+   * before invoking transport. The durable intent already exists at this point. */
+  onWireStart?: () => void;
 }
 
 export interface AiProvider {
@@ -66,7 +71,8 @@ export interface AiProviderSession {
 }
 
 export type AiFailureCode = 'AI_CONFIGURATION_INVALID' | 'AI_DISABLED' | 'AI_PROVIDER_UNAVAILABLE' |
-  'AI_UPSTREAM_ERROR' | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED';
+  'AI_UPSTREAM_ERROR' | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED' |
+  'AI_REAUTHORIZATION_REQUIRED' | 'AI_PLAN_PERMISSION_REQUIRED' | 'AI_PLAN_USAGE_LIMITED' | 'AI_PLAN_NOT_ELIGIBLE' | 'AI_STREAM_INTERRUPTED';
 export type AiProviderResponseReason=
   'invalid_json_body'|'missing_choices'|'missing_message'|'invalid_tool_calls'|'empty_content'|'invalid_turn_shape'|'response_too_large'|
   'upstream_http_4xx'|'upstream_http_5xx'|'upstream_http_other'|'upstream_invalid_json'|'upstream_response_too_large'|'upstream_context_limit'|'upstream_rate_limited'|'upstream_format_unsupported'|'upstream_tool_unsupported'|'network_error';
@@ -90,8 +96,10 @@ export function validateAiProviderConfiguration(configuration: AiProviderConfigu
 export class AiProviderFailure extends Error {
   constructor(
     public readonly code: AiFailureCode,
-    public readonly usage?: { inputTokens?: number; outputTokens?: number },
-    public readonly responseReason?:AiProviderResponseReason
+    public readonly usage?: { inputTokens?: number; outputTokens?: number;cachedInputTokens?:number;cacheWriteTokens?:number;reasoningTokens?:number },
+    public readonly responseReason?:AiProviderResponseReason,
+    public readonly actualModel?:string,
+    public readonly actualServiceTier?:string
   ) { super(code); }
 }
 

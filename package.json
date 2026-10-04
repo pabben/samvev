@@ -25,7 +25,9 @@
     "test:browser": "node apps/web/tests/smoke.mjs && node apps/web/tests/review-regressions.mjs",
     "e2e:live": "node tests/e2e/live-runtime.mjs",
     "test:e2e-harness": "node --test tests/e2e/live-runtime.test.mjs && node tests/e2e/live-runtime-browser-smoke.mjs",
-    "e2e:provision": "npm run e2e:provision --workspace @samvev/api --"
+    "e2e:provision": "npm run e2e:provision --workspace @samvev/api --",
+    "ai:chatgpt-connect": "node scripts/chatgpt-connect.ts",
+    "ai:chatgpt-import": "tsx services/api/src/ai/chatgpt-import-cli.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

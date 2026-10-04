@@ -39,6 +39,10 @@ test('canonical place and weather source labels never need raw coordinates', () 
 test('transport errors remain distinct from bounded server timeout in both locales', () => {
   assert.equal(taskErrorKey(new ApiError('OFFLINE')), 'monitorConnectionLost');
   assert.equal(taskErrorKey('AI_TIMEOUT'), 'monitorErrorTimeout');
+  assert.equal(taskErrorKey('AI_PLAN_USAGE_LIMITED'), 'aiPlanLimited');
+  assert.equal(taskErrorKey('AI_PLAN_NOT_ELIGIBLE'), 'AI_PLAN_NOT_ELIGIBLE');
+  assert.equal(taskErrorKey('AI_PLAN_PERMISSION_REQUIRED'), 'aiPlanReauth');
+  assert.equal(taskErrorKey('AI_REAUTHORIZATION_REQUIRED'), 'aiPlanReauth');
   assert.equal(taskErrorKey('MONITOR_WORKER_INTERRUPTED'), 'monitorErrorInterrupted');
   for (const messages of [nb,en]) {
     assert.notEqual(messages.monitorConnectionLost,messages.monitorErrorTimeout);

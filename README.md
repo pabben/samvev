@@ -30,7 +30,7 @@ light and dark modes. New installations default to Norwegian Bokmål. Start with
 the [local demo](docs/implementation/M1_DEMO.md), [delivery evidence](docs/implementation/M1_DELIVERY.md)
 and [operations guide](docs/implementation/M1_OPERATIONS.md).
 
-M2.3 builds on those providers with general, reviewable tasks that monitor public HTML or text-based PDFs, skip AI when normalized content is unchanged, and reconcile future findings through the existing message/display lifecycle. AI starts disabled; paid fallback is absent. ChatGPT subscription feasibility remains partial and unavailable. See the [M2.3 delivery note](docs/implementation/M2_3.md), [M2.2 provider note](docs/implementation/M2_2.md) and [task architecture decision](docs/decisions/0013-general-ai-task-monitor.md).
+M2.3 builds on those providers with general, reviewable tasks that monitor public HTML or text-based PDFs, skip AI when normalized content is unchanged, and reconcile future findings through the existing message/display lifecycle. AI starts disabled; paid fallback is absent. The current preview also supports an explicitly connected ChatGPT subscription through OpenAI's documented OAuth and Responses surfaces; it never reuses browser cookies or falls back between paid routes. See the [connection guide](docs/CHATGPT_PLAN_CONNECTION.md), [M2.3 delivery note](docs/implementation/M2_3.md), [M2.2 provider note](docs/implementation/M2_2.md) and [task architecture decision](docs/decisions/0013-general-ai-task-monitor.md).
 
 [Les introduksjonen på norsk](README.nb.md)
 

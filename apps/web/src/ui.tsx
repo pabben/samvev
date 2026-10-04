@@ -1,3 +1,4 @@
+import { avatarImages } from "./avatars";
 import {
   Children,
   Component,
@@ -401,10 +402,11 @@ export function Status({ state }: { state: string }) {
     </span>
   );
 }
-export function Avatar({ name, index = 0 }: { name: string; index?: number }) {
+export function Avatar({ name, index = 0, avatarKey }: { name: string; index?: number; avatarKey?: string | null }) {
+  const image = avatarKey ? avatarImages[avatarKey] : undefined;
   return (
-    <span className={`avatar accent-${index % 4}`} aria-hidden="true">
-      {name.trim().slice(0, 1).toLocaleUpperCase()}
+    <span className={`avatar accent-${index % 4} ${image ? "avatar-illustrated" : ""}`} aria-hidden="true">
+      {image ? <img src={image} alt="" draggable={false}/> : name.trim().slice(0, 1).toLocaleUpperCase()}
     </span>
   );
 }
@@ -458,12 +460,14 @@ export function Dialog({
   children,
   onClose,
   wide = false,
+  className = "",
 }: {
   title: string;
   titleLang?: string;
   children: ReactNode;
   onClose: () => void;
   wide?: boolean;
+  className?: string;
 }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
@@ -478,12 +482,12 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className={wide ? "dialog dialog-wide" : "dialog"}
+      className={`dialog ${wide ? "dialog-wide" : ""} ${className}`}
       aria-labelledby={titleId}
       onKeyDown={(event) => {
         if (event.key !== "Tab") return;
         const focusable = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(
-          'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex="0"]',
+          'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], summary, [tabindex="0"]',
         )).filter((node) => node.getClientRects().length > 0);
         const first = focusable[0];
         const last = focusable.at(-1);

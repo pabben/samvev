@@ -17,6 +17,9 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'MONITOR_TARGET_INVALID') return 'monitorErrorTargets';
   if (code === 'NOT_FOUND') return 'monitorErrorNotFound';
   if (code === 'AI_DISABLED') return 'monitorErrorAiDisabled';
+  if (code === 'AI_PLAN_NOT_ELIGIBLE') return 'AI_PLAN_NOT_ELIGIBLE';
+  if (code === 'AI_REAUTHORIZATION_REQUIRED' || code === 'AI_PLAN_PERMISSION_REQUIRED') return 'aiPlanReauth';
+  if (code === 'AI_PLAN_USAGE_LIMITED') return 'aiPlanLimited';
   if (code === 'MONITOR_SOURCE_REQUIRED') return 'monitorErrorSourceRequired';
   if (code === 'MONITOR_SOURCE_AMBIGUOUS') return 'monitorErrorSourceAmbiguous';
   if (code === 'AI_ENDPOINT_BLOCKED' || code === 'AI_ENDPOINT_INVALID') return 'monitorErrorSourceBlocked';

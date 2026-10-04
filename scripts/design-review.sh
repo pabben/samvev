@@ -1,42 +1,38 @@
 #!/usr/bin/env bash
-# Capture the existing synthetic M3 QA member Home. This script never starts,
-# rebuilds, resets, or changes the QA stack.
+# Capture the proven synthetic QA runtime into an ignored stage, then let the
+# host verify and atomically publish exactly fourteen screenshots.
 set -euo pipefail
 
 ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 [[ "$ROOT" == "/home/administrator/apper/samvev" ]] || { echo "Unexpected repository root: $ROOT" >&2; exit 2; }
 cd "$ROOT"
-
-require_healthy() {
-  local service="$1"
-  local container="samvev-m1-${service}-1"
-  [[ "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$container" 2>/dev/null)" == "samvev-m1" ]] || { echo "Missing Samvev QA container: $container" >&2; exit 2; }
-  [[ "$(docker inspect --format '{{.State.Health.Status}}' "$container")" == "healthy" ]] || { echo "QA service is not healthy: $service" >&2; exit 2; }
-}
-require_healthy qa-db
-require_healthy qa-worker
-require_healthy qa-app
-
-app_env="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' samvev-m1-qa-app-1)"
-db_env="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' samvev-m1-qa-db-1)"
-worker_env="$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' samvev-m1-qa-worker-1)"
-db_mount="$(docker inspect --format '{{range .Mounts}}{{println .Name}}{{end}}' samvev-m1-qa-db-1)"
-grep -qx 'DATABASE_URL=postgresql://samvev_qa:synthetic-qa-data-only@qa-db:5432/samvev_qa' <<<"$app_env"
-grep -qx 'SAMVEV_DEMO_MODE=true' <<<"$app_env"
-grep -qx 'DATABASE_URL=postgresql://samvev_qa:synthetic-qa-data-only@qa-db:5432/samvev_qa' <<<"$worker_env"
-grep -qx 'POSTGRES_DB=samvev_qa' <<<"$db_env"
-grep -qx 'POSTGRES_USER=samvev_qa' <<<"$db_env"
-grep -qx 'POSTGRES_PASSWORD=synthetic-qa-data-only' <<<"$db_env"
-grep -qx 'samvev-m1-qa-postgres-data' <<<"$db_mount"
-base_url="$(sed -n 's/^SAMVEV_PUBLIC_ORIGIN=//p' <<<"$app_env")"
-case "$base_url" in
-  http://qa-app:4173|http://192.168.0.220:4173) ;;
-  *) echo "Refusing non-local QA public origin: $base_url" >&2; exit 2 ;;
-esac
+mkdir -p .local/design-review
+exec 9>.local/design-review/operation.lock
+flock -n 9 || { echo 'Another design-review operation is running.' >&2; exit 2; }
 
 proof="$(node scripts/design-review-provenance.mjs verify)"
-source_sha="$(node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).sourceSha))' <<<"$proof")"
-working_tree_dirty="$(node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).workingTreeDirty))' <<<"$proof")"
+readarray -t fields < <(node -e 'const p=JSON.parse(process.argv[1]); for(const v of [p.sourceSha,String(p.workingTreeDirty),p.runtime.after.app.publicOrigin]) console.log(v)' "$proof")
+source_sha="${fields[0]}"
+working_tree_dirty="${fields[1]}"
+base_url="${fields[2]}"
 [[ "$source_sha" =~ ^[a-f0-9]{40}$ ]] || { echo 'Invalid source SHA.' >&2; exit 2; }
+[[ "$working_tree_dirty" == true || "$working_tree_dirty" == false ]] || { echo 'Invalid working-tree state.' >&2; exit 2; }
+[[ "$base_url" == http://192.168.0.220:4173 ]] || { echo "Refusing non-LAN QA public origin: $base_url" >&2; exit 2; }
+
+stage_name="capture-$(date -u +%Y%m%d%H%M%S)-${source_sha:0:8}-$$"
+stage_path="$ROOT/.local/design-review/$stage_name"
+cleanup() { rm -rf -- "$stage_path"; }
+trap cleanup EXIT
+
 docker compose --project-directory "$ROOT" --env-file "$ROOT/.env.example" -p samvev-m1 -f "$ROOT/compose.yaml" --profile qa \
-  run --rm --no-deps -e DESIGN_REVIEW_SOURCE_SHA="$source_sha" -e DESIGN_REVIEW_WORKING_TREE_DIRTY="$working_tree_dirty" -e DESIGN_REVIEW_PROOF_PATH=.local/design-review/build-provenance.json -e DESIGN_REVIEW_BASE_URL="$base_url" qa-browser node scripts/design-review.mjs
+  run --rm --no-deps \
+  -e DESIGN_REVIEW_SOURCE_SHA="$source_sha" \
+  -e DESIGN_REVIEW_WORKING_TREE_DIRTY="$working_tree_dirty" \
+  -e DESIGN_REVIEW_PROOF_PATH=.local/design-review/build-provenance.json \
+  -e DESIGN_REVIEW_STAGE_PATH=".local/design-review/$stage_name" \
+  -e DESIGN_REVIEW_BASE_URL="$base_url" \
+  qa-browser node scripts/design-review.mjs
+
+node scripts/design-review-publication.mjs finalize "$stage_path"
+trap - EXIT
+echo "Published fourteen host-verified screenshots for source $source_sha."

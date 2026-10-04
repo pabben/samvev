@@ -20,6 +20,7 @@ export interface Me {
   memberships: Membership[];
 }
 export interface Person {
+  avatarKey?: string | null;
   id: string;
   display_name: string;
   age_group: string;

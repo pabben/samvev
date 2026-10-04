@@ -41,19 +41,20 @@ test('published past events remain personal information without being presented 
 });
 
 
-test('responsive compositions contain each stable section once, with communication before secondary widgets',()=>{
- for(const dark of [false,true])for(const compact of [false,true]){
-  const order=hubSectionOrder(dark,compact);
-  assert.equal(new Set(order).size,7);
-  assert.deepEqual([...order].sort(),['briefs','companion','important','messages','people','today','tomorrow']);
-  assert.ok(order.indexOf('messages')<order.indexOf('companion'));
-  assert.ok(order.indexOf('companion')<order.indexOf('briefs'));
-  if(compact){assert.ok(order.indexOf('today')<order.indexOf('people'));assert.ok(order.indexOf('messages')<order.indexOf('people'));}
+test('responsive compositions preserve each content entry once and mobile uses direct identities instead of person-card stacks',()=>{
+ for(const dark of [false,true])for(const compact of [false,true])for(const mobile of [false,true]){
+  const order=hubSectionOrder(dark,compact,mobile);
+  assert.equal(new Set(order).size,order.length);
+  for(const key of ['important','messages','companion','briefs'])assert.equal(order.filter(value=>value===key).length,1);
+  assert.equal(order.includes('people'),!mobile);
+  assert.equal(order.includes('dayPlan'),!dark&&!mobile);
+  assert.ok(order.indexOf('messages')<order.indexOf('briefs'));
  }
- assert.deepEqual(hubSectionOrder(false,false).slice(0,4),['people','today','important','tomorrow']);
+ assert.deepEqual(hubSectionOrder(false,false).slice(0,4),['people','dayPlan','messages','important']);
  assert.deepEqual(hubSectionOrder(true,false).slice(0,4),['today','tomorrow','people','important']);
+ assert.deepEqual(hubSectionOrder(false,true,true).slice(0,2),['important','messages']);
+ assert.deepEqual(hubSectionOrder(true,true,true).slice(0,3),['important','quickActions','today']);
 });
-
 
 test('the message companion uses a real observation once and preserves remaining source order',()=>{
  const summary={...item,id:'summary',kind:'summary' as const};
@@ -114,4 +115,17 @@ test('person detail resolves only current targeted entries and disappears with t
  assert.deepEqual(resolveHubDetail(selected,[person],[item,unrelated]),{kind:'person',person,items:[item]});
  assert.deepEqual(resolveHubDetail(selected,[person],[]),{kind:'person',person,items:[]});
  assert.equal(resolveHubDetail(selected,[],[item]),undefined);
+});
+
+
+test('person details remain available with zero, one and many entries, including personal lists and current avatar choice',()=>{
+ const person={id:'p',displayName:'Synthetic person',avatarKey:'avatar-03'};
+ const selection={kind:'person' as const,id:'p'};
+ const list={...item,id:'list',kind:'list' as const,entries:[{label:'Synthetic list entry'}]};
+ for(const entries of [[],[item],[item,list]]){
+  const resolved=resolveHubDetail(selection,[person],entries);
+  assert.equal(resolved?.kind,'person');
+  if(resolved?.kind==='person'){assert.deepEqual(resolved.items,entries);assert.equal(resolved.person.avatarKey,'avatar-03');}
+ }
+ assert.equal(resolveHubDetail(selection,[{...person,avatarKey:'avatar-06'}],[item])?.kind,'person');
 });

@@ -3,40 +3,58 @@
 Run a new local review round from the repository root:
 
 ```bash
-bash scripts/qa-demo-admin-password.sh
+bash scripts/design-review-runtime.sh
 bash scripts/design-review-build.sh
 bash scripts/design-review.sh
 ```
 
-The first command is an idempotent, synthetic-QA-only credential preparation.
-Run it again after a fresh demo provisioning. It verifies the exact
-`samvev-m1` Compose project, healthy `qa-db`/`qa-app`, QA database identity,
-local runtime origin, database demo marker, and existing enabled installation
-administrator before changing only `admin@demo.invalid`'s password hash. The UI
-accepts `admin` as an alias for that internal account only when setup status is
-simultaneously claimed, synthetic-demo, and demo-enabled. The submitted
-password still goes through the normal server hash verification.
+The normal review routine never resets a password. It expects the established
+synthetic `admin` / `admin` login to work and fails without changing credentials
+if it does not.
 
-`design-review-build.sh` is an explicit checkpoint build. It uses the committed
+`design-review-runtime.sh` is the only supported runtime preparation step. It
+requires the existing healthy `samvev-m1` `qa-db`, `qa-app`, and `qa-worker`
+containers. It verifies their exact Compose project/service labels, images,
+commands, workspace bind, read-only `.git` bind, synthetic database settings,
+named PostgreSQL volume, demo-only database marker, active demo administrator,
+and LAN origin. It brackets the operation with canonical source checks, runs the
+additive migrator through the existing `qa-app`, then restarts only the existing
+`qa-app` and `qa-worker` containers. It neither recreates nor restarts `qa-db`,
+and it preserves the existing LAN port/origin configuration and PostgreSQL
+volume. The ignored runtime proof records container and image IDs, restart/start
+evidence, the actual leaf Node/tsx PID, start ticks and command for `server.ts`
+and `index.ts`, canonical migration checksums, and matching root and publishing
+checkout fingerprints.
+
+`design-review-build.sh` is an explicit checkpoint build. It requires that exact
+runtime proof and uses the committed
 canonical checkout at `.local/design-review-publish`, verifies every tracked
 build input mounted from this worktree against that checkout's Git blobs before
 and after building, and records hashes for `dist/index.html` and every built
 asset in ignored `.local/design-review/build-provenance.json`. It builds only
 the existing healthy `qa-app` container's web workspace; it does not restart,
-remount, reset, or change QA data. `design-review.sh` never builds: it rejects a
-missing/stale proof, changed build input, changed local bundle, or served index/
-asset whose SHA-256 differs from the proof. The manifest records the source
-commit, input fingerprint, artifact hashes, and served-asset verification.
+remount, reset, or change QA data.
 
-The command only uses the running, isolated `samvev-m1` `qa-db`, `qa-worker`,
+`design-review.sh` never builds or prepares the runtime. Runtime, build and
+capture share one host `flock`, so two review operations cannot overlap. Capture
+first writes only an ignored staging directory. The browser verifies every dist
+asset served by the app, while requiring the entry JS/CSS and every image
+actually visible in the captured UI to have loaded. It uses semantic person IDs
+from the Home response on every viewport, including the compact mobile layout;
+an ordinary empty Today section is valid. After browser exit, the host verifies
+canonical source, migrations, live leaf processes, runtime proof, dist hashes,
+manifest and hashes/dimensions for exactly fourteen PNGs. Only then does it
+archive and replace `latest/`. Any failure removes the stage and leaves the
+previous `latest/` intact.
+
+The commands only use the running, isolated `samvev-m1` `qa-db`, `qa-worker`,
 `qa-app`, and a one-shot `qa-browser`. It captures the real synthetic member
-Home using the existing `qa-app` `SAMVEV_PUBLIC_ORIGIN`: only
-`http://qa-app:4173` or the trusted local LAN preview `http://192.168.0.220:4173`
-are accepted. It does not start services, add fixtures, change
-product content, use a remote origin, commit, push, create a PR, or trigger
-GitHub Actions. It checks demo mode, synthetic login, populated Home people and
-items, the expected Family Hub UI, themes, every proven built asset, page
-errors, and outbound browser
+Home using the existing `qa-app` `SAMVEV_PUBLIC_ORIGIN`; the runtime proof
+requires the trusted `http://192.168.0.220:4173` origin and matching host port
+binding. They do not recreate services, add fixtures, change product
+content, use a remote origin, commit, push, create a PR, or trigger GitHub
+Actions. Capture checks demo mode, synthetic login, Home people, the expected
+Family Hub UI, themes, every proven built asset, page errors, and outbound browser
 requests before publishing. Account locale/theme are restored and the session
 is logged out. A failed run leaves `latest/` intact.
 
@@ -75,24 +93,27 @@ Previous validated rounds move to `archive/<round-id>/`. Keep `latest/` and its
 manifest together when linking a review.
 
 Captures preserve the current synthetic data and clock: expired items disappear,
-and Today/Tomorrow can change across midnight. An empty fixture set causes the
-command to fail rather than invent content. Full-page mobile screenshots retain
+and Today/Tomorrow can change across midnight. Missing Home people cause the
+command to fail rather than invent content; a natural empty Today or Tomorrow
+section remains valid. Full-page mobile screenshots retain
 the actual fixed navigation bar at the original viewport boundary, which can
 cover a small strip. Work should use the viewport images together with the
-full-page supplements. No application migration is needed; revert the tooling
-commit to remove this routine, preserving the QA database.
+full-page supplements. Runtime preparation applies only the repository's
+canonical additive migrations. Revert the tooling commit to remove this routine;
+retain the QA database and its migration history.
 
 Check the publication safeguards locally with:
 
 ```bash
 node --test scripts/design-review-publication.test.mjs
+node --test scripts/design-review-provenance.test.mjs
 ```
 
 After reviewing a new round, stage the validated review files, commit with DCO
 sign-off, and explicitly push only the feature branch:
 
 ```bash
-git add docs/design/review scripts/design-review.sh scripts/design-review-build.sh scripts/design-review.mjs scripts/design-review-provenance.mjs scripts/design-review-provenance.test.mjs scripts/design-review-publication.mjs scripts/design-review-publication.test.mjs scripts/qa-demo-admin-password.mts scripts/qa-demo-admin-password.test.mts scripts/qa-demo-admin-password.sh
+git add docs/design/review scripts/design-review-runtime.sh scripts/design-review.sh scripts/design-review-build.sh scripts/design-review.mjs scripts/design-review-provenance.mjs scripts/design-review-provenance.test.mjs scripts/design-review-publication.mjs scripts/design-review-publication.test.mjs
 git commit -s -m "docs(design): add M3 review round"
 git push origin feat/m3-family-hub
 ```
