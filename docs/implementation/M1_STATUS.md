@@ -1,5 +1,24 @@
 # M1 implementation status
 
+## M3 design round 5 — 2026-10-04
+
+Activated mailbox `34faa81`: reference-based light/dark/mobile composition, six
+local selectable avatars, direct person drawer/sheet, removed footer, complete
+ChatGPT-plan OAuth onboarding/provider and honest usage/credit/API scenarios.
+Final signed source `b6a30b2d95443a02192da7bc089820585fde8169`: complete isolated
+retest 261/261, pipeline 11/11, browser groups 17+11 PASS. Actual composited
+contrast on 30 surfaces normal/fallback minimum 4.680:1; native 200% browser
+zoom four runs PASS. All 14 latest and 20 supplementary images opened/hash
+verified, round `20261004124113-b6a30b2d-7d49ba64`. Source/root/clone/runtime/served
+assets agree; additive migration019 preserves existing QA. Admin/admin works on
+LAN. Protected Git, authentication and stored content are preserved, apart from
+four explicitly permitted avatar choices. Only real OAuth consent/account
+eligibility/live inference remains unverified; no real provider calls were made.
+See [Round 5 report](../design/review/ROUND_5_REPORT.md) for evidence, limitations,
+connection instructions and data-preserving rollback. No production change or
+private data was introduced. Independent final release gate PASS; signed feature
+publication follows without changing tested build inputs.
+
 ## M3 design round 4 — 2026-10-01
 
 Activated mailbox `4ec2c24`: CSS-only sky/mint family atmosphere, layered navy

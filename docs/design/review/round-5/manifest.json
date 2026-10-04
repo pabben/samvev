@@ -1,0 +1,604 @@
+{
+  "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+  "capturedAt": "2026-10-04T12:40:33.327Z",
+  "origin": "http://192.168.0.220:4173",
+  "runtimeFingerprint": "35b92e4d3cf31d9ddf90da3fff73e17840dc83ad718dc2300f0a140644e4cec9",
+  "inputFingerprint": "1df71689006168c443ef79e93197a38983097b1947eeba3f1ab922c4e066eb45",
+  "distHashes": {
+    "assets/avatar-01-D7jqfrwr.webp": "64603ebdee174f66871902614c46965e9bbe846f22ca77dbf7391c483131a02b",
+    "assets/avatar-02-DdgMOJAz.webp": "257f114120c3be2922d7d7a11e62e02dc369e393ebaed6ceb4ae61860192a9c0",
+    "assets/avatar-03-DA7Jq2DZ.webp": "eb58083435f2bc71a311ccb841f4be800b7dceec0f526b8b573c6a9a4b6724a5",
+    "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
+    "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
+    "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
+    "assets/index-CvueG4yZ.js": "0bdf03861e0754bfc487917834bac11e5595fa8a37c7b2bde9b5cee1c0104460",
+    "assets/index-DbAsltUN.css": "2d2193309e9d282f73b9552aca7b14182d53ea3bba2e212ac6b2f614c8a111fd",
+    "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
+    "index.html": "745ab00f8909178992e68497bdf17ce268a4cc1c505c226a92388ebfe10f4573"
+  },
+  "syntheticDemo": true,
+  "liveChatGptVerified": false,
+  "preferencesRestored": true,
+  "adminAliasLoginAndUiLogout": true,
+  "savedAvatars": [],
+  "screenshots": [
+    {
+      "filename": "person-desktop-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:27.693Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "state": {
+        "surface": "person-details",
+        "personId": "d9454926-fa1b-4c5e-9cc6-d2c133e3091a",
+        "avatarKey": "avatar-01"
+      },
+      "layout": {
+        "board": {
+          "x": 160,
+          "y": 247.296875,
+          "width": 1600,
+          "height": 659.6875,
+          "bottom": 906.984375
+        },
+        "people": {
+          "x": 160,
+          "y": 247.296875,
+          "width": 1107.390625,
+          "height": 545,
+          "bottom": 792.296875
+        },
+        "person": {
+          "x": 160,
+          "y": 247.296875,
+          "width": 266.34375,
+          "height": 545,
+          "bottom": 792.296875
+        },
+        "avatar": {
+          "x": 213.171875,
+          "y": 264.296875,
+          "width": 160,
+          "height": 160,
+          "bottom": 424.296875
+        },
+        "plan": {
+          "x": 1285.390625,
+          "y": 247.296875,
+          "width": 474.59375,
+          "height": 545,
+          "bottom": 792.296875
+        },
+        "today": {
+          "x": 1286.390625,
+          "y": 248.296875,
+          "width": 472.59375,
+          "height": 271,
+          "bottom": 519.296875
+        },
+        "tomorrow": {
+          "x": 1286.390625,
+          "y": 519.296875,
+          "width": 472.59375,
+          "height": 272,
+          "bottom": 791.296875
+        },
+        "messages": {
+          "x": 160,
+          "y": 810.296875,
+          "width": 1107.390625,
+          "height": 96.6875,
+          "bottom": 906.984375
+        },
+        "reminders": {
+          "x": 1285.390625,
+          "y": 810.296875,
+          "width": 474.59375,
+          "height": 96.6875,
+          "bottom": 906.984375
+        },
+        "hero": {
+          "x": 160,
+          "y": 104.390625,
+          "width": 1600,
+          "height": 134.90625,
+          "bottom": 239.296875
+        }
+      },
+      "fullPage": false,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "29cd3c8d4cef7a58cee0e7d3b7f78f5d087ac99c50ccd5bca9cf4be260769a87",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-settings-desktop-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:28.350Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "state": {
+        "surface": "ai-settings-and-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "onboardingExpanded": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": true,
+      "width": 1920,
+      "height": 2831,
+      "sha256": "9215a960701c08d2f2befed6a7606c0cc62e098aa2177468e0794f3218274cbf",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-usage-desktop-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:28.561Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "state": {
+        "surface": "ai-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "scrolled": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": false,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "bb196ae62ec43257def9b28c800c49deb159f11d2720a47eec0cbb9bdfeaa739",
+      "injectedTransport": false
+    },
+    {
+      "filename": "person-mobile-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:28.952Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "state": {
+        "surface": "person-details",
+        "personId": "d9454926-fa1b-4c5e-9cc6-d2c133e3091a",
+        "avatarKey": "avatar-01"
+      },
+      "layout": {
+        "board": {
+          "x": 16,
+          "y": 267.296875,
+          "width": 358,
+          "height": 392.0625,
+          "bottom": 659.359375
+        },
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": {
+          "x": 16,
+          "y": 485.984375,
+          "width": 358,
+          "height": 80.6875,
+          "bottom": 566.671875
+        },
+        "tomorrow": {
+          "x": 16,
+          "y": 578.671875,
+          "width": 358,
+          "height": 80.6875,
+          "bottom": 659.359375
+        },
+        "messages": {
+          "x": 16,
+          "y": 341.984375,
+          "width": 358,
+          "height": 132,
+          "bottom": 473.984375
+        },
+        "reminders": {
+          "x": 16,
+          "y": 267.296875,
+          "width": 358,
+          "height": 62.6875,
+          "bottom": 329.984375
+        },
+        "hero": {
+          "x": 16,
+          "y": 81.296875,
+          "width": 358,
+          "height": 94.75,
+          "bottom": 176.046875
+        }
+      },
+      "fullPage": false,
+      "width": 390,
+      "height": 844,
+      "sha256": "0aa546398d684d0b7cd4e4a691b69367967a23d833eb6bb19998d2c9b19dd829",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-settings-mobile-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:29.481Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "state": {
+        "surface": "ai-settings-and-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "onboardingExpanded": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": true,
+      "width": 390,
+      "height": 6129,
+      "sha256": "8d064db6b47144eddab5473b6d58005396c69f88eb8891adeadce909023c8475",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-usage-mobile-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:29.611Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "state": {
+        "surface": "ai-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "scrolled": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": false,
+      "width": 390,
+      "height": 844,
+      "sha256": "2bb7bf946884db76c7d64543d3942f5129e13c6c3c325ac3c4fa9a5e070eeeb2",
+      "injectedTransport": false
+    },
+    {
+      "filename": "person-desktop-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:30.751Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "state": {
+        "surface": "person-details",
+        "personId": "d9454926-fa1b-4c5e-9cc6-d2c133e3091a",
+        "avatarKey": "avatar-01"
+      },
+      "layout": {
+        "board": {
+          "x": 160,
+          "y": 247.296875,
+          "width": 1600,
+          "height": 513.25,
+          "bottom": 760.546875
+        },
+        "people": {
+          "x": 969,
+          "y": 247.296875,
+          "width": 386.5,
+          "height": 403.25,
+          "bottom": 650.546875
+        },
+        "person": {
+          "x": 986,
+          "y": 298.984375,
+          "width": 352.5,
+          "height": 79.390625,
+          "bottom": 378.375
+        },
+        "avatar": {
+          "x": 986,
+          "y": 298.984375,
+          "width": 46,
+          "height": 46,
+          "bottom": 344.984375
+        },
+        "plan": null,
+        "today": {
+          "x": 160,
+          "y": 247.296875,
+          "width": 386.5,
+          "height": 403.25,
+          "bottom": 650.546875
+        },
+        "tomorrow": {
+          "x": 564.5,
+          "y": 247.296875,
+          "width": 386.5,
+          "height": 403.25,
+          "bottom": 650.546875
+        },
+        "messages": {
+          "x": 160,
+          "y": 668.546875,
+          "width": 1600,
+          "height": 92,
+          "bottom": 760.546875
+        },
+        "reminders": {
+          "x": 1373.5,
+          "y": 247.296875,
+          "width": 386.5,
+          "height": 403.25,
+          "bottom": 650.546875
+        },
+        "hero": {
+          "x": 160,
+          "y": 104.390625,
+          "width": 1600,
+          "height": 134.90625,
+          "bottom": 239.296875
+        }
+      },
+      "fullPage": false,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "86a55b3990bf4b88c271f163fe516a628301674728d03bef9f543cb4d5b325eb",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-settings-desktop-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:31.426Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "state": {
+        "surface": "ai-settings-and-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "onboardingExpanded": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": true,
+      "width": 1920,
+      "height": 2831,
+      "sha256": "b970293d9056ebdfceb309bd5ef5fe4ab2fc0c7ab7d61a3d15f7e9693bf646c4",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-usage-desktop-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:31.644Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "state": {
+        "surface": "ai-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "scrolled": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": false,
+      "width": 1920,
+      "height": 1080,
+      "sha256": "245cf993f9b5057634b0386f2ddd925511b8f3d48b9b689e34cff1f840e3c008",
+      "injectedTransport": false
+    },
+    {
+      "filename": "person-mobile-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:32.082Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "state": {
+        "surface": "person-details",
+        "personId": "d9454926-fa1b-4c5e-9cc6-d2c133e3091a",
+        "avatarKey": "avatar-01"
+      },
+      "layout": {
+        "board": {
+          "x": 16,
+          "y": 267.296875,
+          "width": 358,
+          "height": 430.0625,
+          "bottom": 697.359375
+        },
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": {
+          "x": 16,
+          "y": 435.984375,
+          "width": 358,
+          "height": 80.6875,
+          "bottom": 516.671875
+        },
+        "tomorrow": {
+          "x": 16,
+          "y": 528.671875,
+          "width": 358,
+          "height": 80.6875,
+          "bottom": 609.359375
+        },
+        "messages": {
+          "x": 16,
+          "y": 621.359375,
+          "width": 358,
+          "height": 76,
+          "bottom": 697.359375
+        },
+        "reminders": {
+          "x": 16,
+          "y": 267.296875,
+          "width": 358,
+          "height": 80.6875,
+          "bottom": 347.984375
+        },
+        "hero": {
+          "x": 16,
+          "y": 81.296875,
+          "width": 358,
+          "height": 94.75,
+          "bottom": 176.046875
+        }
+      },
+      "fullPage": false,
+      "width": 390,
+      "height": 844,
+      "sha256": "1087231fbeb5d290523e848b31e8e2f433e746d273859517eddbd221d270ad76",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-settings-mobile-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:32.616Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "state": {
+        "surface": "ai-settings-and-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "onboardingExpanded": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": true,
+      "width": 390,
+      "height": 6129,
+      "sha256": "604a3e99838f7366005ce6630999437bb72845c6c2eb2f3f5aa5309232d0e353",
+      "injectedTransport": false
+    },
+    {
+      "filename": "ai-usage-mobile-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "capturedAt": "2026-10-04T12:40:32.744Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "state": {
+        "surface": "ai-usage",
+        "unconfigured": true,
+        "liveChatGptVerified": false,
+        "scrolled": true
+      },
+      "layout": {
+        "board": null,
+        "people": null,
+        "person": null,
+        "avatar": null,
+        "plan": null,
+        "today": null,
+        "tomorrow": null,
+        "messages": null,
+        "reminders": null,
+        "hero": null
+      },
+      "fullPage": false,
+      "width": 390,
+      "height": 844,
+      "sha256": "7e233b569195d6fb1b9b2a9e05a520f369085925dca5100b4d9ed1a7440630ff",
+      "injectedTransport": false
+    }
+  ]
+}
