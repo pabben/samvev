@@ -138,7 +138,7 @@ try {
   await expect(dialog).toBeHidden(); await expect(page.getByTestId("family-hub")).toBeVisible(); await expect(page.getByTestId("family-hub")).toBeFocused(); record("SSE projection invalidation refetches and withdraws a removed identity without reload");
 
   current = projection({ people: 1, personal: 1, expiry: new Date(Date.now() + 4_000).toISOString() }); await page.reload();
-  await page.locator('[data-hub-detail-kind="item"]:visible').filter({ hasText: "Today personal item 1" }).click(); await expect(dialog).toBeVisible(); await expect.poll(async () => !(await dialog.isVisible()), { timeout: 8_000 }).toBeTruthy(); record("expired item closes its detail on the live clock");
+  await page.locator('[data-hub-detail-kind="item"]:visible').filter({ hasText: "Today personal item 1" }).first().click(); await expect(dialog).toBeVisible(); await expect.poll(async () => !(await dialog.isVisible()), { timeout: 8_000 }).toBeTruthy(); record("expired item closes its detail on the live clock");
 
   // Real, unconfigured settings must load. Rendering cannot call provider/model/test routes.
   aiRequests.length = 0; await setPrefs("nb", "light"); await page.setViewportSize({ width: 1280, height: 820 }); await page.goto(base); await navAI("nb");

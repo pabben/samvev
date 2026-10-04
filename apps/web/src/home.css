@@ -143,3 +143,6 @@ body{font-family:var(--font-sans)}
 .hub-detail-identity{--person-accent:var(--person-blue);background:color-mix(in srgb,var(--person-accent) 24%,var(--card));border:1px solid color-mix(in srgb,var(--person-accent) 45%,var(--line))}
 .hub-detail-identity[data-accent="1"]{--person-accent:var(--person-pink)}.hub-detail-identity[data-accent="2"]{--person-accent:var(--person-mint)}.hub-detail-identity[data-accent="3"]{--person-accent:var(--person-lilac)}
 .hub-quick-actions>.button:only-child{grid-column:1/-1}
+
+/* Shared displays keep the established distance-readable person-item minimum. */
+.hub-display.hub-dark.hub-wide .hub-person-items .hub-item-title{font-size:16px}
