@@ -137,7 +137,7 @@ try {
   // Real, unconfigured settings must load. Rendering cannot call provider/model/test routes.
   aiRequests.length = 0; await setPrefs("nb", "light"); await page.setViewportSize({ width: 1280, height: 820 }); await page.goto(base); await navAI("nb");
   assert(aiRequests.some(request => /\/ai\/settings$/.test(request.url) && request.method === "GET"), "AI settings GET missing"); assert(aiRequests.some(request => /\/ai\/usage\?/.test(request.url) && request.method === "GET"), "AI usage GET missing");
-  await page.locator(".ai-connect-steps summary").click(); await expect(page.locator(".ai-connect-steps")).toHaveAttribute("open", ""); await expect(page.locator(".ai-connect-steps")).toContainText("chatgpt-connect.ts"); await accessibility("actual AI onboarding");
+  if (!await page.locator(".ai-connect-steps").evaluate(node => node.open)) await page.locator(".ai-connect-steps summary").click(); await expect(page.locator(".ai-connect-steps")).toHaveJSProperty("open", true); await expect(page.locator(".ai-connect-steps")).toContainText("chatgpt-connect.ts"); await accessibility("actual AI onboarding");
   const aiText = await page.locator(".ai-settings").innerText(); expect(aiText).not.toMatch(/access[_ -]?token|refresh[_ -]?token|oauth code|balance:\s*\d/i); expect(aiRequests.filter(request => request.method !== "GET")).toEqual([]); record("actual unconfigured AI settings/onboarding loads without a provider call");
 
   // Transport-only DTOs verify connected, limited, ineligible and unknown-usage rendering while
