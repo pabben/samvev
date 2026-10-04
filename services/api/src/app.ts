@@ -275,8 +275,8 @@ async function displayHub(display:DisplayContext):Promise<Record<string,unknown>
     ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
       i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200`,[display.id,display.householdId]);
   const personIds=[...new Set(rows.rows.flatMap((row)=>row.person_ids))];
-  const people=personIds.length?(await pool.query<{id:string;display_name:string}>(`SELECT id,display_name FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY display_name,id`,[display.householdId,personIds])).rows:[];
-  return {people:people.map((person)=>({id:person.id,displayName:person.display_name})),items:rows.rows.map((row)=>mapExternalItem(row,{forDisplay:true}))};
+  const people=personIds.length?(await pool.query<{id:string;display_name:string;avatar_key:string|null}>(`SELECT id,display_name,avatar_key FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY display_name,id`,[display.householdId,personIds])).rows:[];
+  return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key})),items:rows.rows.map((row)=>mapExternalItem(row,{forDisplay:true}))};
 }
 
 async function integrationConnectionResponse(connectionId:string,householdId:string):Promise<Record<string,unknown>>{
@@ -326,15 +326,15 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   const hardCache = new Date(now.getTime() + 15 * 60_000);
   const label=await pool.query<{display_name:string;household_name:string;timezone:string}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
   const cards = display.privacyMode ? [] : (await pool.query<{
-    id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string
-  }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,p.display_name AS author_name
+    id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_person_id:string
+  }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,p.display_name AS author_name,p.id AS author_person_id
       FROM messages m JOIN message_display_targets t ON t.message_id=m.id AND t.household_id=m.household_id
       JOIN memberships ms ON ms.id=m.author_membership_id JOIN persons p ON p.id=ms.person_id
       WHERE t.display_id=$1 AND m.household_id=$2 AND m.state='published' AND t.delivery_state IN ('queued','delivered','displayed')
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
       ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId])).rows.map((row) => ({
         id: row.id, kind: 'household_message', body: row.body, importance: row.importance,
-        author: row.author_name, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
+        author: row.author_name, authorPersonId:row.author_person_id, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
       }));
   if(!display.privacyMode && cards.length){
     const cardIds=cards.map((card)=>(card as {id:string}).id);

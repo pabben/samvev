@@ -102,7 +102,7 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   assert.equal(expiredRedeem.statusCode,410);
 
   const limitedCreate=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(adminCookie,adminCsrf),payload:{
-    displayName:'Limited author',ageGroup:'teen',rolePreset:'limited',
+    displayName:'Limited author',avatarKey:'avatar-04',ageGroup:'teen',rolePreset:'limited',
     capabilities:['household.view','message.create.household','message.publish.display','message.schedule'],displayIds:[displayId],
     login:{email:'limited@test.invalid',password:'Synthetic-limited-pass-42',locale:'en',theme:'system'}
   }});
@@ -145,6 +145,9 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   assert.equal(projection.statusCode,200,projection.body);
   assert.equal(projection.json().cards.length,1);
   assert.equal(projection.json().cards[0].body,'Synthetic gym clothes reminder');
+  assert.equal(projection.json().cards[0].authorPersonId,limitedCreate.json().personId);
+  assert.equal('authorMembershipId' in projection.json().cards[0],false);
+  assert.equal('authorAccountId' in projection.json().cards[0],false);
   assert.equal(projection.json().display.name,'Kitchen');
   assert.ok(Date.parse(projection.json().cacheUntil)>Date.parse(expiresAt));
   assert.equal((Date.parse(projection.json().cacheUntil)-Date.parse(projection.json().generatedAt))/1000,900);

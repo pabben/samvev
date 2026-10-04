@@ -43,9 +43,9 @@ before(async()=>{
   const installation=(await pool.query<{id:string}>(`INSERT INTO installations(claimed_at,setup_step,default_locale) VALUES(clock_timestamp(),'complete','nb') RETURNING id`)).rows[0]!;
   householdId=(await pool.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) VALUES($1,'Synthetic M3 household','Europe/Oslo','nb') RETURNING id`,[installation.id])).rows[0]!.id;
   otherHouseholdId=(await pool.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) VALUES($1,'Synthetic other household','UTC','en') RETURNING id`,[installation.id])).rows[0]!.id;
-  ownerPersonId=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic Owner','adult') RETURNING id`,[householdId])).rows[0]!.id;
-  childPersonId=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic Child','child') RETURNING id`,[householdId])).rows[0]!.id;
-  otherPersonId=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic Other','adult') RETURNING id`,[otherHouseholdId])).rows[0]!.id;
+  ownerPersonId=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group) VALUES($1,'Synthetic Owner','avatar-02','adult') RETURNING id`,[householdId])).rows[0]!.id;
+  childPersonId=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group) VALUES($1,'Synthetic Child','avatar-05','child') RETURNING id`,[householdId])).rows[0]!.id;
+  otherPersonId=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group) VALUES($1,'Synthetic Other','avatar-06','adult') RETURNING id`,[otherHouseholdId])).rows[0]!.id;
   const account=(await pool.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'m3-owner@test.invalid',$2,'nb','system') RETURNING id`,[installation.id,await hashPassword(password)])).rows[0]!;
   ownerMembershipId=(await pool.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'installation_admin',$4) RETURNING id`,[householdId,account.id,ownerPersonId,JSON.stringify(roleCapabilityPresets.installation_admin)])).rows[0]!.id;
   const childAccount=(await pool.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'m3-child@test.invalid',$2,'nb','system') RETURNING id`,[installation.id,await hashPassword(password)])).rows[0]!;
@@ -121,6 +121,12 @@ test('scoped integrations provide idempotent CAS items, isolated projections, re
   assert.equal(optIn.statusCode,200,optIn.body);assert.equal(optIn.json().external_items_enabled,true);
   const projection=await app.inject({method:'GET',url:'/api/v1/display/projection',headers:{cookie:displayCookie}});
   assert.equal(projection.json().hub.items.length,1);assert.equal(projection.json().hub.people.length,2);assert.equal(projection.json().hub.items[0].contentLocale,'nb');
+  assert.deepEqual(projection.json().hub.people,[
+    {id:childPersonId,displayName:'Synthetic Child',avatarKey:'avatar-05'},
+    {id:ownerPersonId,displayName:'Synthetic Owner',avatarKey:'avatar-02'}
+  ]);
+  assert.equal(JSON.stringify(projection.json().hub.people).includes('avatar-06'),false,'a display projection cannot reveal an avatar from another household');
+  assert.equal(projection.json().hub.people.some((person:Record<string,unknown>)=>'birthDate' in person||'email' in person||'accountId' in person),false,'display identity projection stays minimal');
   assert.equal('url' in projection.json().hub.items[0].source,false);assert.equal('links' in projection.json().hub.items[0].source,false);
   assert.equal('actionUrl' in projection.json().hub.items[0].metadata,false);assert.equal('displayIds' in projection.json().hub.items[0].targets,false);
   await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${displayId}`,headers:adminHeaders(),payload:{privacyMode:true}});

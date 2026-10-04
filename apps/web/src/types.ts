@@ -119,6 +119,7 @@ export interface MonitorRunResult {
   sources?:MonitorSource[];
 }
 export interface Card {
+  authorPersonId?: string | null;
   id: string;
   kind: string;
   body: string;

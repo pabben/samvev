@@ -2691,3 +2691,28 @@ details[open] > summary:before {
 @media(max-width:319px){.ai-settings .ai-summary{grid-template-columns:1fr}.ai-settings .ai-card{padding:12px}.ai-settings .ai-provider{padding:10px}.ai-route-banner{padding:12px}.ai-settings .ai-cost-value{font-size:24px}}
 
 .ai-forecast-route{padding-block:16px;border-top:1px solid var(--line)}.ai-forecast-route h3{font-size:17px;margin-bottom:8px}.ai-forecast-route p{margin-block:7px;line-height:1.5}
+
+/* Header identity is an interactive link, including on settings surfaces. */
+.brand{min-height:44px}
+/* Content reflows at true browser zoom; only the data table scrolls internally. */
+.ai-settings{overflow-wrap:anywhere}
+.ai-settings fieldset{min-inline-size:0;max-width:100%}
+.ai-settings .ai-providers{border:0;padding:0;margin-inline:0;grid-template-columns:minmax(0,1fr)}
+.ai-settings .ai-provider{grid-template-columns:19px minmax(0,1fr);gap:10px}
+.ai-settings .ai-card-heading>div,.ai-settings .ai-card-heading .check,.ai-settings .notice>span{min-width:0;max-width:100%}
+.ai-settings .ai-card-heading .check{flex-shrink:1}
+.ai-settings .notice>.icon{flex-shrink:0}
+.ai-settings .ai-connect-steps,.ai-settings .ai-breakdown,.ai-settings .ai-table-wrap{min-width:0;max-width:100%}
+.ai-settings .button{white-space:normal;overflow-wrap:anywhere}
+.ai-settings .ai-connect-steps pre,.ai-settings .ai-connect-steps code{max-width:100%;overflow-wrap:anywhere}
+@media(max-width:319px){
+ .ai-settings .ai-provider{grid-template-columns:minmax(0,1fr);gap:6px;padding:10px}
+ .ai-settings .ai-provider input{justify-self:start}
+ .ai-settings .notice{flex-direction:column;align-items:flex-start;padding:10px;gap:8px}
+ .ai-settings .ai-card-heading{flex-direction:column;align-items:stretch}
+ .ai-settings .ai-test-actions{display:grid;grid-template-columns:minmax(0,1fr)}
+ .ai-settings .ai-connect-steps ol{padding-left:16px}
+ .ai-settings .ai-source-links{flex-direction:column;gap:4px}
+ .ai-settings .ai-usage-link{flex-wrap:wrap}
+ .ai-settings .ai-table-wrap{overflow-x:auto}
+}

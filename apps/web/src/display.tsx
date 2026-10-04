@@ -455,7 +455,7 @@ function DisplayRuntime({
         {projection && !projection.display.timezone && (
           <p className="field-hint">{t("timezoneFallback")}</p>
         )}
-        {hub ? <FamilyHub display people={hub.people} items={hub.items} messages={cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision}))} zone={zone} householdName={projection!.display.householdName} now={clock.current ? serverTime(clock.current, performance.now()) : Date.now()} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/> : cards.length ? (
+        {hub ? <FamilyHub display people={hub.people} items={hub.items} messages={cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision}))} zone={zone} householdName={projection!.display.householdName} now={clock.current ? serverTime(clock.current, performance.now()) : Date.now()} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/> : cards.length ? (
           <div className="display-cards">
             {layout === "board"
               ? cards.map((card, i) => (
