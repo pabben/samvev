@@ -146,6 +146,7 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   assert.equal(projection.json().cards.length,1);
   assert.equal(projection.json().cards[0].body,'Synthetic gym clothes reminder');
   assert.equal(projection.json().cards[0].authorPersonId,limitedCreate.json().personId);
+  assert.equal(projection.json().cards[0].authorAvatarKey,'avatar-04');
   assert.equal('authorMembershipId' in projection.json().cards[0],false);
   assert.equal('authorAccountId' in projection.json().cards[0],false);
   assert.equal(projection.json().display.name,'Kitchen');

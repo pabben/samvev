@@ -1,4 +1,4 @@
-import type { HubItem, HubPerson } from './home-types';
+import type { HubItem, HubMessage, HubPerson } from './home-types';
 import { wallInput } from './time';
 export function currentItems(items:HubItem[], now:number):HubItem[] {
   return items.filter(item => (!item.publishAt || Date.parse(item.publishAt)<=now) && (!item.expiresAt || Date.parse(item.expiresAt)>now));
@@ -47,3 +47,11 @@ export function personalPreviewItems(active:HubItem[],personId:string) {
   return personItems(active,personId).filter(item=>item.kind!=='summary'&&item.kind!=='list');
 }
 export function hiddenPersonalCount(itemCount:number,previewLimit:number) {return Math.max(0,itemCount-previewLimit);}
+
+// A display may receive an author's permitted illustration without receiving
+// that person in its targeted roster. Names are never identity evidence.
+export function messageAvatarKey(message:Pick<HubMessage,'authorPersonId'|'authorAvatarKey'>,people:HubPerson[]):string|null {
+  if(!message.authorPersonId)return null;
+  const person=people.find(person=>person.id===message.authorPersonId);
+  return person ? person.avatarKey??null : message.authorAvatarKey??null;
+}

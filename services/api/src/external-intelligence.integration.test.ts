@@ -84,7 +84,7 @@ test('scoped integrations provide idempotent CAS items, isolated projections, re
 
   const payload={
     externalId:'family-brief:synthetic:rain',expectedRevision:0,kind:'reminder',contentLocale:'nb',
-    targets:{household:true,personIds:[childPersonId,ownerPersonId],displayIds:[secondDisplayId,displayId]},
+    targets:{household:true,personIds:[childPersonId],displayIds:[secondDisplayId,displayId]},
     title:'Synthetic rainwear reminder',body:'Pack synthetic rainwear tomorrow.',entries:[],priority:'high',
     publishAt:new Date(Date.now()-60_000).toISOString(),startsAt:null,endsAt:null,expiresAt:future(120),
     source:{label:'Synthetic family brief',url:'https://example.invalid/weather?day=tomorrow',links:[{label:'Synthetic plan',url:'https://example.invalid/plan?week=39'}],observedAt:new Date().toISOString(),generatedAt:new Date().toISOString(),uncertainty:'low'},
@@ -95,7 +95,7 @@ test('scoped integrations provide idempotent CAS items, isolated projections, re
   assert.equal((await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(token,{origin:'https://attacker.invalid'}),payload})).statusCode,403,'foreign Origin remains rejected');
   const created=await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(token),payload});
   assert.equal(created.statusCode,201,created.body);assert.equal(created.json().result,'created');assert.equal(created.json().item.revision,1);assert.equal(created.json().item.contentLocale,'nb');
-  const retry=await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(token),payload:{...payload,expectedRevision:999,targets:{...payload.targets,personIds:[ownerPersonId,childPersonId],displayIds:[displayId,secondDisplayId]}}});
+  const retry=await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(token),payload:{...payload,expectedRevision:999,targets:{...payload.targets,personIds:[childPersonId],displayIds:[displayId,secondDisplayId]}}});
   assert.equal(retry.statusCode,200,retry.body);assert.equal(retry.json().result,'unchanged');assert.equal(retry.json().item.revision,1);
   assert.equal((await pool.query<{count:number}>('SELECT count(*)::int AS count FROM integration_items WHERE connection_id=$1',[connectionId])).rows[0]!.count,1);
 
@@ -119,12 +119,20 @@ test('scoped integrations provide idempotent CAS items, isolated projections, re
   assert.equal(defaultProjection.statusCode,200,defaultProjection.body);assert.equal(defaultProjection.json().display.externalItemsEnabled,false);assert.equal('hub' in defaultProjection.json(),false);
   const optIn=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${displayId}`,headers:adminHeaders(),payload:{externalItemsEnabled:true}});
   assert.equal(optIn.statusCode,200,optIn.body);assert.equal(optIn.json().external_items_enabled,true);
+  const message=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:adminHeaders(),payload:{body:'Synthetic message-only author',importance:'normal',audience:{household:false,personIds:[],displayIds:[displayId]},expiresAt:future(60),idempotencyKey:'display-author-avatar-boundary-0001'}});
+  assert.equal(message.statusCode,201,message.body);
   const projection=await app.inject({method:'GET',url:'/api/v1/display/projection',headers:{cookie:displayCookie}});
-  assert.equal(projection.json().hub.items.length,1);assert.equal(projection.json().hub.people.length,2);assert.equal(projection.json().hub.items[0].contentLocale,'nb');
+  assert.equal(projection.json().hub.items.length,1);assert.equal(projection.json().hub.people.length,1);assert.equal(projection.json().hub.items[0].contentLocale,'nb');
   assert.deepEqual(projection.json().hub.people,[
-    {id:childPersonId,displayName:'Synthetic Child',avatarKey:'avatar-05'},
-    {id:ownerPersonId,displayName:'Synthetic Owner',avatarKey:'avatar-02'}
+    {id:childPersonId,displayName:'Synthetic Child',avatarKey:'avatar-05'}
   ]);
+  assert.equal(projection.json().cards.length,1);assert.deepEqual(projection.json().cards[0],{
+    id:message.json().id,kind:'household_message',body:'Synthetic message-only author',importance:'normal',author:'Synthetic Owner',
+    authorPersonId:ownerPersonId,authorAvatarKey:'avatar-02',publishAt:projection.json().cards[0].publishAt,
+    expiresAt:projection.json().cards[0].expiresAt,revision:1
+  });
+  assert.equal(projection.json().hub.people.some((person:{id:string})=>person.id===ownerPersonId),false,'a visible message author is not added to the external-item person roster');
+  assert.equal('authorMembershipId' in projection.json().cards[0]||'authorAccountId' in projection.json().cards[0]||'authorEmail' in projection.json().cards[0],false,'a display card contains only the minimal author identity');
   assert.equal(JSON.stringify(projection.json().hub.people).includes('avatar-06'),false,'a display projection cannot reveal an avatar from another household');
   assert.equal(projection.json().hub.people.some((person:Record<string,unknown>)=>'birthDate' in person||'email' in person||'accountId' in person),false,'display identity projection stays minimal');
   assert.equal('url' in projection.json().hub.items[0].source,false);assert.equal('links' in projection.json().hub.items[0].source,false);

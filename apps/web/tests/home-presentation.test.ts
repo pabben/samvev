@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {currentItems,dayEvents,personItems,importantItems,hubSectionOrder,splitBriefs,resolveHubDetail,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
+import {currentItems,dayEvents,messageAvatarKey,personItems,importantItems,hubSectionOrder,splitBriefs,resolveHubDetail,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
@@ -128,4 +128,17 @@ test('person details remain available with zero, one and many entries, including
   if(resolved?.kind==='person'){assert.deepEqual(resolved.items,entries);assert.equal(resolved.person.avatarKey,'avatar-03');}
  }
  assert.equal(resolveHubDetail(selection,[{...person,avatarKey:'avatar-06'}],[item])?.kind,'person');
+});
+
+
+test('a permitted display author illustration does not require expanding the targeted person roster',()=>{
+ const message={authorPersonId:'author',authorAvatarKey:'avatar-04'};
+ const unrelated=[{id:'targeted-person',displayName:'Same synthetic name',avatarKey:'avatar-02'}];
+ assert.equal(messageAvatarKey(message,unrelated),'avatar-04');
+ assert.equal(messageAvatarKey({...message,authorPersonId:null},unrelated),null);
+ assert.equal(messageAvatarKey({authorAvatarKey:'avatar-04'},unrelated),null);
+ assert.equal(messageAvatarKey({authorPersonId:'unknown'},unrelated),null);
+ assert.equal(messageAvatarKey(message,[{id:'author',displayName:'Synthetic author',avatarKey:'avatar-06'}]),'avatar-06');
+ assert.equal(messageAvatarKey(message,[{id:'author',displayName:'Synthetic author',avatarKey:null}]),null);
+ assert.equal(unrelated.length,1);
 });
