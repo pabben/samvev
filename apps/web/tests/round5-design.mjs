@@ -75,8 +75,14 @@ try {
   originalPrefs = { locale: me.account.locale, theme: me.account.theme };
   const originalHome = await api(`/households/${householdId}/home`);
   const homePath = `**/api/v1/households/${householdId}/home`;
-  const basePerson = originalHome.people[0] ?? { id: "seed", displayName: "Synthetic person", avatarKey: "fox" };
-  const baseItem = originalHome.items[0] ?? { id: "seed-item", kind: "event", title: "Synthetic event", body: "Synthetic body", metadata: {}, source: { label: "Synthetic source" }, audience: {}, targets: {} };
+  const basePerson = originalHome.people[0] ?? { id: "seed", displayName: "Synthetic person", avatarKey: "avatar-01" };
+  const baseItem = originalHome.items[0] ?? {
+    id: "seed-item", kind: "event", contentLocale: "en", title: "Synthetic event", body: "Synthetic body",
+    entries: [], priority: "normal", publishAt: null, startsAt: null, endsAt: null, expiresAt: null,
+    targets: { household: false, personIds: [] }, metadata: {},
+    source: { label: "Synthetic source", observedAt: new Date().toISOString(), uncertainty: "unknown" },
+    revision: 1, updatedAt: new Date().toISOString(),
+  };
   const projection = ({ people = 4, personal = 1, long = false, expiry = null }) => {
     const now = Date.now();
     const roster = Array.from({ length: people }, (_, index) => ({ ...basePerson, id: `round5-person-${index + 1}`, displayName: long ? `Synthetic household person ${index + 1} with a deliberately long accessible display name` : `Synthetic person ${index + 1}` }));
@@ -129,7 +135,7 @@ try {
   trigger = page.locator('[data-hub-detail-kind="person"][data-person-id="round5-person-1"]:visible'); await trigger.click(); await expect(dialog).toBeVisible();
   current = { ...current, people: current.people.slice(1), items: current.items.filter(item => !item.targets.personIds?.includes("round5-person-1")) };
   await page.evaluate(() => window.__round5Event("projection-invalidated"));
-  await expect(dialog).toBeHidden(); await expect(page.getByTestId("family-hub")).toBeVisible(); record("SSE projection invalidation refetches and withdraws a removed identity without reload");
+  await expect(dialog).toBeHidden(); await expect(page.getByTestId("family-hub")).toBeVisible(); await expect(page.getByTestId("family-hub")).toBeFocused(); record("SSE projection invalidation refetches and withdraws a removed identity without reload");
 
   current = projection({ people: 1, personal: 1, expiry: new Date(Date.now() + 4_000).toISOString() }); await page.reload();
   await page.locator('[data-hub-detail-kind="item"]:visible').filter({ hasText: "Today personal item 1" }).click(); await expect(dialog).toBeVisible(); await expect.poll(async () => !(await dialog.isVisible()), { timeout: 8_000 }).toBeTruthy(); record("expired item closes its detail on the live clock");
@@ -147,14 +153,15 @@ try {
   const states = [["connected", "connected"], ["limited", "usage_limited"], ["noteligible", "not_eligible"], ["unknownusage", "connected"]];
   for (const [label, status] of states) {
     const settings = { ...actualSettings, provider: "chatgpt_subscription", enabled: false, chatgpt: { ...actualSettings.chatgpt, activeRegistrationId: `r5-${label}`, registrations: [{ id: `r5-${label}`, label: "Synthetic connected account", status, revision: 1, isOwner: true, canManage: true }] } };
-    const usage = { ...actualUsage, summary: { ...actualUsage.summary, unknownUsageCount: label === "unknownusage" ? 1 : 0, legacyUnknownAttempts: label === "unknownusage" ? 1 : 0, legacyUnknownAttempts: label === "unknownusage" ? 1 : 0 }, recent: label === "unknownusage" ? [{ provider: "chatgpt_subscription", route: "chatgpt_plan", model: null, actualModel: null, requestedModel: null, actualServiceTier: null, purpose: "synthetic", category: null, success: false, outcome: "legacy_unknown", actualDispatch: null, errorCode: null, inputTokens: null, outputTokens: null, occurredAt: new Date().toISOString() }] : actualUsage.recent };
+    const usage = { ...actualUsage, summary: { ...actualUsage.summary, unknownUsageCount: label === "unknownusage" ? 1 : 0, legacyUnknownAttempts: label === "unknownusage" ? 1 : 0 }, recent: label === "unknownusage" ? [{ provider: "chatgpt_subscription", route: "chatgpt_plan", model: null, actualModel: null, requestedModel: null, actualServiceTier: null, purpose: "synthetic", category: null, success: false, outcome: "legacy_unknown", actualDispatch: null, errorCode: null, inputTokens: null, outputTokens: null, occurredAt: new Date().toISOString() }] : actualUsage.recent };
     await page.route(settingsPath, route => route.fulfill({ json: settings })); await page.route(usagePath, route => route.fulfill({ json: usage }));
     await page.reload(); await navAI("nb"); await expect(page.locator(".ai-settings")).toBeVisible(); await expect(page.locator(".ai-registrations article").getByText("Synthetic connected account", { exact: true })).toBeVisible();
     if (label === "connected") await expect(page.locator(".ai-registrations article")).toContainText("Tilkoblet · kontotilgang verifisert");
     if (label === "limited") await expect(page.locator(".ai-registrations article")).toContainText("Planbruk satt på pause · kontroller kontogrensen");
     if (label === "noteligible") await expect(page.locator(".ai-registrations article")).toContainText("Kontoen er ikke kvalifisert · prøv først igjen når tilgangen er endret");
     if (label === "unknownusage") { await expect(page.locator(".ai-settings")).toContainText("Resultat ukjent"); await expect(page.locator(".ai-settings")).toContainText("historiske forsøk med ukjent utsending"); }
-    record(`AI ${label} transport projection`, { injectedTransport: true, providerCallsBlocked: true }); await page.unroute(settingsPath); await page.unroute(usagePath);
+    const screenshot = `ai-${label}-injected.png`; await page.screenshot({ path: `${artifactDir}/${screenshot}`, fullPage: true });
+    record(`AI ${label} transport projection`, { injectedTransport: true, providerCallsBlocked: true, screenshot, viewport: page.viewportSize(), fullPage: true, state: status }); await page.unroute(settingsPath); await page.unroute(usagePath);
   }
   expect(blockedProviderCalls, "AI provider/model/test calls must never be attempted").toEqual([]); completed = true;
 } catch (error) { failures.push(error instanceof Error ? error.stack ?? error.message : String(error)); }

@@ -190,10 +190,7 @@ export function MemberApp({
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="sidebar-motto">
-            <Icon name="leaf" size={32} />
-            <p>{t("tagline")}</p>
-          </div>
+
           <button className="account-button" aria-label={t("preferences")} onClick={() => setSettings(true)}>
             <Avatar name={member.display_name} />
             <span>
