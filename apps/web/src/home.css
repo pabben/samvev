@@ -210,3 +210,7 @@ body{font-family:var(--font-sans)}
  .hub-hero{padding-bottom:6px}.hub-hero .hub-household{margin-bottom:2px}.hub-light.hub-wide .hub-day-plan .hub-timeline li small{display:none}.hub-light.hub-wide .hub-day-plan .hub-timeline li{padding-bottom:4px}.hub-light.hub-wide .hub-day-plan .hub-panel{padding:10px 12px}.hub-light.hub-wide .hub-day-plan .hub-tomorrow{flex:0}.hub-light.hub-wide .hub-day-plan .hub-today{flex:1}.hub-dark.hub-wide .hub-person-identity{grid-template-columns:40px minmax(0,1fr)}
 }
 @media(min-width:641px) and (max-width:1000px){.hub-person-name>strong{justify-content:flex-start}}
+
+/* Four short-display identity rows retain both 44px controls; remove only the
+   redundant vertical padding so the whole lower message entry clears the edge. */
+@media(min-width:1001px) and (max-height:850px){.hub-dark.hub-wide .hub-person{padding-block:0}}
