@@ -8,20 +8,31 @@ it does not need a Git checkout or Samvev server access.
 Copy `scripts/chatgpt-connect.ts` and `scripts/chatgpt-connect-core.mjs` from the
 published feature branch to the **same directory** on the browser machine. Use
 GitHub over HTTPS for these source files; no provider credential is part of them.
-With Node.js 24, run from that directory (no npm install is needed):
+With Node.js 24, run from that directory (no npm install is needed). Keep the
+registration metadata in a private browser-machine directory. It contains the
+issued client ID, VM host ID and, after a successful exchange, the verified
+issuer/subject binding. It contains no access, ID or refresh token.
 
 ```sh
-node ./chatgpt-connect.ts --host-id '<VM-host-ID-from-Samvev>' --output "$HOME/samvev-chatgpt-credential.json"
+node ./chatgpt-connect.ts \
+  --host-id '<VM-host-ID-from-Samvev>' \
+  --registration "$HOME/.config/samvev/chatgpt-registration.json" \
+  --output "$HOME/samvev-chatgpt-credential.json"
 ```
 
 If a Samvev checkout is already present on that machine, the equivalent command
-is `npm run ai:chatgpt-connect -- --host-id '<VM-host-ID-from-Samvev>' --output "$HOME/samvev-chatgpt-credential.json"`.
+is `npm run ai:chatgpt-connect -- --host-id '<VM-host-ID-from-Samvev>'
+--registration "$HOME/.config/samvev/chatgpt-registration.json" --output
+"$HOME/samvev-chatgpt-credential.json"`.
 
 
 Complete the OpenAI consent page. The helper validates the callback state,
 nonce, issued client ID and signed identity, then writes a credential record
-with mode `0600`. It prints the authorization URL only for the initial local
-flow and never prints tokens.
+with mode `0600`. It records the issued client ID atomically before token
+exchange. If that exchange is interrupted, run the same command again: it
+starts fresh state, nonce and PKCE values while reusing only the token-free
+registration metadata. It prints the authorization URL only for the initial
+local flow and never prints tokens.
 
 Copy the record over SSH to a private path on the Samvev VM. Substitute the VM
 host and your normal SSH user; do not place the file in `docs/` or another Git
@@ -52,11 +63,17 @@ The stable runtime host identity is displayed by Samvev and stays owned by the
 VM. Pass that exact `urn:uuid` value with `--host-id` on each connection and
 reauthorization. An initial transfer record created without this option remains
 importable, but the next authorization should use the VM identity shown by
-Samvev. Use `--reauthorize <old-record>` together with `--host-id
-<VM-host-ID-from-Samvev>` when Samvev reports
-`AI_REAUTHORIZATION_REQUIRED`. Missing scopes, account eligibility, a plan limit
-and revocation are separate safe states. A limit pauses further plan dispatches
-until the owner explicitly resumes after checking
+Samvev. Run the same command with the retained `--registration` file when
+Samvev reports `AI_REAUTHORIZATION_REQUIRED`. The transferred credential record
+may stay deleted; recovery never requires that token-bearing file. Missing
+scopes, account eligibility, a plan limit and revocation are separate safe
+states. A temporary discovery or signing-key outage leaves the newest rotated
+credential encrypted as `pending_validation`; Samvev blocks inference and
+retries validation without reusing the rotated-out refresh token. An older
+retained ID token is only an identity hint when a refresh response
+does not return a new ID token; the newly signed access token remains the
+authorization proof. A limit pauses further plan dispatches until the owner
+explicitly resumes after checking
 <https://chatgpt.com/settings/usage>. Samvev never falls back to an API key or a
 different owner's registration.
 
