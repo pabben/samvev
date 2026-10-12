@@ -55,9 +55,21 @@ cd /home/administrator/apper/samvev
 docker exec samvev-m1-qa-app-1 npm run ai:chatgpt-import -- \
   --household '<household-uuid>' \
   --owner-account '<owner-account-uuid>' \
-  --file /workspace/.local/samvev-chatgpt-credential.json
-rm /home/administrator/apper/samvev/.local/samvev-chatgpt-credential.json
+  --file /workspace/.local/samvev-chatgpt-credential.json && \
+  rm /home/administrator/apper/samvev/.local/samvev-chatgpt-credential.json
 ```
+
+After the server import reports success, also delete the original credential
+record on the **browser machine**:
+
+```sh
+rm "$HOME/samvev-chatgpt-credential.json"
+```
+
+Keep only the mode-`0600`, token-free
+`$HOME/.config/samvev/chatgpt-registration.json` file on the browser machine.
+Samvev uses that registration metadata for reauthorization; it never needs the
+deleted credential record again.
 
 The stable runtime host identity is displayed by Samvev and stays owned by the
 VM. Pass that exact `urn:uuid` value with `--host-id` on each connection and

@@ -50,3 +50,12 @@ export const formatDate = (
   new Intl.DateTimeFormat(locale, { timeZone: zone, ...options }).format(
     new Date(value),
   );
+
+/** Full localized range, in the household zone; date changes are never hidden. */
+export function formatEventRange(start:string,end:string|null,locale:string,zone:string,allDay=false):string {
+ const options:Intl.DateTimeFormatOptions=allDay
+  ? {weekday:'short',day:'numeric',month:'short',year:'numeric'}
+  : {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'};
+ if(!end||Date.parse(end)<=Date.parse(start))return formatDate(start,locale,zone,options);
+ return new Intl.DateTimeFormat(locale,{timeZone:zone,...options}).formatRange(new Date(start),new Date(end));
+}

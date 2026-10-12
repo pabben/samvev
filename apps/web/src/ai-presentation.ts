@@ -1,6 +1,6 @@
 import type { TranslationKey } from './locales/en';
 export function registrationState(status:string):TranslationKey {
- return ({connected:'aiPlanConnected',usage_limited:'aiPlanLimited',not_eligible:'aiPlanNotEligible',reauthorization_required:'aiPlanReauth',revocation_unconfirmed:'aiRevocationUnconfirmed',disconnected:'aiPlanDisconnected'} as Record<string,TranslationKey>)[status]??'aiStatusNotConfigured';
+ return ({pending_validation:'aiPlanPendingValidation',connected:'aiPlanConnected',usage_limited:'aiPlanLimited',not_eligible:'aiPlanNotEligible',reauthorization_required:'aiPlanReauth',revocation_unconfirmed:'aiRevocationUnconfirmed',disconnected:'aiPlanDisconnected'} as Record<string,TranslationKey>)[status]??'aiStatusNotConfigured';
 }
 export function purposeKey(purpose:string):TranslationKey|undefined {
  return ({connection_test:'aiConnectionTestPurpose',monitor_source_analysis:'aiPurposeMonitor',monitor_analysis:'aiPurposeMonitor',monitor_interpretation:'aiPurposeInterpretation',monitor_format_repair:'aiPurposeRepair',source_summary:'aiPurposeSummary'} as Record<string,TranslationKey>)[purpose];
@@ -24,5 +24,5 @@ export interface UsageForecast {
 }
 export function forecastPresentation(forecast:UsageForecast):{amount:string|null;reasonKey:TranslationKey} {
  const complete=forecast.status==='available'&&forecast.completeCalendarDays>=7&&forecast.totalCalls>0&&forecast.knownCalls===forecast.totalCalls;
- return {amount:complete?forecast.monthlyAmount:null,reasonKey:forecast.reason==='partial_calendar_history'?'aiForecastPartialHistory':forecast.reason==='insufficient_history'?'aiForecastNoUsage':forecast.reason==='unknown_pricing'?'aiForecastUnknownPricing':'aiForecastPreliminary'};
+ return {amount:complete?forecast.monthlyAmount:null,reasonKey:complete?'aiForecastAvailable':forecast.reason==='unresolved_dispatch'?'aiForecastUnresolvedDispatch':forecast.reason==='partial_calendar_history'?'aiForecastPartialHistory':forecast.reason==='insufficient_history'?'aiForecastNoUsage':forecast.reason==='unknown_pricing'?'aiForecastUnknownPricing':'aiForecastPreliminary'};
 }

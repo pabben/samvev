@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {currentItems,dayEvents,messageAvatarKey,personItems,importantItems,hubSectionOrder,splitBriefs,resolveHubDetail,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
+import {currentItems,dayEvents,messageAvatarKey,personItems,importantItems,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
@@ -45,12 +45,12 @@ test('responsive compositions preserve each content entry once and mobile uses d
  for(const dark of [false,true])for(const compact of [false,true])for(const mobile of [false,true]){
   const order=hubSectionOrder(dark,compact,mobile);
   assert.equal(new Set(order).size,order.length);
-  for(const key of ['important','messages','companion','briefs'])assert.equal(order.filter(value=>value===key).length,1);
+  for(const key of ['important','messages','support'])assert.equal(order.filter(value=>value===key).length,1);
   assert.equal(order.includes('people'),!mobile);
   assert.equal(order.includes('dayPlan'),!dark&&!mobile);
-  assert.ok(order.indexOf('messages')<order.indexOf('briefs'));
+  assert.ok(order.indexOf('messages')<order.indexOf('support'));
  }
- assert.deepEqual(hubSectionOrder(false,false).slice(0,4),['people','dayPlan','messages','important']);
+ assert.deepEqual(hubSectionOrder(false,false).slice(0,4),['people','dayPlan','important','messages']);
  assert.deepEqual(hubSectionOrder(true,false).slice(0,4),['today','tomorrow','people','important']);
  assert.deepEqual(hubSectionOrder(false,true,true).slice(0,2),['important','messages']);
  assert.deepEqual(hubSectionOrder(true,true,true).slice(0,3),['important','quickActions','today']);
@@ -141,4 +141,18 @@ test('a permitted display author illustration does not require expanding the tar
  assert.equal(messageAvatarKey(message,[{id:'author',displayName:'Synthetic author',avatarKey:'avatar-06'}]),'avatar-06');
  assert.equal(messageAvatarKey(message,[{id:'author',displayName:'Synthetic author',avatarKey:null}]),null);
  assert.equal(unrelated.length,1);
+});
+
+test('counted collection details resolve current permitted content and message updates, never stale previews',()=>{
+ const reminder={...item,id:'reminder',kind:'reminder' as const};
+ const brief={...item,id:'brief',kind:'summary' as const};
+ const message={id:'message',body:'Full synthetic message',importance:'normal' as const,authorName:'Synthetic',publishAt:new Date(now-1).toISOString(),expiresAt:new Date(now+1).toISOString(),revision:1};
+ assert.deepEqual(collectionItems('important',[item,reminder,brief],now,'Europe/Oslo'),[reminder]);
+ assert.deepEqual(collectionItems('briefs',[item,reminder,brief],now,'Europe/Oslo'),[brief]);
+ assert.deepEqual(collectionItems('today',[item,reminder,brief],now,'Europe/Oslo'),[item]);
+ const selected={kind:'message' as const,id:'message'};
+ assert.equal(resolveHubDetail(selected,[],[],[],now),undefined);
+ assert.deepEqual(resolveHubDetail(selected,[],[],[{...message,body:'Updated full message',revision:2}],now),{kind:'message',message:{...message,body:'Updated full message',revision:2}});
+ assert.deepEqual(resolveHubDetail({kind:'collection',id:'messages'},[],[],[message],now),{kind:'collection',id:'messages',items:[],messages:[message]});
+ assert.deepEqual(resolveHubDetail({kind:'collection',id:'important'},[],[],[],now),{kind:'collection',id:'important',items:[],messages:[]});
 });

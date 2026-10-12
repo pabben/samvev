@@ -17,8 +17,8 @@ export function importantItems(items:HubItem[]) { return items.filter(i=>i.kind=
 
 // Stable section keys preserve open details while visual and reading order move together.
 export function hubSectionOrder(dark:boolean, compact:boolean, mobile=false):string[] {
-  if (mobile) return dark ? ['important','quickActions','today','tomorrow','messages','companion','briefs'] : ['important','messages','today','tomorrow','companion','briefs'];
-  return dark ? ['today','tomorrow','people','important','messages','companion','briefs'] : ['people','dayPlan','messages','important','companion','briefs'];
+  if (mobile) return dark ? ['important','quickActions','today','messages','tomorrow','support'] : ['important','messages','today','tomorrow','support'];
+  return dark ? ['today','tomorrow','people','important','messages','support'] : ['people','dayPlan','important','messages','support'];
 }
 
 // A small, real update accompanies the human message. Never fabricate a widget
@@ -31,15 +31,24 @@ export function splitBriefs(items:HubItem[], stackAgenda=false) {
   return {agendaCompanion,companion,remaining:items.filter(item=>item.id!==companion?.id&&item.id!==agendaCompanion?.id)};
 }
 
-export type HubDetailSelection={kind:'item'|'person';id:string};
+export type HubCollection='important'|'briefs'|'today'|'tomorrow'|'messages';
+export type HubDetailSelection={kind:'item'|'person'|'message';id:string}|{kind:'collection';id:HubCollection};
+export function collectionItems(id:HubCollection,active:HubItem[],now:number,zone:string):HubItem[] {
+ if(id==='important')return importantItems(active);
+ if(id==='briefs')return active.filter(item=>['summary','list','observation'].includes(item.kind)&&!importantItems(active).includes(item));
+ if(id==='today'||id==='tomorrow')return dayEvents(active,now,zone,id==='tomorrow'?1:0);
+ return [];
+}
 // Keep only identity in dialog state. Every render resolves the current permitted,
 // unexpired projection, so SSE updates and withdrawal cannot leave stale details.
-export function resolveHubDetail(selection:HubDetailSelection|null, people:HubPerson[], active:HubItem[]) {
+export function resolveHubDetail(selection:HubDetailSelection|null, people:HubPerson[], active:HubItem[],messages:HubMessage[]=[],now=Date.now(),zone='UTC') {
   if(!selection)return undefined;
   if(selection.kind==='item') {
     const item=active.find(item=>item.id===selection.id);
     return item?{kind:'item' as const,item}:undefined;
   }
+  if(selection.kind==='message'){const message=messages.find(message=>message.id===selection.id);return message?{kind:'message' as const,message}:undefined;}
+  if(selection.kind==='collection')return {kind:'collection' as const,id:selection.id,items:collectionItems(selection.id,active,now,zone),messages:selection.id==='messages'?messages:[]};
   const person=people.find(person=>person.id===selection.id);
   return person?{kind:'person' as const,person,items:personItems(active,person.id)}:undefined;
 }

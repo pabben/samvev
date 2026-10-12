@@ -48,3 +48,10 @@ test('unknown legacy dispatch and incomplete streams retain their own outcome',(
  assert.equal(attemptState({success:false,actualDispatch:true,outcome:'incomplete'}),'aiAttemptIncomplete');
  assert.equal(attemptState({success:false,actualDispatch:true,outcome:'pending'}),'aiAttemptPending');
 });
+
+test('pending validation and unresolved dispatch never imply connected, free or complete',()=>{
+ assert.equal(registrationState('pending_validation'),'aiPlanPendingValidation');
+ const incomplete:UsageForecast={status:'preliminary',reason:'unresolved_dispatch',completeCalendarDays:30,from:'2026-09-01',to:'2026-09-30',totalCalls:3,knownCalls:2,monthlyAmount:null,unit:'credits'};
+ assert.deepEqual(forecastPresentation(incomplete),{amount:null,reasonKey:'aiForecastUnresolvedDispatch'});
+ assert.ok(en.aiPendingValidationHint);assert.ok(nb.aiPendingValidationHint);
+});
