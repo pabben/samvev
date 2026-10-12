@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { forecastPresentation, type UsageForecast, attemptState, purposeKey, registrationIdentity, registrationState } from '../src/ai-presentation';
+import { forecastPresentation, formatKnownAmount, type UsageForecast, attemptState, purposeKey, registrationIdentity, registrationState } from '../src/ai-presentation';
 import { en } from '../src/locales/en';
 import { nb } from '../src/locales/nb';
 test('plan lifecycle states distinguish local removal from confirmed remote revocation',()=>{
@@ -54,4 +54,11 @@ test('pending validation and unresolved dispatch never imply connected, free or 
  const incomplete:UsageForecast={status:'preliminary',reason:'unresolved_dispatch',completeCalendarDays:30,from:'2026-09-01',to:'2026-09-30',totalCalls:3,knownCalls:2,monthlyAmount:null,unit:'credits'};
  assert.deepEqual(forecastPresentation(incomplete),{amount:null,reasonKey:'aiForecastUnresolvedDispatch'});
  assert.ok(en.aiPendingValidationHint);assert.ok(nb.aiPendingValidationHint);
+});
+
+test('compact cost labels localize decimals and preserve known zero and exact precision',()=>{
+ assert.equal(formatKnownAmount('0.00000000','nb'),'0');
+ assert.equal(formatKnownAmount('1.41000000','nb'),'1,41');
+ assert.equal(formatKnownAmount('0.05640000','en'),'0.0564');
+ assert.equal(formatKnownAmount('0.00000001','nb'),'0,00000001');
 });

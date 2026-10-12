@@ -60,7 +60,7 @@ export function FamilyHub({people,items,messages,zone,householdName,display=fals
   };
   const important=importantItems(active);
   const briefs=active.filter(i=>['summary','list','observation'].includes(i.kind)&&!important.includes(i));
-  const previewLimit=mobile||compact||lowHeight?1:2;
+  const previewLimit=1;
   const companion=briefs.find(item=>item.kind==='observation')??briefs[0];
   const collectionTitle=(id:HubCollection)=>t(({important:'hubImportant',briefs:'hubBriefs',messages:'hubMessages',today:'hubToday',tomorrow:'hubTomorrow'} as const)[id]);
   const collectionButton=(id:HubCollection,count:number)=><button className="hub-collection-link" data-hub-detail={id} data-hub-detail-kind="collection" onClick={event=>detailAccess.open({kind:'collection',id},event.currentTarget)}>{t('hubViewCollection',{section:collectionTitle(id),count})}<Icon name="arrow" size={16}/></button>;
@@ -122,7 +122,7 @@ function PersonCard({person,index,items,people,zone,display,previewLimit}:{perso
  const {t,locale}=useI18n();const details=useContext(HubDetails);
  const remaining=hiddenPersonalCount(items.length,previewLimit);
  return <article className="hub-person" id={`hub-person-${person.id}`} tabIndex={-1} data-person-id={person.id} data-hub-scope={`person-${person.id}`} data-accent={index%4}>
-   <header><button className="hub-person-identity" data-person-id={person.id} data-hub-detail={person.id} data-hub-detail-kind="person" onClick={event=>details?.open({kind:'person',id:person.id},event.currentTarget)} aria-label={t('hubPersonDetails',{name:person.displayName,count:items.length})}><Avatar name={person.displayName} index={index} avatarKey={person.avatarKey}/><span className="hub-person-name"><strong>{person.displayName}</strong>{items.length>0&&<span>{t('hubActivityCount',{count:items.length})}</span>}</span><Icon name="arrow" size={16}/></button></header>
+   <header><button className="hub-person-identity" data-person-id={person.id} data-hub-detail={person.id} data-hub-detail-kind="person" onClick={event=>details?.open({kind:'person',id:person.id},event.currentTarget)} aria-label={t('hubPersonDetails',{name:person.displayName,count:items.length})}><Avatar name={person.displayName} index={index} avatarKey={person.avatarKey}/><span className="hub-person-name"><strong>{person.displayName}<Icon name="arrow" size={16}/></strong>{items.length>0&&<span>{t(items.length===1?'hubActivitySingle':'hubActivityCount',{count:items.length})}</span>}</span></button></header>
    {items.length?<ul className="hub-person-items">{items.map((item,i)=><li hidden={i>=previewLimit} key={item.id} data-item-id={item.id} className={`kind-${item.kind}`}><span className="hub-item-dot"><Icon name={kindIcons[item.kind]} size={16}/></span><div><ItemTitle item={item} people={people} zone={zone} display={display}/>{item.startsAt&&<small>{formatDate(item.startsAt,locale,zone,{weekday:'short',hour:'2-digit',minute:'2-digit'})}</small>}</div></li>)}</ul>:<div className="hub-person-clear"><Icon name="leaf" size={24}/><span>{t('hubNoPersonal')}</span></div>}
    {remaining>0&&<button className="hub-person-more" data-hub-detail={person.id} data-hub-detail-kind="person" onClick={event=>details?.open({kind:'person',id:person.id},event.currentTarget)}>{t('hubMoreItems',{count:remaining})}</button>}
  </article>;

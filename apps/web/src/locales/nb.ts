@@ -1,5 +1,17 @@
 import type { TranslationKey } from "./en";
 export const nb: Record<TranslationKey, string> = {
+  hubActivitySingle: "1 oppføring",
+  aiOnShort: "AI på",
+  aiOffShort: "AI av",
+  aiCoverageShort: "{known} priset · {unknown} ukjente forsøk",
+  aiOverviewCaveatShort: "Lokale, kjente estimater, ikke saldo. Ukjente forsøk er utelatt; USD er en separat API-sammenligning.",
+  aiForecastUnresolvedShort: "Foreløpig prognose: uavklarte utsendingsforsøk.",
+  aiForecastPreliminaryShort: "Foreløpig prognose: for lite kjent historikk.",
+  aiStep1Overview: "Nettlesermaskin · Node.js 24. Godkjenn hos OpenAI og få en privat overføringsfil.",
+  aiStep2Overview: "Nettlesermaskin → denne serveren · Overfør den private filen med SSH-kontoen din.",
+  aiStep3Overview: "Denne serveren · Importer til kryptert lager, bekreft suksess og slett overføringskopier på begge maskiner.",
+  aiStepInstructions: "Instruksjoner og kontroll",
+
   hubViewCollection: "Se {section} · {count} totalt",
   hubViewMessages: "Les beskjeder · {count}",
   hubNoBriefs: "Ingen delte oppdateringer akkurat nå.",

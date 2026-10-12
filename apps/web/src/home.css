@@ -199,3 +199,14 @@ body{font-family:var(--font-sans)}
 }
 @media(max-width:319px){.hub-hero-clock .connection-pill.hub-live-status{grid-column:1;grid-row:4;justify-self:start}.hub-quick-actions{grid-template-columns:1fr}.hub-message-open{flex-direction:column}.hub-detail-identity{align-items:flex-start}}
 @supports not (backdrop-filter:blur(1px)){.hub-dark{--hub-panel:#0c1a28f5}.hub-dark .hub-messages{background:#202e40}}
+
+/* Round 6 measured refinement: the identity arrow belongs to the name; one
+   priority reminder links to the full counted collection. */
+.hub-person-name>strong{display:flex;align-items:center;justify-content:center;gap:7px}.hub-person-name>strong>svg{flex-shrink:0;color:var(--muted)}
+.hub-light.hub-wide .hub-person-identity{padding-bottom:0;gap:5px}.hub-light.hub-wide .hub-person-items{padding-top:0}.hub-person-identity>.hub-person-name{flex:initial}
+.hub-dark.hub-wide .hub-person-identity{grid-template-columns:46px minmax(0,1fr)}.hub-dark.hub-wide .hub-person-name>strong{justify-content:space-between}
+.hub-dark .hub-person-section{border-radius:18px}
+@media(min-width:1001px) and (max-height:850px){
+ .hub-hero{padding-bottom:6px}.hub-hero .hub-household{margin-bottom:2px}.hub-light.hub-wide .hub-day-plan .hub-timeline li small{display:none}.hub-light.hub-wide .hub-day-plan .hub-timeline li{padding-bottom:4px}.hub-light.hub-wide .hub-day-plan .hub-panel{padding:10px 12px}.hub-light.hub-wide .hub-day-plan .hub-tomorrow{flex:0}.hub-light.hub-wide .hub-day-plan .hub-today{flex:1}.hub-dark.hub-wide .hub-person-identity{grid-template-columns:40px minmax(0,1fr)}
+}
+@media(min-width:641px) and (max-width:1000px){.hub-person-name>strong{justify-content:flex-start}}

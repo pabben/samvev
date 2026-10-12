@@ -1,4 +1,16 @@
 export const en = {
+  hubActivitySingle: "1 item",
+  aiOnShort: "AI enabled",
+  aiOffShort: "AI disabled",
+  aiCoverageShort: "{known} priced · {unknown} unknown attempts",
+  aiOverviewCaveatShort: "Local known estimates, not your balance. Unknown attempts excluded; USD is a separate API comparison.",
+  aiForecastUnresolvedShort: "Preliminary forecast: unresolved dispatch attempts.",
+  aiForecastPreliminaryShort: "Preliminary forecast: insufficient known history.",
+  aiStep1Overview: "Browser computer · Node.js 24. Approve in OpenAI and receive a private transfer file.",
+  aiStep2Overview: "Browser computer → this server · Transfer the private file using your SSH account.",
+  aiStep3Overview: "This server · Import into the encrypted vault, confirm success, then delete transfer copies on both machines.",
+  aiStepInstructions: "Instructions and success check",
+
   hubViewCollection: "View {section} · {count} total",
   hubViewMessages: "Read messages · {count}",
   hubNoBriefs: "No shared updates right now.",

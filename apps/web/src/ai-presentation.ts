@@ -26,3 +26,12 @@ export function forecastPresentation(forecast:UsageForecast):{amount:string|null
  const complete=forecast.status==='available'&&forecast.completeCalendarDays>=7&&forecast.totalCalls>0&&forecast.knownCalls===forecast.totalCalls;
  return {amount:complete?forecast.monthlyAmount:null,reasonKey:complete?'aiForecastAvailable':forecast.reason==='unresolved_dispatch'?'aiForecastUnresolvedDispatch':forecast.reason==='partial_calendar_history'?'aiForecastPartialHistory':forecast.reason==='insufficient_history'?'aiForecastNoUsage':forecast.reason==='unknown_pricing'?'aiForecastUnknownPricing':'aiForecastPreliminary'};
 }
+
+// Compact localized decimal presentation without rounding away known precision.
+export function formatKnownAmount(value:string,locale:string):string {
+ if(!/^-?\d+(?:\.\d+)?$/.test(value))return value;
+ const [integer,fraction='']=value.split('.');
+ const digits=fraction.replace(/0+$/,'');
+ const separator=new Intl.NumberFormat(locale).formatToParts(1.1).find(part=>part.type==='decimal')?.value??'.';
+ return new Intl.NumberFormat(locale).format(BigInt(integer!))+(digits?separator+digits:'');
+}
