@@ -214,3 +214,8 @@ body{font-family:var(--font-sans)}
 /* Four short-display identity rows retain both 44px controls; remove only the
    redundant vertical padding so the whole lower message entry clears the edge. */
 @media(min-width:1001px) and (max-height:850px){.hub-dark.hub-wide .hub-person{padding-block:0}}
+
+/* The status sits on the landscape, not an opaque panel. Give its small text
+   a dedicated foreground with contrast margin in both Home and paired display. */
+.hub-light .hub-hero-clock .connection-pill{color:#344e5b}
+.hub-dark .hub-hero-clock .connection-pill{color:#e5edf5}
