@@ -1,5 +1,26 @@
 # M1 implementation status
 
+## M3 design round 6 — 2026-10-12
+
+Activated mailbox `8e2ab1`: prioritized real family content, warm/light and navy/glass
+materials shared by paired display, full person intervals and usage-first AI setup.
+Final signed source `158d9e33949715403998b914d2180d95b66e9ae3` fixes SQL missing-price and
+unresolved-dispatch accounting, safely retains rotated pending-validation credentials,
+and persists private token-free companion registration for resuming consent.
+Full retest 270/270, pipeline11/11, browser37 + M3 11, native browser200% four runs
+PASS. Actual composited contrast: 32 surfaces plus two opened source states in each
+normal/fallback mode, minimum4.680:1, with independent PNG cross-check.
+All14 latest +22 supplementary screenshots are regenerated/opened/hash verified,
+round `20261012234005-158d9e33-d7fb5bdb`; only the labeled recovery image injects
+a synthetic DTO. Runtime/build/root/publishing-clone bytes and all20 migration
+checksums agree. Migration020 preserves stored QA; all9 data-table snapshots and
+229 protectedGit files are unchanged. Admin/admin works on LAN; QA services remain
+running. Live OAuth consent/eligibility/inference/account credits remain unverified,
+with zero real provider calls. See [Round6 report](../design/review/ROUND_6_REPORT.md)
+for changes, evidence, user connection steps and data-preserving rollback.
+The final independent release gate returned PASS before feature publication; no PR, merge,
+deploy or private data is introduced.
+
 ## M3 design round 5 — 2026-10-04
 
 Activated mailbox `34faa81`: reference-based light/dark/mobile composition, six

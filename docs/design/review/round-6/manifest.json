@@ -1,0 +1,473 @@
+{
+  "sourceSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+  "capturedAt": "2026-10-12T23:42:22.832Z",
+  "origin": "http://round6-test-app:4173",
+  "synthetic": true,
+  "liveChatGptVerified": false,
+  "screenshots": [
+    {
+      "filename": "desktop-1920-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:40.598Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "f11b460418172508ef39cae1b1578be3af858de9791a2565c15fa7307070eef1",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "mobile-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:42.377Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "4964adc0fcd64c02ab380a4bac1e2686c36d9340876a26fd9cccb0d45889a58e",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ipad-portrait-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:43.952Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "64d126c21b37f24370003c0a35c73e0cc58e2d0a7a23e2927637746c335f3c9a",
+      "imageDimensions": {
+        "width": 820,
+        "height": 1180
+      }
+    },
+    {
+      "filename": "ipad-landscape-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:45.359Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "dc94f65b327ad8de34cd08d47f088e36b16f7f0ef63087149ab2b300b0dc5ea6",
+      "imageDimensions": {
+        "width": 1180,
+        "height": 820
+      }
+    },
+    {
+      "filename": "shelly-1280-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:46.775Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "bd3df1ae18bbf51b26341951d7457c03e868dcbc90789201e806439e8e8a0e52",
+      "imageDimensions": {
+        "width": 1280,
+        "height": 752
+      }
+    },
+    {
+      "filename": "desktop-1920-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:49.039Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "c11401e8f09f1e72d1b8ed121f2dc93bd25db5f62886ee2be0acbaa4a5b0f406",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "mobile-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:50.310Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "d6d5bbe4d050b64eb4f67912dd68856de360f5487ddf08fcc1a03a5fc06fe070",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ipad-portrait-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:52.018Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "e7270fb6ccdcf0c1782a380cc1df0d6febdb88d6049950a00aecb50e1e5efd23",
+      "imageDimensions": {
+        "width": 820,
+        "height": 1180
+      }
+    },
+    {
+      "filename": "ipad-landscape-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:53.699Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "86527ddfa133963eabca69482233f37afd03cbaa1dc667973c1b51d36b1eafaf",
+      "imageDimensions": {
+        "width": 1180,
+        "height": 820
+      }
+    },
+    {
+      "filename": "shelly-1280-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:55.296Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "9c60d3b3f8adfb6dae9144943ae93fbcf390c5633dbba1dd30b78ab1cfb56403",
+      "imageDimensions": {
+        "width": 1280,
+        "height": 752
+      }
+    },
+    {
+      "filename": "person-desktop-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:57.341Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "49cf8d05d2603a392e39957b0cb089e316e369b653051fcc389a0db830b58c5a",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "ai-overview-desktop-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:58.546Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "12e0ae6c4f285e3921ddb33bbf27cb8b7fc967735716edc88aec0d5e4b9c1fb0",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "person-mobile-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:41:59.785Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "e037dd6261cc104c343fc7644bab24e750d503fb6749d5f50d40cfd66b50ecf2",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ai-overview-mobile-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:00.775Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "1beebd2cb482e74611f7ce78411a0255fc7116352cfa0a8bf043ec0a61fc8010",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "person-desktop-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:02.547Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "4bb7d2e23b6ddf0344c4ee393a7ebc87654e2956b68f3e6198affdcd8187f22f",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "ai-overview-desktop-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:04.093Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "1ccab5d2a3bb37580cf7c6db09e5732887887bee862bf378e4c2ded77ffb9bf4",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "person-mobile-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:05.364Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "d19c0c09fe3ac0cd73470b0674e85fa90a11a2e406d1bbef625d43be99a9ebf0",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ai-overview-mobile-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:06.359Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "f7ea0d1c4cd7b7f9be4b26afb25355ab6848ed3125500f100eddf23224e78b48",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ai-connection-mobile-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:08.777Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "connection-guide",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "870455cbce5dcf04469c397ea15b29be8d2097a979fa076abe454f81d43c25b4",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ai-recovery-mobile-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:22.794Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "pending-validation-recovery",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "explicit synthetic DTO injection",
+      "injectedTransport": true,
+      "sha256": "83e4fbbbcc0a30756233c7cea9dc5c32fcb343fa0108d79eb0afad5103e5098c",
+      "imageDimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "display-1920-light.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:47.421933+00:00",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "paired-display",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database, actual pairing",
+      "injectedTransport": false,
+      "sha256": "a82a776528ff65bde2e738cbab284bac162625af79ac025d45533247359369c4",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "display-1920-dark.png",
+      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+      "capturedAt": "2026-10-12T23:42:59.250916+00:00",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "paired-display",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database, actual pairing",
+      "injectedTransport": false,
+      "sha256": "915f26e010b8769f0f0d0a3bb0e2a642abaec8b97c63f1e77f21f5ce09b35d0c",
+      "imageDimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    }
+  ],
+  "roundId": "20261012234005-158d9e33-d7fb5bdb",
+  "description": "Supplementary real M3 UI. Rich fixtures exist only in isolated samvev_test; preserved LAN QA data was not reseeded. One recovery screenshot explicitly injects a synthetic DTO; no live OpenAI inference.",
+  "fixture": {
+    "synthetic": true,
+    "home": {
+      "items": 9,
+      "todayEvents": 3,
+      "humanMessages": 1,
+      "people": 4
+    },
+    "aiUsage": {
+      "registeredSyntheticRecords": 7,
+      "knownPricedCalls": 4,
+      "confirmedCalls": 5,
+      "pendingDispatchUnknown": 1,
+      "preflightNonDispatch": 1,
+      "unknownCostAttempts": 2,
+      "knownCreditsSubtotal": "1.41000000",
+      "equivalentApiUsdKnownSubtotal": "0.05640000",
+      "monthlyForecast": null,
+      "accountBalance": null,
+      "liveProviderCalls": 0
+    }
+  }
+}
