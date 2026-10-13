@@ -171,3 +171,4 @@
 /* Entire message controls remain touch targets, including short lane labels. */
 .member-shell .delivery-details summary{min-height:44px;min-width:44px;font-size:13px}
 .member-shell .tabs button{min-width:44px}
+.member-shell .message-card .card-actions button{min-width:44px}
