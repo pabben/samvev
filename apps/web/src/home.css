@@ -197,7 +197,7 @@ body{font-family:var(--font-sans)}
 /* The status sits on the landscape, not an opaque panel. Give its small text
    a dedicated foreground with contrast margin in both Home and paired display. */
 .hub-light .hub-hero-clock .connection-pill{color:#344e5b}
-.hub-dark .hub-hero-clock .connection-pill{color:#e5edf5}
+.hub-dark .hub-hero-clock .connection-pill{color:var(--text)}
 
 /* Round 7: preserve the board, calibrate material and local content density. */.family-display-page{background:
  radial-gradient(ellipse 16% 29% at -7% 35%,#a6c7ae67 0%,#c6dcc737 43%,transparent 76%),
