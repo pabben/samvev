@@ -84,9 +84,21 @@ try{
   const responsePromise=page.waitForResponse(response=>response.url()===`${base}/api/v1/households/${householdId}/messages`&&response.request().method()==='POST');
   await dialog.getByRole('button',{name:'Publiser beskjed',exact:true}).click();const response=await responsePromise;expect(response.ok()).toBeTruthy();const saved=await response.json();createdMessage=saved.message??saved;expect(createdMessage.id).toBeTruthy();
   await expect(dialog).toHaveCount(0);await expect(trigger).toBeFocused();await expect.poll(async()=>{const current=await api(`/households/${householdId}/home`);return current.messages.find(message=>message.id===createdMessage.id)?.body}).toBe(body);
-  await expect(page.locator(`.hub-message[data-card-id="${createdMessage.id}"]`)).toContainText('Syntetisk runde 7',{timeout:10000});
+  await expect(page.locator('.hub-messages .hub-count')).toHaveText(String(home.messages.length+1),{timeout:10000});
+  const inline=page.locator(`.hub-messages .hub-message[data-card-id="${createdMessage.id}"]`);
+  if(await inline.isVisible())await expect(inline.locator('.display-card-body')).toHaveText(body);
+  else{
+   // Compact Home intentionally previews one message. Follow its real counted
+   // collection to verify the newly stored message rather than assuming order.
+   const collection=page.locator('.hub-messages [data-hub-detail-kind=collection][data-hub-detail=messages]');
+   await expect(collection).toContainText(String(home.messages.length+1));await collection.click();
+   await expect(dialog.locator('[data-collection=messages] .hub-message')).toHaveCount(home.messages.length+1);
+   await expect(dialog.locator(`.hub-message[data-card-id="${createdMessage.id}"] .display-card-body`)).toHaveText(body);
+   await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(collection).toBeFocused();
+  }
   await api(`/households/${householdId}/messages/${createdMessage.id}/withdraw`,'POST',{expectedRevision:createdMessage.revision});createdMessage=null;
   await expect.poll(async()=>(await api(`/households/${householdId}/home`)).messages.map(message=>message.id).sort()).toEqual(home.messages.map(message=>message.id).sort());
+  await expect(page.locator('.hub-messages .hub-count')).toHaveText(String(home.messages.length),{timeout:10000});
  });
  // Presentation stress only, after every real API/DB screenshot above.
  const homeRoute=`**/api/v1/households/${householdId}/home`;let injected=home;await page.route(homeRoute,route=>route.fulfill({json:injected}));

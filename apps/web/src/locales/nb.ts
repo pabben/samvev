@@ -8,7 +8,7 @@ export const nb: Record<TranslationKey, string> = {
   aiOnShort: "AI på",
   aiOffShort: "AI av",
   aiCoverageShort: "{known} priset · {unknown} uten anslag",
-  aiOverviewCaveatShort: "Antall: alle bruksveier. Anslag: relevant, kjent bruk; ukjente beløp utelatt. USD er et API-scenario, ikke saldo.",
+  aiOverviewCaveatShort: "Antall: alle bruksveier. Anslag: kjent normalbruk; ukjent kostnad utelatt. USD er API-scenario, ikke saldo.",
   aiForecastUnresolvedShort: "Foreløpig prognose: uavklarte utsendingsforsøk.",
   aiForecastPreliminaryShort: "Foreløpig prognose: for lite kjent historikk.",
   aiStep1Overview: "Nettlesermaskin · Node.js 24. Godkjenn hos OpenAI og få en privat overføringsfil.",
