@@ -146,10 +146,17 @@
 }
 @media(max-width:319px){
  .member-shell .member-context{flex-wrap:wrap}.member-shell .section-heading h1,.member-shell .board-hero h1{overflow-wrap:anywhere}
+ .member-shell .board-toolbar,.member-shell .tabs{flex-wrap:wrap}.member-shell .tabs{gap:4px 16px;min-width:0;max-width:100%}
+ .member-shell .birthday-card{grid-template-columns:minmax(0,1fr);padding:16px;gap:12px}.member-shell .birthday-card>*{min-width:0;overflow-wrap:anywhere}
+ .member-shell .household-feature>div{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ .member-shell .hub-more-card{grid-template-columns:minmax(0,1fr);gap:10px}.member-shell .hub-more-card>.icon{grid-row:auto}.member-shell .hub-more-card p{grid-column:1}.member-shell .hub-more-card :is(h2,p){overflow-wrap:anywhere}
  .member-shell .person-card{grid-template-columns:1fr}.member-shell .person-card>*{grid-column:1!important;grid-row:auto!important}
  .dialog:not(.hub-person-drawer){padding:12px}.dialog-header{gap:8px}.dialog-header h2{font-size:21px}
  .dialog .capability-preview,.dialog .avatar-options{grid-template-columns:1fr}.dialog .form-actions .button{white-space:normal;max-width:100%}
+ .dialog .person-editor{overflow-wrap:anywhere}.dialog .capability-preview{padding-inline:8px}.dialog .avatar-options input{margin:0;padding:0}
  .public-header .pref-controls{flex-wrap:wrap}.public-header .pref-controls label{min-width:0}.public-header select{max-width:100%}
+ .public-page .welcome{grid-template-columns:minmax(0,1fr)}.public-page .welcome-copy{min-width:0;overflow-wrap:anywhere}.public-page .welcome-actions .button{max-width:100%;white-space:normal}
+ .public-page .welcome-scene{display:none}
 }
 @supports not (backdrop-filter:blur(1px)){
  [data-theme="dark"] .member-shell :is(.surface-card,.person-card,.display-admin-card,.ai-card,.empty){background:#102131}

@@ -35,7 +35,7 @@ const nav=async(key,label)=>{
  const primary=['messages','people','more'].includes(key);
  if(!primary){await page.locator('nav.admin-navigation').getByRole('button',{name:'Mer',exact:true}).click();await page.locator('.hub-more-grid').getByRole('button',{name:new RegExp('^'+label)}).click();}
  else await page.locator('nav.admin-navigation').getByRole('button',{name:label,exact:true}).click();
- await expect(page.locator('.member-shell')).toHaveAttribute('data-member-tab',key);await page.locator('#main h1').waitFor();await settle();
+ await expect(page.locator('.member-shell')).toHaveAttribute('data-member-tab',key);await page.locator('#main h1').waitFor();await page.locator('.loading').waitFor({state:'hidden'});await settle();
 };
 const closeWithFocus=async(trigger)=>{await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);await expect(trigger).toBeFocused()};
 try{
