@@ -35,7 +35,7 @@ const accessible=async(label)=>{
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`${label} page overflow`).toBeTruthy();
 };
 const capture=async(filename,theme,surface,injectedTransport=false,fullPage=false)=>{await page.screenshot({fullPage,path:`${out}/${filename}`});const bytes=await readFile(`${out}/${filename}`);screenshots.push({filename,commitSha:sourceSha,capturedAt:new Date().toISOString(),viewport:page.viewportSize(),theme,surface,fullPage,locale:'nb',dataState:injectedTransport?'explicit synthetic DTO injection':'actual isolated synthetic API/database',injectedTransport,sha256:createHash('sha256').update(bytes).digest('hex')})};
-const goHome=async(theme,width,height,locale='nb')=>{await prefs(locale,theme);await page.setViewportSize({width,height});await page.goto(base);await page.getByTestId('family-hub').waitFor();await page.evaluate(()=>document.fonts.ready);await page.locator('.hub-identities img,.hub-person img').evaluateAll(images=>Promise.all(images.map(image=>image.decode())));};
+const goHome=async(theme,width,height,locale='nb')=>{await prefs(locale,theme);await page.setViewportSize({width,height});await page.goto(base);await page.getByTestId('family-hub').waitFor();await page.locator('.hub-live-status').waitFor();await page.evaluate(()=>document.fonts.ready);await page.locator('.hub-identities img,.hub-person img').evaluateAll(images=>Promise.all(images.map(image=>image.decode())));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));};
 const fixture=JSON.parse(await readFile('.local/m3/design-round8/rich/fixture.json','utf8'));
 const navAI=async()=>{await page.locator('nav.admin-navigation').getByRole('button',{name:/^(Mer|More)$/}).click();await page.getByRole('button',{name:/^(AI og forbruk|AI and usage)$/}).click();await page.locator('#ai-usage-panel').waitFor()};
 try{
@@ -68,7 +68,10 @@ try{
    }
   });
   await group(`five people ${name} ${theme}: actual fifth details and focus`,async()=>{
-   const trigger=page.locator(`button[data-hub-detail-kind=person][data-person-id="${fifth.id}"]`);await trigger.click();const dialog=page.getByRole('dialog');
+   const trigger=page.locator(`button[data-hub-detail-kind=person][data-person-id="${fifth.id}"]`);
+   await expect(trigger).toHaveAccessibleName(`Åpne alle ${fifthItems.length} punkter for ${fifth.displayName}`);
+   if(width>640){const card=page.locator(`.hub-person[data-person-id="${fifth.id}"]`);await expect(card).not.toContainText('Ingenting ekstra å huske');await expect(card.locator('.hub-person-name>span')).toContainText(String(fifthItems.length));await expect(card.locator('.hub-person-name>span')).toBeVisible();}
+   await trigger.click();const dialog=page.getByRole('dialog');
    await expect(dialog).toHaveAccessibleName(fifth.displayName);
    for(const item of fifthItems){const card=dialog.locator(`[data-item-id="${item.id}"]`);await expect(card).toContainText(item.body);for(const entry of item.entries){await expect(card).toContainText(entry.label);if(entry.detail)await expect(card).toContainText(entry.detail)}}
    await accessible('fifth person details');await page.keyboard.press('Escape');await expect(trigger).toBeFocused();

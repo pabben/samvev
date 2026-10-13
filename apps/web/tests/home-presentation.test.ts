@@ -128,6 +128,25 @@ test('personal disclosure count describes only entries beyond the current previe
  assert.deepEqual(personalPreviewItems([item,summary,household],'p'),[item]);
 });
 
+test('personal lists and summaries count as current content even without an activity preview',()=>{
+ const list={...item,id:'personal-list',kind:'list' as const};
+ const summary={...item,id:'personal-summary',kind:'summary' as const};
+ const unrelated={...item,id:'unrelated',targets:{household:false,personIds:['other']}};
+ for(const entries of [[list],[summary],[list,summary],[item,list,summary]]){
+  const active=currentItems([...entries,unrelated],now);
+  const all=personItems(active,'p');
+  const preview=personalPreviewItems(active,'p');
+  assert.equal(all.length,entries.length);
+  for(const limit of [0,1,3]){
+   const visible=preview.slice(0,limit);
+   assert.equal(hiddenPersonalCount(all.length,visible.length),all.length-visible.length);
+   const detail=resolveHubDetail({kind:'person',id:'p'},[{id:'p',displayName:'Synthetic'}],active);
+   assert.deepEqual(detail?.kind==='person'?detail.items:[],entries);
+  }
+ }
+ assert.equal(personItems(currentItems([{...list,expiresAt:new Date(now).toISOString()}],now),'p').length,0);
+});
+
 test('detail identities resolve current revisions and discard withdrawn, expired or unavailable items',()=>{
  const selected={kind:'item' as const,id:item.id};
  const revised={...item,title:'Updated permitted detail',revision:2};

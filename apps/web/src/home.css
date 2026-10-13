@@ -283,7 +283,8 @@ body{font-family:var(--font-sans)}
 /* Short dark boards with larger rosters use the already counted person entry.
    No identity is removed and its live details still expose every current item. */
 .hub-dark.hub-wide .hub-people-summary .hub-person{padding-block:5px}
-.hub-dark.hub-wide .hub-people-summary .hub-person-name>span{display:block;font-size:13px}
+.hub-dark.hub-wide .hub-people-summary .hub-person-name>span,
+.hub-dark.hub-wide .hub-person-no-preview .hub-person-name>span{display:block;font-size:13px}
 .hub-dark.hub-wide .hub-people-summary .hub-person-items,
 .hub-dark.hub-wide .hub-people-summary .hub-person-clear{display:none}
 
