@@ -159,3 +159,7 @@
 
 .public-header .brand{min-height:44px;display:inline-flex;align-items:center}
 .member-shell .empty{padding:28px;margin-top:14px}.member-shell .empty-art{margin-bottom:16px}
+
+/* Entire message controls remain touch targets, including short lane labels. */
+.member-shell .delivery-details summary{min-height:44px;min-width:44px;font-size:13px}
+.member-shell .tabs button{min-width:44px}

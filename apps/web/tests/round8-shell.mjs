@@ -77,7 +77,10 @@ try{
   await dialog.getByLabel('Alle i husstanden',{exact:true}).uncheck();await dialog.locator('.audience-details summary').click();await dialog.getByLabel(peopleBefore[5].display_name,{exact:true}).check();
   await dialog.getByRole('button',{name:'Planlegg',exact:true}).click();await dialog.getByRole('button',{name:'I morgen kl. 07:00',exact:true}).click();
   const savedPromise=page.waitForResponse(response=>response.url()===`${base}/api/v1/households/${householdId}/messages`&&response.request().method()==='POST');await dialog.locator('button[type=submit]').click();const response=await savedPromise;expect(response.ok()).toBeTruthy();const result=await response.json();created=result.message??result;
-  expect(created.state).toBe('scheduled');expect(created.person_ids??created.personIds).toContain(peopleBefore[5].id);await expect(dialog).toHaveCount(0);
+  expect(created.state).toBe('scheduled');expect(created.body).toBe(body);expect(created.audience_household).toBe(false);
+  // POST returns the message row; recipient joins are part of GET /messages.
+  const stored=(await api(`/households/${householdId}/messages`)).messages.find(message=>message.id===created.id);
+  expect(stored).toBeTruthy();expect(stored.state).toBe('scheduled');expect(stored.body).toBe(body);expect(stored.audience_household).toBe(false);expect(stored.person_ids).toEqual([peopleBefore[5].id]);expect(stored.display_ids).toEqual([]);await expect(dialog).toHaveCount(0);
   await page.getByRole('tab',{name:/^Planlagt/}).click();const card=page.locator('.message-card').filter({has:page.locator('.message-text',{hasText:body})});await expect(card).toBeVisible();
   await card.getByRole('button',{name:'Rediger',exact:true}).click();dialog=page.getByRole('dialog');await expect(dialog.locator('textarea')).toHaveValue(body);await page.keyboard.press('Escape');
   const withdraw=card.getByRole('button',{name:'Trekk tilbake',exact:true});await withdraw.click();dialog=page.getByRole('dialog');await expect(dialog).toContainText(body);await capture('message-withdraw-mobile-light.png','light','message-withdraw-confirmation');await accessible();
