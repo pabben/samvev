@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import type { HubItem, HubMessage, HubPerson } from './home-types';
-import { currentItems, dayEvents, messageAvatarKey, importantItems, importantPreviewLimit, hubSectionOrder, personalPreviewItems, hiddenPersonalCount, resolveHubDetail, type HubCollection, type HubDetailSelection } from './home-presentation';
+import { adaptivePeopleLayout, currentItems, dayEvents, messageAvatarKey, importantItems, importantPreviewLimit, hubSectionOrder, personalPreviewItems, hiddenPersonalCount, resolveHubDetail, type HubCollection, type HubDetailSelection } from './home-presentation';
 import { Avatar, Dialog, Icon, useI18n } from './ui';
 import { formatDate, formatEventRange, wallInput } from './time';
 const kindKeys={event:'hubEvent',reminder:'hubReminder',alert:'hubAlert',summary:'hubSummary',list:'hubList',observation:'hubObservation'} as const;
@@ -12,6 +12,17 @@ const HubDetails=createContext<DetailAccess|null>(null);
 export function FamilyHub({people,items,messages,zone,householdName,display=false,now:givenNow,onCompose,onManagePeople,connection}:{people:HubPerson[];items:HubItem[];messages:HubMessage[];zone:string;householdName:string;display?:boolean;now?:number;onCompose?:()=>void;onManagePeople?:()=>void;connection?:string}) {
   const {t,locale}=useI18n();
   const {dark,compact,mobile,lowHeight}=useHubComposition();
+  const peopleGrid=useRef<HTMLDivElement>(null);
+  const [peopleSpace,setPeopleSpace]=useState({width:0,gap:14});
+  useLayoutEffect(()=>{
+    const grid=peopleGrid.current;
+    if(!grid)return;
+    const measure=()=>{const width=grid.getBoundingClientRect().width,gap=parseFloat(getComputedStyle(grid).columnGap)||0;setPeopleSpace(previous=>previous.width===width&&previous.gap===gap?previous:{width,gap});};
+    measure();const observer=new ResizeObserver(measure);observer.observe(grid);
+    return()=>observer.disconnect();
+  },[mobile,dark,compact]);
+  const peopleLayout=!dark&&!compact?adaptivePeopleLayout(people.length,peopleSpace.width,peopleSpace.gap):null;
+  const concisePeople=dark&&!compact&&lowHeight&&people.length>4;
   const [tick,setTick]=useState(Date.now());
   useEffect(()=>{const timer=setInterval(()=>setTick(Date.now()),1000);return()=>clearInterval(timer)},[]);
   const now=givenNow??tick;
@@ -66,9 +77,9 @@ export function FamilyHub({people,items,messages,zone,householdName,display=fals
   const collectionTitle=(id:HubCollection)=>t(({important:'hubImportant',briefs:'hubBriefs',messages:'hubMessages',today:'hubToday',tomorrow:'hubTomorrow'} as const)[id]);
   const collectionButton=(id:HubCollection,count:number)=><button className="hub-collection-link" data-hub-detail={id} data-hub-detail-kind="collection" onClick={event=>detailAccess.open({kind:'collection',id},event.currentTarget)}>{t('hubViewCollection',{section:collectionTitle(id),count})}<Icon name="arrow" size={16}/></button>;
   const sections: Record<string, ReactNode> = {
-    people: mobile ? null : <section key="people" className="hub-person-section" aria-labelledby="hub-people-title"><PanelTitle id="hub-people-title" icon="people" title={t(dark&&!compact?'hubFamilyHeading':'hubPeople')} count={people.length}/><div className="hub-person-grid">{people.map((person,index)=>{
+    people: mobile ? null : <section key="people" className={`hub-person-section ${peopleLayout?'hub-adaptive-people':''} ${peopleLayout&&peopleLayout.rows>1?'hub-people-multirow':''} ${concisePeople?'hub-people-summary':''}`} aria-labelledby="hub-people-title"><PanelTitle id="hub-people-title" icon="people" title={t(dark&&!compact?'hubFamilyHeading':'hubPeople')} count={people.length}/><div ref={peopleGrid} className="hub-person-grid" style={peopleLayout?{'--hub-people-columns':peopleLayout.columns} as CSSProperties:undefined}>{people.map((person,index)=>{
       const personal=personalPreviewItems(active,person.id);
-      return <PersonCard key={person.id} person={person} index={index} items={personal} people={people} zone={zone} display={display} previewLimit={compact||dark?1:lowHeight?2:3}/>;
+      return <PersonCard key={person.id} person={person} index={index} items={personal} people={people} zone={zone} display={display} previewLimit={concisePeople?0:compact||dark||peopleLayout&&peopleLayout.rows>1?1:lowHeight?2:3}/>;
     })}</div></section>,
     important: <section key="important" className="hub-important hub-panel" data-hub-scope="important"><PanelTitle icon="bell" title={t('hubImportant')} count={important.length}/>{important.length?<><div className="hub-important-grid">{important.slice(0,previewLimit).map(item=><article key={item.id} className={`hub-reminder kind-${item.kind} priority-${item.priority}`} data-item-id={item.id}><Icon name={kindIcons[item.kind]} size={22}/><div><ItemTitle item={item} people={people} zone={zone} display={display} heading indicator/><p className="hub-reminder-target">{targetNames(item,people,t('hubFamily'))}</p></div></article>)}</div>{important.length>previewLimit&&collectionButton('important',important.length)}</>:<p className="hub-empty"><Icon name="check"/>{t('hubNoImportant')}</p>}</section>,
     messages: <section key="messages" className="hub-messages hub-panel" data-hub-scope="messages"><div className="hub-message-heading"><PanelTitle icon="message" title={t('hubMessages')} count={liveMessages.length}/>{mobile&&!dark&&compose&&<button type="button" className="button hub-feed-compose" onClick={compose}><Icon name="plus" size={16}/>{t('newMessage')}</button>}</div>{liveMessages.length?<><div className="hub-message-grid">{liveMessages.slice(0,compact?1:liveMessages.length).map(message=><MessageCard key={message.id} message={message} people={people} zone={zone} preview/>)}</div>{compact&&liveMessages.length>1&&collectionButton('messages',liveMessages.length)}</>:<p className="hub-empty">{t('hubNoMessages')}</p>}</section>,
@@ -123,7 +134,7 @@ function PersonCard({person,index,items,people,zone,display,previewLimit}:{perso
  const {t,locale}=useI18n();const details=useContext(HubDetails);
  const remaining=hiddenPersonalCount(items.length,previewLimit);
  return <article className="hub-person" id={`hub-person-${person.id}`} tabIndex={-1} data-person-id={person.id} data-hub-scope={`person-${person.id}`} data-accent={index%4}>
-   <header><button className="hub-person-identity" data-person-id={person.id} data-hub-detail={person.id} data-hub-detail-kind="person" onClick={event=>details?.open({kind:'person',id:person.id},event.currentTarget)} aria-label={t('hubPersonDetails',{name:person.displayName,count:items.length})}><Avatar name={person.displayName} index={index} avatarKey={person.avatarKey}/><span className="hub-person-name"><strong>{person.displayName}<Icon name="arrow" size={16}/></strong>{items.length>0&&<span>{t(items.length===1?'hubActivitySingle':'hubActivityCount',{count:items.length})}</span>}</span></button></header>
+   <header><button className="hub-person-identity" data-person-id={person.id} data-hub-detail={person.id} data-hub-detail-kind="person" onClick={event=>details?.open({kind:'person',id:person.id},event.currentTarget)} aria-label={t('hubPersonDetails',{name:person.displayName,count:items.length})}><Avatar name={person.displayName} index={index} avatarKey={person.avatarKey}/><span className="hub-person-name"><strong>{person.displayName}<Icon name="arrow" size={16}/></strong>{(items.length>0||previewLimit===0)&&<span>{items.length?t(items.length===1?'hubActivitySingle':'hubActivityCount',{count:items.length}):t('hubNoPersonal')}</span>}</span></button></header>
    {items.length?<ul className="hub-person-items">{items.map((item,i)=><li hidden={i>=previewLimit} key={item.id} data-item-id={item.id} className={`kind-${item.kind}`}><span className="hub-item-dot"><Icon name={kindIcons[item.kind]} size={16}/></span><div><ItemTitle item={item} people={people} zone={zone} display={display}/>{item.startsAt&&<small>{formatDate(item.startsAt,locale,zone,{weekday:'short',hour:'2-digit',minute:'2-digit'})}</small>}</div></li>)}</ul>:<div className="hub-person-clear"><Icon name="leaf" size={24}/><span>{t('hubNoPersonal')}</span></div>}
    {remaining>0&&<button className="hub-person-more" data-hub-detail={person.id} data-hub-detail-kind="person" onClick={event=>details?.open({kind:'person',id:person.id},event.currentTarget)}>{t('hubMoreItems',{count:remaining})}</button>}
  </article>;

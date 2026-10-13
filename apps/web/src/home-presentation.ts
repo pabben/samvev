@@ -22,6 +22,16 @@ export function importantPreviewLimit({dark,compact,lowHeight}:{dark:boolean;com
   return dark&&!compact ? (lowHeight?2:3) : 1;
 }
 
+// Measure the people panel, not the window: the neighbouring agenda keeps its
+// own share. Above four identities, balance partial rows instead of leaving one
+// tall card alone. A card keeps room for the existing avatar and readable name.
+export function adaptivePeopleLayout(count:number,width:number,gap:number) {
+  if(count<=4||width<=0)return null;
+  const capacity=Math.max(1,Math.min(5,Math.floor((width+gap)/(144+gap))));
+  const rows=Math.ceil(count/capacity);
+  return {columns:Math.ceil(count/rows),rows};
+}
+
 // Stable section keys preserve open details while visual and reading order move together.
 export function hubSectionOrder(dark:boolean, compact:boolean, mobile=false):string[] {
   if (mobile) return dark ? ['important','quickActions','today','messages','tomorrow','support'] : ['important','messages','today','tomorrow','support'];

@@ -270,3 +270,26 @@ body{font-family:var(--font-sans)}
  .hub-message-heading>.hub-panel-title{flex:1 0 100%;width:100%}
  .hub-message-heading .hub-feed-compose{max-width:100%;white-space:normal}
 }
+
+/* Round 8: use the measured people-panel width and actual roster. Existing
+   four-person cards keep their proportions. Multiple rows share a compact,
+   intrinsic rhythm instead of multiplying the tall single-row minimum. */
+.hub-light.hub-wide .hub-adaptive-people .hub-person-grid{grid-template-columns:repeat(var(--hub-people-columns),minmax(0,1fr))}
+.hub-light.hub-wide .hub-people-multirow .hub-person-grid{height:auto}
+.hub-light.hub-wide .hub-people-multirow .hub-person{min-height:0}
+.hub-light.hub-wide .hub-people-multirow .hub-person header .avatar{width:96px;height:96px}
+.hub-light.hub-wide .hub-people-multirow .hub-person-clear{padding-block:12px}
+.hub-light.hub-wide .hub-people-multirow .hub-person-more{margin-top:0}
+/* Short dark boards with larger rosters use the already counted person entry.
+   No identity is removed and its live details still expose every current item. */
+.hub-dark.hub-wide .hub-people-summary .hub-person{padding-block:5px}
+.hub-dark.hub-wide .hub-people-summary .hub-person-name>span{display:block;font-size:13px}
+.hub-dark.hub-wide .hub-people-summary .hub-person-items,
+.hub-dark.hub-wide .hub-people-summary .hub-person-clear{display:none}
+
+/* Bounded wide-only material trial: lift the existing ridge behind the hero,
+   retaining the foreground veil. The right panels receive a local reflection. */
+@media(min-width:1001px){
+ [data-theme="dark"] .home-shell,[data-theme="dark"] .family-display-page{background-position:center top,center -140px;background-repeat:no-repeat}
+ .hub-dark.hub-wide .hub-person-section,.hub-dark.hub-wide .hub-important{background:radial-gradient(ellipse 95% 52% at 88% 0%,#719fd52b,transparent 75%),var(--hub-glass)}
+}

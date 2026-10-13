@@ -1,11 +1,28 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {currentItems,dayEvents,messageAvatarKey,personItems,importantItems,importantPreviewLimit,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
+import {adaptivePeopleLayout,currentItems,dayEvents,messageAvatarKey,personItems,importantItems,importantPreviewLimit,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
 const now=Date.parse('2026-03-28T23:30:00Z');
 const item:HubItem={contentLocale:'en',id:'i',kind:'event',targets:{household:false,personIds:['p']},title:'Synthetic event',body:'',entries:[],priority:'normal',publishAt:null,startsAt:'2026-03-29T00:00:00Z',endsAt:null,expiresAt:null,source:{label:'Synthetic',observedAt:new Date(now).toISOString(),uncertainty:'unknown'},metadata:{},revision:1,updatedAt:new Date(now).toISOString()};
+test('larger rosters balance within the actual people panel without a lone tall fifth card',()=>{
+ for(const count of [0,1,4])assert.equal(adaptivePeopleLayout(count,1100,14),null);
+ assert.equal(adaptivePeopleLayout(5,0,14),null);
+ for(const width of [776,844,1100]){
+  const five=adaptivePeopleLayout(5,width,14)!;
+  assert.equal(five.rows,1);
+  assert.ok((width-(five.columns-1)*14)/five.columns>=144);
+ }
+ for(const count of [5,6,8])for(const width of [310,620,776,1100]){
+  const {columns,rows}=adaptivePeopleLayout(count,width,14)!;
+  assert.equal(rows,Math.ceil(count/columns));
+  assert.ok(columns*rows>=count);
+  if(width>=620)assert.ok(count-(rows-1)*columns>1,'no isolated last identity when space supports a balanced row');
+  assert.ok((width-(columns-1)*14)/columns>=144);
+ }
+ assert.deepEqual(adaptivePeopleLayout(5,143,14),{columns:1,rows:5});
+});
 test('reminder previews use available composition without losing the current collection',()=>{
  const reminders=Array.from({length:7},(_,i)=>({...item,id:`r${i}`,kind:'reminder' as const,title:`Synthetic long reminder ${i}`}));
  for(const dark of [false,true])for(const compact of [false,true])for(const lowHeight of [false,true]){
