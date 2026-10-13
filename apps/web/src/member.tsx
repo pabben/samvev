@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Home } from "./home";
 import { IntegrationsPanel } from "./integrations";
 import { api } from "./api";
@@ -27,7 +27,7 @@ import { AiSettingsPanel } from "./ai-settings";
 import { MonitorsPanel } from "./monitors";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 
-type MemberTab = "home" | "more" | "integrations" | "messages" | "people" | "displays" | "monitors" | "ai";
+import { primaryMemberTab, type MemberTab } from "./member-navigation";
 
 export function MemberApp({
   me,
@@ -48,6 +48,16 @@ export function MemberApp({
   const canManageHousehold = member.capabilities.includes("household.manage");
   const base = `/households/${household}`;
   const [tab, setTab] = useState<MemberTab>("home");
+  const previousTab=useRef(tab);
+  const activePrimary=primaryMemberTab(tab);
+  useEffect(()=>{
+    if(previousTab.current===tab)return;
+    previousTab.current=tab;
+    let observer:MutationObserver|undefined;
+    const focusHeading=()=>{const heading=document.querySelector<HTMLElement>('#main h1');if(!heading)return false;heading.tabIndex=-1;heading.focus({preventScroll:true});observer?.disconnect();return true;};
+    const frame=requestAnimationFrame(()=>{window.scrollTo(0,0);if(!focusHeading()){const main=document.getElementById('main');main?.focus({preventScroll:true});if(main){observer=new MutationObserver(focusHeading);observer.observe(main,{childList:true,subtree:true});}}});
+    return()=>{cancelAnimationFrame(frame);observer?.disconnect();};
+  },[tab]);
   const [lane, setLane] = useState<"now" | "planned" | "history">("now");
   const [people, setPeople] = useState<Person[]>([]);
   const [displays, setDisplays] = useState<Display[]>([]);
@@ -135,7 +145,7 @@ export function MemberApp({
     requestAnimationFrame(() => document.getElementById("main")?.focus());
   };
   return (
-    <div className={`app-shell ${tab === "home" ? "home-shell" : ""}`}>
+    <div className="app-shell member-shell" data-member-tab={tab}>
       <a className="skip-link" href="#main">
         {t("skip")}
       </a>
@@ -167,8 +177,8 @@ export function MemberApp({
             <button
               key={key}
               aria-label={t(key)}
-              aria-current={tab === key ? "page" : undefined}
-              className={tab === key ? "nav-item active" : "nav-item"}
+              aria-current={activePrimary === key ? "page" : undefined}
+              className={activePrimary === key ? "nav-item active" : "nav-item"}
               onClick={() => setTab(key)}
             >
               <Icon
@@ -192,7 +202,7 @@ export function MemberApp({
         <div className="sidebar-bottom">
 
           <button className="account-button" aria-label={t("preferences")} onClick={() => setSettings(true)}>
-            <Avatar name={member.display_name} />
+            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey}/>
             <span>
               <strong>{member.display_name}</strong>
               <small>{t("preferences")}</small>
@@ -203,20 +213,13 @@ export function MemberApp({
       </aside>
       <div className="main-wrap">
         <header className="member-topbar">
-          {tab === "home" ? <Brand onHome={goHome} /> : <span className="topbar-title">{t(tab)}</span>}
-          <span className="topbar-date" hidden={tab === "home"}>
-            {formatDate(Date.now(), locale, member.timezone, {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </span>
+          <Brand onHome={goHome} />
           <button
             className="mobile-account icon-button"
             aria-label={t("preferences")}
             onClick={() => setSettings(true)}
           >
-            <Icon name="settings" />
+            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey}/>
           </button>
         </header>
         <main id="main" className="member-main" tabIndex={-1}>
@@ -260,6 +263,7 @@ export function MemberApp({
               </button>
             </section>
           )}
+          {activePrimary==='more'&&tab!=='more'&&<div className="member-context"><button className="text-button" onClick={()=>setTab('more')}><Icon name="arrow"/>{t('backToMore')}</button><span aria-hidden="true">/</span><span>{t(tab)}</span></div>}
           <ErrorNotice error={error} />
           <ErrorNotice error={loadError} />
           {tab === "home" ? (
@@ -298,7 +302,7 @@ export function MemberApp({
               <section className="board-hero">
                 <div>
                   <p className="eyebrow">{t("boardEyebrow")}</p>
-                  <h1>{t("boardTitle")}</h1>
+                  <h1>{t("messages")}</h1>
                   <p>{t("boardBody")}</p>
                 </div>
                 <div className="hero-sprig" aria-hidden="true">
@@ -358,8 +362,9 @@ export function MemberApp({
                   aria-label={t("people")}
                 >
                   {people.slice(0, 4).map((p, i) => (
-                    <Avatar key={p.id} name={p.display_name} index={i} />
+                    <Avatar key={p.id} name={p.display_name} index={i} personId={p.id} avatarKey={p.avatarKey}/>
                   ))}
+                  {people.length>4&&<span className="people-stack-more">+{people.length-4}</span>}
                 </div>
               </div>
               <section
@@ -411,6 +416,8 @@ export function MemberApp({
                       <div className="card-meta">
                         <Avatar
                           name={message.author_name}
+                          personId={message.author_person_id}
+                          avatarKey={people.find(person=>person.id===message.author_person_id)?.avatarKey}
                           index={people.findIndex(
                             (p) => p.id === message.author_person_id,
                           )}

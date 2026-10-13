@@ -27,7 +27,7 @@ export function importantPreviewLimit({dark,compact,lowHeight}:{dark:boolean;com
 // tall card alone. A card keeps room for the existing avatar and readable name.
 export function adaptivePeopleLayout(count:number,width:number,gap:number) {
   if(count<=4||width<=0)return null;
-  const capacity=Math.max(1,Math.min(5,Math.floor((width+gap)/(144+gap))));
+  const capacity=Math.max(1,Math.min(6,Math.floor((width+gap)/(144+gap))));
   const rows=Math.ceil(count/capacity);
   return {columns:Math.ceil(count/rows),rows};
 }

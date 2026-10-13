@@ -166,6 +166,7 @@ export const nb: Record<TranslationKey, string> = {
   AI_STREAM_INTERRUPTED: "Modellsvaret ble avbrutt og er ikke publisert. Forbruket kan være ukjent.",
   AI_OWNER_REQUIRED: "Bare tilkoblingens eier kan utføre denne handlingen.",
   home: "Hjem",
+  backToMore: 'Tilbake til Mer',
   more: "Mer",
   integrations: "Integrasjoner",
   hubMorningCompact: "God morgen!",

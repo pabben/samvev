@@ -42,16 +42,19 @@ try{
  await page.goto(base);await page.locator('input[name=email]').fill('admin');await page.locator('input[name=password]').fill('admin');await page.getByRole('button',{name:/sign in|logg inn/i}).click();await page.getByTestId('family-hub').waitFor();
  const me=await api('/me');csrf=me.csrfToken;householdId=me.memberships[0].household_id;originalPrefs={locale:me.account.locale,theme:me.account.theme};
  const home=await api(`/households/${householdId}/home`);
- expect(home.people).toHaveLength(5);expect(home.messages).toHaveLength(1);expect(home.items).toHaveLength(9);expect(householdId).toBe(fixture.householdId);
+ expect(home.people).toHaveLength(6);expect(home.messages).toHaveLength(1);expect(home.items).toHaveLength(9);expect(householdId).toBe(fixture.householdId);
+ expect(fixture.adultPersonIds).toHaveLength(2);expect(fixture.childPersonIds).toHaveLength(4);
  const fifth=home.people.find(person=>person.id===fixture.fifthPersonId);expect(fifth).toBeTruthy();
  const fifthItems=home.items.filter(item=>!item.targets.household&&item.targets.personIds.includes(fifth.id));expect(fifthItems.length).toBeGreaterThan(0);
- record('real isolated five-person Home with fifth-person content and human message',{injectedTransport:false});
+ record('real isolated six-person Home with fifth-person content and human message',{injectedTransport:false});
  for(const theme of ['light','dark'])for(const [name,width,height]of[['desktop-1920',1920,1080],['mobile',390,844],['ipad-portrait',820,1180],['ipad-landscape',1180,820],['shelly-1280',1280,752]]){
-  await goHome(theme,width,height);await capture(`five-${name}-${theme}.png`,theme,'five-person-member-home');
-  if(name==='desktop-1920'&&theme==='light')await capture('five-desktop-1920-light-full.png',theme,'five-person-member-home',false,true);
-  await group(`five people ${name} ${theme}: identities, priority content and whole controls`,async()=>{
-   const identities=page.locator('button[data-hub-detail-kind=person][data-person-id]');await expect(identities).toHaveCount(5);
+  await goHome(theme,width,height);await capture(`six-${name}-${theme}.png`,theme,'six-person-member-home');
+  if(name==='desktop-1920'&&theme==='light')await capture('six-desktop-1920-light-full.png',theme,'six-person-member-home',false,true);
+  await group(`six people ${name} ${theme}: identities, priority content and whole controls`,async()=>{
+   const identities=page.locator('button[data-hub-detail-kind=person][data-person-id]');await expect(identities).toHaveCount(6);
    for(const person of home.people){const identity=identities.filter({hasText:person.displayName});await expect(identity).toContainText(person.displayName);expect((await rect(identity)).height).toBeGreaterThanOrEqual(44);}
+   if(width===390){const boundary=await clearBottom();const today=page.locator('.hub-today .hub-timeline>li');await expect(today).toHaveCount(theme==='dark'?3:1);for(const row of await today.all())await fullyAbove(row,boundary);if(theme==='light')await fullyAbove(page.locator('.hub-feed-compose'),boundary);}
+   if(width===820){const boundary=await clearBottom();await fullyAbove(page.locator('.hub-important .hub-reminder').first(),boundary);await fullyAbove(page.locator('.hub-messages .hub-message-meta strong').first(),boundary);}
    if(width>1000){
     const boundary=await clearBottom();for(const identity of await identities.all())await fullyAbove(identity,boundary-8);
     const today=page.locator('.hub-today .hub-timeline>li');await expect(today).toHaveCount(3);for(const row of await today.all())await fullyAbove(row,boundary-8);
@@ -60,14 +63,14 @@ try{
     for(const control of await page.locator('.hub-important button,.hub-support button,.hub-messages button').all()){await fullyAbove(control,boundary-8);const bounds=await rect(control);expect(bounds.width).toBeGreaterThanOrEqual(44);expect(bounds.height).toBeGreaterThanOrEqual(44);}
     if(theme==='light'){
      const cards=await page.locator('.hub-person').evaluateAll(nodes=>nodes.map(n=>{const b=n.getBoundingClientRect();return{top:b.top,bottom:b.bottom,width:b.width}}));
-     expect(Math.max(...cards.map(c=>c.top))-Math.min(...cards.map(c=>c.top)),'bounded five-person fixture fits a shared row').toBeLessThan(2);
+     const rows=new Map();for(const card of cards){const top=Math.round(card.top);rows.set(top,(rows.get(top)??0)+1)}expect(Math.max(...rows.values())-Math.min(...rows.values()),'bounded roster has balanced rows').toBeLessThanOrEqual(1);
      expect(Math.max(...cards.map(c=>c.bottom))).toBeLessThan(boundary-8);
     }else{
      const reminders=page.locator('.hub-important .hub-reminder');await expect(reminders).toHaveCount(2);for(const reminder of await reminders.all())await fullyAbove(reminder,boundary-8);
     }
    }
   });
-  await group(`five people ${name} ${theme}: actual fifth details and focus`,async()=>{
+  await group(`six people ${name} ${theme}: actual fifth details and focus`,async()=>{
    const trigger=page.locator(`button[data-hub-detail-kind=person][data-person-id="${fifth.id}"]`);
    await expect(trigger).toHaveAccessibleName(`Åpne alle ${fifthItems.length} punkter for ${fifth.displayName}`);
    if(width>640){const card=page.locator(`.hub-person[data-person-id="${fifth.id}"]`);await expect(card).not.toContainText('Ingenting ekstra å huske');await expect(card.locator('.hub-person-name>span')).toContainText(String(fifthItems.length));await expect(card.locator('.hub-person-name>span')).toBeVisible();}
@@ -76,8 +79,17 @@ try{
    for(const item of fifthItems){const card=dialog.locator(`[data-item-id="${item.id}"]`);await expect(card).toContainText(item.body);for(const entry of item.entries){await expect(card).toContainText(entry.label);if(entry.detail)await expect(card).toContainText(entry.detail)}}
    await accessible('fifth person details');await page.keyboard.press('Escape');await expect(trigger).toBeFocused();
   });
-  await page.evaluate(()=>scrollTo(0,0));await group(`five people ${name} ${theme}: accessibility`,()=>accessible(`${name} ${theme}`));
+  await page.evaluate(()=>scrollTo(0,0));await group(`six people ${name} ${theme}: accessibility`,()=>accessible(`${name} ${theme}`));
  }
+ for(const theme of ['light','dark'])for(const [surface,width,height]of[['desktop',1920,1080],['mobile',390,844]])await group(`all six adult/child details ${surface} ${theme}`,async()=>{
+  await goHome(theme,width,height);
+  for(const person of home.people){
+   const trigger=page.locator(`button[data-hub-detail-kind=person][data-person-id="${person.id}"]`);await trigger.click();const dialog=page.getByRole('dialog');await expect(dialog).toHaveAccessibleName(person.displayName);
+   for(const item of home.items.filter(item=>item.targets.personIds.includes(person.id)))await expect(dialog.locator(`[data-item-id="${item.id}"]`)).toContainText(item.body);
+   if(person.id===fixture.detailPersonId)await capture(`person-${surface}-${theme}.png`,theme,'six-person-details');
+   await page.keyboard.press('Escape');await expect(trigger).toBeFocused();
+  }
+ });
  await group('actual fifth person persists through resize and system-theme changes with focus return',async()=>{
   await page.emulateMedia({colorScheme:'light'});await goHome('system',1920,1080);
   const identity=page.locator(`button[data-hub-detail-kind=person][data-person-id="${fifth.id}"]`);await identity.click();
@@ -121,7 +133,7 @@ try{
  for(const theme of ['light','dark'])await group(`unchanged AI overview ${theme} remains accessible`,async()=>{
   await goHome(theme,390,844);await navAI();await expect(page.locator('#ai-usage-panel')).toBeVisible();await expect(page.locator('#ai-setup-panel')).toBeHidden();await expect(page.locator('.ai-cost-overview h3').first()).toHaveText('Kjent kredittanslag');await expect(page.locator('.ai-overview-caveat')).toContainText('alle bruksveier');await accessible('unchanged AI overview');
  });
- // Additional transport stress begins only after actual five-person screenshots.
+ // Additional transport stress begins only after actual six-person screenshots.
  // Four-person baseline screenshots come separately from a real four-person DB.
  const homeRoute=`**/api/v1/households/${householdId}/home`;let injected=home;await page.route(homeRoute,route=>route.fulfill({json:injected}));
  for(const theme of ['light','dark'])for(const [width,height]of[[390,844],[820,1180]])await group(`four-person ${theme} ${width} priority regression (injected DTO)`,async()=>{
@@ -136,7 +148,7 @@ try{
   await accessible('four-person compact regression');
  });
  for(const count of [4,5,6,8])for(const theme of ['light','dark'])for(const [width,height]of[[1920,1080],[1180,820],[1280,752]])await group(`${count} long identities ${theme} ${width} preserve access (injected DTO)`,async()=>{
-  const people=Array.from({length:count},(_,i)=>({...home.people[i%5],id:`synthetic-r8-person-${i}`,displayName:`Synthetic person ${i+1} with a deliberately long accessible name`}));
+  const people=Array.from({length:count},(_,i)=>({...home.people[i%6],id:`synthetic-r8-person-${i}`,displayName:`Synthetic person ${i+1} with a deliberately long accessible name`}));
   const items=people.map((person,i)=>({...home.items.find(item=>item.kind==='event'),id:`synthetic-r8-item-${i}`,targets:{household:false,personIds:[person.id]},title:`Synthetic detailed personal event ${i+1}`,body:`Complete synthetic content for person ${i+1}, retained across responsive transitions.`,expiresAt:new Date(Date.now()+600000).toISOString()}));
   injected={...home,people,items};await goHome(theme,width,height,'en');const identities=page.locator('button[data-hub-detail-kind=person][data-person-id]');await expect(identities).toHaveCount(count);
   expect(await identities.evaluateAll(nodes=>nodes.map(n=>n.dataset.personId))).toEqual(people.map(person=>person.id));
@@ -146,7 +158,7 @@ try{
   await accessible('long roster');
  });
  await group('4 to 5 to 6 to 8 live roster keeps keyed identities and selected person (injected DTO)',async()=>{
-  const selected=home.people[0];const rosters=[4,5,6,8].map(count=>Array.from({length:count},(_,i)=>i<5?home.people[i]:{...home.people[0],id:`synthetic-live-person-${i}`,displayName:`Synthetic extra ${i+1}`}));
+  const selected=home.people[0];const rosters=[4,5,6,8].map(count=>Array.from({length:count},(_,i)=>i<6?home.people[i]:{...home.people[0],id:`synthetic-live-person-${i}`,displayName:`Synthetic extra ${i+1}`}));
   injected={...home,people:rosters[0]};await goHome('light',1180,820);
   const trigger=page.locator(`button[data-hub-detail-kind=person][data-person-id="${selected.id}"]`);await trigger.evaluate(node=>{window.round8Identity=node});await trigger.click();
   for(const people of rosters.slice(1)){

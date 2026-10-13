@@ -1,3 +1,4 @@
+import { personAccent } from "./person-identity";
 import { avatarImages, avatarLabels } from "./avatars";
 import { useMemo, useState } from "react";
 import { api } from "./api";
@@ -41,8 +42,8 @@ export function PeoplePanel({ people, displays, member, householdSettings, refre
     {member.capabilities.includes("household.manage") && householdSettings && <BirthdaySetting settings={householdSettings} householdId={member.household_id} refresh={refresh} />}
     <div className="person-grid">{people.map((person, index) => {
       const login = loginPresentation(person);
-      return <article className="person-card" key={person.id}>
-        <Avatar name={person.display_name} index={index} avatarKey={person.avatarKey}/><h2>{person.display_name}</h2>
+      return <article className="person-card" data-accent={personAccent(person.id,person.avatarKey)} data-person-id={person.id} key={person.id}>
+        <Avatar name={person.display_name} index={index} personId={person.id} avatarKey={person.avatarKey}/><h2>{person.display_name}</h2>
         <p>{t(person.role_preset as TranslationKey)}</p>
         <span className={`person-login ${person.account_status ?? "profile"}`}><Icon name={login.icon} />{t(login.label)}</span>
         {member.capabilities.includes("people.manage") && person.birth_date && <p className="person-birth-date">{t("bornWithAge", { date: new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${person.birth_date}T12:00:00Z`)), age: person.calculated_age ?? "" })}</p>}
@@ -127,7 +128,7 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
     }); }}>
       <section className="editor-section"><h3>{t("personDetails")}</h3>
         <Field label={t("personName")}><input value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoFocus /></Field>
-        <fieldset className="avatar-picker"><legend>{t("avatarChoose")}</legend><p className="field-hint">{t("avatarChooseHint")}</p><div className="avatar-options">{[null,...Object.keys(avatarImages)].map((key,index)=><label key={key??"initials"} className={avatarKey===key?"selected":""}><input type="radio" name="person-avatar" checked={avatarKey===key} onChange={()=>setAvatarKey(key)}/><Avatar name={name} avatarKey={key}/><span>{t(index===0?"avatarInitials":avatarLabels[index-1]!)}</span></label>)}</div></fieldset>
+        <fieldset className="avatar-picker"><legend>{t("avatarChoose")}</legend><p className="field-hint">{t("avatarChooseHint")}</p><div className="avatar-options">{[null,...Object.keys(avatarImages)].map((key,index)=><label key={key??"initials"} className={avatarKey===key?"selected":""}><input type="radio" name="person-avatar" checked={avatarKey===key} onChange={()=>setAvatarKey(key)}/><Avatar name={name} personId={person?.id} avatarKey={key}/><span>{t(index===0?"avatarInitials":avatarLabels[index-1]!)}</span></label>)}</div></fieldset>
         <div className="form-grid"><Field label={t("birthDate")} hint={t("birthDateHint")}><input type="date" value={birthDate} max={householdToday} min="1900-01-01" onChange={(event) => { const value=event.target.value; setBirthDate(value); if(value){const age=ageOnDate(value,householdToday);setAgeGroup(age>=18?"adult":age>=13?"teen":"child");} }} /></Field>
           <Field label={t("ageGroup")} hint={t("ageGroupHint")}><select value={ageGroup} onChange={(event) => setAgeGroup(event.target.value)}>{(["unspecified", "adult", "teen", "child"] as const).map((value) => <option key={value} value={value}>{t(value)}</option>)}</select></Field></div>
         {calculatedAge !== null && <p className="calculated-age" aria-live="polite">{t("calculatedAge", { age: calculatedAge })}</p>}

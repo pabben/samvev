@@ -1,3 +1,4 @@
+import { personAccent } from "./person-identity";
 import { avatarImages } from "./avatars";
 import {
   Children,
@@ -402,10 +403,10 @@ export function Status({ state }: { state: string }) {
     </span>
   );
 }
-export function Avatar({ name, index = 0, avatarKey }: { name: string; index?: number; avatarKey?: string | null }) {
+export function Avatar({ name, index = 0, avatarKey, personId }: { name: string; index?: number; avatarKey?: string | null; personId?:string|null }) {
   const image = avatarKey ? avatarImages[avatarKey] : undefined;
   return (
-    <span className={`avatar accent-${index % 4} ${image ? "avatar-illustrated" : ""}`} aria-hidden="true">
+    <span className={`avatar accent-${personId||avatarKey?personAccent(personId,avatarKey):Math.max(0,index)%6} ${image ? "avatar-illustrated" : ""}`} aria-hidden="true">
       {image ? <img src={image} alt="" draggable={false}/> : name.trim().slice(0, 1).toLocaleUpperCase()}
     </span>
   );

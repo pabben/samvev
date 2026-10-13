@@ -165,6 +165,7 @@ export const en = {
   AI_STREAM_INTERRUPTED: "The model response was interrupted and was not published. Usage may be unknown.",
   AI_OWNER_REQUIRED: "Only the connection owner can perform this action.",
   home: "Home",
+  backToMore: 'Back to More',
   more: "More",
   integrations: "Integrations",
   hubMorningCompact: "Good morning!",
