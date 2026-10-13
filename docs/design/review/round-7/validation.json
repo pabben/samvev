@@ -1,0 +1,3892 @@
+{
+  "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+  "roundId": "20261013194236-f65d75f5-ba8caa81",
+  "workspaceRetest": {
+    "allPass": true,
+    "tests": 272,
+    "web": 46,
+    "contracts": 5,
+    "core": 3,
+    "api": 218,
+    "worker": 0,
+    "checks": 5,
+    "nonWebBuilds": 4,
+    "pipeline": 11,
+    "pipelineNote": "Minimal image has no Git; same plain Node/ESM real-blob suite rerun on repository host with Node22.22.1 and Git, all11 pass, no skips."
+  },
+  "browser": {
+    "checks": [
+      {
+        "name": "real isolated rich Home and mixed known/unknown usage loaded",
+        "injectedTransport": false
+      },
+      {
+        "name": "desktop-1920 light first viewport priority"
+      },
+      {
+        "name": "desktop-1920 light accessibility"
+      },
+      {
+        "name": "mobile light first viewport priority"
+      },
+      {
+        "name": "mobile light accessibility"
+      },
+      {
+        "name": "ipad-portrait light first viewport priority"
+      },
+      {
+        "name": "ipad-portrait light accessibility"
+      },
+      {
+        "name": "ipad-landscape light first viewport priority"
+      },
+      {
+        "name": "ipad-landscape light accessibility"
+      },
+      {
+        "name": "shelly-1280 light first viewport priority"
+      },
+      {
+        "name": "shelly-1280 light accessibility"
+      },
+      {
+        "name": "desktop-1920 dark first viewport priority"
+      },
+      {
+        "name": "desktop-1920 dark accessibility"
+      },
+      {
+        "name": "mobile dark first viewport priority"
+      },
+      {
+        "name": "mobile dark accessibility"
+      },
+      {
+        "name": "ipad-portrait dark first viewport priority"
+      },
+      {
+        "name": "ipad-portrait dark accessibility"
+      },
+      {
+        "name": "ipad-landscape dark first viewport priority"
+      },
+      {
+        "name": "ipad-landscape dark accessibility"
+      },
+      {
+        "name": "shelly-1280 dark first viewport priority"
+      },
+      {
+        "name": "shelly-1280 dark accessibility"
+      },
+      {
+        "name": "counted reminder collection and full human message keyboard access"
+      },
+      {
+        "name": "filled person desktop light full content/time/focus"
+      },
+      {
+        "name": "AI overview desktop light real SQL uncertainty"
+      },
+      {
+        "name": "filled person mobile light full content/time/focus"
+      },
+      {
+        "name": "AI overview mobile light real SQL uncertainty"
+      },
+      {
+        "name": "filled person desktop dark full content/time/focus"
+      },
+      {
+        "name": "AI overview desktop dark real SQL uncertainty"
+      },
+      {
+        "name": "filled person mobile dark full content/time/focus"
+      },
+      {
+        "name": "AI overview mobile dark real SQL uncertainty"
+      },
+      {
+        "name": "light mobile compose opens, cancels with focus and submits through the actual isolated API"
+      },
+      {
+        "name": "1 people and long-text reflow (injected DTO)"
+      },
+      {
+        "name": "4 people and long-text reflow (injected DTO)"
+      },
+      {
+        "name": "8 people and long-text reflow (injected DTO)"
+      },
+      {
+        "name": "person details 0 entries and current projection (injected DTO)"
+      },
+      {
+        "name": "person details 1 entries and current projection (injected DTO)"
+      },
+      {
+        "name": "person details 3 entries and current projection (injected DTO)"
+      },
+      {
+        "name": "0 reminders dark 1920: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "0 reminders dark 820: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "0 reminders light 390: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "1 reminders dark 1920: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "1 reminders dark 820: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "1 reminders light 390: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "2 reminders dark 1920: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "2 reminders dark 820: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "2 reminders light 390: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "6 reminders dark 1920: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "6 reminders dark 820: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "6 reminders light 390: preview, long titles and remaining content (injected DTO)"
+      },
+      {
+        "name": "empty light mobile retains direct compose and next event (injected Home DTO)"
+      },
+      {
+        "name": "read-only capability projection exposes no compose action (injected session DTO)"
+      }
+    ],
+    "failures": [],
+    "blockedRequests": [],
+    "providerRequests": [],
+    "laterStressTransport": "explicitly injected projection/read-only DTOs; actual baseline/screenshots/compose use real isolated API/database"
+  },
+  "m3": {
+    "checks": [
+      "visible family-hub message retains actual display render acknowledgment",
+      "producer NB/EN content language is declared independently of viewer locale without translation",
+      "real bearer POST \u2192 PostgreSQL \u2192 member/display SSE \u2192 current collection DOM and withdrawal without reload",
+      "canonical repeat is idempotent",
+      "paired display keeps saved person avatars and actual author identity without name inference",
+      "target-person columns, event-time Today/Tomorrow, structured lists and expandable provenance",
+      "10 requested mobile/iPad/TV/Shelly light/dark screenshots; no horizontal overflow; Axe WCAG A/AA",
+      "NB/EN, system color changes, keyboard skip/focus and reduced motion",
+      "1/4/8 dynamic people, long names/content, mobile/desktop overflow and stress Axe",
+      "integration UI scoped credential creation, one-time reveal, no local token persistence and revoke",
+      "external item expires while offline before authorization-cache deadline"
+    ],
+    "errors": [],
+    "baselineScreenshotsInjectedTransport": false,
+    "laterStressTransport": "explicitly injected 1/4/8 projection stress"
+  },
+  "nativeZoom": {
+    "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+    "method": "MV3 chrome.tabs.setZoom (browser zoom, not CDP scale or CSS zoom)",
+    "runs": [
+      {
+        "surface": "desktop-1920",
+        "theme": "light",
+        "locale": "nb",
+        "before": {
+          "innerWidth": 1920,
+          "innerHeight": 1080,
+          "devicePixelRatio": 1,
+          "cssZoom": "1"
+        },
+        "zoom": {
+          "zoom": 2,
+          "error": null
+        },
+        "after": {
+          "innerWidth": 960,
+          "innerHeight": 540,
+          "devicePixelRatio": 2,
+          "cssZoom": "1",
+          "overflow": false,
+          "firstAction": "samvev.",
+          "firstActionVisible": true,
+          "hero": {
+            "left": 20,
+            "right": 629,
+            "top": 150.296875,
+            "bottom": 183.890625,
+            "width": 609,
+            "height": 33.59375
+          },
+          "clock": {
+            "left": 691.9765625,
+            "right": 782.0703125,
+            "top": 133.3984375,
+            "bottom": 175.1953125,
+            "width": 90.09375,
+            "height": 41.796875
+          },
+          "heroClockOverlap": false,
+          "nav": {
+            "left": 0,
+            "right": 960,
+            "top": 0,
+            "bottom": 65,
+            "width": 960,
+            "height": 65
+          },
+          "navButtons": [
+            {
+              "label": "samvev.",
+              "rect": {
+                "left": 20,
+                "right": 137.9453125,
+                "top": 10,
+                "bottom": 54,
+                "width": 117.9453125,
+                "height": 44
+              }
+            },
+            {
+              "label": "Hjem",
+              "rect": {
+                "left": 308.0859375,
+                "right": 394.3203125,
+                "top": 10,
+                "bottom": 54,
+                "width": 86.234375,
+                "height": 44
+              }
+            },
+            {
+              "label": "Beskjeder",
+              "rect": {
+                "left": 399.3203125,
+                "right": 518.2578125,
+                "top": 10,
+                "bottom": 54,
+                "width": 118.9375,
+                "height": 44
+              }
+            },
+            {
+              "label": "Personer",
+              "rect": {
+                "left": 523.2578125,
+                "right": 635.9609375,
+                "top": 10,
+                "bottom": 54,
+                "width": 112.703125,
+                "height": 44
+              }
+            },
+            {
+              "label": "Mer",
+              "rect": {
+                "left": 640.9609375,
+                "right": 717.859375,
+                "top": 10,
+                "bottom": 54,
+                "width": 76.8984375,
+                "height": 44
+              }
+            },
+            {
+              "label": "AAveryDine innstillinger",
+              "rect": {
+                "left": 874,
+                "right": 940,
+                "top": 10,
+                "bottom": 54,
+                "width": 66,
+                "height": 44
+              }
+            }
+          ],
+          "allNavContained": true,
+          "offenders": [
+            {
+              "tag": "SPAN",
+              "className": "brand-mark",
+              "text": "",
+              "left": 17.249135971069336,
+              "right": 43.75086212158203,
+              "width": 26.501726150512695,
+              "scrollWidth": 25,
+              "clientWidth": 21
+            }
+          ]
+        },
+        "end": null,
+        "changedSurfaces": [
+          {
+            "state": "person",
+            "metrics": {
+              "innerWidth": 960,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 590,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "compose",
+            "metrics": {
+              "innerWidth": 960,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 928,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "ai",
+            "metrics": {
+              "innerWidth": 960,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": null,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          }
+        ]
+      },
+      {
+        "surface": "mobile",
+        "theme": "light",
+        "locale": "nb",
+        "before": {
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "cssZoom": "1"
+        },
+        "zoom": {
+          "zoom": 2,
+          "error": null
+        },
+        "after": {
+          "innerWidth": 195,
+          "innerHeight": 422,
+          "devicePixelRatio": 2,
+          "cssZoom": "1",
+          "overflow": false,
+          "firstAction": "Hjem",
+          "firstActionVisible": true,
+          "hero": {
+            "left": 16,
+            "right": 179,
+            "top": 91.59375,
+            "bottom": 120.34375,
+            "width": 163,
+            "height": 28.75
+          },
+          "clock": {
+            "left": 16,
+            "right": 76.0703125,
+            "top": 144.34375,
+            "bottom": 172.9375,
+            "width": 60.0703125,
+            "height": 28.59375
+          },
+          "heroClockOverlap": false,
+          "nav": {
+            "left": 0,
+            "right": 195,
+            "top": 287,
+            "bottom": 422,
+            "width": 195,
+            "height": 135
+          },
+          "navButtons": [
+            {
+              "label": "Hjem",
+              "rect": {
+                "left": 10,
+                "right": 95,
+                "top": 294,
+                "bottom": 352,
+                "width": 85,
+                "height": 58
+              }
+            },
+            {
+              "label": "Beskjeder",
+              "rect": {
+                "left": 100,
+                "right": 185,
+                "top": 294,
+                "bottom": 352,
+                "width": 85,
+                "height": 58
+              }
+            },
+            {
+              "label": "Personer",
+              "rect": {
+                "left": 10,
+                "right": 95,
+                "top": 357,
+                "bottom": 415,
+                "width": 85,
+                "height": 58
+              }
+            },
+            {
+              "label": "Mer",
+              "rect": {
+                "left": 100,
+                "right": 185,
+                "top": 357,
+                "bottom": 415,
+                "width": 85,
+                "height": 58
+              }
+            }
+          ],
+          "allNavContained": true,
+          "offenders": [
+            {
+              "tag": "SPAN",
+              "className": "brand-mark",
+              "text": "",
+              "left": 14.163494110107422,
+              "right": 40.83650588989258,
+              "width": 26.673011779785156,
+              "scrollWidth": 25,
+              "clientWidth": 23
+            }
+          ]
+        },
+        "end": {
+          "nav": {
+            "top": 287,
+            "bottom": 422
+          },
+          "lastContent": {
+            "top": 113.984375,
+            "bottom": 257.78125
+          },
+          "clear": true
+        },
+        "changedSurfaces": [
+          {
+            "state": "person",
+            "metrics": {
+              "innerWidth": 195,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 195,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "compose",
+            "metrics": {
+              "innerWidth": 195,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 175,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "ai",
+            "metrics": {
+              "innerWidth": 195,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": null,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          }
+        ]
+      },
+      {
+        "surface": "desktop-1920",
+        "theme": "dark",
+        "locale": "en",
+        "before": {
+          "innerWidth": 1920,
+          "innerHeight": 1080,
+          "devicePixelRatio": 1,
+          "cssZoom": "1"
+        },
+        "zoom": {
+          "zoom": 2,
+          "error": null
+        },
+        "after": {
+          "innerWidth": 960,
+          "innerHeight": 540,
+          "devicePixelRatio": 2,
+          "cssZoom": "1",
+          "overflow": false,
+          "firstAction": "samvev.",
+          "firstActionVisible": true,
+          "hero": {
+            "left": 20,
+            "right": 592.734375,
+            "top": 150.296875,
+            "bottom": 183.890625,
+            "width": 572.734375,
+            "height": 33.59375
+          },
+          "clock": {
+            "left": 608.734375,
+            "right": 763.390625,
+            "top": 133.3984375,
+            "bottom": 175.1953125,
+            "width": 154.65625,
+            "height": 41.796875
+          },
+          "heroClockOverlap": false,
+          "nav": {
+            "left": 0,
+            "right": 960,
+            "top": 0,
+            "bottom": 65,
+            "width": 960,
+            "height": 65
+          },
+          "navButtons": [
+            {
+              "label": "samvev.",
+              "rect": {
+                "left": 20,
+                "right": 137.9453125,
+                "top": 10,
+                "bottom": 54,
+                "width": 117.9453125,
+                "height": 44
+              }
+            },
+            {
+              "label": "Home",
+              "rect": {
+                "left": 308.875,
+                "right": 399.7734375,
+                "top": 10,
+                "bottom": 54,
+                "width": 90.8984375,
+                "height": 44
+              }
+            },
+            {
+              "label": "Messages",
+              "rect": {
+                "left": 404.7734375,
+                "right": 523.7109375,
+                "top": 10,
+                "bottom": 54,
+                "width": 118.9375,
+                "height": 44
+              }
+            },
+            {
+              "label": "People",
+              "rect": {
+                "left": 528.7109375,
+                "right": 626.6171875,
+                "top": 10,
+                "bottom": 54,
+                "width": 97.90625,
+                "height": 44
+              }
+            },
+            {
+              "label": "More",
+              "rect": {
+                "left": 631.6171875,
+                "right": 717.0703125,
+                "top": 10,
+                "bottom": 54,
+                "width": 85.453125,
+                "height": 44
+              }
+            },
+            {
+              "label": "AAveryYour preferences",
+              "rect": {
+                "left": 874,
+                "right": 940,
+                "top": 10,
+                "bottom": 54,
+                "width": 66,
+                "height": 44
+              }
+            }
+          ],
+          "allNavContained": true,
+          "offenders": [
+            {
+              "tag": "SPAN",
+              "className": "brand-mark",
+              "text": "",
+              "left": 17.249135971069336,
+              "right": 43.75086212158203,
+              "width": 26.501726150512695,
+              "scrollWidth": 25,
+              "clientWidth": 21
+            }
+          ]
+        },
+        "end": null,
+        "changedSurfaces": [
+          {
+            "state": "person",
+            "metrics": {
+              "innerWidth": 960,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 590,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "compose",
+            "metrics": {
+              "innerWidth": 960,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 928,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "ai",
+            "metrics": {
+              "innerWidth": 960,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": null,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          }
+        ]
+      },
+      {
+        "surface": "mobile",
+        "theme": "dark",
+        "locale": "en",
+        "before": {
+          "innerWidth": 390,
+          "innerHeight": 844,
+          "devicePixelRatio": 1,
+          "cssZoom": "1"
+        },
+        "zoom": {
+          "zoom": 2,
+          "error": null
+        },
+        "after": {
+          "innerWidth": 195,
+          "innerHeight": 422,
+          "devicePixelRatio": 2,
+          "cssZoom": "1",
+          "overflow": false,
+          "firstAction": "Home",
+          "firstActionVisible": true,
+          "hero": {
+            "left": 16,
+            "right": 179,
+            "top": 91.59375,
+            "bottom": 149.09375,
+            "width": 163,
+            "height": 57.5
+          },
+          "clock": {
+            "left": 16,
+            "right": 119.2890625,
+            "top": 173.09375,
+            "bottom": 201.6875,
+            "width": 103.2890625,
+            "height": 28.59375
+          },
+          "heroClockOverlap": false,
+          "nav": {
+            "left": 0,
+            "right": 195,
+            "top": 287,
+            "bottom": 422,
+            "width": 195,
+            "height": 135
+          },
+          "navButtons": [
+            {
+              "label": "Home",
+              "rect": {
+                "left": 10,
+                "right": 95,
+                "top": 294,
+                "bottom": 352,
+                "width": 85,
+                "height": 58
+              }
+            },
+            {
+              "label": "Messages",
+              "rect": {
+                "left": 100,
+                "right": 185,
+                "top": 294,
+                "bottom": 352,
+                "width": 85,
+                "height": 58
+              }
+            },
+            {
+              "label": "People",
+              "rect": {
+                "left": 10,
+                "right": 95,
+                "top": 357,
+                "bottom": 415,
+                "width": 85,
+                "height": 58
+              }
+            },
+            {
+              "label": "More",
+              "rect": {
+                "left": 100,
+                "right": 185,
+                "top": 357,
+                "bottom": 415,
+                "width": 85,
+                "height": 58
+              }
+            }
+          ],
+          "allNavContained": true,
+          "offenders": [
+            {
+              "tag": "SPAN",
+              "className": "brand-mark",
+              "text": "",
+              "left": 14.163494110107422,
+              "right": 40.83650588989258,
+              "width": 26.673011779785156,
+              "scrollWidth": 25,
+              "clientWidth": 23
+            }
+          ]
+        },
+        "end": {
+          "nav": {
+            "top": 287,
+            "bottom": 422
+          },
+          "lastContent": {
+            "top": 114.9296875,
+            "bottom": 258.125
+          },
+          "clear": true
+        },
+        "changedSurfaces": [
+          {
+            "state": "person",
+            "metrics": {
+              "innerWidth": 195,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 195,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "compose",
+            "metrics": {
+              "innerWidth": 195,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": 175,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          },
+          {
+            "state": "ai",
+            "metrics": {
+              "innerWidth": 195,
+              "devicePixelRatio": 2,
+              "overflow": false,
+              "dialogWidth": null,
+              "dialogOverflow": false,
+              "cssZoom": "1"
+            }
+          }
+        ]
+      }
+    ],
+    "failures": [],
+    "preferenceRestore": {
+      "original": {
+        "locale": "nb",
+        "theme": "system"
+      },
+      "after": {
+        "locale": "nb",
+        "theme": "system"
+      },
+      "restored": true
+    }
+  },
+  "contrast": {
+    "method": "Chromium native PNG decoding and exact paired RGBA canvas pixels. Same-layout rendered glyph vs transparent-text backdrop, computed CSS foreground alpha composited at each pixel. >=80% glyph coverage/residual<=10 or near-foreground<=10 RGB; changed midpoint punctuation may use >=30%/residual<=5 because its small glyph has no solid pixel. Thin currentColor SVG control strokes may use >=70%/residual<=2 (actual 16px plus max coverage .777); WCAG control contrast still requires 3:1. Fixed navigation occlusion is excluded at capture, not treated as foreground. Independent Python stdlib PNG implementation cross-check retained.",
+    "allPass": true,
+    "modes": {
+      "normal": {
+        "minimum": 4.68,
+        "allPass": true,
+        "surfaces": [
+          {
+            "surface": "desktop-1920",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 7,
+                "glyphPixels": 7945,
+                "candidatePixels": 12435,
+                "minimum": 6.035,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 5881,
+                "candidatePixels": 11757,
+                "minimum": 5.977,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3235,
+                "candidatePixels": 7526,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1453,
+                "candidatePixels": 3250,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2409,
+                "candidatePixels": 6199,
+                "minimum": 6.161,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1902,
+                "candidatePixels": 4404,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 452,
+                "minimum": 6.061,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "mobile",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 4,
+                "glyphPixels": 1276,
+                "candidatePixels": 2575,
+                "minimum": 7.862,
+                "required": 4.5,
+                "allPass": true
+              },
+              "identity": {
+                "nodes": 4,
+                "glyphPixels": 377,
+                "candidatePixels": 859,
+                "minimum": 11.43,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1351,
+                "candidatePixels": 3077,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 7,
+                "glyphPixels": 1776,
+                "candidatePixels": 5435,
+                "minimum": 6.149,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 10,
+                "glyphPixels": 1376,
+                "candidatePixels": 3084,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 5,
+                "glyphPixels": 52,
+                "candidatePixels": 215,
+                "minimum": 5.974,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-portrait",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3686,
+                "candidatePixels": 6533,
+                "minimum": 5.776,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 14,
+                "glyphPixels": 3125,
+                "candidatePixels": 6698,
+                "minimum": 5.817,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 2842,
+                "candidatePixels": 6322,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1448,
+                "candidatePixels": 3248,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1813,
+                "candidatePixels": 5354,
+                "minimum": 5.896,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 3,
+                "glyphPixels": 1103,
+                "candidatePixels": 2224,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 9,
+                "glyphPixels": 128,
+                "candidatePixels": 403,
+                "minimum": 5.613,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.613,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-landscape",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3792,
+                "candidatePixels": 6697,
+                "minimum": 5.922,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 4460,
+                "candidatePixels": 10069,
+                "minimum": 5.936,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 2833,
+                "candidatePixels": 6298,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1430,
+                "candidatePixels": 3207,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1816,
+                "candidatePixels": 5336,
+                "minimum": 6.2,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1897,
+                "candidatePixels": 4294,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 452,
+                "minimum": 6.072,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "shelly-1280",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3792,
+                "candidatePixels": 6697,
+                "minimum": 5.965,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 4527,
+                "candidatePixels": 10105,
+                "minimum": 5.936,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 2765,
+                "candidatePixels": 6254,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1436,
+                "candidatePixels": 3211,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1809,
+                "candidatePixels": 5282,
+                "minimum": 6.161,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1815,
+                "candidatePixels": 4264,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 452,
+                "minimum": 6.061,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "desktop-1920",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 7,
+                "glyphPixels": 8171,
+                "candidatePixels": 12473,
+                "minimum": 5.527,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3436,
+                "candidatePixels": 7606,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 2006,
+                "candidatePixels": 4013,
+                "minimum": 10.409,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 1802,
+                "candidatePixels": 3636,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2476,
+                "candidatePixels": 6306,
+                "minimum": 6.947,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 2004,
+                "candidatePixels": 4376,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 450,
+                "minimum": 7.546,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.527,
+            "allPass": true
+          },
+          {
+            "surface": "mobile",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 4,
+                "glyphPixels": 1327,
+                "candidatePixels": 2607,
+                "minimum": 8.28,
+                "required": 4.5,
+                "allPass": true
+              },
+              "identity": {
+                "nodes": 4,
+                "glyphPixels": 393,
+                "candidatePixels": 864,
+                "minimum": 6.797,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1437,
+                "candidatePixels": 3094,
+                "minimum": 7.099,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 11,
+                "glyphPixels": 2234,
+                "candidatePixels": 4699,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 5,
+                "glyphPixels": 825,
+                "candidatePixels": 2105,
+                "minimum": 7.095,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 4,
+                "glyphPixels": 146,
+                "candidatePixels": 380,
+                "minimum": 9.026,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.797,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-portrait",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3788,
+                "candidatePixels": 6574,
+                "minimum": 7.511,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 3032,
+                "candidatePixels": 6400,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 14,
+                "glyphPixels": 3320,
+                "candidatePixels": 6782,
+                "minimum": 8.075,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1575,
+                "candidatePixels": 3288,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1895,
+                "candidatePixels": 5364,
+                "minimum": 7.038,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 1,
+                "glyphPixels": 8,
+                "candidatePixels": 21,
+                "minimum": 12.03,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 8,
+                "glyphPixels": 114,
+                "candidatePixels": 356,
+                "minimum": 8.151,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [
+              {
+                "group": "material",
+                "text": "3",
+                "reason": "range is clipped at viewport edge; no rendered glyph pixels",
+                "rects": [
+                  {
+                    "left": 770.375,
+                    "right": 777.609375,
+                    "top": 1178.40625,
+                    "bottom": 1180
+                  }
+                ]
+              }
+            ],
+            "minimum": 7.038,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-landscape",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3913,
+                "candidatePixels": 6743,
+                "minimum": 5.958,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3434,
+                "candidatePixels": 7528,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 1953,
+                "candidatePixels": 3952,
+                "minimum": 10.381,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 1779,
+                "candidatePixels": 3605,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1987,
+                "candidatePixels": 5371,
+                "minimum": 7.029,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1948,
+                "candidatePixels": 4331,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 449,
+                "minimum": 7.632,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.958,
+            "allPass": true
+          },
+          {
+            "surface": "shelly-1280",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3914,
+                "candidatePixels": 6741,
+                "minimum": 5.162,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3434,
+                "candidatePixels": 7528,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 1953,
+                "candidatePixels": 3949,
+                "minimum": 10.225,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 1784,
+                "candidatePixels": 3620,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1988,
+                "candidatePixels": 5369,
+                "minimum": 7.029,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1928,
+                "candidatePixels": 4328,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 448,
+                "minimum": 7.557,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.162,
+            "allPass": true
+          },
+          {
+            "surface": "person-desktop",
+            "theme": "light",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 27,
+                "glyphPixels": 9558,
+                "candidatePixels": 22633,
+                "minimum": 6.103,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 12.67,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [
+              {
+                "group": "person-detail",
+                "text": "Familiebrief \u00b7 syntetisk",
+                "reason": "range is clipped at viewport edge; no rendered glyph pixels",
+                "rects": [
+                  {
+                    "left": 1397.453125,
+                    "right": 1526.046875,
+                    "top": 1078.296875,
+                    "bottom": 1080
+                  }
+                ]
+              }
+            ],
+            "minimum": 6.103,
+            "allPass": true
+          },
+          {
+            "surface": "ai-desktop",
+            "theme": "light",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 32,
+                "glyphPixels": 10429,
+                "candidatePixels": 22710,
+                "minimum": 5.132,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 5.641,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.132,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-desktop",
+            "theme": "light",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 79,
+                "glyphPixels": 4381,
+                "candidatePixels": 12318,
+                "minimum": 6.851,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.851,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-desktop",
+            "theme": "light",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 39,
+                "glyphPixels": 23400,
+                "candidatePixels": 64162,
+                "minimum": 6.554,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 6.554,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.554,
+            "allPass": true
+          },
+          {
+            "surface": "person-mobile",
+            "theme": "light",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 22,
+                "glyphPixels": 7597,
+                "candidatePixels": 18169,
+                "minimum": 6.103,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 12.67,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.103,
+            "allPass": true
+          },
+          {
+            "surface": "ai-mobile",
+            "theme": "light",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 30,
+                "glyphPixels": 6871,
+                "candidatePixels": 16495,
+                "minimum": 5.132,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 5.641,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.132,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-mobile",
+            "theme": "light",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 55,
+                "glyphPixels": 3275,
+                "candidatePixels": 9121,
+                "minimum": 6.851,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.851,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-mobile",
+            "theme": "light",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 23,
+                "glyphPixels": 10266,
+                "candidatePixels": 30189,
+                "minimum": 6.554,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.554,
+            "allPass": true
+          },
+          {
+            "surface": "person-desktop",
+            "theme": "dark",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 27,
+                "glyphPixels": 9881,
+                "candidatePixels": 22706,
+                "minimum": 4.865,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 14.15,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [
+              {
+                "group": "person-detail",
+                "text": "Familiebrief \u00b7 syntetisk",
+                "reason": "range is clipped at viewport edge; no rendered glyph pixels",
+                "rects": [
+                  {
+                    "left": 1397.453125,
+                    "right": 1526.046875,
+                    "top": 1078.296875,
+                    "bottom": 1080
+                  }
+                ]
+              }
+            ],
+            "minimum": 4.865,
+            "allPass": true
+          },
+          {
+            "surface": "ai-desktop",
+            "theme": "dark",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 32,
+                "glyphPixels": 10687,
+                "candidatePixels": 22829,
+                "minimum": 5.406,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 7.443,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.406,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-desktop",
+            "theme": "dark",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 79,
+                "glyphPixels": 4530,
+                "candidatePixels": 12496,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-desktop",
+            "theme": "dark",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 39,
+                "glyphPixels": 24199,
+                "candidatePixels": 64663,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 10.343,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "person-mobile",
+            "theme": "dark",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 22,
+                "glyphPixels": 7873,
+                "candidatePixels": 18231,
+                "minimum": 4.865,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 14.15,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 4.865,
+            "allPass": true
+          },
+          {
+            "surface": "ai-mobile",
+            "theme": "dark",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 30,
+                "glyphPixels": 7049,
+                "candidatePixels": 16593,
+                "minimum": 5.406,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 7.443,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.406,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-mobile",
+            "theme": "dark",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 55,
+                "glyphPixels": 3378,
+                "candidatePixels": 9213,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-mobile",
+            "theme": "dark",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 23,
+                "glyphPixels": 10710,
+                "candidatePixels": 30450,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "display-1920",
+            "theme": "light",
+            "state": "pairedDisplay",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 7650,
+                "candidatePixels": 11811,
+                "minimum": 5.709,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 6108,
+                "candidatePixels": 12043,
+                "minimum": 5.973,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3420,
+                "candidatePixels": 7790,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1675,
+                "candidatePixels": 3555,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2299,
+                "candidatePixels": 6232,
+                "minimum": 6.161,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1936,
+                "candidatePixels": 4357,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 9,
+                "glyphPixels": 114,
+                "candidatePixels": 400,
+                "minimum": 6.022,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "display-1920",
+            "theme": "dark",
+            "state": "pairedDisplay",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 7884,
+                "candidatePixels": 11881,
+                "minimum": 7.098,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3640,
+                "candidatePixels": 7912,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 2426,
+                "candidatePixels": 4633,
+                "minimum": 9.932,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 2015,
+                "candidatePixels": 3920,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2471,
+                "candidatePixels": 6317,
+                "minimum": 6.947,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 2005,
+                "candidatePixels": 4381,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 9,
+                "glyphPixels": 118,
+                "candidatePixels": 395,
+                "minimum": 7.45,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.947,
+            "allPass": true
+          },
+          {
+            "surface": "provenance-desktop-1920",
+            "theme": "light",
+            "state": "authorizedPersonDetails",
+            "groups": {
+              "person-detail": {
+                "nodes": 28,
+                "glyphPixels": 8890,
+                "candidatePixels": 21435,
+                "minimum": 6.231,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 2,
+                "glyphPixels": 26,
+                "candidatePixels": 97,
+                "minimum": 6.554,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.231,
+            "allPass": true
+          },
+          {
+            "surface": "provenance-desktop-1920",
+            "theme": "dark",
+            "state": "authorizedPersonDetails",
+            "groups": {
+              "person-detail": {
+                "nodes": 28,
+                "glyphPixels": 9176,
+                "candidatePixels": 21512,
+                "minimum": 4.68,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 2,
+                "glyphPixels": 26,
+                "candidatePixels": 97,
+                "minimum": 10.343,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 4.68,
+            "allPass": true
+          }
+        ]
+      },
+      "fallback": {
+        "minimum": 4.68,
+        "allPass": true,
+        "surfaces": [
+          {
+            "surface": "desktop-1920",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 7,
+                "glyphPixels": 7945,
+                "candidatePixels": 12435,
+                "minimum": 6.035,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 5881,
+                "candidatePixels": 11757,
+                "minimum": 5.977,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3235,
+                "candidatePixels": 7526,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1453,
+                "candidatePixels": 3250,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2409,
+                "candidatePixels": 6199,
+                "minimum": 6.161,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1902,
+                "candidatePixels": 4404,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 452,
+                "minimum": 6.061,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "mobile",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 4,
+                "glyphPixels": 1276,
+                "candidatePixels": 2575,
+                "minimum": 7.862,
+                "required": 4.5,
+                "allPass": true
+              },
+              "identity": {
+                "nodes": 4,
+                "glyphPixels": 377,
+                "candidatePixels": 859,
+                "minimum": 11.43,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1351,
+                "candidatePixels": 3077,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 7,
+                "glyphPixels": 1776,
+                "candidatePixels": 5435,
+                "minimum": 6.149,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 10,
+                "glyphPixels": 1376,
+                "candidatePixels": 3084,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 5,
+                "glyphPixels": 52,
+                "candidatePixels": 215,
+                "minimum": 5.974,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-portrait",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3686,
+                "candidatePixels": 6533,
+                "minimum": 5.776,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 14,
+                "glyphPixels": 3125,
+                "candidatePixels": 6698,
+                "minimum": 5.817,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 2842,
+                "candidatePixels": 6322,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1448,
+                "candidatePixels": 3248,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1813,
+                "candidatePixels": 5354,
+                "minimum": 5.896,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 3,
+                "glyphPixels": 1103,
+                "candidatePixels": 2224,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 9,
+                "glyphPixels": 128,
+                "candidatePixels": 403,
+                "minimum": 5.613,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.613,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-landscape",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3792,
+                "candidatePixels": 6697,
+                "minimum": 5.922,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 4460,
+                "candidatePixels": 10069,
+                "minimum": 5.936,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 2833,
+                "candidatePixels": 6298,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1430,
+                "candidatePixels": 3207,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1816,
+                "candidatePixels": 5336,
+                "minimum": 6.2,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1897,
+                "candidatePixels": 4294,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 452,
+                "minimum": 6.072,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "shelly-1280",
+            "theme": "light",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3792,
+                "candidatePixels": 6697,
+                "minimum": 5.965,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 4527,
+                "candidatePixels": 10105,
+                "minimum": 5.936,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 2765,
+                "candidatePixels": 6254,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1436,
+                "candidatePixels": 3211,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1809,
+                "candidatePixels": 5282,
+                "minimum": 6.161,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1815,
+                "candidatePixels": 4264,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 452,
+                "minimum": 6.061,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "desktop-1920",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 7,
+                "glyphPixels": 8171,
+                "candidatePixels": 12473,
+                "minimum": 5.527,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3450,
+                "candidatePixels": 7613,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 2008,
+                "candidatePixels": 4049,
+                "minimum": 12.839,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 1803,
+                "candidatePixels": 3638,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2497,
+                "candidatePixels": 6323,
+                "minimum": 8.884,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 2005,
+                "candidatePixels": 4389,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 142,
+                "candidatePixels": 450,
+                "minimum": 8.946,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.527,
+            "allPass": true
+          },
+          {
+            "surface": "mobile",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 4,
+                "glyphPixels": 1327,
+                "candidatePixels": 2607,
+                "minimum": 8.28,
+                "required": 4.5,
+                "allPass": true
+              },
+              "identity": {
+                "nodes": 4,
+                "glyphPixels": 393,
+                "candidatePixels": 864,
+                "minimum": 6.797,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1439,
+                "candidatePixels": 3096,
+                "minimum": 7.019,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 11,
+                "glyphPixels": 2234,
+                "candidatePixels": 4706,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 5,
+                "glyphPixels": 828,
+                "candidatePixels": 2105,
+                "minimum": 8.884,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 4,
+                "glyphPixels": 152,
+                "candidatePixels": 380,
+                "minimum": 9.044,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.797,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-portrait",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3788,
+                "candidatePixels": 6574,
+                "minimum": 7.511,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 16,
+                "glyphPixels": 3043,
+                "candidatePixels": 6417,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 14,
+                "glyphPixels": 3325,
+                "candidatePixels": 6783,
+                "minimum": 8.623,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1577,
+                "candidatePixels": 3286,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 1908,
+                "candidatePixels": 5378,
+                "minimum": 8.884,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 1,
+                "glyphPixels": 8,
+                "candidatePixels": 21,
+                "minimum": 13.482,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 8,
+                "glyphPixels": 114,
+                "candidatePixels": 355,
+                "minimum": 8.732,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [
+              {
+                "group": "material",
+                "text": "3",
+                "reason": "range is clipped at viewport edge; no rendered glyph pixels",
+                "rects": [
+                  {
+                    "left": 770.375,
+                    "right": 777.609375,
+                    "top": 1178.40625,
+                    "bottom": 1180
+                  }
+                ]
+              }
+            ],
+            "minimum": 7.443,
+            "allPass": true
+          },
+          {
+            "surface": "ipad-landscape",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3914,
+                "candidatePixels": 6743,
+                "minimum": 5.958,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3439,
+                "candidatePixels": 7542,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 1956,
+                "candidatePixels": 3977,
+                "minimum": 12.864,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 1779,
+                "candidatePixels": 3608,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2002,
+                "candidatePixels": 5382,
+                "minimum": 8.884,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1952,
+                "candidatePixels": 4333,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 138,
+                "candidatePixels": 450,
+                "minimum": 8.946,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.958,
+            "allPass": true
+          },
+          {
+            "surface": "shelly-1280",
+            "theme": "dark",
+            "state": "home",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 3916,
+                "candidatePixels": 6741,
+                "minimum": 5.162,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3441,
+                "candidatePixels": 7542,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 1957,
+                "candidatePixels": 3974,
+                "minimum": 12.813,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 1785,
+                "candidatePixels": 3625,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2000,
+                "candidatePixels": 5381,
+                "minimum": 8.884,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1934,
+                "candidatePixels": 4325,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 10,
+                "glyphPixels": 138,
+                "candidatePixels": 450,
+                "minimum": 8.946,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.162,
+            "allPass": true
+          },
+          {
+            "surface": "person-desktop",
+            "theme": "light",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 27,
+                "glyphPixels": 9558,
+                "candidatePixels": 22633,
+                "minimum": 6.103,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 12.67,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [
+              {
+                "group": "person-detail",
+                "text": "Familiebrief \u00b7 syntetisk",
+                "reason": "range is clipped at viewport edge; no rendered glyph pixels",
+                "rects": [
+                  {
+                    "left": 1397.453125,
+                    "right": 1526.046875,
+                    "top": 1078.296875,
+                    "bottom": 1080
+                  }
+                ]
+              }
+            ],
+            "minimum": 6.103,
+            "allPass": true
+          },
+          {
+            "surface": "ai-desktop",
+            "theme": "light",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 32,
+                "glyphPixels": 10429,
+                "candidatePixels": 22710,
+                "minimum": 5.132,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 5.641,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.132,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-desktop",
+            "theme": "light",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 79,
+                "glyphPixels": 4381,
+                "candidatePixels": 12318,
+                "minimum": 6.851,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.851,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-desktop",
+            "theme": "light",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 39,
+                "glyphPixels": 23400,
+                "candidatePixels": 64162,
+                "minimum": 6.554,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 6.554,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.554,
+            "allPass": true
+          },
+          {
+            "surface": "person-mobile",
+            "theme": "light",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 22,
+                "glyphPixels": 7597,
+                "candidatePixels": 18169,
+                "minimum": 6.103,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 12.67,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.103,
+            "allPass": true
+          },
+          {
+            "surface": "ai-mobile",
+            "theme": "light",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 30,
+                "glyphPixels": 6871,
+                "candidatePixels": 16495,
+                "minimum": 5.132,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 5.641,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.132,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-mobile",
+            "theme": "light",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 55,
+                "glyphPixels": 3275,
+                "candidatePixels": 9121,
+                "minimum": 6.851,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.851,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-mobile",
+            "theme": "light",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 23,
+                "glyphPixels": 10266,
+                "candidatePixels": 30189,
+                "minimum": 6.554,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.554,
+            "allPass": true
+          },
+          {
+            "surface": "person-desktop",
+            "theme": "dark",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 27,
+                "glyphPixels": 9881,
+                "candidatePixels": 22706,
+                "minimum": 4.865,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 14.15,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [
+              {
+                "group": "person-detail",
+                "text": "Familiebrief \u00b7 syntetisk",
+                "reason": "range is clipped at viewport edge; no rendered glyph pixels",
+                "rects": [
+                  {
+                    "left": 1397.453125,
+                    "right": 1526.046875,
+                    "top": 1078.296875,
+                    "bottom": 1080
+                  }
+                ]
+              }
+            ],
+            "minimum": 4.865,
+            "allPass": true
+          },
+          {
+            "surface": "ai-desktop",
+            "theme": "dark",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 32,
+                "glyphPixels": 10687,
+                "candidatePixels": 22829,
+                "minimum": 5.406,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 7.443,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.406,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-desktop",
+            "theme": "dark",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 79,
+                "glyphPixels": 4530,
+                "candidatePixels": 12496,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-desktop",
+            "theme": "dark",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 39,
+                "glyphPixels": 24199,
+                "candidatePixels": 64663,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 10.343,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "person-mobile",
+            "theme": "dark",
+            "state": "person",
+            "groups": {
+              "person-detail": {
+                "nodes": 22,
+                "glyphPixels": 7873,
+                "candidatePixels": 18231,
+                "minimum": 4.865,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 20,
+                "candidatePixels": 64,
+                "minimum": 14.15,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 4.865,
+            "allPass": true
+          },
+          {
+            "surface": "ai-mobile",
+            "theme": "dark",
+            "state": "ai",
+            "groups": {
+              "AI-settings": {
+                "nodes": 30,
+                "glyphPixels": 7049,
+                "candidatePixels": 16593,
+                "minimum": 5.406,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 1,
+                "glyphPixels": 32,
+                "candidatePixels": 56,
+                "minimum": 7.443,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.406,
+            "allPass": true
+          },
+          {
+            "surface": "ai-usage-mobile",
+            "theme": "dark",
+            "state": "ai-usage",
+            "groups": {
+              "AI-settings": {
+                "nodes": 55,
+                "glyphPixels": 3378,
+                "candidatePixels": 9213,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "ai-forecast-mobile",
+            "theme": "dark",
+            "state": "ai-forecast",
+            "groups": {
+              "AI-settings": {
+                "nodes": 23,
+                "glyphPixels": 10710,
+                "candidatePixels": 30450,
+                "minimum": 8.629,
+                "required": 4.5,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 8.629,
+            "allPass": true
+          },
+          {
+            "surface": "display-1920",
+            "theme": "light",
+            "state": "pairedDisplay",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 7650,
+                "candidatePixels": 11811,
+                "minimum": 5.709,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 19,
+                "glyphPixels": 6108,
+                "candidatePixels": 12043,
+                "minimum": 5.973,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3420,
+                "candidatePixels": 7790,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 5,
+                "glyphPixels": 1675,
+                "candidatePixels": 3555,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2299,
+                "candidatePixels": 6232,
+                "minimum": 6.161,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 1936,
+                "candidatePixels": 4357,
+                "minimum": 5.641,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 9,
+                "glyphPixels": 114,
+                "candidatePixels": 400,
+                "minimum": 6.022,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 5.641,
+            "allPass": true
+          },
+          {
+            "surface": "display-1920",
+            "theme": "dark",
+            "state": "pairedDisplay",
+            "groups": {
+              "hero": {
+                "nodes": 6,
+                "glyphPixels": 7884,
+                "candidatePixels": 11881,
+                "minimum": 7.098,
+                "required": 4.5,
+                "allPass": true
+              },
+              "agenda": {
+                "nodes": 18,
+                "glyphPixels": 3655,
+                "candidatePixels": 7920,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "people": {
+                "nodes": 8,
+                "glyphPixels": 2428,
+                "candidatePixels": 4644,
+                "minimum": 12.796,
+                "required": 4.5,
+                "allPass": true
+              },
+              "important": {
+                "nodes": 6,
+                "glyphPixels": 2018,
+                "candidatePixels": 3929,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "messages": {
+                "nodes": 6,
+                "glyphPixels": 2491,
+                "candidatePixels": 6330,
+                "minimum": 8.884,
+                "required": 4.5,
+                "allPass": true
+              },
+              "material": {
+                "nodes": 5,
+                "glyphPixels": 2005,
+                "candidatePixels": 4388,
+                "minimum": 7.443,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 9,
+                "glyphPixels": 118,
+                "candidatePixels": 398,
+                "minimum": 8.946,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 7.098,
+            "allPass": true
+          },
+          {
+            "surface": "provenance-desktop-1920",
+            "theme": "light",
+            "state": "authorizedPersonDetails",
+            "groups": {
+              "person-detail": {
+                "nodes": 28,
+                "glyphPixels": 8890,
+                "candidatePixels": 21435,
+                "minimum": 6.231,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 2,
+                "glyphPixels": 26,
+                "candidatePixels": 97,
+                "minimum": 6.554,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 6.231,
+            "allPass": true
+          },
+          {
+            "surface": "provenance-desktop-1920",
+            "theme": "dark",
+            "state": "authorizedPersonDetails",
+            "groups": {
+              "person-detail": {
+                "nodes": 28,
+                "glyphPixels": 9176,
+                "candidatePixels": 21512,
+                "minimum": 4.68,
+                "required": 4.5,
+                "allPass": true
+              },
+              "control-icon": {
+                "nodes": 2,
+                "glyphPixels": 26,
+                "candidatePixels": 97,
+                "minimum": 10.343,
+                "required": 3,
+                "allPass": true
+              }
+            },
+            "unmatched": [],
+            "failedEntries": [],
+            "clippedNoInk": [],
+            "minimum": 4.68,
+            "allPass": true
+          }
+        ]
+      }
+    }
+  },
+  "independentContrast": {
+    "allPass": true,
+    "representativeStatesPerMode": 4,
+    "minimum": 4.865,
+    "maximumGroupDelta": 0.0
+  },
+  "evidence": {
+    "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+    "roundId": "20261013194236-f65d75f5-ba8caa81",
+    "screenshots": [
+      {
+        "path": "latest/desktop-1920-light.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/mobile-light.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/ipad-portrait-light.png",
+        "dimensions": {
+          "width": 820,
+          "height": 1180
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/ipad-landscape-light.png",
+        "dimensions": {
+          "width": 1180,
+          "height": 820
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/shelly-1280-light.png",
+        "dimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/mobile-light-full.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/desktop-1920-light-full.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1490
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/desktop-1920-dark.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/mobile-dark.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/ipad-portrait-dark.png",
+        "dimensions": {
+          "width": 820,
+          "height": 1180
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/ipad-landscape-dark.png",
+        "dimensions": {
+          "width": 1180,
+          "height": 820
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/shelly-1280-dark.png",
+        "dimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/mobile-dark-full.png",
+        "dimensions": {
+          "width": 390,
+          "height": 851
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "latest/desktop-1920-dark-full.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/desktop-1920-light.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/mobile-light.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ipad-portrait-light.png",
+        "dimensions": {
+          "width": 820,
+          "height": 1180
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ipad-landscape-light.png",
+        "dimensions": {
+          "width": 1180,
+          "height": 820
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/shelly-1280-light.png",
+        "dimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/desktop-1920-dark.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/mobile-dark.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ipad-portrait-dark.png",
+        "dimensions": {
+          "width": 820,
+          "height": 1180
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ipad-landscape-dark.png",
+        "dimensions": {
+          "width": 1180,
+          "height": 820
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/shelly-1280-dark.png",
+        "dimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/person-desktop-light.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ai-overview-desktop-light.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/person-mobile-light.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ai-overview-mobile-light.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/person-desktop-dark.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ai-overview-desktop-dark.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/person-mobile-dark.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/ai-overview-mobile-dark.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/compose-mobile-light.png",
+        "dimensions": {
+          "width": 390,
+          "height": 844
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/display-1920-light.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      },
+      {
+        "path": "round-7/display-1920-dark.png",
+        "dimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "hashVerified": true,
+        "sourceVerified": true
+      }
+    ],
+    "screenshotsVerified": 35,
+    "priorFilesUnchanged": 181,
+    "allPass": true
+  },
+  "preservation": {
+    "accounts": {
+      "unchanged": true,
+      "count": 3
+    },
+    "households": {
+      "unchanged": true,
+      "count": 1
+    },
+    "persons": {
+      "unchanged": true,
+      "count": 5
+    },
+    "memberships": {
+      "unchanged": true,
+      "count": 5
+    },
+    "messages": {
+      "unchanged": true,
+      "count": 17
+    },
+    "integration_connections": {
+      "unchanged": true,
+      "count": 31
+    },
+    "integration_items": {
+      "unchanged": true,
+      "count": 213
+    },
+    "ai_settings": {
+      "unchanged": true,
+      "count": 0
+    },
+    "ai_chatgpt_registrations": {
+      "unchanged": true,
+      "count": 0
+    },
+    "protectedGit": {
+      "unchanged": true,
+      "fileCount": 229
+    },
+    "allPass": true
+  },
+  "lan": {
+    "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+    "checkedAt": "2026-10-13T19:48:57.870Z",
+    "origin": "http://192.168.0.220:4173",
+    "health": "ok",
+    "literalAdminAdminUiLoginAndLogout": true,
+    "servedDistHashesMatch": true,
+    "people": 5,
+    "preferencesUnmodified": true,
+    "errors": []
+  },
+  "qaServices": [
+    {
+      "service": "qa-app",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "service": "qa-db",
+      "state": "running",
+      "health": "healthy"
+    },
+    {
+      "service": "qa-worker",
+      "state": "running",
+      "health": "healthy"
+    }
+  ],
+  "provenance": {
+    "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+    "inputFingerprint": "e558b80b35fec9b077a501295da100ec82b239eeb304fc779203c9e741b59d39",
+    "inputFiles": 191,
+    "servedAssets": 10,
+    "migrationCount": 20,
+    "noNewMigration": true
+  },
+  "liveProviderCalls": 0,
+  "liveChatGptVerified": false,
+  "releaseGate": {
+    "status": "PASS",
+    "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+    "scope": "independent prepublication review of staged docs/evidence; no source or runtime mutation",
+    "inputFilesVerified": 191,
+    "servedAssetsVerified": 10,
+    "actualScreenshotsVerified": 35,
+    "derivedComparisonsVerified": 2,
+    "priorEvidenceVerified": 181,
+    "protectedGitVerified": 229,
+    "qaTablesVerified": 9
+  }
+}

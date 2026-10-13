@@ -1,14 +1,14 @@
 {
-  "roundId": "20261012234005-158d9e33-d7fb5bdb",
-  "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-  "workingTreeDirty": true,
-  "capturedAt": "2026-10-12T23:40:05.822Z",
+  "roundId": "20261013194236-f65d75f5-ba8caa81",
+  "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+  "workingTreeDirty": false,
+  "capturedAt": "2026-10-13T19:42:36.279Z",
   "provenance": {
-    "sourceSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-    "inputFingerprint": "2ec43f9ea3557ac33703e91d68809ef6fbb511fb868e1b29a4d9c4c547e84d14",
-    "rootSourceFingerprint": "2ec43f9ea3557ac33703e91d68809ef6fbb511fb868e1b29a4d9c4c547e84d14",
-    "cloneSourceFingerprint": "2ec43f9ea3557ac33703e91d68809ef6fbb511fb868e1b29a4d9c4c547e84d14",
-    "runtimeFingerprint": "521fd35d2cafcb2d7d25e5f64030c382cb42f2bbb37e294b33e1623dd19d0cbe",
+    "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+    "inputFingerprint": "e558b80b35fec9b077a501295da100ec82b239eeb304fc779203c9e741b59d39",
+    "rootSourceFingerprint": "e558b80b35fec9b077a501295da100ec82b239eeb304fc779203c9e741b59d39",
+    "cloneSourceFingerprint": "e558b80b35fec9b077a501295da100ec82b239eeb304fc779203c9e741b59d39",
+    "runtimeFingerprint": "b9ff04c8362dc14bdabf31f42b6479bec6a7d85533682e95d10ab09e65ab670e",
     "migrationFingerprint": "94087da6d01edcfefc1023a3d2ce242ebf31adaa35b3ae01d8e92b732a75e420",
     "inputFileHashes": {
       ".env.example": "80be97daace182ec1058b152bc5fff9ed543737a530bb8b3082965f7893e7144",
@@ -16,8 +16,8 @@
       "Dockerfile": "55679440f8bb716b760d93d0e771d57ed61c492001515d5f7ca0a5b742efc509",
       "apps/web/index.html": "9d7a5945ccf49d6d43ee928caabac011ffe4d92da7200641748dfd94f8c40e64",
       "apps/web/package.json": "b7a0e3db6fc678d672aed6a378d7c71750ee0153cbee5d7cebd6b3935b8354a4",
-      "apps/web/src/ai-presentation.ts": "b7c73a0cdd1fcf0b6a8d8d397dca43b0519f8e4fb62e1fcd5f2bd62bf82efbef",
-      "apps/web/src/ai-settings.tsx": "8e7dd0bd5fcd57b0fe41acd2f2815c642e20bbcc9222a5cffccba7571659576f",
+      "apps/web/src/ai-presentation.ts": "756a5303c78aab8050b68ac8bc6bd6708c06ceed18fe5077aa7bd626710b2f01",
+      "apps/web/src/ai-settings.tsx": "d6256cf4aefa6f811c49566bb99db73f406471d234c61d3f59f7a0ead7dd6600",
       "apps/web/src/api.ts": "fb64939149e1203a3a7aa27090aa9ebb40dc59d8a86f497e2cb04a73702e1a00",
       "apps/web/src/assets/avatars/PROVENANCE.md": "f5db7c7b00b63aee9508bfcaa75f2574031fac87db58b4f2f8aab09483c7b753",
       "apps/web/src/assets/avatars/avatar-01.webp": "64603ebdee174f66871902614c46965e9bbe846f22ca77dbf7391c483131a02b",
@@ -34,14 +34,14 @@
       "apps/web/src/display-cache.ts": "d98b6e3cb43895f9784233641bb02eb81176f72a58f2487bbbb238000ead3b67",
       "apps/web/src/display.tsx": "b65ba2bcd89001f4d5c61da97bc3cfb66019c5f0c24a00419dc55f196c722add",
       "apps/web/src/displays-admin.tsx": "b9c82a6e91c4acdca3eaef0aa37789a98609660832f8fbc47085905c0185d22e",
-      "apps/web/src/family-hub.tsx": "5782abc1a162644405da0021fc3d147293900b397ffa6a118a6b7d0395f75daf",
-      "apps/web/src/home-presentation.ts": "2b5e5cc9524ad77574a51b3f7a3876ba3b851449a2b41cf054e8ed725c5e9358",
+      "apps/web/src/family-hub.tsx": "486ea6c44bbece17b94054543e56cb92a60a2bf5d66167d62c02045cf01b4560",
+      "apps/web/src/home-presentation.ts": "cc8610932d20630b89884e9463ac1aab6aff3f85c85f703165e1d09ebab5efb5",
       "apps/web/src/home-types.ts": "cd6716e7fb8c0b5d547d2791f1e39cc2bcf98ab24139125067fece9e6b196422",
-      "apps/web/src/home.css": "72d62725115a8c6b4d3e25c5baee7684491d31cf07dc13961c871efe471c03d7",
+      "apps/web/src/home.css": "c8115e65be564326e233bb3b65682eb3f6c15ac35c10890b33f5a256630bffa7",
       "apps/web/src/home.tsx": "7505c0573c11c622b05c6d590f6fced209fa85ae807d087a24b3534c8b6bc099",
       "apps/web/src/integrations.tsx": "4f6f929273c0649ad44c49bc0d9c954c5b8fed71ca8e6ec75a42fe3f3345943a",
-      "apps/web/src/locales/en.ts": "0c0b2a96c930e1944a0091b2bcd94ca4c043fc5c1ffac48644e78de55c90619b",
-      "apps/web/src/locales/nb.ts": "621420d95554cdaa8f7d45885f8209c71b74a1a66db45fde7496d963d1c5a3dd",
+      "apps/web/src/locales/en.ts": "154788dd0c95c77842f9a9371a98208590d4729c1fc70b7717ae955daff3fb61",
+      "apps/web/src/locales/nb.ts": "8c3267073fa1cedaea7f37b58d20a211a6c8cf52e05540c9ff6c0e9606becdea",
       "apps/web/src/main.tsx": "7e097b6e3892006dd741221f583a4c5ec461ab4347155e500bf93dcf4086f8c2",
       "apps/web/src/member.tsx": "34fa1b40ea0f822271157096bab89bc77ba7cc691bdf8bcc4800aa269557b68d",
       "apps/web/src/messages.tsx": "66d7ad97e4386b3e65de695121984f2095717cbb233629ca81a557640ca633c3",
@@ -51,18 +51,18 @@
       "apps/web/src/people.tsx": "6250d8120f72226f9320aa5cb6eca496d86b11121a7108fd862f5cc62185ddd6",
       "apps/web/src/person-policy.ts": "7a36899f26490bf69ff3772c41ed0b8a611fabc77090ef155fea3a7860d189b6",
       "apps/web/src/stream-health.ts": "27d929f46e642f4aeb496d5990ccd728d937b5a923a55e44bc2dc2fceec13cfe",
-      "apps/web/src/style.css": "b239f05f1eebc0749628b06b73d4950fd3fdeffd14c00b38575d8cd5d14d540a",
+      "apps/web/src/style.css": "761c48e93bdcd9249605f4dcc0349402216adc7b5900e7229e3a8da481830ca2",
       "apps/web/src/time.ts": "bda67be18f962e07e8de0f554a6efc3bbdea79f8d0ca4d8af3f2feed87fd33a3",
       "apps/web/src/types.ts": "f4f5379a5010dc0212a89d908c2475142a5e6e1d28d940a40f412bbf26f7595b",
       "apps/web/src/ui.tsx": "53c049f3602d22ba60a168aa7cea60a10152c1719819f819f585083916102630",
       "apps/web/src/workbench.tsx": "3697ec7fe45fc1997918700b7f3a79f8a794ac84f959df96a3ea43fa3376f6f6",
-      "apps/web/tests/ai-presentation.test.ts": "1a0c1fcbbd807bae9ca3d0b5a6cacf1075ca5483cd198a3ba25ba67276efce80",
+      "apps/web/tests/ai-presentation.test.ts": "b25f841dcffdc93cbade2de49d2485096ca7591fde2705b1a7a111a656d4f1bb",
       "apps/web/tests/ai-reasoning-smoke.mjs": "7997a47ae05d60105845c786520a0507aa401accde08054da1f7abb62c1d875d",
       "apps/web/tests/ai-settings-smoke.mjs": "5c78013ba31b0bb9360859748496d71f32a5e4c2897bed8da598eb94d2fc79ea",
       "apps/web/tests/cold-load-smoke.mjs": "f8891439716ccecade95fc6ec236a0cfda8d830a56ff25467f9e69f64ca76621",
       "apps/web/tests/demo-login.test.ts": "29d16fc326e333fa5dee68625ba71a837fffd23405e90e2ea4831bf8fb975ed0",
       "apps/web/tests/display-cache.test.ts": "da81021c2062cc29f76c8f6cc30c4005dc865ec1f07ebc1dd52363e26fa79c97",
-      "apps/web/tests/home-presentation.test.ts": "887c9e89b3f3ceb25f000bc79986466da3bf3043eea2dd9d9bf845c02545e7f2",
+      "apps/web/tests/home-presentation.test.ts": "2c51a03e4088d05963dda6aa5ad29ffb2e6ef0a1add8a78e8220bb542f42a528",
       "apps/web/tests/m3-family-hub.mjs": "39410dc1b7f47acb8a4971e364b053b51f2c9e805959915d0a78ee3804c5e44c",
       "apps/web/tests/monitor-presentation.test.ts": "f64b18ef65f3205126a83201ff7d7cdaaa246922d60deb2ea183ceeb792047c3",
       "apps/web/tests/monitor-smoke.mjs": "b329d4a074edaff07d4a749adfc0dd970e34b41c880ca527e09dfa2bb6317b32",
@@ -72,6 +72,7 @@
       "apps/web/tests/review-regressions.mjs": "69a6586b2719f1c195e27a508077b681c83720817c5080e688b5e6f652397670",
       "apps/web/tests/round5-design.mjs": "8761741ab8cb360d7b42ed4aff52ce422f262e8d5e49719011bca3fbadb647e0",
       "apps/web/tests/round6-design.mjs": "6fed8ae0d12beded248aa7a5fc81930b2bb3ad2b4a641fffeffc3b75492ba133",
+      "apps/web/tests/round7-design.mjs": "3484094c0ebc3001f8ba260ec2da69fb062abf10baf758bcffcb02c31ea1f5cd",
       "apps/web/tests/smoke.mjs": "ee0b04891bc3cd188295cc0d9112306a8c4655df287d0999ab47460742d4a112",
       "apps/web/tests/stream-health.test.ts": "d17e4aec0ac72c979feae6bb59568fb79b9c4b75d4e8aca0dcb371a6772af02b",
       "apps/web/tests/time.test.ts": "f8f76fc2d7ffe4d3c89fec2f1174064c54dc8556750c23db6c7dcde45c278609",
@@ -209,12 +210,12 @@
       "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
       "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
-      "assets/index-BKXIKfFM.js": "6da11c088cd0f0dd9a207c8fb2ce66dcd5d728eec1a635a4dd3249b554449ccb",
-      "assets/index-BbjQjj1r.css": "6cf3edd3c34701e9b7be1540f55a45ec99a6e9238ccbfb395394032acb52b81a",
+      "assets/index-BzQr172g.css": "2d7b35bb0a1119c57332b50cb8d2053a04d8a1ee5960c98cd21075af6844201a",
+      "assets/index-C5_33cAv.js": "4f5da7e78338aeaa89ecc2b1420c665f8ef308a48f42fc705b591628df8ebbc3",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
-      "index.html": "73ec87793b2d0f0da511db6b817b16e5f18c6500a264fe7bfdb9c945d942fa68"
+      "index.html": "eb255be4833a2cfe4692eb2bf01a388af482f21fbc59d447a877ee5b88e75e71"
     },
-    "builtAt": "2026-10-12T23:39:06.423Z",
+    "builtAt": "2026-10-13T19:31:13.174Z",
     "containerId": "13b86f7ac1962e2d89ec7ea10a6966a1b872d27557f8eb586c4b5f12c6e02fe1",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
@@ -224,8 +225,8 @@
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-05-BkiEJE6s.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-BKXIKfFM.js",
-      "/assets/index-BbjQjj1r.css",
+      "/assets/index-BzQr172g.css",
+      "/assets/index-C5_33cAv.js",
       "/assets/nordic-dusk-v2-JZmjLCmU.png"
     ],
     "loadedAssetsVerified": [
@@ -233,8 +234,8 @@
       "/assets/avatar-02-DdgMOJAz.webp",
       "/assets/avatar-03-DA7Jq2DZ.webp",
       "/assets/avatar-04-Bl-4M4Ux.webp",
-      "/assets/index-BKXIKfFM.js",
-      "/assets/index-BbjQjj1r.css"
+      "/assets/index-BzQr172g.css",
+      "/assets/index-C5_33cAv.js"
     ]
   },
   "source": {
@@ -245,8 +246,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:07.582Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:38.021Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -261,19 +262,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "1e26c900e8648b0c2f170f4f31ed98619a6beb0a49a238a39f97591671c02930"
+      "sha256": "e1bf1a8a9f5f92488a8464ed055c8c2fafc7550f27770d66ab7b46c49aa981b4"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:07.733Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:38.197Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -288,19 +290,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "9d036a3844e20926120a65aec11266a6b976e8e434b9be9581dc2460ecd68b49"
+      "sha256": "503c0bd61d7c0263166c227d74d8167e3f0c241e316528dc066b953962b4e994"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:08.002Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:38.464Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -315,19 +318,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "14fdc89960e98b74d316144751c6a01dcabc7b1df902000936e8d1d172f2c5ca"
+      "sha256": "5256d864391cd90b1f9636691740abd68e18854f5b8294fb15a848987b5ec9a0"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:08.303Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:38.865Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -342,19 +346,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "248472e7da053daf4acd5c0e0969f1f4df815507bc7a62e4413c2ae1d3393f26"
+      "sha256": "e97045d1d5aa09b0a290f5e154dfde8ce02b20f2d48ba1613c16c9b0edda451f"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:08.631Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:39.291Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -369,19 +374,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "f009e9c3b7c32230163507506ce08c411be42b624a26552bb721aa1fabb80a90"
+      "sha256": "016f12e39e419db8159b8ee7b917b6d7dfccff05fb63c069cc664a2ac590ede1"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:08.768Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:39.430Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -396,19 +402,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "9d036a3844e20926120a65aec11266a6b976e8e434b9be9581dc2460ecd68b49"
+      "sha256": "503c0bd61d7c0263166c227d74d8167e3f0c241e316528dc066b953962b4e994"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:09.265Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:40.065Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -423,19 +430,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "1e26c900e8648b0c2f170f4f31ed98619a6beb0a49a238a39f97591671c02930"
+      "sha256": "95bedb3c7ee0b451815587c888561b4100c27f251e5883549f0e0ac530f6d13a"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:10.452Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:41.148Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -450,19 +458,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "e9352fb4f20a0099a911add64285d42e62df4c78907e18df11849725cf7f721b"
+      "sha256": "49b616824f74933a68b01b496b0c991f113c9eb5fbf50c0226a5dac466e16c19"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:10.668Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:41.377Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -477,19 +486,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "1839785f70edeb2bfd431f13d1d52bef7745e0316401308553aea47450f45c20"
+      "sha256": "df2d123865590e201d93ef6a60c9e179508942f8f8b8f2f42f1d2b4c933c3f88"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:11.158Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:41.915Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -504,19 +514,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "b80389d06c567eaca9773d8f77ebcd31ac7c1a1993a734eeeb55a072da24b24e"
+      "sha256": "974236edcb88da76a882e6072c0a4d8c32135fba244db264c9cd3c6b063f22a4"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:11.637Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:42.384Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -531,19 +542,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "6444cdb2d12f009d8986dc22842dc11f4b234a7216ccdad9210883c92c4c2839"
+      "sha256": "f929b83dbd7cfb10dfa4443413518ec1bd3904416735220b0461a3e0a785da66"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:12.120Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:42.964Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -558,19 +570,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "7c5380ee464a7e02c485a0daebf71845c6e8c82396894ab1d2d1650417f55ad7"
+      "sha256": "c743d9a28d9c0bdc70c5d688e94ce57a48c348651ea149999492259397228c0c"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:12.336Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:43.200Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -585,19 +598,20 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "1839785f70edeb2bfd431f13d1d52bef7745e0316401308553aea47450f45c20"
+      "sha256": "70113445218c2fe935c71f5172f6b05dd1ede51fbe984f188ab16b416b15d551"
     },
     {
-      "commitSha": "158d9e33949715403998b914d2180d95b66e9ae3",
-      "capturedAt": "2026-10-12T23:40:13.199Z",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:42:44.062Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -612,15 +626,16 @@
         "personIds": [
           "3f98e4cd-0835-41db-8254-2780378e0d9f",
           "6a30ec53-86f1-48ff-8d6b-53cf026849dc",
+          "a6d6f271-e86b-43ac-87a7-831054547858",
           "d72f00f2-df6e-4b95-8636-6da8eaa2c864",
           "d9454926-fa1b-4c5e-9cc6-d2c133e3091a"
         ],
-        "personIdsHash": "20be0e1728a5f890df3d855347e4722ee71344bfb8b6e752993b40197fa15fc3",
-        "peopleCount": 4,
+        "personIdsHash": "a00760025720e19a80e39ff0810b47804c1d357c78a32b607d72120421d88d1a",
+        "peopleCount": 5,
         "itemCount": 0,
         "itemIdsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       },
-      "sha256": "e9352fb4f20a0099a911add64285d42e62df4c78907e18df11849725cf7f721b"
+      "sha256": "49b616824f74933a68b01b496b0c991f113c9eb5fbf50c0226a5dac466e16c19"
     }
   ]
 }

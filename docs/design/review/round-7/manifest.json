@@ -1,0 +1,443 @@
+{
+  "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+  "capturedAt": "2026-10-13T19:32:47.313Z",
+  "origin": "http://round7-test-app:4173",
+  "synthetic": true,
+  "liveChatGptVerified": false,
+  "screenshots": [
+    {
+      "filename": "desktop-1920-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:47.534Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "295ce24203672d13c4d22ccc6449f4b4b26dff06abd6f29144330c1843bac3fd",
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "mobile-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:49.382Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "5d64aa29b2631941175481e1ef7c7463587081461f5c0b9062732c54b3106ce5",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ipad-portrait-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:50.855Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "7d458b1965c735208b9d426714d2463f70f6d7659b1d24400f9f4b7d9d28aac0",
+      "dimensions": {
+        "width": 820,
+        "height": 1180
+      }
+    },
+    {
+      "filename": "ipad-landscape-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:52.313Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "41d4cd2d7c45d137c470525f100dd5bd1a7b925d5d16cc79fbd392019373e960",
+      "dimensions": {
+        "width": 1180,
+        "height": 820
+      }
+    },
+    {
+      "filename": "shelly-1280-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:53.779Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "light",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "fb787ac75180b283071c28601379cb7c7c70bc69237ec2d4fc188d7f535a6b4b",
+      "dimensions": {
+        "width": 1280,
+        "height": 752
+      }
+    },
+    {
+      "filename": "desktop-1920-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:56.225Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "5213c139cd90ee5541f742da3770ec87f7055c2105ff42c50a35fca177efc436",
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "mobile-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:57.633Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "8c2b78208bbd6a8ed5fb8f77f340823eb9866d03acb2165f35d4c6816e2d85af",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ipad-portrait-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:31:59.470Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "d122acebbc199b1bf4db0244c01e0fdc768e5348d85ae0cd9b587c0dfefd130e",
+      "dimensions": {
+        "width": 820,
+        "height": 1180
+      }
+    },
+    {
+      "filename": "ipad-landscape-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:01.194Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "9bf5fada41b806714a85a26046a27fadd945749aefdd817200b5dd40447f9de9",
+      "dimensions": {
+        "width": 1180,
+        "height": 820
+      }
+    },
+    {
+      "filename": "shelly-1280-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:02.918Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "dark",
+      "surface": "member-home",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "b800a4d79abca56e562300cda46ff674d3e4bb848407ca28194ceb6431bf8c95",
+      "dimensions": {
+        "width": 1280,
+        "height": 752
+      }
+    },
+    {
+      "filename": "person-desktop-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:05.138Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "be709cdcb0672901f7ab0e486212c43144b8b08d60eec74a0273fe5dc18184b3",
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "ai-overview-desktop-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:06.369Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "54b8b0facb514463c3711ad958bd9acd9afe67677f4c173ab3ec1159f2c9c183",
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "person-mobile-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:07.636Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "e037dd6261cc104c343fc7644bab24e750d503fb6749d5f50d40cfd66b50ecf2",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ai-overview-mobile-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:08.620Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "8c8139fb9ce3639eff5966204dd8d6d3ca13eb9f77a4dfd561140bf84838f97b",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "person-desktop-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:10.629Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "8b32809733432c76f34698d95a8d9555171ae94a968053309e93f52e60951815",
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "ai-overview-desktop-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:12.201Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "1b95c9d4be83a9c2a3eef01226ee6451a9b6a74d84dc5d25ad196fba201be4a8",
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      }
+    },
+    {
+      "filename": "person-mobile-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:13.534Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "person-details",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "d19c0c09fe3ac0cd73470b0674e85fa90a11a2e406d1bbef625d43be99a9ebf0",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "ai-overview-mobile-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:14.535Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "ai-usage-overview",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "1e2e9d8118f6e3e91b9dd455f2b01aec01f4772e314e8b2d200cc0c250eff336",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "compose-mobile-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:32:15.928Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "message-composer",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated synthetic API/database",
+      "injectedTransport": false,
+      "sha256": "dcd3424cccc6fc6dda1c96f1b56a169ff63b19a24f2de8db0bd905e21c611764",
+      "dimensions": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "display-1920-light.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:37:48.565Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "actual-paired-display",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated paired display API/database",
+      "injectedTransport": false,
+      "sha256": "2dd1bbeabae30516d327ff7833ef9d1c6ca29a345b117d6ab131993712487a87"
+    },
+    {
+      "filename": "display-1920-dark.png",
+      "commitSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "capturedAt": "2026-10-13T19:37:48.565Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "dimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "actual-paired-display",
+      "fullPage": false,
+      "locale": "nb",
+      "dataState": "actual isolated paired display API/database",
+      "injectedTransport": false,
+      "sha256": "0c92e3b3d623cc11e4d9350dceaa9f665f1a41f48c3f4bb18f8bdaeeb3c6309f"
+    }
+  ],
+  "roundId": "20261013194236-f65d75f5-ba8caa81",
+  "fixture": {
+    "people": 4,
+    "homeItems": 9,
+    "todayEvents": 3,
+    "humanMessages": 1,
+    "usageRecords": 7,
+    "confirmedKnownPriced": 4,
+    "confirmedUnknownPrice": 1,
+    "unresolvedDispatch": 1,
+    "preflightNonDispatch": 1,
+    "realProviderCalls": 0
+  },
+  "laterStressTransport": "explicitly injected projection/read-only DTOs in validation only; no published screenshot uses injected transport"
+}

@@ -1,5 +1,30 @@
 # M1 implementation status
 
+## M3 design round 7 — 2026-10-13
+
+Activated mailbox `37cfcb6`; final signed source
+`f65d75f55cdf3ed0a7fd2915e97d045923c6e35c`. Light-mobile authorized compose,
+surface-aware reminder previews, full-width portrait reminder and whole Shelly
+controls are verified. Light framing is quieter; dark outer/inner glass has more
+depth. AI global dispatch counts and known normal-use estimates have explicit
+NB/EN scope; no backend/OAuth/provider/accounting change or new migration.
+Complete retest272/272, five workspace checks, non-web builds4/4, pipeline11/11,
+normal browser51/51, actual M3 11/11 and genuine native200% four runs PASS.
+Composited contrast30 states in each normal/no-blur mode PASS, minimum4.680:1;
+independent PNG four representative states per mode agree exactly.
+All14 latest +21 actual supplementary captures personally opened/hash/source
+verified, plus two explicitly derived reference/R6/R7 comparisons. Round
+`20261013194236-f65d75f5-ba8caa81`; source/root/clone/runtime/build/served assets
+agree across191 input files. Previous181 evidence files and protected229 Git
+files remain byte-identical. All nine QA tables are unchanged; existing fifth
+person and avatar choices retained, all names user-confirmed synthetic.
+Admin/admin login/logout works on LAN; qa-db/app/worker stay healthy. Temporary
+isolated services removed. No real provider calls; live ChatGPT consent/eligibility/
+inference/credits remain unverified. See [Round7 report](../design/review/ROUND_7_REPORT.md)
+for changes, residual visual gaps, evidence and frontend-only rollback.
+Final independent release gate returned PASS before signed feature publication. No PR,
+merge, deploy, main/force push, Actions dispatch or private data introduced.
+
 ## M3 design round 6 — 2026-10-12
 
 Activated mailbox `8e2ab1`: prioritized real family content, warm/light and navy/glass
