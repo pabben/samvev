@@ -1,8 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { forecastPresentation, formatKnownAmount, type UsageForecast, attemptState, purposeKey, registrationIdentity, registrationState } from '../src/ai-presentation';
+import { forecastPresentation, formatKnownAmount, dispatchMetrics, type UsageForecast, attemptState, purposeKey, registrationIdentity, registrationState } from '../src/ai-presentation';
 import { en } from '../src/locales/en';
 import { nb } from '../src/locales/nb';
+test('dispatch labels preserve server summary counts without inferring narrower pricing groups',()=>{
+ assert.deepEqual(dispatchMetrics({requests:5,pendingAttempts:1,legacyUnknownAttempts:0}),[{key:'aiConfirmedDispatches',count:5},{key:'aiUnresolvedAttempts',count:1}]);
+ assert.deepEqual(dispatchMetrics({requests:0,pendingAttempts:3,legacyUnknownAttempts:2}),[{key:'aiConfirmedDispatches',count:0},{key:'aiUnresolvedAttempts',count:3},{key:'aiHistoricalUnknown',count:2}]);
+ for(const metric of dispatchMetrics({requests:12,pendingAttempts:0,legacyUnknownAttempts:4})){assert.ok(nb[metric.key]);assert.ok(en[metric.key]);}
+ for(const key of ['aiKnownCreditsEstimate','aiCoverageShort','aiOverviewCaveatShort'] as const){assert.ok(nb[key]);assert.ok(en[key]);}
+});
 test('plan lifecycle states distinguish local removal from confirmed remote revocation',()=>{
  assert.equal(registrationState('reauthorization_required'),'aiPlanReauth');
  assert.equal(registrationState('revocation_unconfirmed'),'aiRevocationUnconfirmed');

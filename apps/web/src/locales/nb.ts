@@ -1,10 +1,14 @@
 import type { TranslationKey } from "./en";
 export const nb: Record<TranslationKey, string> = {
+  aiConfirmedDispatches: "Bekreftet sendt",
+  aiUnresolvedAttempts: "Uavklarte forsøk",
+  aiHistoricalUnknown: "Historiske · ukjent utsending",
+  aiKnownCreditsEstimate: "Kjent kredittanslag",
   hubActivitySingle: "1 oppføring",
   aiOnShort: "AI på",
   aiOffShort: "AI av",
-  aiCoverageShort: "{known} priset · {unknown} ukjente forsøk",
-  aiOverviewCaveatShort: "Lokale, kjente estimater, ikke saldo. Ukjente forsøk er utelatt; USD er en separat API-sammenligning.",
+  aiCoverageShort: "{known} priset · {unknown} uavklart",
+  aiOverviewCaveatShort: "Antall: alle bruksveier. Anslag: relevant, kjent bruk; ukjente beløp utelatt. USD er et API-scenario, ikke saldo.",
   aiForecastUnresolvedShort: "Foreløpig prognose: uavklarte utsendingsforsøk.",
   aiForecastPreliminaryShort: "Foreløpig prognose: for lite kjent historikk.",
   aiStep1Overview: "Nettlesermaskin · Node.js 24. Godkjenn hos OpenAI og få en privat overføringsfil.",

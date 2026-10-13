@@ -1,11 +1,23 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {currentItems,dayEvents,messageAvatarKey,personItems,importantItems,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
+import {currentItems,dayEvents,messageAvatarKey,personItems,importantItems,importantPreviewLimit,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
 const now=Date.parse('2026-03-28T23:30:00Z');
 const item:HubItem={contentLocale:'en',id:'i',kind:'event',targets:{household:false,personIds:['p']},title:'Synthetic event',body:'',entries:[],priority:'normal',publishAt:null,startsAt:'2026-03-29T00:00:00Z',endsAt:null,expiresAt:null,source:{label:'Synthetic',observedAt:new Date(now).toISOString(),uncertainty:'unknown'},metadata:{},revision:1,updatedAt:new Date(now).toISOString()};
+test('reminder previews use available composition without losing the current collection',()=>{
+ const reminders=Array.from({length:7},(_,i)=>({...item,id:`r${i}`,kind:'reminder' as const,title:`Synthetic long reminder ${i}`}));
+ for(const dark of [false,true])for(const compact of [false,true])for(const lowHeight of [false,true]){
+  const limit=importantPreviewLimit({dark,compact,lowHeight});
+  assert.equal(limit,dark&&!compact?(lowHeight?2:3):1);
+  for(const count of [0,1,2,7]){
+   const current=reminders.slice(0,count);
+   assert.equal(current.slice(0,limit).length,Math.min(count,limit));
+   assert.deepEqual(collectionItems('important',current,now,'UTC'),current);
+  }
+ }
+});
 test('today and tomorrow use household day across DST; events use startsAt, not publication',()=>{
  const tomorrow={...item,id:'tomorrow',startsAt:'2026-03-29T22:10:00Z'};
  assert.deepEqual(dayEvents([item,tomorrow],now,'Europe/Oslo').map(i=>i.id),['i']);

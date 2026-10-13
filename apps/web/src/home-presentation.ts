@@ -15,6 +15,13 @@ export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
 export function personItems(items:HubItem[],personId:string) { return items.filter(i=>i.targets.personIds.includes(personId)); }
 export function importantItems(items:HubItem[]) { return items.filter(i=>i.kind==='alert'||i.kind==='reminder'||['high','urgent'].includes(i.priority)); }
 
+// Preserve a single focus on compact/low light surfaces. A wide dark board has
+// a full-height reminder panel; its shorter variant has room for two previews.
+// The collection entrance always exposes the rest, including long entries.
+export function importantPreviewLimit({dark,compact,lowHeight}:{dark:boolean;compact:boolean;lowHeight:boolean}):number {
+  return dark&&!compact ? (lowHeight?2:3) : 1;
+}
+
 // Stable section keys preserve open details while visual and reading order move together.
 export function hubSectionOrder(dark:boolean, compact:boolean, mobile=false):string[] {
   if (mobile) return dark ? ['important','quickActions','today','messages','tomorrow','support'] : ['important','messages','today','tomorrow','support'];

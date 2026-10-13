@@ -219,3 +219,46 @@ body{font-family:var(--font-sans)}
    a dedicated foreground with contrast margin in both Home and paired display. */
 .hub-light .hub-hero-clock .connection-pill{color:#344e5b}
 .hub-dark .hub-hero-clock .connection-pill{color:#e5edf5}
+
+/* Round 7: preserve the board, calibrate material and local content density. */
+.home-shell,.family-display-page{background:
+ radial-gradient(ellipse 16% 29% at -7% 35%,#a6c7ae67 0%,#c6dcc737 43%,transparent 76%),
+ radial-gradient(ellipse 16% 18% at 0% 7%,#c8ddaf58 0%,transparent 78%),
+ radial-gradient(ellipse 13% 24% at 104% 20%,#b3ca9e69 0%,transparent 78%),
+ radial-gradient(ellipse 30% 26% at 99% 91%,#f2d9bd65,transparent 79%),
+ linear-gradient(172deg,#e6f4ff 6%,#f3f6ed 53%,#fbf1e5 100%)}
+[data-theme="dark"] .home-shell,[data-theme="dark"] .family-display-page{background:
+ linear-gradient(180deg,#07122290 0%,#071a2d91 24%,#061321dc 58%,#05101bf9 100%),
+ url('./assets/nordic-dusk-v2.png') center top/cover fixed,#061321}
+.hub-dark{--hub-panel:#0a1928b5;--hub-glass:linear-gradient(155deg,#caddeb26,#bdd1de09 35%,#030b161a 78%),var(--hub-panel);--hub-shadow:0 12px 26px #0004}
+.hub-dark .hub-panel,.hub-dark .hub-person-section,.hub-dark .hub-item{border-color:#b6ccdb33;border-top-color:#d5e8f05c;box-shadow:inset 0 1px #e5f3ff16,inset 1px 0 #e5f3ff06,var(--hub-shadow);backdrop-filter:blur(18px)}
+.hub-dark .hub-messages{background:linear-gradient(120deg,#34505ac4,#292f43d9);border-top-color:#dcebf369}
+.hub-dark .hub-reminder{background:linear-gradient(135deg,#d8c9aa16,transparent 70%),#272e3294;border-color:#cfba873d;box-shadow:inset 0 1px #eddfbc12,0 3px 8px #00000012}
+.hub-dark .hub-reminder:nth-child(2n){background:linear-gradient(135deg,#c4bde719,transparent 70%),#282b4199;border-color:#c0b3e13b}
+.hub-dark .hub-person{background:linear-gradient(145deg,#6e879b32,#13253691);border-top-color:#d4e5ee57}
+.hub-dark.hub-wide .hub-person{background:linear-gradient(110deg,#cce3f008,transparent 76%)}
+/* Grid tracks follow the inner panel width. In particular one portrait preview
+   spans the whole panel, and ordinary words wrap at spaces before splitting. */
+.hub-important-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))}
+.hub-reminder .hub-item-title{overflow-wrap:break-word;word-break:normal;hyphens:manual}
+.hub-message-heading{min-width:0}.hub-message-heading>.hub-panel-title{margin-bottom:10px}
+@media(max-width:640px){
+ .hub-message-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px;flex-wrap:wrap}
+ .hub-message-heading>.hub-panel-title{flex:1;margin:0;gap:6px}
+ .hub-message-heading .hub-feed-compose{flex-shrink:0;align-self:center;margin:0;min-width:44px;min-height:44px;padding:6px 9px;font-size:13px;gap:5px}
+ .hub-light .hub-message-heading .hub-count{background:transparent;padding:0;min-width:12px}
+ .hub-dark .hub-important{background:linear-gradient(135deg,#354b6bd9,#102333e8)}
+}
+/* Leave a margin below every 44px lower-row control on the short dark board.
+   Long text and additional people retain intrinsic height and natural scroll. */
+@media(min-width:1001px) and (max-height:850px){
+ .hub-dark .hub-hero{padding-block:0 2px;margin-bottom:2px}
+ .hub-dark .hub-person-section>.hub-panel-title{margin-bottom:2px}
+ .hub-dark.hub-wide .hub-person-items .hub-item-title{padding-block:0}
+ .hub-dark.hub-wide .hub-messages,.hub-dark.hub-wide .hub-support{padding-block:10px}
+ .hub-dark.hub-wide .hub-support .hub-item-title{padding-block:0}
+}
+@supports not (backdrop-filter:blur(1px)){
+ .hub-dark{--hub-panel:#0c1a28f5;--hub-glass:linear-gradient(155deg,#caddeb16,#bdd1de04 35%,#030b161a 78%),var(--hub-panel)}
+ .hub-dark .hub-messages{background:#202e40}
+}

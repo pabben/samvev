@@ -35,3 +35,11 @@ export function formatKnownAmount(value:string,locale:string):string {
  const separator=new Intl.NumberFormat(locale).formatToParts(1.1).find(part=>part.type==='decimal')?.value??'.';
  return new Intl.NumberFormat(locale).format(BigInt(integer!))+(digits?separator+digits:'');
 }
+
+// These are the server's period/owner summary counts. Pricing has narrower
+// route/category scopes, so never derive one group by subtracting the other.
+export function dispatchMetrics(summary:{requests:number;pendingAttempts:number;legacyUnknownAttempts:number}):{key:TranslationKey;count:number}[] {
+ const metrics:{key:TranslationKey;count:number}[]=[{key:'aiConfirmedDispatches',count:summary.requests},{key:'aiUnresolvedAttempts',count:summary.pendingAttempts}];
+ if(summary.legacyUnknownAttempts>0)metrics.push({key:'aiHistoricalUnknown',count:summary.legacyUnknownAttempts});
+ return metrics;
+}
