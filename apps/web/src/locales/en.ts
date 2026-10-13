@@ -6,7 +6,7 @@ export const en = {
   hubActivitySingle: "1 item",
   aiOnShort: "AI enabled",
   aiOffShort: "AI disabled",
-  aiCoverageShort: "{known} priced · {unknown} unresolved",
+  aiCoverageShort: "{known} priced · {unknown} unpriced",
   aiOverviewCaveatShort: "Counts: all routes. Estimates: eligible known usage; unknown amounts excluded. USD is an API scenario, not your balance.",
   aiForecastUnresolvedShort: "Preliminary forecast: unresolved dispatch attempts.",
   aiForecastPreliminaryShort: "Preliminary forecast: insufficient known history.",

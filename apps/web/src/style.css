@@ -2732,3 +2732,17 @@ details[open] > summary:before {
  .member-main:has(.ai-settings){padding-top:12px}.member-main:has(.ai-settings)>.demo-banner{margin-bottom:12px;padding:5px 8px;line-height:1.5;font-size:10px}.ai-settings .ai-heading h1{font-size:26px}.ai-settings .ai-availability{font-size:11px;padding:6px 8px}.ai-settings .ai-route-banner{padding:8px 12px;font-size:14px}.ai-settings .ai-route-banner>svg{width:18px;flex-shrink:0}.ai-settings .ai-route-banner p{font-size:13px}.ai-settings .ai-route-banner .ai-usage-link{font-size:13px}.ai-settings .ai-card{padding:12px}.ai-settings .ai-card-heading{gap:8px;flex-direction:row}.ai-settings .ai-card-heading h2{font-size:19px}.ai-settings .ai-card-heading .field{gap:4px;flex-wrap:nowrap}.ai-settings .ai-card-heading .field>label{font-size:12px}.ai-settings .ai-card-heading .field>select{font-size:13px;padding-inline:8px;max-width:145px}.ai-settings .ai-summary div{padding:8px 10px}.ai-settings .ai-summary dt{font-size:13px}.ai-settings .ai-summary dd{font-size:24px}.ai-settings .ai-cost-overview{gap:12px}.ai-settings .ai-overview-amount{font-size:19px}.ai-settings .ai-cost-overview h3{font-size:14px}.ai-settings .ai-pricing-coverage{font-size:13px}.ai-settings .ai-overview-caveat{font-size:13px}.ai-settings .ai-forecast-status{font-size:13px}.ai-connect-steps li>strong{font-size:15px}.ai-connect-steps .ai-step-overview{font-size:14px}.ai-connect-steps>ol{padding-left:18px}
 }
 @media(max-width:319px){.ai-settings .ai-card-heading{align-items:flex-start;flex-direction:column}.ai-settings .ai-card-heading .field{flex-wrap:wrap}.ai-settings .ai-summary{grid-template-columns:1fr}.ai-settings .ai-cost-overview{grid-template-columns:1fr}}
+
+/* Keep both publishing-mode actions touchable inside the real composer. */
+.composer-grid .segmented button{min-width:44px;min-height:44px}
+
+/* Make room for explicit confirmed/unknown cost scopes without smaller text. */
+@media(max-width:640px){
+ .ai-settings .ai-route-banner{margin-bottom:8px}
+ .ai-settings .ai-section-switch{margin-bottom:8px}
+ .ai-settings .ai-summary{margin-block:8px}
+ .ai-settings .ai-summary div{padding-block:6px}
+ .ai-settings .ai-cost-overview{margin-top:6px;padding-top:6px}
+ .ai-settings .ai-overview-caveat{margin-block:6px}
+ .ai-settings .ai-forecast-status{padding-block:7px}
+}
