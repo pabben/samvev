@@ -2736,6 +2736,27 @@ details[open] > summary:before {
 /* Keep both publishing-mode actions touchable inside the real composer. */
 .composer-grid .segmented button{min-width:44px;min-height:44px}
 
+/* Intrinsic form-control widths must not enlarge the composer at native zoom.
+   Keep text size and all actions; let the narrow dialog scroll vertically. */
+@media(max-width:319px){
+ .dialog:has(.composer-grid){padding-inline:12px}
+ .dialog:has(.composer-grid)>.dialog-header{align-items:flex-start;gap:8px}
+ .dialog:has(.composer-grid)>.dialog-header h2{min-width:0;overflow-wrap:anywhere}
+ .dialog:has(.composer-grid)>.dialog-header .icon-button{min-width:44px;min-height:44px}
+ .dialog:has(.composer-grid)>form,.composer-grid,.composer-grid>*{min-width:0;max-width:100%}
+ .composer-grid{grid-template-columns:minmax(0,1fr)}
+ .composer-grid fieldset,.composer-grid legend{min-width:0;max-width:100%;overflow-wrap:anywhere}
+ .composer-grid fieldset{padding-inline:8px}
+ .composer-grid .check,.composer-grid .field,.composer-grid .timezone-note{min-width:0;overflow-wrap:anywhere}
+ .composer-grid .segmented{flex-direction:column}
+ .composer-grid .segmented button{white-space:normal;overflow-wrap:anywhere}
+ .composer-grid .preview-panel,.composer-grid .preview-card{min-width:0;padding-inline:10px}
+ .composer-grid .preview-card .card-meta{flex-wrap:wrap}
+ .composer-grid .preview-card strong,.composer-grid .message-type{min-width:0;overflow-wrap:anywhere}
+ .composer-grid .preview-audience{min-width:0;overflow-wrap:anywhere}
+ .dialog:has(.composer-grid) .form-actions .button{max-width:100%;white-space:normal}
+}
+
 /* Make room for explicit confirmed/unknown cost scopes without smaller text. */
 @media(max-width:640px){
  .ai-settings .ai-route-banner{margin-bottom:8px}

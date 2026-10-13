@@ -264,3 +264,9 @@ body{font-family:var(--font-sans)}
  .hub-dark{--hub-panel:#0c1a28f5;--hub-glass:linear-gradient(155deg,#caddeb16,#bdd1de04 35%,#030b161a 78%),var(--hub-panel)}
  .hub-dark .hub-messages{background:#202e40}
 }
+/* Native 200% mobile zoom gives the feed less than 320 CSS px. Put the
+   heading on its own line rather than squeezing it beside the write action. */
+@media(max-width:319px){
+ .hub-message-heading>.hub-panel-title{flex:1 0 100%;width:100%}
+ .hub-message-heading .hub-feed-compose{max-width:100%;white-space:normal}
+}
