@@ -1,0 +1,223 @@
+{
+  "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+  "completed": true,
+  "checks": [
+    {
+      "name": "real isolated six-person Home with fifth-person content and human message",
+      "injectedTransport": false
+    },
+    {
+      "name": "six people desktop-1920 light: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people desktop-1920 light: actual fifth details and focus"
+    },
+    {
+      "name": "six people desktop-1920 light: accessibility"
+    },
+    {
+      "name": "six people mobile light: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people mobile light: actual fifth details and focus"
+    },
+    {
+      "name": "six people mobile light: accessibility"
+    },
+    {
+      "name": "six people ipad-portrait light: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people ipad-portrait light: actual fifth details and focus"
+    },
+    {
+      "name": "six people ipad-portrait light: accessibility"
+    },
+    {
+      "name": "six people ipad-landscape light: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people ipad-landscape light: actual fifth details and focus"
+    },
+    {
+      "name": "six people ipad-landscape light: accessibility"
+    },
+    {
+      "name": "six people shelly-1280 light: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people shelly-1280 light: actual fifth details and focus"
+    },
+    {
+      "name": "six people shelly-1280 light: accessibility"
+    },
+    {
+      "name": "six people desktop-1920 dark: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people desktop-1920 dark: actual fifth details and focus"
+    },
+    {
+      "name": "six people desktop-1920 dark: accessibility"
+    },
+    {
+      "name": "six people mobile dark: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people mobile dark: actual fifth details and focus"
+    },
+    {
+      "name": "six people mobile dark: accessibility"
+    },
+    {
+      "name": "six people ipad-portrait dark: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people ipad-portrait dark: actual fifth details and focus"
+    },
+    {
+      "name": "six people ipad-portrait dark: accessibility"
+    },
+    {
+      "name": "six people ipad-landscape dark: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people ipad-landscape dark: actual fifth details and focus"
+    },
+    {
+      "name": "six people ipad-landscape dark: accessibility"
+    },
+    {
+      "name": "six people shelly-1280 dark: identities, priority content and whole controls"
+    },
+    {
+      "name": "six people shelly-1280 dark: actual fifth details and focus"
+    },
+    {
+      "name": "six people shelly-1280 dark: accessibility"
+    },
+    {
+      "name": "all six adult/child details desktop light"
+    },
+    {
+      "name": "all six adult/child details mobile light"
+    },
+    {
+      "name": "all six adult/child details desktop dark"
+    },
+    {
+      "name": "all six adult/child details mobile dark"
+    },
+    {
+      "name": "actual fifth person persists through resize and system-theme changes with focus return"
+    },
+    {
+      "name": "counted reminders and full human message retain access and focus"
+    },
+    {
+      "name": "light mobile compose opens, cancels with focus and submits through the actual isolated API"
+    },
+    {
+      "name": "unchanged AI overview light remains accessible"
+    },
+    {
+      "name": "unchanged AI overview dark remains accessible"
+    },
+    {
+      "name": "four-person light 390 priority regression (injected DTO)"
+    },
+    {
+      "name": "four-person light 820 priority regression (injected DTO)"
+    },
+    {
+      "name": "four-person dark 390 priority regression (injected DTO)"
+    },
+    {
+      "name": "four-person dark 820 priority regression (injected DTO)"
+    },
+    {
+      "name": "4 long identities light 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "4 long identities light 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "4 long identities light 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "4 long identities dark 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "4 long identities dark 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "4 long identities dark 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "5 long identities light 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "5 long identities light 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "5 long identities light 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "5 long identities dark 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "5 long identities dark 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "5 long identities dark 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "6 long identities light 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "6 long identities light 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "6 long identities light 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "6 long identities dark 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "6 long identities dark 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "6 long identities dark 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "8 long identities light 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "8 long identities light 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "8 long identities light 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "8 long identities dark 1920 preserve access (injected DTO)"
+    },
+    {
+      "name": "8 long identities dark 1180 preserve access (injected DTO)"
+    },
+    {
+      "name": "8 long identities dark 1280 preserve access (injected DTO)"
+    },
+    {
+      "name": "4 to 5 to 6 to 8 live roster keeps keyed identities and selected person (injected DTO)"
+    },
+    {
+      "name": "read-only capability projection retains no compose action (injected session DTO)"
+    }
+  ],
+  "failures": [],
+  "blocked": [],
+  "providerRequests": [],
+  "baselineInjectedTransport": false,
+  "laterStressAndPermissionsInjectedTransport": true,
+  "screenshots": 15
+}

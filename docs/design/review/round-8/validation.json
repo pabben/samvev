@@ -1,0 +1,177 @@
+{
+  "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+  "roundId": "20261013220837-15d04719-3db04bd7",
+  "localResult": "PASS",
+  "publicPublication": "BLOCKED: both existing SSH identities rejected; dedicated non-overwriting project-local deployment key prepared; waiting for user ssh-copy-id installation. No remote modification.",
+  "qa": {
+    "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+    "executedAt": "2026-10-13T22:26:11Z",
+    "workspaceChecks": {
+      "environment": "samvev-m1-qa-app-1 Node v24.20.0",
+      "workspaces": 5,
+      "result": "pass",
+      "log": "qa-final-workspace-check-qa-app.log"
+    },
+    "nonWebBuilds": {
+      "workspaces": [
+        "contracts",
+        "core",
+        "api",
+        "worker"
+      ],
+      "result": "pass",
+      "log": "qa-final-nonweb-builds-qa-app.log"
+    },
+    "isolatedRetest": {
+      "environment": "samvev-m1 test service with samvev_test",
+      "tests": 278,
+      "byWorkspace": {
+        "web": 50,
+        "contracts": 5,
+        "core": 3,
+        "api": 220,
+        "worker": 0
+      },
+      "result": "pass",
+      "log": "qa-final-full-test.log"
+    },
+    "pipeline": {
+      "hostNode": "v22.22.1",
+      "hostGit": "2.53.0",
+      "provenanceAndPublicationTests": 11,
+      "provenanceAndPublicationResult": "pass",
+      "qaDemoGuardTests": 4,
+      "qaDemoGuardResult": "pass",
+      "logs": [
+        "qa-final-pipeline-host-node22-git.log",
+        "qa-final-pipeline-qa-demo-node24.log"
+      ]
+    },
+    "preservation": {
+      "qaTables": 9,
+      "protectedGitFiles": 229,
+      "result": "pass",
+      "log": "qa-final-preservation-audit.log"
+    },
+    "notes": [
+      "The attempted tools-profile check/build used an empty node_modules mount and failed before compiling source; successful check/build evidence is from the existing qa-app Node 24 runtime.",
+      "The attempted combined host pipeline lacked tsx; provenance/publication tests passed on the host with Node 22 and Git, while the TypeScript QA-admin guard tests passed in qa-app with the project dependencies.",
+      "The web build was intentionally not rerun after the verified review build, so its captured assets remain bound to this source."
+    ]
+  },
+  "home": {
+    "checks": 70,
+    "failures": [],
+    "providerRequests": []
+  },
+  "productShell": {
+    "checks": 139,
+    "failures": [],
+    "providerRequests": []
+  },
+  "actualM3": {
+    "checks": 11,
+    "errors": []
+  },
+  "native200Percent": {
+    "runs": 4,
+    "method": "MV3 chrome.tabs.setZoom (browser zoom, not CDP scale or CSS zoom)",
+    "failures": [],
+    "changedStatesPerRun": 15
+  },
+  "contrast": {
+    "method": "Chromium native PNG decoding and exact paired RGBA canvas pixels. Same-layout rendered glyph vs transparent-text backdrop, computed CSS foreground alpha composited at each pixel. >=80% glyph coverage/residual<=10 or near-foreground<=10 RGB; changed midpoint punctuation may use >=30%/residual<=5 because its small glyph has no solid pixel. Thin colon glyphs (actual max coverage .672) use >=60%/residual<=2 without changing required4.5. Thin currentColor SVG control/decorative clarity strokes may use >=70%/residual<=2 (actual 16px plus max coverage .777); WCAG control contrast still requires 3:1. Fixed navigation occlusion is excluded at capture, not treated as foreground. Independent Python stdlib PNG implementation cross-check retained.",
+    "modes": {
+      "normal": {
+        "states": 128,
+        "allPass": true,
+        "minimumByRequired": {
+          "3": 4.078,
+          "4.5": 4.634
+        },
+        "unmatched": 0
+      },
+      "fallback": {
+        "states": 128,
+        "allPass": true,
+        "minimumByRequired": {
+          "3": 4.078,
+          "4.5": 4.634
+        },
+        "unmatched": 0
+      }
+    },
+    "independentParity": {
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "independentStatesPerMode": 4,
+      "modes": [
+        "normal",
+        "fallback"
+      ],
+      "comparisons": 38,
+      "maximumMinimumDelta": 0.0,
+      "allPass": true
+    }
+  },
+  "evidence": {
+    "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+    "roundId": "20261013220837-15d04719-3db04bd7",
+    "actualScreenshotsVerified": 108,
+    "derivedComparisonsVerified": 2,
+    "priorFilesUnchanged": 224,
+    "allPass": true
+  },
+  "lanLogin": {
+    "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+    "checkedAt": "2026-10-13T22:30:43.703Z",
+    "origin": "http://192.168.0.220:4173",
+    "health": "ok",
+    "literalAdminAdminUiLoginAndLogout": true,
+    "servedDistHashesMatch": true,
+    "people": 5,
+    "preferencesUnmodified": true,
+    "errors": []
+  },
+  "provenance": {
+    "sourceInputs": 199,
+    "rootCloneSourceRuntimeBuildServedAssetsMatch": true,
+    "canonicalMigrations": 20
+  },
+  "preservation": {
+    "qaTables": 9,
+    "protectedGitFiles": 229,
+    "people": 5,
+    "messages": 18,
+    "allUnchanged": true
+  },
+  "changedSourcePaths": [
+    "apps/web/src/family-hub.tsx",
+    "apps/web/src/home-presentation.ts",
+    "apps/web/src/home.css",
+    "apps/web/src/integrations.tsx",
+    "apps/web/src/locales/en.ts",
+    "apps/web/src/locales/nb.ts",
+    "apps/web/src/main.tsx",
+    "apps/web/src/member-navigation.ts",
+    "apps/web/src/member-shell.css",
+    "apps/web/src/member.tsx",
+    "apps/web/src/messages.tsx",
+    "apps/web/src/people.tsx",
+    "apps/web/src/person-identity.ts",
+    "apps/web/src/ui.tsx",
+    "apps/web/tests/home-presentation.test.ts",
+    "apps/web/tests/member-presentation.test.ts",
+    "apps/web/tests/round8-design.mjs",
+    "apps/web/tests/round8-shell.mjs",
+    "services/api/src/app.ts",
+    "services/api/src/browser-security.test.ts",
+    "services/api/src/browser-security.ts",
+    "services/api/src/external-intelligence.integration.test.ts"
+  ],
+  "reviewers": {
+    "security": "source and artifact/privacy PASS; public deployment BLOCKED",
+    "ux": "Scoped UI/evidence ACCEPT: all108 actual current captures and2 derived comparisons personally opened/hash verified; public excluded",
+    "requirements": "Local criteria1\u20135/7 PASS; overall/public criterion6 BLOCKED solely on real SSH access prerequisite",
+    "releaseGate": "Local feature publication readiness PASS: independent source/runtime/assets/data/Git/prior-evidence/image/QA checks; full/public criterion6 BLOCKED on confirmed SSH authentication prerequisite"
+  }
+}

@@ -1,0 +1,428 @@
+{
+  "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+  "completed": true,
+  "checks": [
+    {
+      "name": "messages desktop light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "composer desktop light: recipients, schedule, cancel and keyboard focus"
+    },
+    {
+      "name": "people desktop light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "person editor desktop light: choice and cancellation preserve data"
+    },
+    {
+      "name": "more desktop light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays desktop light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays desktop light: return to More"
+    },
+    {
+      "name": "integrations desktop light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations desktop light: return to More"
+    },
+    {
+      "name": "monitors desktop light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors desktop light: return to More"
+    },
+    {
+      "name": "ai desktop light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "AI setup desktop light without provider actions"
+    },
+    {
+      "name": "ai desktop light: return to More"
+    },
+    {
+      "name": "preferences desktop light: shared dialog and focus"
+    },
+    {
+      "name": "messages mobile light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "composer mobile light: recipients, schedule, cancel and keyboard focus"
+    },
+    {
+      "name": "people mobile light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "person editor mobile light: choice and cancellation preserve data"
+    },
+    {
+      "name": "more mobile light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays mobile light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays mobile light: return to More"
+    },
+    {
+      "name": "integrations mobile light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations mobile light: return to More"
+    },
+    {
+      "name": "monitors mobile light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors mobile light: return to More"
+    },
+    {
+      "name": "ai mobile light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "AI setup mobile light without provider actions"
+    },
+    {
+      "name": "ai mobile light: return to More"
+    },
+    {
+      "name": "preferences mobile light: shared dialog and focus"
+    },
+    {
+      "name": "messages ipad-portrait light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "people ipad-portrait light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "more ipad-portrait light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-portrait light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-portrait light: return to More"
+    },
+    {
+      "name": "integrations ipad-portrait light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations ipad-portrait light: return to More"
+    },
+    {
+      "name": "monitors ipad-portrait light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors ipad-portrait light: return to More"
+    },
+    {
+      "name": "ai ipad-portrait light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "ai ipad-portrait light: return to More"
+    },
+    {
+      "name": "messages ipad-landscape light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "people ipad-landscape light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "more ipad-landscape light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-landscape light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-landscape light: return to More"
+    },
+    {
+      "name": "integrations ipad-landscape light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations ipad-landscape light: return to More"
+    },
+    {
+      "name": "monitors ipad-landscape light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors ipad-landscape light: return to More"
+    },
+    {
+      "name": "ai ipad-landscape light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "ai ipad-landscape light: return to More"
+    },
+    {
+      "name": "messages shelly light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "people shelly light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "more shelly light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays shelly light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays shelly light: return to More"
+    },
+    {
+      "name": "integrations shelly light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations shelly light: return to More"
+    },
+    {
+      "name": "monitors shelly light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors shelly light: return to More"
+    },
+    {
+      "name": "ai shelly light: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "ai shelly light: return to More"
+    },
+    {
+      "name": "messages desktop dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "composer desktop dark: recipients, schedule, cancel and keyboard focus"
+    },
+    {
+      "name": "people desktop dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "person editor desktop dark: choice and cancellation preserve data"
+    },
+    {
+      "name": "more desktop dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays desktop dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays desktop dark: return to More"
+    },
+    {
+      "name": "integrations desktop dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations desktop dark: return to More"
+    },
+    {
+      "name": "monitors desktop dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors desktop dark: return to More"
+    },
+    {
+      "name": "ai desktop dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "AI setup desktop dark without provider actions"
+    },
+    {
+      "name": "ai desktop dark: return to More"
+    },
+    {
+      "name": "preferences desktop dark: shared dialog and focus"
+    },
+    {
+      "name": "messages mobile dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "composer mobile dark: recipients, schedule, cancel and keyboard focus"
+    },
+    {
+      "name": "people mobile dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "person editor mobile dark: choice and cancellation preserve data"
+    },
+    {
+      "name": "more mobile dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays mobile dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays mobile dark: return to More"
+    },
+    {
+      "name": "integrations mobile dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations mobile dark: return to More"
+    },
+    {
+      "name": "monitors mobile dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors mobile dark: return to More"
+    },
+    {
+      "name": "ai mobile dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "AI setup mobile dark without provider actions"
+    },
+    {
+      "name": "ai mobile dark: return to More"
+    },
+    {
+      "name": "preferences mobile dark: shared dialog and focus"
+    },
+    {
+      "name": "messages ipad-portrait dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "people ipad-portrait dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "more ipad-portrait dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-portrait dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-portrait dark: return to More"
+    },
+    {
+      "name": "integrations ipad-portrait dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations ipad-portrait dark: return to More"
+    },
+    {
+      "name": "monitors ipad-portrait dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors ipad-portrait dark: return to More"
+    },
+    {
+      "name": "ai ipad-portrait dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "ai ipad-portrait dark: return to More"
+    },
+    {
+      "name": "messages ipad-landscape dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "people ipad-landscape dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "more ipad-landscape dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-landscape dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays ipad-landscape dark: return to More"
+    },
+    {
+      "name": "integrations ipad-landscape dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations ipad-landscape dark: return to More"
+    },
+    {
+      "name": "monitors ipad-landscape dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors ipad-landscape dark: return to More"
+    },
+    {
+      "name": "ai ipad-landscape dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "ai ipad-landscape dark: return to More"
+    },
+    {
+      "name": "messages shelly dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "people shelly dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "more shelly dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays shelly dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "displays shelly dark: return to More"
+    },
+    {
+      "name": "integrations shelly dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "integrations shelly dark: return to More"
+    },
+    {
+      "name": "monitors shelly dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "monitors shelly dark: return to More"
+    },
+    {
+      "name": "ai shelly dark: persistent navigation, orientation and accessibility"
+    },
+    {
+      "name": "ai shelly dark: return to More"
+    },
+    {
+      "name": "actual planned recipient message, edit, withdrawal confirmation and cleanup"
+    },
+    {
+      "name": "safe display pairing form light"
+    },
+    {
+      "name": "safe integration setup light"
+    },
+    {
+      "name": "safe display pairing form dark"
+    },
+    {
+      "name": "safe integration setup dark"
+    },
+    {
+      "name": "signed out login light"
+    },
+    {
+      "name": "inactive invitation light"
+    },
+    {
+      "name": "signed out login dark"
+    },
+    {
+      "name": "inactive invitation dark"
+    },
+    {
+      "name": "actual unclaimed welcome light"
+    },
+    {
+      "name": "actual unclaimed setup form light"
+    },
+    {
+      "name": "actual unclaimed welcome dark"
+    },
+    {
+      "name": "actual unclaimed setup form dark"
+    }
+  ],
+  "failures": [],
+  "blocked": [],
+  "providerRequests": [],
+  "actualApiDatabase": true,
+  "peopleUnmodified": true
+}

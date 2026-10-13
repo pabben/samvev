@@ -1,5 +1,31 @@
 # M1 implementation status
 
+## M3 design round 8 — 2026-10-13
+
+Revised mailbox `0de2d814`; frozen signed source
+`15d047192abd63f4be18a90108fe969096da78d0`. Shared product shell, six synthetic
+people (two adults/four children), truthful personal counts and stable identities
+are implemented. Actual contrast/reflow/control measurements drove focused fixes.
+Complete retest278/278, five workspace checks, four non-web builds, pipeline11/11
+and demo guards4/4 PASS. Home70, shell139, actual M3 eleven checks and four genuine
+200% browser-zoom runs PASS. Contrast128 actual states in each normal/no-blur mode
+PASS; independent four-state-per-mode PNG comparison agrees exactly across38 groups.
+All14 latest and94 supplementary actual screenshots are source-bound; two derived
+reference/R7/current comparisons are explicitly distinguished. Round
+`20261013220837-15d04719-3db04bd7`;199 source inputs match working files, publishing
+clone, build/runtime and served assets. Prior224 evidence files and protected229
+Git files are unchanged, as are all nine QA tables (five people/18 messages).
+Literal admin/admin login/logout works on LAN; qa-db/app/worker remain healthy.
+Temporary apps/setup DB removed. No live provider requests or real/private data.
+Public test publication is authorized but BLOCKED by SSH authentication to claude;
+both existing identities were explicitly rejected. A dedicated ignored deployment
+key is ready; user has the pinned-host ssh-copy-id installation command. No remote backup/migration/deployment,
+public account/proxy modification or public source verification has occurred.
+See [Round 8 report](../design/review/ROUND_8_REPORT.md) and
+[validation](../design/review/round-8/validation.json). UX scoped local ACCEPT; security/privacy and local release gate PASS.
+Overall/public acceptance remains BLOCKED; no public deployed-source claim. No PR/merge/main/force push or
+Actions dispatch. No new migration; rollback is a normal feature revert.
+
 ## M3 design round 7 — 2026-10-13
 
 Activated mailbox `37cfcb6`; final signed source
