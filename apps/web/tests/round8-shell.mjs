@@ -3,7 +3,7 @@
 import {chromium,expect} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
-import {createHash} from 'node:crypto';
+import {createHash,randomUUID} from 'node:crypto';
 const base=process.env.ROUND8_TEST_BASE_URL,sourceSha=process.env.ROUND8_SOURCE_SHA;
 if(base!=='http://round8-test-app:4173'||!/^[a-f0-9]{40}$/.test(sourceSha??''))throw Error('Exact isolated origin and source SHA required');
 const out=process.env.ROUND8_SHELL_ARTIFACT_DIR??'.local/m3/design-round8/shell';await mkdir(out,{recursive:true});
@@ -13,6 +13,15 @@ page.on('pageerror',error=>failures.push({name:'pageerror',error:error.message})
 await context.route('**/*',route=>{if(![base,'http://round8-setup-app:4173'].includes(new URL(route.request().url()).origin)){blocked.push(route.request().url());return route.abort()}return route.continue()});
 await context.route('**/api/v1/households/*/ai/**',route=>{if(route.request().method()!=='GET'||route.request().url().includes('/models')){providerRequests.push(route.request().method()+' '+route.request().url());return route.abort()}return route.continue()});
 const api=async(path,method='GET',data)=>{const response=await context.request.fetch('/api/v1'+path,{method,data,headers:csrf?{'X-CSRF-Token':csrf}:{}});expect(response.ok(),`${method} ${path}: ${response.status()}`).toBeTruthy();return response.status()===204?null:response.json()};
+const cleanupCreated=async()=>{
+ if(!created)return;
+ if(!csrf)throw Error('Synthetic message cleanup requires the active authenticated session');
+ const current=(await api(`/households/${householdId}/messages`)).messages.find(message=>message.id===created.id);
+ expect(current,'created message remains visible to its creator for cleanup').toBeTruthy();
+ if(['scheduled','published'].includes(current.state))await api(`/households/${householdId}/messages/${current.id}/withdraw`,'POST',{expectedRevision:current.revision});
+ const after=(await api(`/households/${householdId}/messages`)).messages.find(message=>message.id===created.id);
+ expect(['cancelled','withdrawn','expired']).toContain(after?.state);created=null;
+};
 const settle=()=>page.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(image=>image.complete?undefined:image.decode().catch(()=>{})));await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))});
 const capture=async(filename,theme,surface)=>{await settle();await page.screenshot({path:`${out}/${filename}`});screenshots.push({filename,commitSha:sourceSha,capturedAt:new Date().toISOString(),viewport:page.viewportSize(),theme,surface,locale:'nb',fullPage:false,origin:new URL(page.url()).origin,personCount:new URL(page.url()).origin===base?6:0,dataState:'actual isolated synthetic API/database',injectedTransport:false,sha256:createHash('sha256').update(await readFile(`${out}/${filename}`)).digest('hex')})};
 const group=async(name,fn)=>{try{await fn();checks.push({name});console.log('PASS '+name)}catch(error){failures.push({name,error:error.message});console.error('FAIL '+name+': '+error.message);if(await page.getByRole('dialog').count())await page.keyboard.press('Escape')}};
@@ -32,6 +41,10 @@ const closeWithFocus=async(trigger)=>{await page.keyboard.press('Escape');await 
 try{
  await page.goto('/');await page.locator('input[name=email]').fill('admin');await page.locator('input[name=password]').fill('admin');await page.getByRole('button',{name:/^(Logg inn|Sign in)$/}).click();await page.getByTestId('family-hub').waitFor();
  const me=await api('/me');csrf=me.csrfToken;original={locale:me.account.locale,theme:me.account.theme};householdId=me.memberships[0].household_id;
+ // Repair only the exact known synthetic orphan body from earlier harness
+ // attempts, through authorized withdrawal in this exact isolated origin.
+ const oldBody='Syntetisk runde 8: Planlagt hilsen bare til valgt testperson.';
+ for(const message of (await api(`/households/${householdId}/messages`)).messages.filter(message=>message.body===oldBody&&['scheduled','published'].includes(message.state)))await api(`/households/${householdId}/messages/${message.id}/withdraw`,'POST',{expectedRevision:message.revision});
  const peopleBefore=(await api(`/households/${householdId}/people`)).people;expect(peopleBefore).toHaveLength(6);
  for(const theme of ['light','dark'])for(const [surface,width,height]of[['desktop',1920,1080],['mobile',390,844],['ipad-portrait',820,1180],['ipad-landscape',1180,820],['shelly',1280,752]]){
   await api('/me/preferences','PATCH',{locale:'nb',theme});await page.setViewportSize({width,height});await page.goto('/');await page.getByTestId('family-hub').waitFor();await settle();
@@ -73,7 +86,7 @@ try{
  }
  await api('/me/preferences','PATCH',{locale:'nb',theme:'light'});await page.setViewportSize({width:390,height:844});await page.goto('/');await page.getByTestId('family-hub').waitFor();await nav('messages','Beskjeder');
  await group('actual planned recipient message, edit, withdrawal confirmation and cleanup',async()=>{
-  const body='Syntetisk runde 8: Planlagt hilsen bare til valgt testperson.';await page.getByRole('button',{name:'Ny beskjed',exact:true}).first().click();let dialog=page.getByRole('dialog');await dialog.locator('textarea').fill(body);
+  const body=`Syntetisk runde 8: Planlagt hilsen bare til valgt testperson. Test ${randomUUID()}`;await page.getByRole('button',{name:'Ny beskjed',exact:true}).first().click();let dialog=page.getByRole('dialog');await dialog.locator('textarea').fill(body);
   await dialog.getByLabel('Alle i husstanden',{exact:true}).uncheck();await dialog.locator('.audience-details summary').click();await dialog.getByLabel(peopleBefore[5].display_name,{exact:true}).check();
   await dialog.getByRole('button',{name:'Planlegg',exact:true}).click();await dialog.getByRole('button',{name:'I morgen kl. 07:00',exact:true}).click();
   const savedPromise=page.waitForResponse(response=>response.url()===`${base}/api/v1/households/${householdId}/messages`&&response.request().method()==='POST');await dialog.locator('button[type=submit]').click();const response=await savedPromise;expect(response.ok()).toBeTruthy();const result=await response.json();created=result.message??result;
@@ -82,10 +95,10 @@ try{
   const stored=(await api(`/households/${householdId}/messages`)).messages.find(message=>message.id===created.id);
   expect(stored).toBeTruthy();expect(stored.state).toBe('scheduled');expect(stored.body).toBe(body);expect(stored.audience_household).toBe(false);expect(stored.person_ids).toEqual([peopleBefore[5].id]);expect(stored.display_ids).toEqual([]);await expect(dialog).toHaveCount(0);
   await page.getByRole('tab',{name:/^Planlagt/}).click();const card=page.locator('.message-card').filter({has:page.locator('.message-text',{hasText:body})});await expect(card).toBeVisible();
-  await card.getByRole('button',{name:'Rediger',exact:true}).click();dialog=page.getByRole('dialog');await expect(dialog.locator('textarea')).toHaveValue(body);await page.keyboard.press('Escape');
-  const withdraw=card.getByRole('button',{name:'Trekk tilbake',exact:true});await withdraw.click();dialog=page.getByRole('dialog');await expect(dialog).toContainText(body);await capture('message-withdraw-mobile-light.png','light','message-withdraw-confirmation');await accessible();
+  await card.getByRole('button',{name:'Endre',exact:true}).click();dialog=page.getByRole('dialog');await expect(dialog.locator('textarea')).toHaveValue(body);await page.keyboard.press('Escape');
+  const withdraw=card.getByRole('button',{name:'Trekk tilbake',exact:true});await withdraw.click();dialog=page.getByRole('dialog');await expect(dialog).toHaveAccessibleName('Trekke tilbake beskjeden?');await expect(dialog.locator('blockquote')).toHaveText(body);await capture('message-withdraw-mobile-light.png','light','message-withdraw-confirmation');await accessible();
   await dialog.getByRole('button',{name:'Avbryt',exact:true}).click();await expect(withdraw).toBeFocused();await withdraw.click();
-  const withdrawPromise=page.waitForResponse(response=>response.url().endsWith(`/messages/${created.id}/withdraw`)&&response.request().method()==='POST');await page.getByRole('dialog').getByRole('button',{name:'Trekk tilbake beskjed',exact:true}).click();expect((await withdrawPromise).ok()).toBeTruthy();await expect(page.getByRole('dialog')).toHaveCount(0);created=null;
+  const withdrawPromise=page.waitForResponse(response=>response.url().endsWith(`/messages/${created.id}/withdraw`)&&response.request().method()==='POST');await page.getByRole('dialog').getByRole('button',{name:'Trekk tilbake beskjed',exact:true}).click();expect((await withdrawPromise).ok()).toBeTruthy();await expect(page.getByRole('dialog')).toHaveCount(0);await cleanupCreated();
  });
  for(const theme of ['light','dark']){
   await api('/me/preferences','PATCH',{locale:'nb',theme});await page.goto('/');await page.getByTestId('family-hub').waitFor();await nav('displays','Skjermer');
@@ -93,7 +106,7 @@ try{
   await nav('integrations','Integrasjoner');await group(`safe integration setup ${theme}`,async()=>{const trigger=page.getByRole('button',{name:'Legg til tilkobling',exact:true});await trigger.click();await capture(`integration-create-mobile-${theme}.png`,theme,'integration-create-empty-form');await accessible();await closeWithFocus(trigger)});
  }
  expect((await api(`/households/${householdId}/people`)).people).toEqual(peopleBefore);peopleVerified=true;
- await api('/me/preferences','PATCH',original);await api('/auth/logout','POST',{});csrf=null;
+ await cleanupCreated();await api('/me/preferences','PATCH',original);await api('/auth/logout','POST',{});csrf=null;
  for(const theme of ['light','dark']){
   await page.goto('/');await page.locator('input[name=password]').waitFor();await page.getByRole('combobox',{name:/Utseende|Appearance/}).selectOption(theme);await page.getByRole('combobox',{name:/Språk|Language/}).selectOption('nb');
   await expect(page.locator('html')).toHaveAttribute('data-theme',theme);await capture(`login-mobile-${theme}.png`,theme,'signed-out-login');await group(`signed out login ${theme}`,accessible);
@@ -109,8 +122,8 @@ try{
  expect((await (await context.request.get(setupOrigin+'/api/v1/setup/status')).json()).claimed).toBe(false);
  expect(blocked).toEqual([]);expect(providerRequests).toEqual([]);finished=true;
 }finally{
- if(created&&csrf)await api(`/households/${householdId}/messages/${created.id}/withdraw`,'POST',{expectedRevision:created.revision});
- if(csrf&&original){await api('/me/preferences','PATCH',original);await api('/auth/logout','POST',{});}
+ try{await cleanupCreated()}catch(error){failures.push({name:'created message cleanup',error:error.message})}
+ if(csrf&&original){try{await api('/me/preferences','PATCH',original);await api('/auth/logout','POST',{});csrf=null}catch(error){failures.push({name:'preferences/logout cleanup',error:error.message})}}
  await writeFile(`${out}/manifest.json`,JSON.stringify({sourceSha,capturedAt:new Date().toISOString(),origin:base,personCount:6,synthetic:true,screenshots},null,2)+'\n');
  await writeFile(`${out}/results.json`,JSON.stringify({sourceSha,completed:finished&&failures.length===0,checks,failures,blocked,providerRequests,actualApiDatabase:true,peopleUnmodified:peopleVerified},null,2)+'\n');await browser.close();
 }
