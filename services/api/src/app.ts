@@ -35,6 +35,7 @@ import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
 import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
 import { liveE2eAttestation, liveE2eExecutionEvidence } from './e2e/live-e2e.ts';
+import { applyBrowserSecurityHeaders, browserSecurityHeaders } from './browser-security.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -362,11 +363,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
   };
   const app = Fastify({ logger, trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
+  const responseSecurityHeaders=browserSecurityHeaders(runtime.secureCookies);
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
   const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
   const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
   await app.register(cookie);
+  app.addHook('onSend',async(_request,reply,payload)=>{
+    applyBrowserSecurityHeaders(reply,responseSecurityHeaders);
+    return payload;
+  });
   const projectionEvents=new ProjectionEventFanout();
   await projectionEvents.start();
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
@@ -875,7 +881,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const unsubscribe=projectionEvents.subscribe(`member:${auth.membershipId}`,auth.householdId,send,()=>reply.raw.end());
     reply.hijack();
     const response=reply.raw;
-    response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
+    response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no',...responseSecurityHeaders});
     const initiallyConnected=projectionEvents.listenerConnected();
     send({type:'ready',data:{generatedAt:new Date().toISOString(),listenerConnected:initiallyConnected,pollingFallback:!initiallyConnected}});
     const revalidateMs=Math.max(50,Number(process.env.SAMVEV_SSE_REVALIDATE_MS??15_000));
@@ -1298,7 +1304,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const unsubscribe=projectionEvents.subscribe(display.id,display.householdId,send,()=>reply.raw.end());
     reply.hijack();
     const response=reply.raw;
-    response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no'});
+    response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no',...responseSecurityHeaders});
     const initiallyConnected=projectionEvents.listenerConnected();
     send({type:'ready',data:{generatedAt:new Date().toISOString(),listenerConnected:initiallyConnected,pollingFallback:!initiallyConnected}});
     if(!initiallyConnected)send({type:'listener-degraded',data:{pollingFallback:true,listenerConnected:false,reason:'notification-listener-unavailable'}});

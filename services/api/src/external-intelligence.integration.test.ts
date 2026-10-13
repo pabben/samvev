@@ -7,6 +7,7 @@ import { hashPassword, tokenHash } from '@samvev/core';
 import { buildApp } from './app.ts';
 import { pool } from './db.ts';
 import { migrate } from './db/migrate.ts';
+import { CONTENT_SECURITY_POLICY } from './browser-security.ts';
 
 const origin='https://samvev.test';
 const password='Synthetic-m3-owner-pass-42';
@@ -34,6 +35,13 @@ function cookies(response:LightMyRequestResponse):string{
 function adminHeaders(){return {cookie:adminCookie,'x-csrf-token':adminCsrf,origin};}
 function bearer(token:string,extra:Record<string,string>={}){return {authorization:`Bearer ${token}`,...extra};}
 const future=(minutes:number)=>new Date(Date.now()+minutes*60_000).toISOString();
+function assertSseBrowserSecurityHeaders(headers:Headers):void{
+  assert.equal(headers.get('x-content-type-options'),'nosniff');
+  assert.equal(headers.get('referrer-policy'),'no-referrer');
+  assert.equal(headers.get('x-frame-options'),'SAMEORIGIN');
+  assert.equal(headers.get('content-security-policy'),CONTENT_SECURITY_POLICY);
+  assert.equal(headers.get('strict-transport-security'),'max-age=86400');
+}
 
 before(async()=>{
   process.env.SAMVEV_SSE_REVALIDATE_MS='50';
@@ -143,7 +151,7 @@ test('scoped integrations provide idempotent CAS items, isolated projections, re
 
   const address=await app.listen({host:'127.0.0.1',port:0});const controller=new AbortController();
   const stream=await fetch(`${address}/api/v1/households/${householdId}/events`,{headers:{cookie:adminCookie},signal:controller.signal});
-  assert.equal(stream.status,200);const reader=stream.body!.getReader();const decoder=new TextDecoder();
+  assert.equal(stream.status,200);assertSseBrowserSecurityHeaders(stream.headers);const reader=stream.body!.getReader();const decoder=new TextDecoder();
   const ready=decoder.decode((await reader.read()).value);assert.match(ready,/event: ready/);
   const nextPayload={...payload,expectedRevision:2,body:'SSE synthetic correction'};
   const updated=await app.inject({method:'POST',url:'/api/v1/integrations/items',headers:bearer(token),payload:nextPayload});assert.equal(updated.statusCode,200,updated.body);
@@ -243,7 +251,7 @@ test('limited household views, scoped credentials, cross-household administratio
   const streamDisplayId=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme,credential_hash,credential_expires_at) VALUES($1,'Synthetic stream display','nb','system',$2,clock_timestamp()+interval '1 day') RETURNING id`,[householdId,tokenHash(streamDisplayToken)])).rows[0]!.id;
   const listener=app.server.address();if(!listener||typeof listener==='string')throw new Error('expected member SSE listener from preceding test');
   const address=`http://127.0.0.1:${listener.port}`;
-  const displayAbort=new AbortController();const displayStream=await fetch(`${address}/api/v1/display/events`,{headers:{cookie:`samvev_display=${streamDisplayToken}`},signal:displayAbort.signal});assert.equal(displayStream.status,200);
+  const displayAbort=new AbortController();const displayStream=await fetch(`${address}/api/v1/display/events`,{headers:{cookie:`samvev_display=${streamDisplayToken}`},signal:displayAbort.signal});assert.equal(displayStream.status,200);assertSseBrowserSecurityHeaders(displayStream.headers);
   const displayReader=displayStream.body!.getReader();const decoder=new TextDecoder();assert.match(decoder.decode((await displayReader.read()).value),/event: ready/);
   const displayMutation=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${streamDisplayId}`,headers:adminHeaders(),payload:{privacyMode:true}});assert.equal(displayMutation.statusCode,200,displayMutation.body);
   let displayEvents='';for(let attempt=0;attempt<10&&!displayEvents.includes('projection-invalidated');attempt++){const chunk=await Promise.race([displayReader.read(),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('display SSE mutation timeout')),1000))]);displayEvents+=decoder.decode(chunk.value);}
@@ -252,7 +260,7 @@ test('limited household views, scoped credentials, cross-household administratio
   for(let attempt=0;attempt<10&&!displayEvents.includes('authorization-revoked');attempt++){const chunk=await Promise.race([displayReader.read(),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('display SSE revocation timeout')),1000))]);displayEvents+=decoder.decode(chunk.value);}
   assert.match(displayEvents,/event: authorization-revoked/);displayAbort.abort();
 
-  const memberAbort=new AbortController();const memberStream=await fetch(`${address}/api/v1/households/${householdId}/events`,{headers:{cookie:adminCookie},signal:memberAbort.signal});assert.equal(memberStream.status,200);
+  const memberAbort=new AbortController();const memberStream=await fetch(`${address}/api/v1/households/${householdId}/events`,{headers:{cookie:adminCookie},signal:memberAbort.signal});assert.equal(memberStream.status,200);assertSseBrowserSecurityHeaders(memberStream.headers);
   const memberReader=memberStream.body!.getReader();assert.match(decoder.decode((await memberReader.read()).value),/event: ready/);
   await pool.query(`UPDATE memberships SET role_preset='limited',capabilities=$2,revision=revision+1 WHERE id=$1`,[ownerMembershipId,JSON.stringify(roleCapabilityPresets.limited)]);
   let memberEvents='';for(let attempt=0;attempt<10&&!memberEvents.includes('authorization-changed');attempt++){const chunk=await Promise.race([memberReader.read(),new Promise<never>((_,reject)=>setTimeout(()=>reject(new Error('member SSE downgrade timeout')),1000))]);memberEvents+=decoder.decode(chunk.value);}
