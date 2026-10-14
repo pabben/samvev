@@ -36,6 +36,15 @@ COPY --chown=node:node . ./
 
 ENTRYPOINT ["dumb-init", "--"]
 
+# Public immutable images must contain the web build, not only the API source.
+# A Git archive intentionally excludes generated dist files.
+FROM dependencies AS runtime
+
+RUN npm run build --workspace @samvev/web
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "--import", "tsx", "services/api/src/server.ts"]
+
 FROM development AS browser
 
 USER root
