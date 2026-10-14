@@ -1,5 +1,56 @@
 # M1 implementation status
 
+## M3 round 10 — public test verified, 2026-10-14
+
+Mailbox `48221157acd74aed2ab4ab218a81e870d2219f21`; signed source/deploy
+`ca7359b0ce511f930aec3df0e11ce94ac4d203e6`. All five targeted calendar/person
+read-model corrections are implemented and reproduced RED-before-GREEN,
+including the initiating-session OAuth race found in security review.
+Complete final serial retest **326/326**, no skips; host pipeline **16/16** and
+workspace check/build PASS. The initial duplicate test-job collision is retained
+as failed evidence and did not touch ordinary QA or public data.
+
+Full canonical Git-archive runtime build PASS (no overlay), immutable image
+`sha256:8fa9329df7a59773d1f294e030d045605cd14ad94ba6e8d557588a247f37a341`.
+All 231 build inputs match root/publisher/image; all ten served assets match.
+Migration 024 is additive/idempotent; 001–023 checksums are unchanged. Latest14
+source-bound captures use round `20261014094940-ca7359b0-428c5403`. UX opened
+all **32** actual images: latest14 masked retained five-person LAN household,
+core14 plus supplement4 using an isolated six-person fixture (2 adults/4 children).
+NB/EN, both themes/screen classes, all six monitor states, calendar grouping and
+strict SSE, blocked permanent calendar errors, exact last/next times, focus,
+existing-task navigation, display boundary and axe/overflow checks PASS.
+
+Public app, one normal worker and DB healthy on the exact candidate. Full runtime
+config, network aliases, env, security, mounts, DB identity/start and volume are
+preserved. Fresh pre23 restore→24/noop/invariants/amcheck/legacy app reads,
+exact quiescent23 backup restore and separate fresh post24 restore PASS. All
+clones are isolated without worker/vault/ports; backups and rollback images kept.
+Actual HTTPS UI **17/17 PASS**, including login/logout, affected UI, photos,
+cookies, CSRF/household/anonymous/display boundaries and SSE ready/heartbeat.
+Provider/model guards were strengthened and the complete HTTPS check repeated.
+
+A private main-wrapper TypeError after the first successful exact-backup restore
+triggered code/config recovery to healthy legacy6f on schema24; no live data was
+restored or overwritten. The wrapper was fixed, ledger/invariants/idle checked,
+the same candidate config reapplied without migration, and exact/fresh restore
+checks rerun PASS. This incident is retained honestly in the round report.
+
+Literal LAN admin/admin UI login/logout and assets PASS at final verification.
+All 14 selected QA and nine selected public domain tables match original full
+JSON hashes/counts. Protected main Git229 and historical review566 files unchanged;
+prior latest15 preserved in archive. The two private tasks' identities, approvals,
+subjects/audits, approved schedule settings and recipient targets remain exact.
+Natural approved worker runtime activity is reported separately, without private
+values. No manual dispatch/copy/interpretation/reactivation or paid QA fallback.
+
+Real external Google/Microsoft/ICS/Spond/ChatGPT and local AI remain not
+live-verified; owner-controlled setup/consent is still required. No secrets or
+private household content were introduced into published artifacts. No PR,
+merge, main/force push, tag, release or Actions dispatch. Review SHA is the signed
+featurebranch commit containing the final report/evidence.
+See [ROUND_10_REPORT.md](../design/review/ROUND_10_REPORT.md) for receipts and links.
+
 ## M3 design round 8 — 2026-10-13
 
 Revised mailbox `0de2d814`; frozen signed source

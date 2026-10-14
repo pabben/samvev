@@ -1,0 +1,20 @@
+{
+  "latest": {
+    "count": 14,
+    "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+    "manifestSha256": "2db2ea7bce1d3a6d2a2ebbe452e991aae15f041be9a8a1d4014785ef830d445a",
+    "pngHashesAndDimensionsPass": true
+  },
+  "round-10": {
+    "count": 14,
+    "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+    "manifestSha256": "bb9775d1c11681d6f68ff86b202ba24fb9146723fe262d97563d2395ecfa49db",
+    "pngHashesAndDimensionsPass": true
+  },
+  "round-10/supplement": {
+    "count": 4,
+    "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+    "manifestSha256": "042db060a42b0bf88b49e1e7325f591175714d552aa156760ae3ec785ba8041f",
+    "pngHashesAndDimensionsPass": true
+  }
+}

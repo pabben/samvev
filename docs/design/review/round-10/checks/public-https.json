@@ -1,0 +1,33 @@
+{
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "origin": "https://samvev.pabben.org",
+  "checkedAt": "2026-10-14T12:15:26.770Z",
+  "completed": true,
+  "actualHttpsUi": true,
+  "retainedSyntheticCredential": true,
+  "photoWrites": false,
+  "preferencesRestored": true,
+  "checks": [
+    "HTTPS health and claimed non-demo setup state",
+    "public static assets match source-bound build proof",
+    "anonymous member and display boundaries",
+    "actual HTTPS UI synthetic login",
+    "secure strict authenticated cookies",
+    "existing synthetic photo 96/512 variants read-only and protected",
+    "actual own-person monitor and calendar-readiness reads",
+    "actual Home own-person task detail and focus return",
+    "CSRF and cross-household member isolation",
+    "member SSE ready and heartbeat over HTTPS",
+    "actual home navigation",
+    "actual integrations navigation",
+    "actual monitors navigation",
+    "actual Integrations calendar readiness UI",
+    "existing synthetic people and photos unchanged",
+    "preferences restored",
+    "actual HTTPS UI logout and anonymous photo boundary"
+  ],
+  "failures": [],
+  "external": [],
+  "providerOrModel": [],
+  "pageErrors": []
+}

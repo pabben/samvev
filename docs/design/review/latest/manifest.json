@@ -1,19 +1,20 @@
 {
-  "roundId": "20261014052355-6f9f5c50-3f5e1278",
-  "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-  "workingTreeDirty": true,
-  "capturedAt": "2026-10-14T05:23:55.292Z",
+  "roundId": "20261014094940-ca7359b0-428c5403",
+  "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "workingTreeDirty": false,
+  "capturedAt": "2026-10-14T09:49:40.891Z",
   "provenance": {
-    "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-    "inputFingerprint": "6fb95e675b40275fc8ca6c96d0f73f01eda7b3770cabf8d04e12060f0dce79f1",
-    "rootSourceFingerprint": "6fb95e675b40275fc8ca6c96d0f73f01eda7b3770cabf8d04e12060f0dce79f1",
-    "cloneSourceFingerprint": "6fb95e675b40275fc8ca6c96d0f73f01eda7b3770cabf8d04e12060f0dce79f1",
-    "runtimeFingerprint": "18ceea3951e39eaddc0204f7f5e70eb3a276990d07f05e30e883979ec2f3371c",
-    "migrationFingerprint": "531416b36209b276f8c754bc21afbafafc1d1199a8ed015955634f899644c0e3",
+    "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+    "inputFingerprint": "aa4734c26203cd08d6245a33407964587b1acd3d25363ce81968dde291730664",
+    "rootSourceFingerprint": "aa4734c26203cd08d6245a33407964587b1acd3d25363ce81968dde291730664",
+    "cloneSourceFingerprint": "aa4734c26203cd08d6245a33407964587b1acd3d25363ce81968dde291730664",
+    "runtimeFingerprint": "7f4f62637f2ee76b6be0061f6fe5c117472eea873161c76d3463d1a2b26fc76c",
+    "migrationFingerprint": "5e8cc64a3bd277b044b2ab715feebd9039730d4f5add7945bfc776e5109336d1",
     "inputFileHashes": {
+      ".dockerignore": "fd1afa885cfd4c592d2df90f60284b2ee8f63cee14965f31b3da43cb11b53cd6",
       ".env.example": "83c995d2b89bdd6bd6d03f2dc1220ddf8b9510dd330ba35ffb3be00df23fa462",
       ".npmrc": "0a37c4e83e89507cb7b225e26df5a436e4620dd3237bc49a90bfa292ad5b00f7",
-      "Dockerfile": "635a9a0c18bb930e6adbb4048b69e4d0231e7c1530f99efa4217dac52cc5b3eb",
+      "Dockerfile": "ae61a6de34e698e30e6260adb8acbade60841a34f7178eb2b39339cb11bfcd9b",
       "apps/web/index.html": "9d7a5945ccf49d6d43ee928caabac011ffe4d92da7200641748dfd94f8c40e64",
       "apps/web/package.json": "b7a0e3db6fc678d672aed6a378d7c71750ee0153cbee5d7cebd6b3935b8354a4",
       "apps/web/src/ai-presentation.ts": "756a5303c78aab8050b68ac8bc6bd6708c06ceed18fe5077aa7bd626710b2f01",
@@ -30,8 +31,8 @@
       "apps/web/src/assets/nordic-dusk-v2.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
       "apps/web/src/assets/nordic-dusk-v2.provenance.md": "1ce2fbd485eee9b146e9c225f050818972b5ba901da65bcbee5909c29f7915f7",
       "apps/web/src/avatars.ts": "f43eb0e4a1849d898a223f4841681cbf50584c7b50279442daf2ea9673553ed2",
-      "apps/web/src/calendar-connections.tsx": "58d3d0d06e0f5d98bc770136f292d023ee1ba92f80ad01ff45f0cf65d49de49a",
-      "apps/web/src/calendar-presentation.ts": "09db09a4b3087273fb25c449657d20e78ca2f8058bd497940301316a10f5f514",
+      "apps/web/src/calendar-connections.tsx": "0df3f3b41c3d50d78c6607d1acb59bfe50e0b01cf89bad5beb2cab889c72ef69",
+      "apps/web/src/calendar-presentation.ts": "574eaab25b3302997a57d4340858354f526d58956a41ddc5084be6d00d993b9f",
       "apps/web/src/calendar-preview.ts": "0ca42c33a86e542524fb02471605822936d2f47bbd5eb54db649503789cded4a",
       "apps/web/src/chatgpt-guide-presentation.ts": "469a2cb8dbe7650c275b0619e197f3bd4e71f30695b77c0e33ec7b0aa40e3ed9",
       "apps/web/src/chatgpt-guide.tsx": "60b0215ae045ea4b603712179dbef2b697a6c31ef0606d8100b32a5d0be0dd6b",
@@ -45,8 +46,8 @@
       "apps/web/src/home.css": "afd67be093a0916056db87f4384945408b146e784729c4662b24cd830f525508",
       "apps/web/src/home.tsx": "3e9c8468ae3edc4a15aa1f978c35466765f661490207d1791b3b5820bdbeefa1",
       "apps/web/src/integrations.tsx": "57c8388804acb2a70cf2eb864638b17abbbc41cf968961c0c974aa72794b1a7b",
-      "apps/web/src/locales/en.ts": "6a78c9cc48c218ac3f97687c8e1f83e3cde982c8f8b21eeff6621fa02d7f8b0e",
-      "apps/web/src/locales/nb.ts": "afee9afad5ddec42cd32c01aa2090ac272581da918045f41038a90d9dafdf5ba",
+      "apps/web/src/locales/en.ts": "25324cb5b3772896fa9d53b86e868bd579104e7d26fe37e62debba99f723fc01",
+      "apps/web/src/locales/nb.ts": "3ef2b4d3dac789bd6d6ca72c4194d8d257c7e17bbc41187605558a72259fa4db",
       "apps/web/src/main.tsx": "633c1dac2a31db3e102351d038fc71f96b969be467511a98d6eb434cc6f32cde",
       "apps/web/src/member-navigation.ts": "9f6ebb67b57ba7c46eeca72c6009363fa0105b15f21757f64d394eb66ab7403f",
       "apps/web/src/member-shell.css": "a32f16e3db36b2d060150f06b49d69c670845c3065faf97b18e38ab62baac12f",
@@ -58,8 +59,8 @@
       "apps/web/src/people.tsx": "308e5022a2abe5bf0c46c18e9b90a3d7fad6c23c88b944a001176ef86a87b8d6",
       "apps/web/src/person-identity.ts": "42e3d1350b5cdef303c079bb7b5e6d3ae2d641c5981e43e7972a520aef8dc358",
       "apps/web/src/person-policy.ts": "7a36899f26490bf69ff3772c41ed0b8a611fabc77090ef155fea3a7860d189b6",
-      "apps/web/src/person-task-presentation.ts": "46f6a561da9083167f92028818d597ba52c1a40b2c43153a40dc7be0471e70fc",
-      "apps/web/src/person-tasks.tsx": "94bf69b4620fc2ac74547f5301c024ef32ad92493b5741e05a796a375fe957ff",
+      "apps/web/src/person-task-presentation.ts": "fb9ed92c1df0fa1c78c41abb9b7a3fa4a480e93ab1ed3324da7659ffcd7c3a37",
+      "apps/web/src/person-tasks.tsx": "28a2a149272a2794d43eb0f17e514372a55e79d35d3071cd9d2e791ccdfac7fd",
       "apps/web/src/photo-presentation.ts": "7fdf8e4d7129abd0b5f26cd4c31d176c672c3dc1feec41eeb8fcfee9e69c1c09",
       "apps/web/src/profile-photo.tsx": "b4afb57ef7d95642b8c6fcc5bb76b33172fc251a10e066773176599348b468eb",
       "apps/web/src/round9.css": "51f1de24a55af576cbfaa1934122b1d1e3e4b91b890c928fc822dfec72f514bb",
@@ -86,6 +87,7 @@
       "apps/web/tests/people-account-smoke.mjs": "8ce9f45af1dc5d4d18255baadb0f6dd9feb601057538681d5ffd857b0eab565c",
       "apps/web/tests/person-policy.test.ts": "07807aeb522cc10ba0b4e895b9b396732b16622c21172d8c93c3870b2b3b3878",
       "apps/web/tests/review-regressions.mjs": "69a6586b2719f1c195e27a508077b681c83720817c5080e688b5e6f652397670",
+      "apps/web/tests/round10-presentation.test.ts": "40982952c9de64abfb8bb8dcecccc51117479c8adc46f8295e55352ebcdcb8d9",
       "apps/web/tests/round5-design.mjs": "8761741ab8cb360d7b42ed4aff52ce422f262e8d5e49719011bca3fbadb647e0",
       "apps/web/tests/round6-design.mjs": "6fed8ae0d12beded248aa7a5fc81930b2bb3ad2b4a641fffeffc3b75492ba133",
       "apps/web/tests/round7-design.mjs": "3484094c0ebc3001f8ba260ec2da69fb062abf10baf758bcffcb02c31ea1f5cd",
@@ -121,8 +123,8 @@
       "scripts/design-review-build.sh": "9349216250da584188555142bde6ceb426d73e978d5b1eccf8e2d2cb7620c8bc",
       "scripts/design-review-privacy.mjs": "5d7649bb6dd31fc5ea326725a55c2095d3b8710ad53ce26ef71fb5f8044cd47e",
       "scripts/design-review-privacy.test.mjs": "a15d19246a3595cccbd9dd7c331cc063dc1933782805ec54c19d8525494f241a",
-      "scripts/design-review-provenance.mjs": "c3e9d01c11b0988491bc2af0123cef28410b6ce09ff54a99362eaba5ebff10a7",
-      "scripts/design-review-provenance.test.mjs": "f008870c665eb07945c48c62a8bbdb745c4b9a8f0e4715d9cdfe6ba5e42058e3",
+      "scripts/design-review-provenance.mjs": "0c0e45616206f447aed6b6b8fdb9b7ee7b9d332e090905a7942ebf6bb8a5ce13",
+      "scripts/design-review-provenance.test.mjs": "20bf131b0e732e051bd4e853b8a5dca5b6cfae85e4e84bf2fce7d9b726509915",
       "scripts/design-review-publication.mjs": "bed375089612e4e91c06e6246e1077fcff63fc5c5e0dedc19a86863e9734fb1e",
       "scripts/design-review-publication.test.mjs": "67cd87ffd764cf06005f9bdfe3ddf4e68cba8b24e0b058e48306d279e0cfc3db",
       "scripts/design-review-runtime.sh": "a53b3635e3474544b046900c2c178ee9a900c7749627b9205e67fb85d009c371",
@@ -163,6 +165,7 @@
       "services/api/migrations/021_round9_people_photos_and_monitor_subjects.sql": "a4105d7b378b6366197477bc01ed4b14c283e0f059bf233f2563e52953ec8e0b",
       "services/api/migrations/022_round9_calendar_connections.sql": "e7249fddbfe7296f63a972647bc439041a8e4765e52360799bb4bbbb10e4bacc",
       "services/api/migrations/023_round9_chatgpt_helper_profiles.sql": "cd2955acde69bc08f808c35f3c4e3b75c23b4164d475dd63faeb483bb386f94b",
+      "services/api/migrations/024_round10_calendar_and_monitor_repairs.sql": "aafca689a5380868341fdec3eec47f68dd4db5d2616b8511adb013c1cf2bbc5b",
       "services/api/package.json": "c2e82cf64579bee0c1d32159d7238b948604e7661b02560eb1b78de6c4fea2e5",
       "services/api/src/ai.integration.test.ts": "a64987672c0edbd1a520cc7466c8da6f287816f9901bb95495830cd299f2ce49",
       "services/api/src/ai/admin-service.ts": "d44176cb43f2ebc50904528eb5d719e0017f783a9b96d728a807ee3c84e81f61",
@@ -180,11 +183,11 @@
       "services/api/src/ai/openai-provider.ts": "2ed1fbddc1359a7b0c3630a062ba17454cc14d861e0541117eaaa03694b31abc",
       "services/api/src/ai/provider.test.ts": "746c9590188db36cff8fb49f001e2c7ca4d1ff1d6605af718ee0f7610a45b217",
       "services/api/src/ai/provider.ts": "a650363070bcb3db0a7c970459e995bf3e46808f99f4ee6952a267e60b32d6e1",
-      "services/api/src/api.integration.test.ts": "3dbc19958282d097f47b498fde4a0ae2ef68e6c3c45365a2a000a5857884a7cf",
+      "services/api/src/api.integration.test.ts": "91d3bd39fb958548b84932cfeda1cbee364890baa045d387ee3472c3f7426af4",
       "services/api/src/app.ts": "12710d890f3a687438acaa4215500ba164780805e48447c667d9493a96359079",
       "services/api/src/browser-security.test.ts": "bd8e5464bb591337dd317e6f688b363e4e509b170048d1722314ff4ba2667f8a",
       "services/api/src/browser-security.ts": "03e3cf0ac8b3a7ba5b20abc3364a17dec8c53fcd2651235eb10ed6820dfa2675",
-      "services/api/src/calendar/service.ts": "7b11ec63c73d8129774bff17d4b209de53aafb4e6d756e543e5512f63342d049",
+      "services/api/src/calendar/service.ts": "4759d05ab1ac289495c845677656744b3e5ef5cac7621fac95bdec7e44a54e74",
       "services/api/src/calendar/transport.test.ts": "439865427a9623cb433846a980dac787032fd1e86e93634104a2282a8b0ba05a",
       "services/api/src/db.ts": "566999d65bf772e57c5e944c8d73595cb118ed2e67c37d9039769819b0e71120",
       "services/api/src/db/migrate.ts": "a99377bb2227b768909c7f182856e13286ce02faac8596a2a9b41ce79ae06bb4",
@@ -213,7 +216,7 @@
       "services/api/src/monitor/source-fetcher.test.ts": "b5f99445a5628438ade54cc8429721fa977d7a741e9590e270992d0ac7541d21",
       "services/api/src/monitor/source-fetcher.ts": "40283e9a9d3283ad693c1acf1ada730e51748d6f846bf7c65ec1e38cb29e5cb1",
       "services/api/src/monitor/subject-link-cli.ts": "c09bd742f9ae056aa31730e827d58cf6fdc6410d94123864d71a01c28fe05cbd",
-      "services/api/src/monitor/subjects.ts": "11b7ea3ae026907eb3accb5a2fb19a75d4820d792245fcbf6978d02306ddb7c3",
+      "services/api/src/monitor/subjects.ts": "ce04ce204732b38d02cb2e071f4f0d6a3008548df7c216831071a8513af9f5fc",
       "services/api/src/monitor/tool-registry.ts": "9e4019373544157b0341a99c9f665e2f54d77adf97bd3ee5718df31002b572f8",
       "services/api/src/monitor/validation-diagnostics.ts": "d7107eefde380b12b8b7c4fd0c6283e8f55b14e416618d64bbaf4b5ba70944c8",
       "services/api/src/monitor/weather.integration.test.ts": "9c457a661ee1394e22f7e3689f5d1856108a12bd67c7eaee413557df97159cf4",
@@ -228,6 +231,7 @@
       "services/api/src/pinned-lookup.ts": "a0a7ea6ace60af0ee1785ddbc7a08fca19c0d5c1495e8b8ee779868ba350015d",
       "services/api/src/projection-events.ts": "9381baf56d08fea8cbfdfc1342808d05ec9db854a1dd219f49b9103d70c61a53",
       "services/api/src/proxy.integration.test.ts": "0d419efaf120171a223c2b9d83294f846c0c6cdcdaaa6a85de921d3c37e2e3f6",
+      "services/api/src/round10-backend.integration.test.ts": "c04bb9b4bb768ab760b5d823ecccbbadcec4929269fbfe88ad2711ef906eab36",
       "services/api/src/round9-backend.integration.test.ts": "1d3f0b09fc4a7cce053018ba0cfd0471d20799b50b5fde6ade842a8c2b7b7d0f",
       "services/api/src/runtime-config.test.ts": "ab4ff17d6768842909de615fe2e5e12ca929c976b0931e25a798effc89e6fd83",
       "services/api/src/runtime-config.ts": "c85d4e3eef7f47d61b3af7a309201755dab9c9ff9b655fe3d6f5c1b7de0eb238",
@@ -247,11 +251,11 @@
       "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
       "assets/index-B03FGeQ8.css": "dc45849d7349eaea5d70f810514a5afa8fe92ed0b81c63bd0fb0d87e173bf300",
-      "assets/index-DXRa3VM9.js": "6c4ea0b24b54cf4de06adfeeb5b56c476f824f28fffd2984fb3cdc9e9b68ebbd",
+      "assets/index-DoogDZ5T.js": "d3d43a503149f5fc62be008955877f31c387b89fb139c87058c8b92a15881a99",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
-      "index.html": "ac357adb73786b057c1dbd2835efb611bff066a85052560809aff45d1e5c59f9"
+      "index.html": "994b8e1df24ccbbd307b529c886ab27d46c86ff105afb93218f1d959d26a595b"
     },
-    "builtAt": "2026-10-14T05:20:52.798Z",
+    "builtAt": "2026-10-14T09:49:07.912Z",
     "containerId": "13b86f7ac1962e2d89ec7ea10a6966a1b872d27557f8eb586c4b5f12c6e02fe1",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
@@ -262,7 +266,7 @@
       "/assets/avatar-05-BkiEJE6s.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
       "/assets/index-B03FGeQ8.css",
-      "/assets/index-DXRa3VM9.js",
+      "/assets/index-DoogDZ5T.js",
       "/assets/nordic-dusk-v2-JZmjLCmU.png"
     ],
     "loadedAssetsVerified": [
@@ -271,7 +275,7 @@
       "/assets/avatar-03-DA7Jq2DZ.webp",
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/index-B03FGeQ8.css",
-      "/assets/index-DXRa3VM9.js"
+      "/assets/index-DoogDZ5T.js"
     ],
     "authorizedDynamicImages": []
   },
@@ -283,8 +287,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:23:57.605Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:42.905Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -306,11 +310,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "efff4f3cc5df6a84bb1bfd846ca8bbe060a0e1a05dfd9adfa05867c320143366"
+      "sha256": "8fa3b2801f6f928908f1c3d3162a331ca42716aab2cb2532aa7405c499dc0d5f"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:23:57.749Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:43.095Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -332,11 +336,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "8fd72d7e7f158a35642e5befcb8aaec28b797369d85b9ed19e6eba32906e535d"
+      "sha256": "5d89ec9b30d37d7e70fbe483caa53e16022dace8e6feb82d05e2fff58e5e78f3"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:23:58.025Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:43.369Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -358,11 +362,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "fad56501ce7e4b86310c0d0640540a22ca0d8832e1ce2ce2842e6850f8913921"
+      "sha256": "f8d99aee0f5d400c0ebf715487799dc76dcb5c1440a3bd6b1f3bc5fcd70ac155"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:23:58.302Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:43.647Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -384,11 +388,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "050f606f7b33be3bcbb45fd7fecd06705c3af1b2cda0838756bfaddea349ea0c"
+      "sha256": "684bedef0b0b0a3948276c98c66cb6df14e7afefd9a00fafc218d7a1386de839"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:23:58.587Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:43.932Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -410,11 +414,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "ba12e587fba26f1b38b6b64d17a7677457b1af22079ee35a676f747bfaa0164a"
+      "sha256": "e4ce5f1a2e5d1f3407d224b98c8d1145ba95c54ae75653f1d2af87e31021e6d7"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:23:58.749Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:44.097Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -436,11 +440,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "8fd72d7e7f158a35642e5befcb8aaec28b797369d85b9ed19e6eba32906e535d"
+      "sha256": "5d89ec9b30d37d7e70fbe483caa53e16022dace8e6feb82d05e2fff58e5e78f3"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:23:59.252Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:44.597Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -462,11 +466,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "618531b23214dd80e287d8063168dc4d9f9cfe6ffd787b4aadea8e14b3f655d6"
+      "sha256": "d174140ebc1f9d11969d93980a4866f513aa4b6419f70b214219718c25a417c0"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:24:00.405Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:45.811Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -488,11 +492,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "31b1dd9707972a707314bca26b794dbe89c57bf7ec9b672bf882c4b02dd90cb0"
+      "sha256": "8754e17d0cf199bc2420ac93346ac31657b8b45a24042b463b77e0874a68afb7"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:24:00.638Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:46.036Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -514,11 +518,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "25a182288d0a70a15604799ceff82ca916259375fae887ad1fa4a8f6da7a427a"
+      "sha256": "c6387de70bb855060b41ce2ac9ae6af10390adf8cccf251026054aac70143934"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:24:01.182Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:46.571Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -540,11 +544,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "a9b777489eacee943da3c2f2cb2356641c84e57820b24d67a3732be11a2fb5c9"
+      "sha256": "824bd214daf1376f21008aa518a4fc455ceb42e398dab58e0c3574da51c90549"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:24:01.625Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:47.018Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -567,11 +571,11 @@
         "personalActivity",
         "runtimeIdentity"
       ],
-      "sha256": "12442628b28b6e8b172e4c6416789bb1d71d96ffd064e214bee4db8199b55f09"
+      "sha256": "4562ffe4c18327a8d0bdb37e99cf7e0ed4081d943c709a86dc9f54a26b7fdcf5"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:24:02.086Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:47.464Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -594,11 +598,11 @@
         "personalActivity",
         "runtimeIdentity"
       ],
-      "sha256": "55f4b73abb432f21508ea3a31d9135ca6b0022e094abacb78d589437ec624dac"
+      "sha256": "1fa21416f09405e00374447dd0dfefb3358be1a576e726ef7252a2f92980127f"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:24:02.302Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:47.682Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -620,11 +624,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "25a182288d0a70a15604799ceff82ca916259375fae887ad1fa4a8f6da7a427a"
+      "sha256": "c6387de70bb855060b41ce2ac9ae6af10390adf8cccf251026054aac70143934"
     },
     {
-      "commitSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
-      "capturedAt": "2026-10-14T05:24:03.152Z",
+      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "capturedAt": "2026-10-14T09:49:48.493Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -646,7 +650,7 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "e0163943dd8057ce039bbbee9c3250887db4042e031f8e0e701e6429f7d41975"
+      "sha256": "8754e17d0cf199bc2420ac93346ac31657b8b45a24042b463b77e0874a68afb7"
     }
   ]
 }

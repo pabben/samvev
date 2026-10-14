@@ -1,0 +1,49 @@
+{
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "workspaceTests": {
+    "web": 67,
+    "contracts": 5,
+    "core": 3,
+    "api": 251,
+    "total": 326,
+    "skipped": 0,
+    "passed": true
+  },
+  "targetedBackendCases": 16,
+  "hostPipelineTests": 16,
+  "workspaceCheck": true,
+  "workspaceBuild": true,
+  "redBeforeGreenAllFive": true,
+  "extraInitiatingSessionRaceRedBeforeGreen": true,
+  "firstConcurrentFullRunFailedAndRetained": true,
+  "finalFullRunSerial": true,
+  "databaseIsolation": "samvev_test on test-db; ordinary QA and public database not test targets",
+  "supplementBrowser": {
+    "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+    "captures": 4,
+    "calendarStates": [
+      "operator",
+      "expired"
+    ],
+    "apiTimeChecks": 6,
+    "displayBoundary": true,
+    "allPass": true
+  },
+  "privateRawLogSha256": {
+    "full-workspace-serial-final.log": "68c6210b15a4ec716f6bde977a4db66a73cb56f57748deadb7255692f3182e17",
+    "pipeline-final.log": "5907ed929383a2dc8cea51c8a382ab39e5a2e399b8c1badd477d7adc3cb66b94",
+    "qa-workspace-check-ca7359b0.log": "f8cf4151a2e767a9162b4112028618eca63a2c756e532b4a15ca5abb0dbe2f24",
+    "qa-workspace-build-ca7359b0.log": "620912305dd9a22f5e80fa69b24fd4897d4c9bc9ed96dce6fa71816df97c85dd",
+    "qa-supplement-ui.log": "7ca59e7691b6fe4666704dbb693d8da7283b95c85bf5527dec8c3525addf6e1e"
+  },
+  "commands": {
+    "workspaceTests": "docker compose -p samvev-m1 --profile test run --rm test",
+    "hostPipeline": "node --test scripts/design-review-*.test.mjs",
+    "latestPreparation": [
+      "bash scripts/design-review-runtime.sh",
+      "bash scripts/design-review-build.sh"
+    ],
+    "latestCapture": "bash scripts/design-review.sh"
+  },
+  "syntheticProviderTestsAreNotLiveVerification": true
+}
