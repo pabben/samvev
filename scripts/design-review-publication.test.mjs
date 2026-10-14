@@ -69,5 +69,5 @@ function fakePng(width,height) {
   const bytes=Buffer.alloc(24);Buffer.from('89504e470d0a1a0a','hex').copy(bytes);bytes.write('IHDR',12,'ascii');bytes.writeUInt32BE(width,16);bytes.writeUInt32BE(height,20);return bytes;
 }
 function screen(filename,width,height,theme,fullPage,bytes) {
-  return {filename,commitSha:'a'.repeat(40),viewport:{width,height:fullPage?(filename.startsWith('mobile')?844:1080):height},theme,fullPage,surface:'member-home',path:'/',locale:'nb',uiVerification:{personIds:['synthetic-person']},sha256:createHash('sha256').update(bytes).digest('hex')};
+  return {filename,commitSha:'a'.repeat(40),viewport:{width,height:fullPage?(filename.startsWith('mobile')?844:1080):height},theme,fullPage,surface:'member-home',path:'/',locale:'nb',uiVerification:{personIdsHash:'b'.repeat(64),peopleCount:1},privacyRedactions:['personIdentity'],sha256:createHash('sha256').update(bytes).digest('hex')};
 }

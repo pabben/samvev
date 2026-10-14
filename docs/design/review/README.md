@@ -8,6 +8,17 @@ bash scripts/design-review-build.sh
 bash scripts/design-review.sh
 ```
 
+Round 9 privacy policy: ordinary `latest/` captures verify the real retained LAN
+Home and all person controls, then apply explicit screenshot masks to person
+names/initials, potentially private profile images and authored text. They do
+not replace API responses, alter stored data or change the UI. The manifest
+records redactions and hashed semantic identities. This protects copied test
+labels that can coincide with private household names. Visual assessment of
+identity, photos and rich content uses the separate, entirely synthetic six-
+person fixture under `round-9/`, with clear fixture/transport provenance and
+unmasked fictional content. Previously approved historical evidence keeps its
+original bytes and source; it is not presented as a new capture.
+
 The normal review routine never resets a password. It expects the established
 synthetic `admin` / `admin` login to work and fails without changing credentials
 if it does not.

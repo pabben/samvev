@@ -53,7 +53,9 @@ export async function validateStagedRound({ stage, proof }) {
     if (screenshot.commitSha !== proof.sourceSha || screenshot.viewport?.width !== width || screenshot.theme !== theme || screenshot.fullPage !== fullPage) throw new Error(`Screenshot metadata does not match ${screenshot.filename}.`);
     if (!fullPage && screenshot.viewport.height !== height) throw new Error(`Screenshot viewport does not match ${screenshot.filename}.`);
     if (screenshot.surface !== 'member-home' || screenshot.path !== '/' || screenshot.locale !== 'nb') throw new Error(`Screenshot surface metadata does not match ${screenshot.filename}.`);
-    if (!Array.isArray(screenshot.uiVerification?.personIds) || screenshot.uiVerification.personIds.length < 1) throw new Error(`Screenshot lacks semantic Home-person verification: ${screenshot.filename}.`);
+    const verification=screenshot.uiVerification;
+    if (!/^[a-f0-9]{64}$/.test(verification?.personIdsHash??'') || !Number.isInteger(verification?.peopleCount) || verification.peopleCount<1) throw new Error(`Screenshot lacks privacy-safe semantic Home-person verification: ${screenshot.filename}.`);
+    if (!Array.isArray(screenshot.privacyRedactions) || !screenshot.privacyRedactions.length || !screenshot.privacyRedactions.every(value=>typeof value==='string'&&/^[a-zA-Z]+$/.test(value))) throw new Error(`Screenshot lacks semantic privacy redactions: ${screenshot.filename}.`);
     const bytes = await readFile(resolve(stage, screenshot.filename));
     const actual = pngSize(bytes);
     if (actual.width !== width || (!fullPage && actual.height !== height) || (fullPage && actual.height < 1)) throw new Error(`PNG dimensions do not match ${screenshot.filename}.`);

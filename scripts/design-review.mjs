@@ -4,8 +4,9 @@ import { chromium, expect } from '@playwright/test';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { classifyVisibleImage, protectedPhotoEvidence } from './design-review-assets.mjs';
+import { maskReviewPrivacy } from './design-review-privacy.mjs';
 
 const root = process.cwd();
 const baseURL = process.env.DESIGN_REVIEW_BASE_URL;
@@ -104,7 +105,8 @@ try {
   expect(home.people.length, 'existing synthetic Home people').toBeGreaterThan(0);
   const personIds = home.people.map(person => person.id).sort();
   expect(new Set(personIds).size, 'unique Home person IDs').toBe(personIds.length);
-  const verification = { personIds, personIdsHash: sha256(personIds.join('\n')), peopleCount: personIds.length, itemCount: home.items.length, itemIdsHash: sha256(home.items.map(item => item.id).sort().join('\n')) };
+  const verification = { personIdsHash: sha256(personIds.join('\n')), peopleCount: personIds.length, itemCount: home.items.length, itemIdsHash: sha256(home.items.map(item => item.id).sort().join('\n')) };
+  const privacyNames = [...home.people.map(person => person.displayName), me.account?.display_name, me.account?.displayName].filter(Boolean);
   const errors = [];
   await api('/me/preferences', 'PATCH', { locale: 'nb', theme: 'light' }, { 'X-CSRF-Token': original.csrf });
   const page = await context.newPage();
@@ -143,8 +145,9 @@ try {
         if (image.kind === 'static') visibleStaticImages.add(image.path);
         else visibleProtectedPhotoKeys.add(image.key);
       }
+      const privacyRedactions = await maskReviewPrivacy(page, privacyNames);
       await page.screenshot({ path: resolve(stage, filename), fullPage: false });
-      screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: false, uiVerification: { ...verification, personIds: renderedPersonIds } });
+      screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: false, uiVerification: { ...verification, personIdsHash: sha256(renderedPersonIds.join('\n')) }, privacyRedactions });
     }
     for (const [surface, width, height] of [['mobile', 390, 844], ['desktop-1920', 1920, 1080]]) {
       const filename = `${surface}-${theme}-full.png`;
@@ -156,8 +159,9 @@ try {
         if (image.kind === 'static') visibleStaticImages.add(image.path);
         else visibleProtectedPhotoKeys.add(image.key);
       }
+      const privacyRedactions = await maskReviewPrivacy(page, privacyNames);
       await page.screenshot({ path: resolve(stage, filename), fullPage: true });
-      screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: true, uiVerification: { ...verification, personIds: renderedPersonIds } });
+      screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: true, uiVerification: { ...verification, personIdsHash: sha256(renderedPersonIds.join('\n')) }, privacyRedactions });
     }
   }
   await Promise.all(protectedPhotoChecks);
@@ -181,6 +185,10 @@ try {
   await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort(), authorizedDynamicImages: [...visibleProtectedPhotoKeys].map(key => visibleProtectedPhotos.get(key)).sort((a,b) => a.route.localeCompare(b.route) || a.version - b.version) }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
   completed = true;
   console.log(`Staged ${screenshots.length} verified screenshots for host publication (round ${roundId}).`);
+} catch {
+  const receipt=resolve(localRoot, `capture-failure-${Date.now()}-${randomUUID()}.json`);
+  await writeFile(receipt, `${JSON.stringify({ capturedAt:new Date().toISOString(), sourceSha, stage:basename(stage), status:'failed' })}\n`, { mode:0o600 });
+  throw new Error('Design review capture failed; private receipt recorded.');
 } finally {
   if (sessionActive && context) {
     const failures = [];
