@@ -56,6 +56,9 @@ private operator values, not examples to publish. The checked-in wrapper
 selects only the healthy `samvev-m1` **app** service, validates its immutable
 image and network, and runs a restricted one-shot importer with the existing
 runtime database/vault. It never selects `qa-app` automatically.
+The server-side wrapper requires Bash, the Docker CLI and Python 3; it does not
+require Node.js on the host. The immutable runtime image supplies Node.js for
+the actual import command.
 
 ```sh
 cd /home/administrator/apper/samvev

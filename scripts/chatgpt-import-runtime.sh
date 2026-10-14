@@ -56,34 +56,71 @@ trap cleanup EXIT
 docker inspect "${app_ids[0]}" >"$inspect_file"
 chmod 600 "$inspect_file"
 
-readarray -t runtime < <(node - "$inspect_file" "$ROOT" <<'NODE'
-const fs=require('node:fs');
-const path=require('node:path');
-const [,,file,root]=process.argv;
-const value=JSON.parse(fs.readFileSync(file,'utf8'))[0];
-const fail=message=>{process.stderr.write(`${message}\n`);process.exit(2);};
-if(!value)fail('Missing public app inspection.');
-const labels=value.Config?.Labels??{};
-if(labels['com.docker.compose.project']!=='samvev-m1'||labels['com.docker.compose.service']!=='app')fail('Refusing a container outside the public samvev-m1 app service.');
-if(labels['com.docker.compose.project.working_dir']!==root)fail('Public app working directory does not match this Samvev checkout.');
-if(value.State?.Running!==true||value.State?.Health?.Status!=='healthy')fail('Public app is not healthy.');
-const image=value.Config?.Image??'';
-if(!/^samvev-m1\/runtime:[a-f0-9]{40}$/.test(image))fail('Public app is not using an immutable Samvev runtime image.');
-const env=Object.fromEntries((value.Config?.Env??[]).map(line=>{const at=line.indexOf('=');return[line.slice(0,at),line.slice(at+1)];}));
-if(!env.DATABASE_URL)fail('Public app database configuration is unavailable.');
-const vaultDestination=env.SAMVEV_AI_MASTER_KEY_FILE||'/run/secrets/samvev-ai-master-key';
-if(!vaultDestination.startsWith('/run/secrets/')||vaultDestination.includes('\n'))fail('Public app AI vault path is unsafe.');
-const mount=(value.Mounts??[]).find(item=>item.Destination===vaultDestination);
-if(!mount||mount.Type!=='bind'||mount.RW!==false||typeof mount.Source!=='string')fail('Public app does not have the required read-only AI vault mount.');
-const relative=path.relative(root,mount.Source);
-if(relative===''||relative.startsWith('..')||path.isAbsolute(relative)||!relative.startsWith('.local'+path.sep))fail('AI vault source is outside protected Samvev local storage.');
-if(!fs.existsSync(mount.Source))fail('AI vault source is unavailable.');
-const networks=Object.keys(value.NetworkSettings?.Networks??{});
-if(networks.length!==1)fail('Public app must have exactly one project network.');
-const user=value.Config?.User||'node';
-if(!['node','1000:1000'].includes(user))fail('Public runtime user is not an expected unprivileged user.');
-for(const result of [image,networks[0],user,vaultDestination,mount.Source])process.stdout.write(`${result}\n`);
-NODE
+readarray -t runtime < <(python3 - "$inspect_file" "$ROOT" <<'PYTHON'
+import json
+import os
+import re
+import sys
+
+inspection_file, root = sys.argv[1:]
+
+def fail(message):
+    print(message, file=sys.stderr)
+    raise SystemExit(2)
+
+try:
+    with open(inspection_file, encoding='utf-8') as handle:
+        inspected = json.load(handle)
+except (OSError, json.JSONDecodeError):
+    fail('Invalid public app inspection.')
+
+if not isinstance(inspected, list) or not inspected or not isinstance(inspected[0], dict):
+    fail('Missing public app inspection.')
+value = inspected[0]
+config = value.get('Config') if isinstance(value.get('Config'), dict) else {}
+labels = config.get('Labels') if isinstance(config.get('Labels'), dict) else {}
+if labels.get('com.docker.compose.project') != 'samvev-m1' or labels.get('com.docker.compose.service') != 'app':
+    fail('Refusing a container outside the public samvev-m1 app service.')
+if labels.get('com.docker.compose.project.working_dir') != root:
+    fail('Public app working directory does not match this Samvev checkout.')
+state = value.get('State') if isinstance(value.get('State'), dict) else {}
+health = state.get('Health') if isinstance(state.get('Health'), dict) else {}
+if state.get('Running') is not True or health.get('Status') != 'healthy':
+    fail('Public app is not healthy.')
+image = config.get('Image') if isinstance(config.get('Image'), str) else ''
+if re.fullmatch(r'samvev-m1/runtime:[a-f0-9]{40}', image) is None:
+    fail('Public app is not using an immutable Samvev runtime image.')
+environment = {}
+for line in config.get('Env') if isinstance(config.get('Env'), list) else []:
+    if isinstance(line, str) and '=' in line:
+        key, value_text = line.split('=', 1)
+        environment[key] = value_text
+if not environment.get('DATABASE_URL'):
+    fail('Public app database configuration is unavailable.')
+vault_destination = environment.get('SAMVEV_AI_MASTER_KEY_FILE') or '/run/secrets/samvev-ai-master-key'
+if not vault_destination.startswith('/run/secrets/') or '\n' in vault_destination:
+    fail('Public app AI vault path is unsafe.')
+mounts = value.get('Mounts') if isinstance(value.get('Mounts'), list) else []
+mount = next((item for item in mounts if isinstance(item, dict) and item.get('Destination') == vault_destination), None)
+if mount is None or mount.get('Type') != 'bind' or mount.get('RW') is not False or not isinstance(mount.get('Source'), str):
+    fail('Public app does not have the required read-only AI vault mount.')
+vault_source = mount['Source']
+relative = os.path.relpath(vault_source, root)
+if relative == '.' or relative == '..' or relative.startswith('..' + os.sep) or os.path.isabs(relative) or not relative.startswith('.local' + os.sep):
+    fail('AI vault source is outside protected Samvev local storage.')
+if not os.path.exists(vault_source):
+    fail('AI vault source is unavailable.')
+network_settings = value.get('NetworkSettings') if isinstance(value.get('NetworkSettings'), dict) else {}
+networks_value = network_settings.get('Networks')
+networks = list(networks_value) if isinstance(networks_value, dict) else []
+if len(networks) != 1:
+    fail('Public app must have exactly one project network.')
+runtime_user = config.get('User') or 'node'
+if runtime_user not in ('node', '1000:1000'):
+    fail('Public runtime user is not an expected unprivileged user.')
+for result in (image, networks[0], runtime_user, vault_destination, vault_source):
+    print(result)
+PYTHON
 )
 [[ ${#runtime[@]} -eq 5 ]] || { echo 'Could not establish a safe immutable runtime import context.' >&2; exit 2; }
 image="${runtime[0]}"
@@ -99,13 +136,24 @@ fi
 
 # The only values copied from the runtime are its database URL and exact vault
 # path. The protected env file is deleted by the trap and is never printed.
-node - "$inspect_file" "$env_file" "$vault_destination" <<'NODE'
-const fs=require('node:fs');
-const [,,file,out,vaultDestination]=process.argv;
-const value=JSON.parse(fs.readFileSync(file,'utf8'))[0];
-const env=Object.fromEntries((value.Config?.Env??[]).map(line=>{const at=line.indexOf('=');return[line.slice(0,at),line.slice(at+1)];}));
-fs.writeFileSync(out,`DATABASE_URL=${env.DATABASE_URL}\nSAMVEV_AI_MASTER_KEY_FILE=${vaultDestination}\n`,{mode:0o600});
-NODE
+python3 - "$inspect_file" "$env_file" "$vault_destination" <<'PYTHON'
+import json
+import os
+import sys
+
+inspection_file, output_file, vault_destination = sys.argv[1:]
+with open(inspection_file, encoding='utf-8') as handle:
+    value = json.load(handle)[0]
+environment = {}
+for line in value['Config'].get('Env', []):
+    if isinstance(line, str) and '=' in line:
+        key, value_text = line.split('=', 1)
+        environment[key] = value_text
+descriptor = os.open(output_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+with os.fdopen(descriptor, 'w', encoding='utf-8') as handle:
+    handle.write(f"DATABASE_URL={environment['DATABASE_URL']}\n")
+    handle.write(f"SAMVEV_AI_MASTER_KEY_FILE={vault_destination}\n")
+PYTHON
 chmod 600 "$env_file"
 
 docker run --rm --read-only --security-opt no-new-privileges --cap-drop ALL \
