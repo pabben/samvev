@@ -272,7 +272,7 @@ export function Composer({
               </span>
               <p className="message-text">{body || t("previewEmpty")}</p>
               <div className="card-meta">
-                <Avatar name={message?.author_name ?? member.display_name} personId={message?.author_person_id??member.person_id} avatarKey={people.find(person=>person.id===(message?.author_person_id??member.person_id))?.avatarKey}/>
+                <Avatar name={message?.author_name ?? member.display_name} personId={message?.author_person_id??member.person_id} avatarKey={people.find(person=>person.id===(message?.author_person_id??member.person_id))?.avatarKey} photo={people.find(person=>person.id===(message?.author_person_id??member.person_id))?.photo}/>
                 <strong>
                   {t("from", {
                     name: message?.author_name ?? member.display_name,

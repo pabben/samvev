@@ -1,3 +1,4 @@
+import { SubjectEditor } from "./person-tasks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { Display, MonitorExecution, MonitorRunResult, MonitorSource, MonitorTask, Person } from "./types";
@@ -9,27 +10,28 @@ import { isWeatherSource, locationCandidates, placeLabel, shouldShowAnswerEviden
 interface Draft {
   name: string; instruction: string; sourceUrl: string;
   checkIntervalMinutes: number; noticeDaysBefore: number; noticeLocalTime: string;
-  personIds: string[]; displayIds: string[];
+  personIds: string[]; displayIds: string[]; subjectIds:string[];
 }
 type Action = 'interpret' | 'approve' | 'pause' | 'resume' | 'test' | 'run' | 'smarter' | 'quality';
 
-const empty = (displays: Display[]): Draft => ({ name: '', instruction: '', sourceUrl: '', checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: '18:00', personIds: [], displayIds: displays[0] ? [displays[0].id] : [] });
-const fromTask = (task: MonitorTask): Draft => ({ name: task.name, instruction: task.instruction, sourceUrl: task.sourceUrl ?? '', checkIntervalMinutes: task.checkIntervalMinutes, noticeDaysBefore: task.noticeDaysBefore, noticeLocalTime: task.noticeLocalTime, ...task.targets });
+const empty = (displays: Display[]): Draft => ({ name: '', instruction: '', sourceUrl: '', checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: '18:00', subjectIds:[], personIds: [], displayIds: displays[0] ? [displays[0].id] : [] });
+const fromTask = (task: MonitorTask): Draft => ({ name: task.name, instruction: task.instruction, sourceUrl: task.sourceUrl ?? '', checkIntervalMinutes: task.checkIntervalMinutes, noticeDaysBefore: task.noticeDaysBefore, noticeLocalTime: task.noticeLocalTime, ...task.targets, subjectIds:task.subjects.personIds });
 
 
-export function MonitorsPanel({ householdId, timezone, people, displays }: { householdId: string; timezone: string; people: Person[]; displays: Display[] }) {
+export function MonitorsPanel({ householdId, timezone, people, displays, initialPersonId, initialTaskId }: { householdId: string; timezone: string; people: Person[]; displays: Display[];initialPersonId?:string;initialTaskId?:string }) {
   const { t, locale } = useI18n();
   const base = `/households/${householdId}/monitors`;
   const [tasks, setTasks] = useState<MonitorTask[]>();
-  const [editing, setEditing] = useState<MonitorTask | null | undefined>();
-  const [draft, setDraft] = useState<Draft>(() => empty(displays));
+  const [editing, setEditing] = useState<MonitorTask | null | undefined>(initialPersonId?null:undefined);
+  const [subjectTask,setSubjectTask]=useState<MonitorTask>();
+  const [draft, setDraft] = useState<Draft>(() => ({...empty(displays),subjectIds:initialPersonId?[initialPersonId]:[]}));
   const [error, setError] = useState<{ taskId?: string; value: unknown }>();
   const [formBusy, setFormBusy] = useState(false);
   const [taskBusy, setTaskBusy] = useState<Record<string, boolean>>({});
   const pending = useRef(new Set<string>());
   const formOwner = useRef<symbol | null>(null);
   const loadVersion = useRef(0);
-  const [focus, setFocus] = useState<string>();
+  const [focus, setFocus] = useState<string|undefined>(initialTaskId?`monitor-card-${initialTaskId}`:initialPersonId?'monitor-instruction':undefined);
   const [announcement, setAnnouncement] = useState('');
   const [results, setResults] = useState<Record<string, { action: Action; value: MonitorRunResult }>>({});
   const [pollFailed, setPollFailed] = useState(false);
@@ -101,15 +103,12 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
     try {
       const body = { instruction: draft.instruction, ...(draft.name.trim() ? { name: draft.name.trim() } : {}), ...(editing || draft.sourceUrl.trim() ? { sourceUrl: draft.sourceUrl.trim() } : {}), checkIntervalMinutes: draft.checkIntervalMinutes, noticeDaysBefore: draft.noticeDaysBefore, noticeLocalTime: draft.noticeLocalTime, targets: { personIds: draft.personIds, displayIds: draft.displayIds } };
       saved = editing ? await api<MonitorTask>(`${base}/${editing.id}`, 'PATCH', { ...body, expectedRevision: editing.revision }) : await api<MonitorTask>(base, 'POST', body);
+      if(!editing&&draft.subjectIds.length){await api(`${base}/${saved.id}/subjects`,'PATCH',{expectedSubjectsRevision:saved.subjects.revision,personIds:draft.subjectIds});}
       upsert(saved); markBusy(saved.id, true);
       setResults((current) => { const next = { ...current }; delete next[saved!.id]; return next; });
       setEditing(undefined); releaseForm();
-      setFocus(`monitor-card-${saved.id}`); setAnnouncement(t('monitorWorking'));
-      // The durable draft stays visible and recoverable while setup is running.
-      const response = await api<{ run: MonitorExecution }>(`${base}/${saved.id}/interpret`, 'POST', { expectedRevision: saved.revision });
-      if (response.run) acceptRun(response.run);
+      setFocus(`monitor-card-${saved.id}`); setAnnouncement(t('monitorDraftSaved'));
       await load().catch(() => setPollFailed(true));
-      if (!response.run || response.run.status === 'succeeded') { setFocus(`monitor-preview-${saved.id}`); setAnnouncement(t('monitorReady')); }
     } catch (value) { await load().catch(() => undefined); fail(value, saved?.id); }
     finally { if (saved) markBusy(saved.id, false); if (editingId) markBusy(editingId, false); releaseForm(); }
   };
@@ -184,10 +183,12 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
           <Field label={t('monitorName')}><input maxLength={80} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></Field>
           <div className="form-grid"><Field label={t('monitorFrequency')}><select value={draft.checkIntervalMinutes} onChange={(e) => setDraft({ ...draft, checkIntervalMinutes: Number(e.target.value) })}>{![60, 360, 1440, 10080].includes(draft.checkIntervalMinutes) && <option value={draft.checkIntervalMinutes}>{t('monitorRuleScheduleValue', { minutes: draft.checkIntervalMinutes })}</option>}<option value={60}>{t('monitorHourly')}</option><option value={360}>{t('monitorSixHours')}</option><option value={1440}>{t('monitorDaily')}</option><option value={10080}>{t('monitorWeekly')}</option></select></Field><Field label={t('monitorDaysBefore')}><input type="number" min={0} max={30} required value={draft.noticeDaysBefore} onChange={(e) => setDraft({ ...draft, noticeDaysBefore: Number(e.target.value) })} /></Field><Field label={t('monitorNotice')}><input type="time" required value={draft.noticeLocalTime} onChange={(e) => setDraft({ ...draft, noticeLocalTime: e.target.value })} /></Field></div>
         </div></details>
+        {!editing&&<fieldset><legend>{t('subjectsTitle')}</legend><p className="field-hint">{t('subjectsSeparateHint')}</p><label className="check"><input type="checkbox" checked={!draft.subjectIds.length} onChange={e=>{if(e.target.checked)setDraft({...draft,subjectIds:[]})}}/>{t('subjectsHousehold')}</label>{people.map(person=><label className="check" key={person.id}><input type="checkbox" checked={draft.subjectIds.includes(person.id)} onChange={e=>setDraft({...draft,subjectIds:e.target.checked?[...draft.subjectIds,person.id]:draft.subjectIds.filter(id=>id!==person.id)})}/>{person.display_name}</label>)}</fieldset>}
         <fieldset><legend>{t('monitorRecipients')}</legend><div className="monitor-targets">{people.map((p) => <label key={p.id}><input type="checkbox" checked={draft.personIds.includes(p.id)} onChange={() => toggle('personIds', p.id)} />{p.display_name}</label>)}{displays.map((d) => <label key={d.id}><input type="checkbox" checked={draft.displayIds.includes(d.id)} onChange={() => toggle('displayIds', d.id)} />{d.name}</label>)}</div><p className="field-hint">{t('monitorRecipientsHint')}</p></fieldset>
-        <div className="card-actions"><button className="button primary" disabled={!draft.personIds.length && !draft.displayIds.length}>{formBusy ? t('monitorWorking') : t('monitorCreateSetup')}</button><button type="button" className="button" onClick={() => { setEditing(undefined); setFocus('monitor-title'); }}>{t('cancel')}</button></div>
+        <div className="card-actions"><button className="button primary" disabled={!draft.personIds.length && !draft.displayIds.length}>{formBusy ? t('monitorWorking') : t('monitorSaveDraft')}</button><button type="button" className="button" onClick={() => { setEditing(undefined); setFocus('monitor-title'); }}>{t('cancel')}</button></div>
       </fieldset>
     </form>}
+    {subjectTask&&<SubjectEditor task={subjectTask} people={people} householdId={householdId} onClose={()=>setSubjectTask(undefined)} onSaved={load}/>}
     <div className="monitor-grid">{tasks.map((task) => {
       const completedRun = task.latestExecution;
       const completedSummary = completedRun?.resultSummary;
@@ -212,7 +213,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
       const durableWorking=Boolean(execution || lifecycle.status === 'running');
       return <article className="surface-card monitor-card" key={task.id} id={`monitor-card-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-name-${task.id}`}>
         <div className="card-top"><h2 id={`monitor-name-${task.id}`}>{task.name}</h2><span className={`monitor-state ${task.state}`}>{t(statusKey)}</span></div>
-        <p>{task.instruction}</p>
+        <p>{task.instruction}</p><div className="monitor-subjects"><p>{t("subjectsTitle")}: {people.filter(person=>task.subjects.personIds.includes(person.id)).map(person=>person.display_name).join(" · ")||t("subjectsHousehold")}</p><button className="button" onClick={()=>setSubjectTask(task)}>{t("subjectsEdit")}</button></div>
         {task.usesSmarterAi && <p className="monitor-quality-preference">{t('monitorUsesSmarterAi')}</p>}
         <div className="monitor-source-list">
           {task.sourceUrl && <a className="monitor-source" href={task.sourceUrl} target="_blank" rel="noreferrer">{weatherTask ? `${t('monitorWebSource')}: ${new URL(task.sourceUrl).hostname}` : task.sourceUrl}</a>}

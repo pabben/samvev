@@ -12,7 +12,9 @@ export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
   return items.filter(i=>i.kind==='event'&&i.startsAt&&wallInput(i.startsAt,zone).slice(0,10)===day)
     .sort((a,b)=>Number(Boolean(b.metadata.allDay))-Number(Boolean(a.metadata.allDay)) || Date.parse(a.startsAt!)-Date.parse(b.startsAt!));
 }
-export function personItems(items:HubItem[],personId:string) { return items.filter(i=>i.targets.personIds.includes(personId)); }
+export function itemSubjectIds(item:HubItem) { return item.metadata.calendar ? item.subjects?.personIds??[] : item.targets.personIds; }
+export function itemHousehold(item:HubItem) { return item.metadata.calendar?.subjectHousehold??item.targets.household; }
+export function personItems(items:HubItem[],personId:string) { return items.filter(i=>itemSubjectIds(i).includes(personId)); }
 export function importantItems(items:HubItem[]) { return items.filter(i=>i.kind==='alert'||i.kind==='reminder'||['high','urgent'].includes(i.priority)); }
 
 // Preserve a single focus on compact/low light surfaces. A wide dark board has

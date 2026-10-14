@@ -19,7 +19,9 @@ export interface Me {
   csrfToken: string;
   memberships: Membership[];
 }
+export interface PersonPhoto { revision:number; url96:string; url512:string }
 export interface Person {
+  photoRevision?:number; photo?:PersonPhoto|null;
   avatarKey?: string | null;
   id: string;
   display_name: string;
@@ -96,6 +98,7 @@ export interface MonitorExecution {
   errorDetails?: Record<string, unknown> | null;
 }
 export interface MonitorTask {
+  subjects:{personIds:string[];revision:number};
   lifecycle: MonitorTaskLifecycle;
   id:string;name:string;instruction:string;sourceUrl:string|null;state:'draft'|'active'|'paused';
   checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;sourceKinds?:Array<'web'|'weather'>;usesSmarterAi:boolean;
@@ -119,6 +122,7 @@ export interface MonitorRunResult {
   sources?:MonitorSource[];
 }
 export interface Card {
+  authorPhoto?:PersonPhoto|null;
   authorAvatarKey?: string | null;
   authorPersonId?: string | null;
   id: string;

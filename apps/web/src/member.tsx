@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PhotoEditor } from "./profile-photo";
+import { calendarPendingHousehold } from "./calendar-connections";
 import { Home } from "./home";
 import { IntegrationsPanel } from "./integrations";
 import { api } from "./api";
@@ -27,7 +29,7 @@ import { AiSettingsPanel } from "./ai-settings";
 import { MonitorsPanel } from "./monitors";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 
-import { primaryMemberTab, type MemberTab } from "./member-navigation";
+import { initialMemberTab, primaryMemberTab, type MemberTab } from "./member-navigation";
 
 export function MemberApp({
   me,
@@ -43,11 +45,16 @@ export function MemberApp({
   onSessionChange: () => Promise<void>;
 }) {
   const { t, locale } = useI18n();
-  const [household, setHousehold] = useState(me.memberships[0]!.household_id);
+  const [household, setHousehold] = useState(()=>me.memberships.find(m=>m.household_id===calendarPendingHousehold())?.household_id??me.memberships[0]!.household_id);
   const member = me.memberships.find((m) => m.household_id === household)!;
   const canManageHousehold = member.capabilities.includes("household.manage");
   const base = `/households/${household}`;
-  const [tab, setTab] = useState<MemberTab>("home");
+  const [tab, setTab] = useState<MemberTab>(()=>initialMemberTab(location.href));
+  const [taskNavigation,setTaskNavigation]=useState<{taskId?:string;personId?:string;key:number}>({key:0});
+  const [photoPersonId,setPhotoPersonId]=useState<string>();
+  const openTask=(taskId:string)=>{setTaskNavigation({taskId,key:Date.now()});setTab("monitors")};
+  const newPersonTask=(personId:string)=>{setTaskNavigation({personId,key:Date.now()});setTab("monitors")};
+  useEffect(()=>{const url=new URL(location.href);url.searchParams.set("tab",tab);history.replaceState(null,"",`${url.pathname}${url.search}${url.hash}`)},[tab]);
   const previousTab=useRef(tab);
   const activePrimary=primaryMemberTab(tab);
   useEffect(()=>{
@@ -202,7 +209,7 @@ export function MemberApp({
         <div className="sidebar-bottom">
 
           <button className="account-button" aria-label={t("preferences")} onClick={() => setSettings(true)}>
-            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey}/>
+            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
             <span>
               <strong>{member.display_name}</strong>
               <small>{t("preferences")}</small>
@@ -219,7 +226,7 @@ export function MemberApp({
             aria-label={t("preferences")}
             onClick={() => setSettings(true)}
           >
-            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey}/>
+            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
           </button>
         </header>
         <main id="main" className="member-main" tabIndex={-1}>
@@ -263,17 +270,18 @@ export function MemberApp({
               </button>
             </section>
           )}
-          {activePrimary==='more'&&tab!=='more'&&<div className="member-context"><button className="text-button" onClick={()=>setTab('more')}><Icon name="arrow"/>{t('backToMore')}</button><span aria-hidden="true">/</span><span>{t(tab)}</span></div>}
+          {activePrimary==='more'&&tab!=='more'&&<div className="member-context"><button className="text-button" onClick={()=>setTab('more')}><Icon name="back"/>{t('backToMore')}</button><span aria-hidden="true">/</span><span>{t(tab)}</span></div>}
           <ErrorNotice error={error} />
           <ErrorNotice error={loadError} />
+          {photoPersonId&&people.some(p=>p.id===photoPersonId)&&<PhotoEditor person={people.find(p=>p.id===photoPersonId)!} householdId={household} onClose={()=>setPhotoPersonId(undefined)} onSaved={refresh}/>}
           {tab === "home" ? (
-            <Home key={household} householdId={household} onSessionChange={onSessionChange} onManagePeople={can("people.manage") ? () => setTab("people") : undefined} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
+            <Home key={household} householdId={household} taskAccess={canManageHousehold?{householdId:household,onOpen:openTask,onNew:newPersonTask}:undefined} onEditPhoto={personId=>{if(personId===member.person_id||can("people.manage"))setPhotoPersonId(personId)}} editablePhotoIds={people.filter(person=>person.id===member.person_id||can("people.manage")).map(person=>person.id)} onSessionChange={onSessionChange} onManagePeople={can("people.manage") ? () => setTab("people") : undefined} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
           ) : tab === "integrations" && can("household.manage") ? (
-            <IntegrationsPanel key={household} member={member} displays={displays}/>
+            <IntegrationsPanel key={household} member={member} displays={displays} people={people}/>
           ) : tab === "more" ? (
             <><section className="section-heading"><div><p className="eyebrow">Samvev</p><h1>{t("more")}</h1><p>{t("hubMoreBody")}</p></div></section><div className="hub-more-grid"><button className="surface-card hub-more-card" onClick={() => setTab("displays")}><Icon name="display" size={30}/><h2>{t("displays")}</h2><p>{t("displaysBody")}</p></button>{can("household.manage") && <><button className="surface-card hub-more-card" onClick={() => setTab("integrations")}><Icon name="spark" size={30}/><h2>{t("integrations")}</h2><p>{t("integrationBody")}</p></button><section className="surface-card hub-experimental"><p className="eyebrow">{t("hubExperimental")}</p><button className="button" onClick={() => setTab("monitors")}>{t("monitors")}</button><button className="button" onClick={() => setTab("ai")}>{t("ai")}</button></section></>}</div></>
           ) : tab === "monitors" && can("household.manage") ? (
-            <MonitorsPanel householdId={household} timezone={member.timezone} people={people} displays={displays}/>
+            <MonitorsPanel key={`${household}-${taskNavigation.key}`} initialTaskId={taskNavigation.taskId} initialPersonId={taskNavigation.personId} householdId={household} timezone={member.timezone} people={people} displays={displays}/>
           ) : tab === "ai" && can("household.manage") ? (
             <AiSettingsPanel
               key={household}
@@ -288,6 +296,7 @@ export function MemberApp({
               people={people}
               displays={displays}
               member={member}
+              onOpenTask={canManageHousehold?openTask:undefined} onNewTask={canManageHousehold?newPersonTask:undefined}
               householdSettings={householdSettings}
               refresh={refresh}
             />
@@ -362,7 +371,7 @@ export function MemberApp({
                   aria-label={t("people")}
                 >
                   {people.slice(0, 4).map((p, i) => (
-                    <Avatar key={p.id} name={p.display_name} index={i} personId={p.id} avatarKey={p.avatarKey}/>
+                    <Avatar key={p.id} name={p.display_name} index={i} personId={p.id} avatarKey={p.avatarKey} photo={p.photo}/>
                   ))}
                   {people.length>4&&<span className="people-stack-more">+{people.length-4}</span>}
                 </div>
@@ -417,7 +426,7 @@ export function MemberApp({
                         <Avatar
                           name={message.author_name}
                           personId={message.author_person_id}
-                          avatarKey={people.find(person=>person.id===message.author_person_id)?.avatarKey}
+                          avatarKey={people.find(person=>person.id===message.author_person_id)?.avatarKey} photo={people.find(person=>person.id===message.author_person_id)?.photo}
                           index={people.findIndex(
                             (p) => p.id === message.author_person_id,
                           )}

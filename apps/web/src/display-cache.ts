@@ -52,6 +52,6 @@ export function currentHub(projection: Projection, clock: CacheClock, monotonicN
  const now=serverTime(clock,monotonicNow);
  if(now>=clock.deadline || !projection.hub)return undefined;
  const items=projection.hub.items.filter(item=>(!item.publishAt||Date.parse(item.publishAt)<=now)&&(!item.expiresAt||Date.parse(item.expiresAt)>now));
- const ids=new Set(items.flatMap(item=>item.targets.personIds));
+ const ids=new Set(items.flatMap(item=>[...item.targets.personIds,...(item.subjects?.personIds??[])]));
  return {items,people:projection.hub.people.filter(person=>ids.has(person.id))};
 }

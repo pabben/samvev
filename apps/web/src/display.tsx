@@ -4,6 +4,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { api, ApiError } from "./api";
 import type { Card, Projection } from "./types";
 import {
+  Avatar,
   Brand,
   Dialog,
   Empty,
@@ -455,7 +456,7 @@ function DisplayRuntime({
         {projection && !projection.display.timezone && (
           <p className="field-hint">{t("timezoneFallback")}</p>
         )}
-        {hub ? <FamilyHub display people={hub.people} items={hub.items} messages={cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision}))} zone={zone} householdName={projection!.display.householdName} now={clock.current ? serverTime(clock.current, performance.now()) : Date.now()} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/> : cards.length ? (
+        {hub ? <FamilyHub display people={hub.people} items={hub.items} messages={cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision}))} zone={zone} householdName={projection!.display.householdName} now={clock.current ? serverTime(clock.current, performance.now()) : Date.now()} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/> : cards.length ? (
           <div className="display-cards">
             {layout === "board"
               ? cards.map((card, i) => (
@@ -477,7 +478,7 @@ function DisplayRuntime({
                 ).map(([author, group]) => (
                   <section className="person-column" key={author}>
                     <h2>
-                      <span className="avatar">{author.slice(0, 1)}</span>
+                      <Avatar name={author} personId={group?.[0]?.authorPersonId} avatarKey={group?.[0]?.authorAvatarKey} photo={group?.[0]?.authorPhoto}/>
                       {author}
                     </h2>
                     {group!
@@ -622,7 +623,7 @@ export function DisplayCard({
         </button>
       )}
       <div className="display-card-meta">
-        <span className="avatar">{card.author.slice(0, 1)}</span>
+        <Avatar name={card.author} personId={card.authorPersonId} avatarKey={card.authorAvatarKey} photo={card.authorPhoto}/>
         <strong>{t("from", { name: card.author })}</strong>
         <span className="display-until">
           <Icon name="clock" />

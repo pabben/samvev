@@ -126,6 +126,7 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
       </>
     ),
     plus: <path d="M12 5v14M5 12h14" />,
+    back: <path d="M19 12H5m6-6-6 6 6 6" />,
     arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
     clock: (
       <>
@@ -403,13 +404,13 @@ export function Status({ state }: { state: string }) {
     </span>
   );
 }
-export function Avatar({ name, index = 0, avatarKey, personId }: { name: string; index?: number; avatarKey?: string | null; personId?:string|null }) {
-  const image = avatarKey ? avatarImages[avatarKey] : undefined;
-  return (
-    <span className={`avatar accent-${personId||avatarKey?personAccent(personId,avatarKey):Math.max(0,index)%6} ${image ? "avatar-illustrated" : ""}`} aria-hidden="true">
-      {image ? <img src={image} alt="" draggable={false}/> : name.trim().slice(0, 1).toLocaleUpperCase()}
-    </span>
-  );
+export function Avatar({ name, index = 0, avatarKey, personId, photo }: { name: string; index?: number; avatarKey?: string | null; personId?:string|null; photo?:import('./types').PersonPhoto|null }) {
+  const source=photo?.url96;
+  const [failed,setFailed]=useState<string>();
+  const image = source && source!==failed ? source : avatarKey ? avatarImages[avatarKey] : undefined;
+  return <span className={`avatar accent-${personId||avatarKey?personAccent(personId,avatarKey):Math.max(0,index)%6} ${image ? "avatar-illustrated" : ""}`} aria-hidden="true">
+    {image ? <img src={image} alt="" draggable={false} onError={()=>setFailed(image)}/> : name.trim().slice(0, 1).toLocaleUpperCase()}
+  </span>;
 }
 export function ErrorNotice({ error }: { error: unknown }) {
   const { t } = useI18n();
