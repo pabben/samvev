@@ -1,4 +1,13 @@
 export const en = {
+  chatReadyLimited: "Your connection is retained while account usage is limited.",
+  chatMissingEligibility: "Check whether this account is eligible. Refresh its status before trying to resume.",
+  chatRevocationNext: "Access was removed in Samvev; remote revocation remains unconfirmed. Review access in your ChatGPT account before reconnecting.",
+  chatConsentReported: "You have marked local consent as completed.",
+  chatMissingImport: "Private transfer and import on the Samvev server.",
+  chatImportReported: "You have marked the server import as completed.",
+  chatMissingVerification: "Refresh to read the server-confirmed connection status.",
+  chatManualProgressHint: "These steps record what you tell us you have done. Only the server’s connection status confirms an imported account.",
+
   chatPendingImported:"The private connection has been imported.",
   chatPendingValidation:"Account validation is still pending. Review its status above before continuing.",
 
@@ -140,7 +149,7 @@ export const en = {
   chatConsentInstructions: "Complete the OpenAI sign-in and consent page yourself. The helper writes a private credential file; it does not call a model.",
   chatConsentDone: "I completed local consent",
   chatTransferInstructions: "Transfer the private credential file over your established SSH connection to the Samvev server. The operator guide explains the exact runtime and cleanup.",
-  chatOperatorInstructions: "For the operator, in the verified Samvev runtime. Replace only the private file path:",
+  chatOperatorInstructions: "For the operator: run this from the Samvev application directory on the server. The command selects the verified app runtime. Replace only the private file path:",
   chatKeepPrivate: "Never send this file, passwords, tokens or browser cookies through chat. Keep the file private and remove the transferred copy after import.",
   chatImportDone: "The server import is complete",
   chatVerifyInstructions: "Refresh to read the server’s connection status. This check does not send a model request.",

@@ -1,5 +1,14 @@
 import type { TranslationKey } from "./en";
 export const nb: Record<TranslationKey, string> = {
+  chatReadyLimited: "Tilkoblingen er bevart mens kontoen har en bruksgrense.",
+  chatMissingEligibility: "Kontroller om kontoen har rett til denne tilgangen. Oppdater statusen før du prøver å fortsette.",
+  chatRevocationNext: "Tilgangen er fjernet i Samvev; tilbakekalling hos leverandøren er ikke bekreftet. Se tilgangen i ChatGPT-kontoen før du kobler til igjen.",
+  chatConsentReported: "Du har markert lokalt samtykke som fullført.",
+  chatMissingImport: "Privat overføring og import på Samvev-serveren.",
+  chatImportReported: "Du har markert serverimporten som fullført.",
+  chatMissingVerification: "Oppdater for å lese serverens bekreftede tilkoblingsstatus.",
+  chatManualProgressHint: "Trinnene viser det du har markert som utført. Bare serverens tilkoblingsstatus bekrefter at en konto er importert.",
+
   chatPendingImported:"Den private tilkoblingen er importert.",
   chatPendingValidation:"Kontovalidering gjenstår. Se statusen ovenfor før du fortsetter.",
 
@@ -141,7 +150,7 @@ export const nb: Record<TranslationKey, string> = {
   chatConsentInstructions: "Fullfør OpenAI-innloggingen og samtykkesiden selv. Hjelperen lager en privat tilkoblingsfil; den kaller ikke en modell.",
   chatConsentDone: "Jeg har fullført lokalt samtykke",
   chatTransferInstructions: "Overfør den private tilkoblingsfilen over den etablerte SSH-forbindelsen til Samvev-serveren. Driftsveiledningen forklarer riktig runtime og opprydding.",
-  chatOperatorInstructions: "For driftsansvarlig, i bekreftet Samvev-runtime. Erstatt bare stien til den private filen:",
+  chatOperatorInstructions: "For driftsansvarlig: kjør dette fra Samvev-katalogen på serveren. Kommandoen velger bekreftet app-runtime. Erstatt bare stien til den private filen:",
   chatKeepPrivate: "Send aldri filen, passord, tokens eller nettlesercookies i chat. Hold filen privat, og fjern den overførte kopien etter import.",
   chatImportDone: "Serverimporten er fullført",
   chatVerifyInstructions: "Oppdater for å lese serverens tilkoblingsstatus. Denne kontrollen sender ingen modellforespørsel.",

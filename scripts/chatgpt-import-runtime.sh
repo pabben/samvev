@@ -46,6 +46,7 @@ fi
 mapfile -t app_ids < <(docker ps --filter label=com.docker.compose.project=samvev-m1 --filter label=com.docker.compose.service=app --format '{{.ID}}')
 [[ ${#app_ids[@]} -eq 1 ]] || { echo 'Expected exactly one running samvev-m1 public app service.' >&2; exit 2; }
 
+install -d -m 700 "$ROOT/.local"
 operation_dir="$(mktemp -d "$ROOT/.local/chatgpt-runtime-import.XXXXXX")"
 chmod 700 "$operation_dir"
 inspect_file="$operation_dir/inspect.json"
