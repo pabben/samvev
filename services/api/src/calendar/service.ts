@@ -21,15 +21,20 @@ export interface CalendarTransport{
   fetchIcs(url:string):Promise<string>;
 }
 
-type ProviderConfig={clientId:string;clientSecret?:string;authorizationEndpoint:string;tokenEndpoint:string;scopes:string[]};
+type ProviderConfig={clientId:string;clientSecret:string;authorizationEndpoint:string;tokenEndpoint:string;scopes:string[]};
 function providerConfig(provider:Exclude<CalendarProvider,'ics'>):ProviderConfig{
   if(provider==='google'){
-    const clientId=process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_ID?.trim();if(!clientId)throw new DomainError('CONFLICT',409,{reason:'google_calendar_registration_missing'});
-    return{clientId,clientSecret:process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET?.trim(),authorizationEndpoint:'https://accounts.google.com/o/oauth2/v2/auth',tokenEndpoint:'https://oauth2.googleapis.com/token',scopes:['openid','email','https://www.googleapis.com/auth/calendar.calendarlist.readonly','https://www.googleapis.com/auth/calendar.events.readonly']};
+    const clientId=process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_ID?.trim(),clientSecret=process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET?.trim();if(!clientId||!clientSecret)throw new DomainError('CONFLICT',409,{reason:'google_calendar_registration_missing'});
+    return{clientId,clientSecret,authorizationEndpoint:'https://accounts.google.com/o/oauth2/v2/auth',tokenEndpoint:'https://oauth2.googleapis.com/token',scopes:['openid','email','https://www.googleapis.com/auth/calendar.calendarlist.readonly','https://www.googleapis.com/auth/calendar.events.readonly']};
   }
-  const clientId=process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID?.trim();if(!clientId)throw new DomainError('CONFLICT',409,{reason:'microsoft_calendar_registration_missing'});
+  const clientId=process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID?.trim(),clientSecret=process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET?.trim();if(!clientId||!clientSecret)throw new DomainError('CONFLICT',409,{reason:'microsoft_calendar_registration_missing'});
   const tenant=(process.env.SAMVEV_MICROSOFT_CALENDAR_TENANT??'common').trim();
-  return{clientId,clientSecret:process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET?.trim(),authorizationEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize`,tokenEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,scopes:['openid','email','offline_access','Calendars.ReadBasic']};
+  return{clientId,clientSecret,authorizationEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize`,tokenEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,scopes:['openid','email','offline_access','Calendars.ReadBasic']};
+}
+function callbackUri(publicOrigin:string,provider:Exclude<CalendarProvider,'ics'>):string{
+  let origin:URL;try{origin=new URL(publicOrigin);}catch{throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'calendar_public_origin_invalid'});}
+  if(!['http:','https:'].includes(origin.protocol)||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash||origin.origin!==publicOrigin)throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'calendar_public_origin_invalid'});
+  return `${origin.origin}/api/v1/calendar/oauth/${provider}/callback`;
 }
 async function jsonRequest(url:string,init:RequestInit):Promise<Record<string,any>>{const response=await fetch(url,{...init,signal:AbortSignal.timeout(15_000)});const text=await response.text();let body:unknown;try{body=JSON.parse(text);}catch{throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'calendar_provider_response_invalid',httpStatus:response.status});}if(!response.ok)throw new DomainError(response.status===401?'CONFLICT':'MONITOR_SOURCE_UNAVAILABLE',response.status===401?409:502,{reason:response.status===401?'calendar_reauthorization_required':'calendar_provider_unavailable',httpStatus:response.status});if(!body||typeof body!=='object'||Array.isArray(body))throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'calendar_provider_response_invalid'});return body as Record<string,any>;}
 export class DefaultCalendarTransport implements CalendarTransport{
@@ -102,9 +107,11 @@ export function parseIcsEvents(text:string,window:{from:string;to:string}):Calen
 export class CalendarService{
   constructor(private readonly transport:CalendarTransport=new DefaultCalendarTransport(),private readonly vault=new AiCredentialVault()){}
   readiness(publicOrigin:string){
+    const googleRequired=['SAMVEV_GOOGLE_CALENDAR_CLIENT_ID','SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET'];
+    const microsoftRequired=['SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID','SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET'];
     return{
-      google:{configured:Boolean(process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_ID?.trim()),redirectUri:`${publicOrigin}/api/v1/calendar/oauth/google/callback`,requiredEnvironment:['SAMVEV_GOOGLE_CALENDAR_CLIENT_ID']},
-      microsoft:{configured:Boolean(process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID?.trim()),redirectUri:`${publicOrigin}/api/v1/calendar/oauth/microsoft/callback`,requiredEnvironment:['SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID']},
+      google:{configured:googleRequired.every((name)=>Boolean(process.env[name]?.trim())),redirectUri:callbackUri(publicOrigin,'google'),requiredEnvironment:googleRequired},
+      microsoft:{configured:microsoftRequired.every((name)=>Boolean(process.env[name]?.trim())),redirectUri:callbackUri(publicOrigin,'microsoft'),requiredEnvironment:microsoftRequired},
       ics:{configured:true,redirectUri:null,requiredEnvironment:[]}
     };
   }
@@ -125,7 +132,7 @@ export class CalendarService{
   }
   async startOAuth(actor:CalendarActor,id:string,publicOrigin:string){
     ensureManager(actor);const row=await this.row(actor,id);if(row.provider==='ics')throw new DomainError('CONFLICT',409);
-    const config=providerConfig(row.provider),attempt=createOAuthAttempt(),redirectUri=`${publicOrigin}/api/v1/calendar/oauth/${row.provider}/callback`;
+    const config=providerConfig(row.provider),attempt=createOAuthAttempt(),redirectUri=callbackUri(publicOrigin,row.provider);
     const verifier=await this.vault.encrypt(calendarAad(actor.householdId,id,actor.accountId),attempt.verifier);
     await transaction(async(client)=>{
       const changed=await client.query(`UPDATE calendar_connections SET state='awaiting_consent',last_error_code=NULL,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND owner_account_id=$3 AND disconnected_at IS NULL`,[id,actor.householdId,actor.accountId]);if(!changed.rowCount)throw new DomainError('NOT_FOUND',404);
@@ -266,6 +273,14 @@ export class CalendarService{
     await pool.query('UPDATE calendar_connections SET last_error_code=$2 WHERE id=$1 AND state=\'disconnected\'',[id,errorCode]);
     await pool.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata) VALUES($1,$2,'account',$3,'calendar.remote_revocation','calendar_connection',$4,$5)`,[actor.installationId,actor.householdId,actor.accountId,id,JSON.stringify({status:remote})]);
     return this.get(actor,id);
+  }
+  async fenceIntegrationRevocation(client:DbClient,integrationConnectionId:string):Promise<boolean>{
+    const calendar=(await client.query<{id:string;provider:CalendarProvider}>(`SELECT id,provider FROM calendar_connections WHERE integration_connection_id=$1 AND disconnected_at IS NULL FOR UPDATE`,[integrationConnectionId])).rows[0];
+    if(!calendar)return false;
+    await client.query(`UPDATE calendar_connections SET state='disconnected',credential_ciphertext=NULL,revision=revision+1,sync_generation=sync_generation+1,next_sync_at=NULL,lease_token=NULL,lease_expires_at=NULL,disconnected_at=clock_timestamp(),last_error_code=CASE WHEN provider='ics' THEN NULL ELSE 'CALENDAR_REMOTE_REVOCATION_UNCONFIRMED' END,updated_at=clock_timestamp() WHERE id=$1`,[calendar.id]);
+    await client.query(`UPDATE calendar_oauth_sessions SET consumed_at=COALESCE(consumed_at,clock_timestamp()),completion_hash=NULL,authorization_code_ciphertext=NULL WHERE connection_id=$1`,[calendar.id]);
+    await this.withdrawAll(client,calendar.id);
+    return true;
   }
   async sync(actor:CalendarActor,id:string,expectedRevision?:number){
     ensureManager(actor);const row=await this.row(actor,id);if(expectedRevision!==undefined&&row.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);return this.syncConnection(row);

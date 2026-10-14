@@ -624,11 +624,12 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.post('/api/v1/households/:householdId/ai/chatgpt/helper',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
-    const profile=await transaction(async(client)=>{const row=(await client.query<{ext_agent_host_id:string}>(`INSERT INTO ai_chatgpt_helper_profiles(household_id,account_id) VALUES($1,$2) ON CONFLICT(household_id,account_id) DO UPDATE SET updated_at=clock_timestamp() RETURNING ext_agent_host_id`,[auth.householdId,auth.accountId])).rows[0]!;await audit(client,auth,'ai.chatgpt_helper_prepared','ai_chatgpt_helper_profile',auth.accountId,{tokenFree:true});return row;});
+    await transaction(async(client)=>{await client.query(`INSERT INTO ai_chatgpt_helper_profiles(household_id,account_id) VALUES($1,$2) ON CONFLICT(household_id,account_id) DO UPDATE SET updated_at=clock_timestamp()`,[auth.householdId,auth.accountId]);await audit(client,auth,'ai.chatgpt_helper_prepared','ai_chatgpt_helper_profile',auth.accountId,{tokenFree:true});});
+    const hostId=await aiAdmin.chatgpt.hostId(auth.installationId);
     const base=`${runtime.publicOrigin}/api/v1/households/${auth.householdId}/ai/chatgpt/helper-files`;
     const output='$HOME/samvev-chatgpt-credential.json',registration='$HOME/.config/samvev/chatgpt-registration.json';
     reply.header('Cache-Control','private, no-store');
-    return{status:'ready_for_local_consent',hostId:`urn:uuid:${profile.ext_agent_host_id}`,downloads:[{name:'chatgpt-connect.ts',url:`${base}/chatgpt-connect.ts`},{name:'chatgpt-connect-core.mjs',url:`${base}/chatgpt-connect-core.mjs`}],localCommand:`node ./chatgpt-connect.ts --host-id 'urn:uuid:${profile.ext_agent_host_id}' --registration \"${registration}\" --output \"${output}\"`,serverImportCommand:`npm run ai:chatgpt-import -- --household '${auth.householdId}' --owner-account '${auth.accountId}' --file '<credential-file-path>'`,requiresLocalBrowserConsent:true,automaticallyImports:false,automaticallyCallsModel:false};
+    return{status:'ready_for_local_consent',hostId,downloads:[{name:'chatgpt-connect.ts',url:`${base}/chatgpt-connect.ts`},{name:'chatgpt-connect-core.mjs',url:`${base}/chatgpt-connect-core.mjs`}],localCommand:`node ./chatgpt-connect.ts --host-id '${hostId}' --registration \"${registration}\" --output \"${output}\"`,serverImportCommand:`bash scripts/chatgpt-import-runtime.sh --household '${auth.householdId}' --owner-account '${auth.accountId}' --file '<private-credential-path>'`,requiresLocalBrowserConsent:true,automaticallyImports:false,automaticallyCallsModel:false};
   });
   app.get('/api/v1/households/:householdId/ai/chatgpt/helper-files/:file',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const file=params(request).file!;
@@ -1007,7 +1008,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/households/:householdId/integrations',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     reply.header('Cache-Control','private, no-store');
-    const ids=await pool.query<{id:string}>('SELECT id FROM integration_connections WHERE household_id=$1 ORDER BY created_at,id',[auth.householdId]);
+    const ids=await pool.query<{id:string}>(`SELECT connection.id FROM integration_connections connection WHERE connection.household_id=$1 AND NOT EXISTS(SELECT 1 FROM calendar_connections calendar WHERE calendar.integration_connection_id=connection.id) ORDER BY connection.created_at,connection.id`,[auth.householdId]);
     return {connections:await Promise.all(ids.rows.map((row)=>integrationConnectionResponse(row.id,auth.householdId)))};
   });
 
@@ -1057,6 +1058,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       const updated=await client.query('UPDATE integration_connections SET revoked_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND revision=$2 RETURNING id',[connectionId,body.expectedRevision]);
       if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       await client.query('UPDATE integration_credentials SET revoked_at=COALESCE(revoked_at,clock_timestamp()),revision=CASE WHEN revoked_at IS NULL THEN revision+1 ELSE revision END WHERE connection_id=$1',[connectionId]);
+      await calendars.fenceIntegrationRevocation(client,connectionId);
       await audit(client,auth,'integration.connection_revoked','integration_connection',connectionId);
     });
     return {connection:await integrationConnectionResponse(connectionId,auth.householdId)};
