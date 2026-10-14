@@ -1,0 +1,9 @@
+{
+  "sourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "imageId": "sha256:5f63b1afb11d68aea1fdb8e1bc72cad2c099f1bab4377f7cc8aee6581d6eee12",
+  "project": "samvev-m1",
+  "workspaceMountMatchesVerifiedInputs": true,
+  "protectedGitReadOnly": true,
+  "dedicatedSyntheticDatabase": true,
+  "noHostPorts": true
+}

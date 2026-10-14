@@ -1,0 +1,117 @@
+{
+  "currentUiSourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "fixtureSeedSourceSha": "1a10e7702b7c290dfb437a0a340072a9b0fa8f7a",
+  "actualUi": true,
+  "isolatedDatabase": "samvev_calendar_ha_final@test-db",
+  "providerTransport": "injected synthetic only",
+  "liveProviderVerification": false,
+  "screenshots": [
+    {
+      "filename": "admin-google-dialog-nb-light.png",
+      "sha256": "b72f499c1a14eb172810ce9c0cdbd8ccbbcea18599da632bdf653853cacc32cc",
+      "surface": "provider-registration",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "admin-microsoft-dialog-nb-light.png",
+      "sha256": "911d04f7173d3eba97c6cb2aecaa5a5381eb5e25179f55423ac7d9bcc734181d",
+      "surface": "provider-registration",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "admin-home-assistant-dialog-nb-light.png",
+      "sha256": "90722d505aea8d7f85cb160137aa6c77bfeac8c3a851e2a3a729ef121f5a6085",
+      "surface": "provider-registration",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "mobile-person-reader-controls-nb-light.png",
+      "sha256": "9e8508b5d692f9b3fce245f1fef17e753bb0be033b1595f6a8342fe356970b39",
+      "surface": "calendar-source-editor",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "calendar-stale-failure-nb-light.png",
+      "sha256": "23a2e096836f49fbc7371094437eab96f236237f0413c9839254e1f0be4b7662",
+      "surface": "calendar-stale",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "calendar-recovery-nb-light.png",
+      "sha256": "579fbe47668106bca159efe57abdeec2ec4a0df8080cc24c9f98065f6d54b93d",
+      "surface": "calendar-recovery",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "all-day-detail-nb-light.png",
+      "sha256": "9dddb1339c55c7265cef44bc60e3bf864098b923d2ff15724272f68b2c37ac4d",
+      "surface": "all-day-calendar-detail",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "six-people-home-long-names-nb-light.png",
+      "sha256": "a98a7d9adf6054955081b55edb8cb921ea40510b865646e22a9a833db59d6b1a",
+      "surface": "home",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "six-people-home-long-names-mobile-nb-light.png",
+      "sha256": "09ab652192574c5114703f2f03f6533b32e938dfc2becf41de2243799df50865",
+      "surface": "home",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    }
+  ],
+  "flows": [
+    "secret-safe Google/Microsoft/Home Assistant admin dialogs",
+    "mobile person-subject and reader controls",
+    "synthetic stale failure and recovery",
+    "six-person long-name responsive Home",
+    "all-day date-only projection"
+  ],
+  "allPass": true
+}

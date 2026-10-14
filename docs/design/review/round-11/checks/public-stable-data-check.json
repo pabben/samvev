@@ -1,0 +1,14 @@
+{
+  "allStableTablesExact": true,
+  "tables": {
+    "accounts": true,
+    "households": true,
+    "persons": true,
+    "memberships": true,
+    "messages": true,
+    "displays": true,
+    "ai_settings": true,
+    "installations": true,
+    "person_profile_photos": true
+  }
+}

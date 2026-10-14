@@ -1,0 +1,17 @@
+{
+  "sourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "candidateImageId": "sha256:5f63b1afb11d68aea1fdb8e1bc72cad2c099f1bab4377f7cc8aee6581d6eee12",
+  "legacyR10ImageId": "sha256:8fa9329df7a59773d1f294e030d045605cd14ad94ba6e8d557588a247f37a341",
+  "freshPublicSchema24BackupRestored": true,
+  "ledger24Exact": true,
+  "migration025Applied": true,
+  "migrationSecondRunNoop": true,
+  "opaqueProtectedDomainsEqualExceptAdditiveDefaults": true,
+  "noHomeAssistantRowsBeforeOldR10Read": true,
+  "amcheck": true,
+  "candidateAuthenticatedSyntheticRead": true,
+  "candidateAssetsExact": true,
+  "oldR10Schema25ReadCompatible": true,
+  "cloneHadNoWorkerVaultProvidersModelsOrPorts": true,
+  "generatedAt": "2026-10-14T22:45:11.340567+00:00"
+}

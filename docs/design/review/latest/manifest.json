@@ -1,15 +1,15 @@
 {
-  "roundId": "20261014094940-ca7359b0-428c5403",
-  "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-  "workingTreeDirty": false,
-  "capturedAt": "2026-10-14T09:49:40.891Z",
+  "roundId": "20261014223031-585a7204-59693e69",
+  "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "workingTreeDirty": true,
+  "capturedAt": "2026-10-14T22:30:31.188Z",
   "provenance": {
-    "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-    "inputFingerprint": "aa4734c26203cd08d6245a33407964587b1acd3d25363ce81968dde291730664",
-    "rootSourceFingerprint": "aa4734c26203cd08d6245a33407964587b1acd3d25363ce81968dde291730664",
-    "cloneSourceFingerprint": "aa4734c26203cd08d6245a33407964587b1acd3d25363ce81968dde291730664",
-    "runtimeFingerprint": "7f4f62637f2ee76b6be0061f6fe5c117472eea873161c76d3463d1a2b26fc76c",
-    "migrationFingerprint": "5e8cc64a3bd277b044b2ab715feebd9039730d4f5add7945bfc776e5109336d1",
+    "sourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+    "inputFingerprint": "14e49b57be14303018565cbc1915f96521a6c0a835ba52eb57ddf79336d84adb",
+    "rootSourceFingerprint": "14e49b57be14303018565cbc1915f96521a6c0a835ba52eb57ddf79336d84adb",
+    "cloneSourceFingerprint": "14e49b57be14303018565cbc1915f96521a6c0a835ba52eb57ddf79336d84adb",
+    "runtimeFingerprint": "d6ee2f10c78212e8bc382dff2b4c3fdb1a1ded8f5792b89eeebcd61a3fa45528",
+    "migrationFingerprint": "fe387be0b26b34306a7280fda81e5b8ec7df889f2e5f1c41d07b2d755a837685",
     "inputFileHashes": {
       ".dockerignore": "fd1afa885cfd4c592d2df90f60284b2ee8f63cee14965f31b3da43cb11b53cd6",
       ".env.example": "83c995d2b89bdd6bd6d03f2dc1220ddf8b9510dd330ba35ffb3be00df23fa462",
@@ -31,27 +31,30 @@
       "apps/web/src/assets/nordic-dusk-v2.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
       "apps/web/src/assets/nordic-dusk-v2.provenance.md": "1ce2fbd485eee9b146e9c225f050818972b5ba901da65bcbee5909c29f7915f7",
       "apps/web/src/avatars.ts": "f43eb0e4a1849d898a223f4841681cbf50584c7b50279442daf2ea9673553ed2",
-      "apps/web/src/calendar-connections.tsx": "0df3f3b41c3d50d78c6607d1acb59bfe50e0b01cf89bad5beb2cab889c72ef69",
+      "apps/web/src/calendar-connections.tsx": "bb7bb73c96d9732f76997b7a812ab2517c0bae4498bb71a15eca5fc78a47c88a",
+      "apps/web/src/calendar-freshness.tsx": "085d020972d6eacfa96962aab6cb6a86d58a17574157c26ea922ac087f6c908d",
       "apps/web/src/calendar-presentation.ts": "574eaab25b3302997a57d4340858354f526d58956a41ddc5084be6d00d993b9f",
-      "apps/web/src/calendar-preview.ts": "0ca42c33a86e542524fb02471605822936d2f47bbd5eb54db649503789cded4a",
+      "apps/web/src/calendar-preview.ts": "4f69d347b344cd16802be1d1da300c32f9aabd451836686c1eb1d0a1d8cd57aa",
+      "apps/web/src/calendar-provider-admin.tsx": "8010c4c03dfc382a90ff7da6529ce5c5806e6b4de4c368c6fdf3484c70da7091",
+      "apps/web/src/calendar-provider-config.ts": "afa5bf3b1a46f9e606eb22903af26c4d83a20c09f5896061e99de2d3fdf691f9",
       "apps/web/src/chatgpt-guide-presentation.ts": "469a2cb8dbe7650c275b0619e197f3bd4e71f30695b77c0e33ec7b0aa40e3ed9",
       "apps/web/src/chatgpt-guide.tsx": "60b0215ae045ea4b603712179dbef2b697a6c31ef0606d8100b32a5d0be0dd6b",
       "apps/web/src/demo-login.ts": "874822f9d88156f9b75787e207258041402263270a0f55c144fd8dee7a33abbc",
       "apps/web/src/display-cache.ts": "ee3a00085c965d37ec2e8e94d45ef79b19c026661e46cfaadf49ed958e2d16df",
       "apps/web/src/display.tsx": "a2ad7db0d29939ea2d6852e345daac8fe6b695dbc54a3ed1d36775cbb4da1a0e",
       "apps/web/src/displays-admin.tsx": "b9c82a6e91c4acdca3eaef0aa37789a98609660832f8fbc47085905c0185d22e",
-      "apps/web/src/family-hub.tsx": "7b8118ca8a28f367dbf873557cecc8e0180035d46fb85abd746dd359c67af724",
-      "apps/web/src/home-presentation.ts": "f730cca39d8a836b06ba4484b2d8d786bfc75c57596d0dc6c905d500fef58c52",
-      "apps/web/src/home-types.ts": "5ef96d821c60afc663e007ab15ae2af36188bded8cf638df8508cfabe964e395",
+      "apps/web/src/family-hub.tsx": "87ed94140610515c4ea58f7efd138b0322b5f29a324b1884761fe9fb60ae1ee4",
+      "apps/web/src/home-presentation.ts": "a0d8b7d62643535e72db833b6550910214a9ca2cb92df82ff1b486f45ed02077",
+      "apps/web/src/home-types.ts": "953df7a0e05cc259ee6e45ebb9931b9d228e72759eaffea130bac60409397f61",
       "apps/web/src/home.css": "afd67be093a0916056db87f4384945408b146e784729c4662b24cd830f525508",
       "apps/web/src/home.tsx": "3e9c8468ae3edc4a15aa1f978c35466765f661490207d1791b3b5820bdbeefa1",
-      "apps/web/src/integrations.tsx": "57c8388804acb2a70cf2eb864638b17abbbc41cf968961c0c974aa72794b1a7b",
-      "apps/web/src/locales/en.ts": "25324cb5b3772896fa9d53b86e868bd579104e7d26fe37e62debba99f723fc01",
-      "apps/web/src/locales/nb.ts": "3ef2b4d3dac789bd6d6ca72c4194d8d257c7e17bbc41187605558a72259fa4db",
+      "apps/web/src/integrations.tsx": "0319e3ad921d93d78a91350d64416ef6abfb47176d0b992eda9fa83fa9cd76bc",
+      "apps/web/src/locales/en.ts": "fa8c9494bd5e364d0769f362968e71b289685ca74bb84862f386c12346c495ea",
+      "apps/web/src/locales/nb.ts": "636a1768cfc5a4ca06901a5315e8bf88e0b2da23f3a481302d55a4fbbbaa4e96",
       "apps/web/src/main.tsx": "633c1dac2a31db3e102351d038fc71f96b969be467511a98d6eb434cc6f32cde",
       "apps/web/src/member-navigation.ts": "9f6ebb67b57ba7c46eeca72c6009363fa0105b15f21757f64d394eb66ab7403f",
       "apps/web/src/member-shell.css": "a32f16e3db36b2d060150f06b49d69c670845c3065faf97b18e38ab62baac12f",
-      "apps/web/src/member.tsx": "ec3f5170a7adbe3a19717967bc8864940f218258686bc47f8db4c0401dc95a53",
+      "apps/web/src/member.tsx": "fa620142a4cbbf8a70121d2bc1911bb5103b31d625a9a4b3125b8473818fb58b",
       "apps/web/src/messages.tsx": "88e883bf1cdb57774bb0228e6e7cf2c7bb7c752dc23e5ec0e0c7439e48e26533",
       "apps/web/src/monitor-presentation.ts": "ad663d54ddb0f5f4fec91e28f6fa6b0cb1b9f1015dbbf361e68c35564216b82b",
       "apps/web/src/monitors.tsx": "b6e5d561f51ab25d5415160094f84084027622c3efa2df4c50571b63c01493d8",
@@ -63,22 +66,23 @@
       "apps/web/src/person-tasks.tsx": "28a2a149272a2794d43eb0f17e514372a55e79d35d3071cd9d2e791ccdfac7fd",
       "apps/web/src/photo-presentation.ts": "7fdf8e4d7129abd0b5f26cd4c31d176c672c3dc1feec41eeb8fcfee9e69c1c09",
       "apps/web/src/profile-photo.tsx": "b4afb57ef7d95642b8c6fcc5bb76b33172fc251a10e066773176599348b468eb",
-      "apps/web/src/round9.css": "51f1de24a55af576cbfaa1934122b1d1e3e4b91b890c928fc822dfec72f514bb",
+      "apps/web/src/round9.css": "f44d0f96da7e7409b2dfa68736a029dd4c1945ed595816550cf64dc6b3802f3d",
       "apps/web/src/stream-health.ts": "27d929f46e642f4aeb496d5990ccd728d937b5a923a55e44bc2dc2fceec13cfe",
       "apps/web/src/style.css": "761c48e93bdcd9249605f4dcc0349402216adc7b5900e7229e3a8da481830ca2",
-      "apps/web/src/time.ts": "bda67be18f962e07e8de0f554a6efc3bbdea79f8d0ca4d8af3f2feed87fd33a3",
-      "apps/web/src/types.ts": "cb600b376ce01d54cb1d41e732c793ec021a61008f5272491af0b0cc0a28437a",
+      "apps/web/src/time.ts": "23e23f0eaed30ceeaf1a95596c455bcb72122042133ec4f27da5bbb4555ed092",
+      "apps/web/src/types.ts": "02b28c0cfdb32c3d0904d84f106df22ffeba8e4f390882b80909d30bb5edc0d8",
       "apps/web/src/ui.tsx": "44872ad0c0afec432444cf09dc7192a30968f243a5912d0030f20ec39f33c8d9",
       "apps/web/src/workbench.tsx": "3697ec7fe45fc1997918700b7f3a79f8a794ac84f959df96a3ea43fa3376f6f6",
       "apps/web/tests/ai-presentation.test.ts": "b25f841dcffdc93cbade2de49d2485096ca7591fde2705b1a7a111a656d4f1bb",
       "apps/web/tests/ai-reasoning-smoke.mjs": "7997a47ae05d60105845c786520a0507aa401accde08054da1f7abb62c1d875d",
       "apps/web/tests/ai-settings-smoke.mjs": "5c78013ba31b0bb9360859748496d71f32a5e4c2897bed8da598eb94d2fc79ea",
       "apps/web/tests/calendar-preview.test.ts": "81ac4e2141c38745e2f1408668c28411435774e228557ce5dbf27c7f3cd18088",
+      "apps/web/tests/calendar-provider-config.test.ts": "3dc225056d5225018b6300cc9895f485086c5d6bbfa428e2b6b47aca84e27f4d",
       "apps/web/tests/chatgpt-guide.test.ts": "7167fed151f49e965bdb4c57043c58693782d3ca4eac964dc4f9fadbbf07ae49",
       "apps/web/tests/cold-load-smoke.mjs": "f8891439716ccecade95fc6ec236a0cfda8d830a56ff25467f9e69f64ca76621",
       "apps/web/tests/demo-login.test.ts": "29d16fc326e333fa5dee68625ba71a837fffd23405e90e2ea4831bf8fb975ed0",
       "apps/web/tests/display-cache.test.ts": "da81021c2062cc29f76c8f6cc30c4005dc865ec1f07ebc1dd52363e26fa79c97",
-      "apps/web/tests/home-presentation.test.ts": "f1c5f1e027304db81d070372f381f29fe3e1c8353fd4c1387d71354a5a561991",
+      "apps/web/tests/home-presentation.test.ts": "d425c8ab7dfec4f495bbe647ccad3484f668b6b5769846edff498d19efba0175",
       "apps/web/tests/m3-family-hub.mjs": "39410dc1b7f47acb8a4971e364b053b51f2c9e805959915d0a78ee3804c5e44c",
       "apps/web/tests/member-presentation.test.ts": "cb69f808181aa2ea275f325bed2c7b1e11a5b27ad4ab5c663af01b120e230f13",
       "apps/web/tests/monitor-presentation.test.ts": "f64b18ef65f3205126a83201ff7d7cdaaa246922d60deb2ea183ceeb792047c3",
@@ -96,7 +100,7 @@
       "apps/web/tests/round9-presentation.test.ts": "06b6b5d09b60a62ff58fb2e1d8b05f748cce5b615d6cb76a4a9d696b2d8acfc2",
       "apps/web/tests/smoke.mjs": "ee0b04891bc3cd188295cc0d9112306a8c4655df287d0999ab47460742d4a112",
       "apps/web/tests/stream-health.test.ts": "d17e4aec0ac72c979feae6bb59568fb79b9c4b75d4e8aca0dcb371a6772af02b",
-      "apps/web/tests/time.test.ts": "f8f76fc2d7ffe4d3c89fec2f1174064c54dc8556750c23db6c7dcde45c278609",
+      "apps/web/tests/time.test.ts": "2b8d29000d00c3b0fb3f4d8e520d0990b7fc1256f992cebe6c7a345110766157",
       "apps/web/tests/ux-states.mjs": "52797d7b9068e29a02cc5ef986f6d1b2730b92aed830ffd2332be8b4e6001e91",
       "apps/web/tsconfig.json": "d5884385d94e2da9b30c1980148b2dd9f2538a980af82569aa9c7149604eab75",
       "apps/web/vite.config.ts": "34573b0cc4e311bfaf11fd131b041c75b6babdf3cd41c339e0066362dd119681",
@@ -105,7 +109,7 @@
       "package.json": "4639ca20b1008767b9f9d5d1612a599228a82b0e94d50147e6652c42cebdec05",
       "packages/contracts/package.json": "f0517326dc46a607dbc9903267663570ef98cc76025bff2b2c776460e2799c7c",
       "packages/contracts/src/external-intelligence.test.ts": "34493e0fb6cbfcb85cc0fdb15621fcbb8ec0dd242a64518d406a449f0cec3339",
-      "packages/contracts/src/index.ts": "559ccd49753b5e1f54be6cbe0a956a5d81658491e7617a2dfb0569b04d0993a1",
+      "packages/contracts/src/index.ts": "aa7eba1ad985b638ffa656431324fa1a0e6b5487e06c8ee1f745da2bf2c72369",
       "packages/contracts/src/password-policy.test.ts": "08461d43ac2ee9b22c1cc1740273442010f86a7722475479a001072f3a7d438f",
       "packages/contracts/tsconfig.json": "c4ef5588f4e0e442aa72db545d02653e9ac2144621d081a486ee64879a5f5dcd",
       "packages/core/package.json": "d23f3e8bcef542003b10b18db5b8a98f04dc2c7084cf54d3f268e006ec07765a",
@@ -166,6 +170,7 @@
       "services/api/migrations/022_round9_calendar_connections.sql": "e7249fddbfe7296f63a972647bc439041a8e4765e52360799bb4bbbb10e4bacc",
       "services/api/migrations/023_round9_chatgpt_helper_profiles.sql": "cd2955acde69bc08f808c35f3c4e3b75c23b4164d475dd63faeb483bb386f94b",
       "services/api/migrations/024_round10_calendar_and_monitor_repairs.sql": "aafca689a5380868341fdec3eec47f68dd4db5d2616b8511adb013c1cf2bbc5b",
+      "services/api/migrations/025_calendar_provider_gui_and_home_assistant.sql": "9478df9ce301d31f690a5e348f5b9ae06d4908dba498db391226f20fa8a1e40f",
       "services/api/package.json": "c2e82cf64579bee0c1d32159d7238b948604e7661b02560eb1b78de6c4fea2e5",
       "services/api/src/ai.integration.test.ts": "a64987672c0edbd1a520cc7466c8da6f287816f9901bb95495830cd299f2ce49",
       "services/api/src/ai/admin-service.ts": "d44176cb43f2ebc50904528eb5d719e0017f783a9b96d728a807ee3c84e81f61",
@@ -183,12 +188,16 @@
       "services/api/src/ai/openai-provider.ts": "2ed1fbddc1359a7b0c3630a062ba17454cc14d861e0541117eaaa03694b31abc",
       "services/api/src/ai/provider.test.ts": "746c9590188db36cff8fb49f001e2c7ca4d1ff1d6605af718ee0f7610a45b217",
       "services/api/src/ai/provider.ts": "a650363070bcb3db0a7c970459e995bf3e46808f99f4ee6952a267e60b32d6e1",
-      "services/api/src/api.integration.test.ts": "91d3bd39fb958548b84932cfeda1cbee364890baa045d387ee3472c3f7426af4",
-      "services/api/src/app.ts": "12710d890f3a687438acaa4215500ba164780805e48447c667d9493a96359079",
+      "services/api/src/api.integration.test.ts": "4ad334c5c1a9d0baecae093b1b67cd770762352232b8ecb6715762dbae0f71fc",
+      "services/api/src/app.ts": "d914c70a30bb37c6147351adf4dff8383cad9335657713d6be979f30f2eaa7f4",
       "services/api/src/browser-security.test.ts": "bd8e5464bb591337dd317e6f688b363e4e509b170048d1722314ff4ba2667f8a",
       "services/api/src/browser-security.ts": "03e3cf0ac8b3a7ba5b20abc3364a17dec8c53fcd2651235eb10ed6820dfa2675",
-      "services/api/src/calendar/service.ts": "4759d05ab1ac289495c845677656744b3e5ef5cac7621fac95bdec7e44a54e74",
-      "services/api/src/calendar/transport.test.ts": "439865427a9623cb433846a980dac787032fd1e86e93634104a2282a8b0ba05a",
+      "services/api/src/calendar-provider.integration.test.ts": "7ae58a9f8a72b5352f58fe845278b3e7c82dbdcce062f9e7dae4c64dd4be4909",
+      "services/api/src/calendar/home-assistant-client.test.ts": "a91aaae15a13cb10b36b66c1a31492f670e46e25a57a6a3bcdeb48761725e2d7",
+      "services/api/src/calendar/home-assistant-client.ts": "3ff2ac19c6091ed3590dd6ca8da42a0ca0c99095c2a7705be77059e9a78bfc92",
+      "services/api/src/calendar/provider-config.ts": "bd09aab20f6150eaa2b524bd802db1ef35277cb465fa7e71e0bbff8dcf97aeef",
+      "services/api/src/calendar/service.ts": "7d8e461a4041bc9f58b5b0edf940e2964f48b631d617c8551ce4e5adedba7e69",
+      "services/api/src/calendar/transport.test.ts": "23d7511ca0049e5621ba9ead595343ccaeb0ad7283f8028f34f41b43c0bcac12",
       "services/api/src/db.ts": "566999d65bf772e57c5e944c8d73595cb118ed2e67c37d9039769819b0e71120",
       "services/api/src/db/migrate.ts": "a99377bb2227b768909c7f182856e13286ce02faac8596a2a9b41ce79ae06bb4",
       "services/api/src/e2e.integration.test.ts": "e83018147784bae9ec2dccd26ab6b5fac4ca9259ab314e752428b4f5e6a68e9e",
@@ -206,7 +215,7 @@
       "services/api/src/monitor/event-identity.ts": "8dc0b30a6950550b4d832958b634eb9f489eba08c079f610c97704717ca44f54",
       "services/api/src/monitor/execution-policy.test.ts": "520a307f8e1554b39214e0f3f9ddce5005be79c0b1a32a7e9703e9ae198a017c",
       "services/api/src/monitor/execution-policy.ts": "7b387304b2295c3b3512ab7ff2481ec64e3407dd2dfebf2c6c0610bfd4b6100e",
-      "services/api/src/monitor/execution.integration.test.ts": "1128fe7acab5394b65812e47611d980687495793232f600a354ddb3406a67500",
+      "services/api/src/monitor/execution.integration.test.ts": "937d97f884dc0c99922d7f465bfc5a38e60be7b35cc50721a58ff3139f06a811",
       "services/api/src/monitor/execution.ts": "40b0167867209c44ca5afbc9fd9a9f3127424e39f00e803a18a7d3e2bd7955c3",
       "services/api/src/monitor/quality-router.test.ts": "c77aff98d4e944e431ee780454b198899d12bd3e5cbf1df049716ed9d17d6cb0",
       "services/api/src/monitor/quality-router.ts": "86f68710eb5a4a64c8c05f33df3a06f23562dda27ce10571c4df1f95d0fb4e53",
@@ -232,7 +241,7 @@
       "services/api/src/projection-events.ts": "9381baf56d08fea8cbfdfc1342808d05ec9db854a1dd219f49b9103d70c61a53",
       "services/api/src/proxy.integration.test.ts": "0d419efaf120171a223c2b9d83294f846c0c6cdcdaaa6a85de921d3c37e2e3f6",
       "services/api/src/round10-backend.integration.test.ts": "c04bb9b4bb768ab760b5d823ecccbbadcec4929269fbfe88ad2711ef906eab36",
-      "services/api/src/round9-backend.integration.test.ts": "1d3f0b09fc4a7cce053018ba0cfd0471d20799b50b5fde6ade842a8c2b7b7d0f",
+      "services/api/src/round9-backend.integration.test.ts": "b91fcfd2a27c788d047eabb60cf3ac6796ded4b4a4d931159e0e91b30ba3dedb",
       "services/api/src/runtime-config.test.ts": "ab4ff17d6768842909de615fe2e5e12ca929c976b0931e25a798effc89e6fd83",
       "services/api/src/runtime-config.ts": "c85d4e3eef7f47d61b3af7a309201755dab9c9ff9b655fe3d6f5c1b7de0eb238",
       "services/api/src/server.ts": "43937578867a6fd8d6204d137e05090db8fa4b558d889f12627b868d7c32d25a",
@@ -250,12 +259,12 @@
       "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
       "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
-      "assets/index-B03FGeQ8.css": "dc45849d7349eaea5d70f810514a5afa8fe92ed0b81c63bd0fb0d87e173bf300",
-      "assets/index-DoogDZ5T.js": "d3d43a503149f5fc62be008955877f31c387b89fb139c87058c8b92a15881a99",
+      "assets/index-B-0hR_Uy.js": "b34f6f3bd4d6f9ad32e067c7ac55a53b9781330d7b7bb631d9c34050c74a16da",
+      "assets/index-BkWFCS0y.css": "99946fc33c053a6cc3645d1a34d4d6a25d63ac17f8e3b015ac2a2776ad3b32aa",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
-      "index.html": "994b8e1df24ccbbd307b529c886ab27d46c86ff105afb93218f1d959d26a595b"
+      "index.html": "7961f0d3c78458d1e1f1364c25b638f2a794f5a2bf22f5f6f37a66b9e5f91e4d"
     },
-    "builtAt": "2026-10-14T09:49:07.912Z",
+    "builtAt": "2026-10-14T22:29:27.096Z",
     "containerId": "13b86f7ac1962e2d89ec7ea10a6966a1b872d27557f8eb586c4b5f12c6e02fe1",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
@@ -265,8 +274,8 @@
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-05-BkiEJE6s.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-B03FGeQ8.css",
-      "/assets/index-DoogDZ5T.js",
+      "/assets/index-B-0hR_Uy.js",
+      "/assets/index-BkWFCS0y.css",
       "/assets/nordic-dusk-v2-JZmjLCmU.png"
     ],
     "loadedAssetsVerified": [
@@ -274,8 +283,8 @@
       "/assets/avatar-02-DdgMOJAz.webp",
       "/assets/avatar-03-DA7Jq2DZ.webp",
       "/assets/avatar-04-Bl-4M4Ux.webp",
-      "/assets/index-B03FGeQ8.css",
-      "/assets/index-DoogDZ5T.js"
+      "/assets/index-B-0hR_Uy.js",
+      "/assets/index-BkWFCS0y.css"
     ],
     "authorizedDynamicImages": []
   },
@@ -287,8 +296,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:42.905Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:33.485Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -310,11 +319,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "8fa3b2801f6f928908f1c3d3162a331ca42716aab2cb2532aa7405c499dc0d5f"
+      "sha256": "f0fc330e1a5f58a39656ecb1d1fa58e8f88fa0dc9bca3627d5ad3884770a8a83"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:43.095Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:33.634Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -336,11 +345,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "5d89ec9b30d37d7e70fbe483caa53e16022dace8e6feb82d05e2fff58e5e78f3"
+      "sha256": "75edd7a96e900ed06b7fab65371b3821dd02617256a00d2892e6a2dc377224fd"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:43.369Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:33.926Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -362,11 +371,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "f8d99aee0f5d400c0ebf715487799dc76dcb5c1440a3bd6b1f3bc5fcd70ac155"
+      "sha256": "79c60f27751ad7ac05ed889f8c6c079964c4f01a357c37fd33ee98bcb0556dc8"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:43.647Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:34.204Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -388,11 +397,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "684bedef0b0b0a3948276c98c66cb6df14e7afefd9a00fafc218d7a1386de839"
+      "sha256": "f8421dc8f61bd5fcecbe03778901663579a5e46c53da7bc8de6ac010eeb9d0c7"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:43.932Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:34.490Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -414,11 +423,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "e4ce5f1a2e5d1f3407d224b98c8d1145ba95c54ae75653f1d2af87e31021e6d7"
+      "sha256": "30d34354b27cec46c887252e9728ee948c7073d2bb9c3641d8a03ebaf4d15809"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:44.097Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:34.634Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -440,11 +449,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "5d89ec9b30d37d7e70fbe483caa53e16022dace8e6feb82d05e2fff58e5e78f3"
+      "sha256": "75edd7a96e900ed06b7fab65371b3821dd02617256a00d2892e6a2dc377224fd"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:44.597Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:35.101Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -466,11 +475,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "d174140ebc1f9d11969d93980a4866f513aa4b6419f70b214219718c25a417c0"
+      "sha256": "163d80648f8aa93f21cf9e4dc2d4ce1d0cedf4a1bc218db96a94c9674e0f9226"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:45.811Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:36.409Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -492,11 +501,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "8754e17d0cf199bc2420ac93346ac31657b8b45a24042b463b77e0874a68afb7"
+      "sha256": "9064c3d9db301b22c1496c98990ba762f77e813c32916e4c4e28e676b822bf96"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:46.036Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:36.623Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -518,11 +527,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "c6387de70bb855060b41ce2ac9ae6af10390adf8cccf251026054aac70143934"
+      "sha256": "7a894b0752a12566a33840850044b7cb64fdb875cb432248181a4e7871816445"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:46.571Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:37.146Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -544,11 +553,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "824bd214daf1376f21008aa518a4fc455ceb42e398dab58e0c3574da51c90549"
+      "sha256": "c56832d35b522ede8d7c07ce8928cf96eb2124bc4940070ea4ec544e9da62c18"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:47.018Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:37.591Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -571,11 +580,11 @@
         "personalActivity",
         "runtimeIdentity"
       ],
-      "sha256": "4562ffe4c18327a8d0bdb37e99cf7e0ed4081d943c709a86dc9f54a26b7fdcf5"
+      "sha256": "1fda8afeec3f7ec83d75ead75843e09dc5515e2deb3473a118e090df635d49a7"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:47.464Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:38.039Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -598,11 +607,11 @@
         "personalActivity",
         "runtimeIdentity"
       ],
-      "sha256": "1fa21416f09405e00374447dd0dfefb3358be1a576e726ef7252a2f92980127f"
+      "sha256": "063c1bf125a33a042d0efdb9f43319b22a6b43ef52ef1e61497c8d91f64171e2"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:47.682Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:38.254Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -624,11 +633,11 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "c6387de70bb855060b41ce2ac9ae6af10390adf8cccf251026054aac70143934"
+      "sha256": "7a894b0752a12566a33840850044b7cb64fdb875cb432248181a4e7871816445"
     },
     {
-      "commitSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
-      "capturedAt": "2026-10-14T09:49:48.493Z",
+      "commitSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+      "capturedAt": "2026-10-14T22:30:39.093Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -650,7 +659,7 @@
         "personIdentity",
         "runtimeIdentity"
       ],
-      "sha256": "8754e17d0cf199bc2420ac93346ac31657b8b45a24042b463b77e0874a68afb7"
+      "sha256": "8af59351f963ac18939ab77e6275915cd8436828920314dbf4561d99b8d9fc44"
     }
   ]
 }

@@ -1,0 +1,40 @@
+{
+  "sourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "fullWorkspaceTests": {
+    "web": 84,
+    "contracts": 5,
+    "core": 3,
+    "api": 259,
+    "worker": 0,
+    "total": 351,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0
+  },
+  "workspaceChecksPassed": 5,
+  "workspaceBuildsPassed": 5,
+  "hostPipelineTestsPassed": 16,
+  "browserPrivacyTestsPassed": 1,
+  "initialOAuthUiSourceSha": "1a10e7702b7c290dfb437a0a340072a9b0fa8f7a",
+  "finalUiSourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "externalLiveAuthorizationOrSync": {
+    "google": false,
+    "microsoft": false,
+    "homeAssistant": false
+  },
+  "retainedPrivateLogHashes": {
+    "qa-full-postvisual-final.log": "3ca17fbaa02c92706694f6946f01e0166335b5fbaf70aac1d086d7d4af94c7de",
+    "workspace-check-postvisual-final.log": "e0641762b01204f07ff1d2a97612091b66a358651220e65a02f2d1b6e2fc010a",
+    "workspace-build-postvisual-final.log": "956300df05ea231d2ca1da22cf2506f7819c27232a8c0e01be37f82ef4a9d02f",
+    "canonical-build-postvisual-final.log": "43d9d55cd6d4828c09d98444d273c268c71a6ea5edce2762bc59cc1e6283b074",
+    "qa-build-postvisual-final.log": "e46cef044d23aff94d62606703425996e16fa60e94f5360ea59810f0219b2c71",
+    "review-capture-postvisual-final.log": "96cbccd7f0e5ec881ffd101fcd0ca3459b373b062844606f349d75cc7250b977",
+    "qa/calendar-ui-final.log": "26aa7cca5c3638a174f7cf447318abad9f628c1c49b6058c86ebb23fdbcb5d5b",
+    "qa/calendar-ui-extension-585-final.log": "cb281c5fa3d230817ce2209f70adcc3f7880c2c5ecfd8bbe5a7da9a0d6416992",
+    "pipeline-host-final.log": "cace922b0145a5a38e253b2d387893c7075a29361e788c9773c09cc5a28bf5b4",
+    "pipeline-browser-final.log": "6a68bc2fbdb74c0b156ba70a289c821791268a683a3e68819067e8f3d26cb7f9",
+    "qa/calendar-ui-dark-585-final.log": "5f89baa490fcd4a85a22d6b156859ba5024d31694aad32b5b3bf0b4c11e498d9"
+  },
+  "finalSourceVisualCaptures": 30,
+  "additionalDarkUiPass": true
+}

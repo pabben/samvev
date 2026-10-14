@@ -939,3 +939,42 @@ passed. Final UX review opened 75 review outputs without an outstanding visual
 blocker; it does not claim owner design approval. The detailed
 boundaries, recovery evidence and user actions are in
 [ROUND_9_REPORT.md](../design/review/ROUND_9_REPORT.md).
+
+## Calendar GUI and Home Assistant implementation package — 2026-10-14
+
+Mailbox `23c01cc4fd849448060633825f1d6d368a46b6f3` is implemented in source
+`585a7204ce89bc7e953f6b79cf871c1845a12f9f`. The canonical candidate image is
+`sha256:5f63b1afb11d68aea1fdb8e1bc72cad2c099f1bab4377f7cc8aee6581d6eee12`.
+Direct Google/Microsoft read-only calendars now have a separate encrypted,
+installation-admin registration wizard. Spond has a primary Home Assistant
+browser-auth/discovery/explicit-person/preview/fullsnapshot path, with truthful
+cache, identity and task-availability limitations. Session/adult/household/display
+boundaries remain server-enforced; provider failure retains stale last-good data.
+
+Final isolated retest: **351/351**, zero skips; all five workspace checks/builds
+pass. Canonical image, working files and QA agree on all 240 source inputs and
+10 webassets. Visual iteration fixed long-name six-person card readability and
+all-day/exclusive-end dates. All 14 latest plus sixteen final-source targeted images
+were individually inspected and approved. Latest round:
+`20261014223031-585a7204-59693e69`. LAN literal `admin/admin` login/logout,
+Family Hub and source-bound assets pass; existing ordinary QA data is preserved.
+
+A fresh public schema-24 backup was restored in a local isolated PostgreSQL 17
+clone, migrated to 25 twice (second no-op), and checked for ledger/domain/rights
+preservation and amcheck. Candidate authenticated reads/assets and deployed R10
+image authenticated reads on schema 25 pass without worker, vault, model/provider
+calls or host ports. Temporary clone resources were removed.
+
+**The new candidate is not publicly deployed.** Public test remains R10 source
+`ca7359b0ce511f930aec3df0e11ce94ac4d203e6` / image `8fa9329d…`, with actual HTTPS
+synthetic login, Family Hub/People/Integrations and logout verified. Remote disk
+capacity is below the safe candidate-load/rollback margin, even with local
+restore. Existing public configuration, data, rights and two private tasks are
+preserved. Real Google/Microsoft consent, actual Home Assistant address/access,
+installed tracker inspection and external synchronization remain owner actions;
+none is called live-verified. Prior ChatGPT import/consent and local-AI owner
+validation also remain explicitly unverified. No PR/merge/main/force push,
+tag/release or Actions dispatch has occurred.
+
+See [ROUND_11_REPORT.md](../design/review/ROUND_11_REPORT.md) for source/deploy/review
+boundaries, changed files, evidence, migration/rollback and the GUI owner checklist.
