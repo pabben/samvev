@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import cookie from '@fastify/cookie';
 import fastifyStatic from '@fastify/static';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { Writable } from 'node:stream';
@@ -11,11 +12,12 @@ import {
   accountStatusUpdateSchema, claimSchema, displayUpdateSchema, householdSettingsUpdateSchema,
   invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
-  passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
+  passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,aiChatGptImportSchema,aiChatGptDisconnectSchema,aiChatGptSelectSchema,aiUsageQuerySchema,
-  monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskUpdateSchema,
+  monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
   integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
+  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,
   integrationCapabilities,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
@@ -34,8 +36,12 @@ import { MonitorExecutionQueue } from './monitor/execution.ts';
 import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
 import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
+import { normalizeProfilePhoto } from './people/photo.ts';
+import { personMonitorSummaries, replaceMonitorSubjects, reviewMonitorResult } from './monitor/subjects.ts';
 import { liveE2eAttestation, liveE2eExecutionEvidence } from './e2e/live-e2e.ts';
 import { applyBrowserSecurityHeaders, browserSecurityHeaders } from './browser-security.ts';
+import { CalendarService,type CalendarTransport } from './calendar/service.ts';
+import { AiCredentialVault } from './ai/credential-vault.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -46,6 +52,7 @@ const elevatedCapabilities = new Set<Capability>(['installation.manage','househo
 
 interface AuthContext {
   accountId: string;
+  sessionId: string;
   installationId: string;
   membershipId: string;
   householdId: string;
@@ -113,12 +120,12 @@ async function createSession(client: pg.PoolClient, accountId: string): Promise<
   return { token, csrf };
 }
 
-async function sessionAccount(request: FastifyRequest): Promise<{ accountId: string; installationId: string; csrfHash: string; tokenHash: string }> {
+async function sessionAccount(request: FastifyRequest): Promise<{ accountId: string; sessionId:string; installationId: string; csrfHash: string; tokenHash: string }> {
   const token = request.cookies[SESSION_COOKIE];
   if (!token) throw new DomainError('UNAUTHENTICATED', 401);
   const hash = tokenHash(token);
-  const result = await pool.query<{ account_id: string; installation_id: string; csrf_hash: string }>(`
-    SELECT s.account_id,a.installation_id,s.csrf_hash FROM sessions s JOIN accounts a ON a.id=s.account_id
+  const result = await pool.query<{ id:string;account_id: string; installation_id: string; csrf_hash: string }>(`
+    SELECT s.id,s.account_id,a.installation_id,s.csrf_hash FROM sessions s JOIN accounts a ON a.id=s.account_id
     WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>clock_timestamp() AND a.disabled_at IS NULL`, [hash]);
   const row = result.rows[0];
   if (!row) throw new DomainError('UNAUTHENTICATED', 401);
@@ -127,7 +134,7 @@ async function sessionAccount(request: FastifyRequest): Promise<{ accountId: str
     if (typeof csrf !== 'string' || tokenHash(csrf) !== row.csrf_hash) throw new DomainError('CSRF_REQUIRED', 403);
   }
   await pool.query('UPDATE sessions SET last_seen_at=clock_timestamp() WHERE token_hash=$1', [hash]);
-  return { accountId: row.account_id, installationId: row.installation_id, csrfHash: row.csrf_hash, tokenHash: hash };
+  return { accountId: row.account_id,sessionId:row.id, installationId: row.installation_id, csrfHash: row.csrf_hash, tokenHash: hash };
 }
 
 async function authForHousehold(request: FastifyRequest, householdId: string): Promise<AuthContext> {
@@ -137,7 +144,7 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
   }>(`SELECT id,household_id,person_id,role_preset,capabilities FROM memberships WHERE household_id=$1 AND account_id=$2`, [householdId, account.accountId]);
   const row = result.rows[0];
   if (!row) throw new DomainError('NOT_FOUND', 404);
-  return { accountId: account.accountId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
+  return { accountId: account.accountId,sessionId:account.sessionId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
 }
 
 async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
@@ -225,6 +232,7 @@ interface ExternalItemRow {
   entries:Array<{label:string;detail?:string}>; priority:string; publish_at:Date|null; starts_at:Date|null;
   ends_at:Date|null; expires_at:Date|null; source:Record<string,unknown>; metadata:Record<string,unknown>;
   status:string; revision:number; updated_at:Date; person_ids:string[]; display_ids:string[];
+  subject_person_ids:string[];
 }
 
 function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean}={}):Record<string,unknown>{
@@ -239,6 +247,7 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
     ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
     kind:row.kind,contentLocale:row.content_locale,
     targets:{household:row.target_household,personIds:row.person_ids,...(options.includeExternalId?{displayIds:row.display_ids}:{})},
+    subjects:{personIds:row.subject_person_ids},
     title:row.title,body:row.body,entries:row.entries,priority:row.priority,
     publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
     endsAt:row.ends_at?.toISOString()??null,expiresAt:row.expires_at?.toISOString()??null,
@@ -249,6 +258,7 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
 const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.content_locale,i.target_household,i.title,i.body,i.entries,i.priority,
   i.publish_at,i.starts_at,i.ends_at,i.expires_at,i.source,i.metadata,i.status,i.revision,i.updated_at,
   COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_targets t WHERE t.item_id=i.id),'[]') AS person_ids,
+  COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_subjects t WHERE t.item_id=i.id),'[]') AS subject_person_ids,
   COALESCE((SELECT json_agg(t.display_id ORDER BY t.display_id) FROM integration_item_display_targets t WHERE t.item_id=i.id),'[]') AS display_ids`;
 
 async function homeItems(householdId:string,personId:string,canViewAll:boolean):Promise<Record<string,unknown>[]>{
@@ -275,9 +285,9 @@ async function displayHub(display:DisplayContext):Promise<Record<string,unknown>
       AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
     ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
       i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200`,[display.id,display.householdId]);
-  const personIds=[...new Set(rows.rows.flatMap((row)=>row.person_ids))];
-  const people=personIds.length?(await pool.query<{id:string;display_name:string;avatar_key:string|null}>(`SELECT id,display_name,avatar_key FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY display_name,id`,[display.householdId,personIds])).rows:[];
-  return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key})),items:rows.rows.map((row)=>mapExternalItem(row,{forDisplay:true}))};
+  const personIds=[...new Set(rows.rows.flatMap((row)=>[...row.person_ids,...row.subject_person_ids]))];
+  const people=personIds.length?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,personIds])).rows:[];
+  return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:photoProjection(display.householdId,person.id,person.photo_revision)})),items:rows.rows.map((row)=>mapExternalItem(row,{forDisplay:true}))};
 }
 
 async function integrationConnectionResponse(connectionId:string,householdId:string):Promise<Record<string,unknown>>{
@@ -300,6 +310,10 @@ async function integrationConnectionResponse(connectionId:string,householdId:str
 }
 
 function params(request: FastifyRequest): Record<string, string> { return request.params as Record<string, string>; }
+
+function photoProjection(householdId:string,personId:string,revision:number|null):Record<string,unknown>|null{
+  return revision?{revision,url96:`/api/v1/households/${householdId}/people/${personId}/photo/96?v=${revision}`,url512:`/api/v1/households/${householdId}/people/${personId}/photo/512?v=${revision}`}:null;
+}
 
 async function validateAudience(client: DbClient, auth: AuthContext, personIds: string[], displayIds: string[], needsDisplayPublish = true): Promise<void> {
   if (personIds.length) {
@@ -327,15 +341,16 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   const hardCache = new Date(now.getTime() + 15 * 60_000);
   const label=await pool.query<{display_name:string;household_name:string;timezone:string}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
   const cards = display.privacyMode ? [] : (await pool.query<{
-    id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_person_id:string; author_avatar_key:string|null
-  }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,p.display_name AS author_name,p.id AS author_person_id,p.avatar_key AS author_avatar_key
+    id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_person_id:string; author_avatar_key:string|null;author_photo_revision:number|null
+  }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,p.display_name AS author_name,p.id AS author_person_id,p.avatar_key AS author_avatar_key,ph.revision AS author_photo_revision
       FROM messages m JOIN message_display_targets t ON t.message_id=m.id AND t.household_id=m.household_id
       JOIN memberships ms ON ms.id=m.author_membership_id JOIN persons p ON p.id=ms.person_id
+      LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE t.display_id=$1 AND m.household_id=$2 AND m.state='published' AND t.delivery_state IN ('queued','delivered','displayed')
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
       ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId])).rows.map((row) => ({
         id: row.id, kind: 'household_message', body: row.body, importance: row.importance,
-        author: row.author_name, authorPersonId:row.author_person_id, authorAvatarKey:row.author_avatar_key, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
+        author: row.author_name, authorPersonId:row.author_person_id, authorAvatarKey:row.author_avatar_key,authorPhoto:photoProjection(display.householdId,row.author_person_id,row.author_photo_revision), publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
       }));
   if(!display.privacyMode && cards.length){
     const cardIds=cards.map((card)=>(card as {id:string}).id);
@@ -357,7 +372,7 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const logger=process.env.NODE_ENV==='test'&&!options.logStream?false:{
     level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
@@ -368,6 +383,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
   const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
+  const calendars=new CalendarService(options.calendarTransport,new AiCredentialVault(options.aiKeyFile));
   await app.register(cookie);
   app.addHook('onSend',async(_request,reply,payload)=>{
     applyBrowserSecurityHeaders(reply,responseSecurityHeaders);
@@ -606,6 +622,21 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');const query=parse(aiUsageQuerySchema,request.query??{});return aiAdmin.usage(auth.householdId,query.days,auth.accountId);
   });
 
+  app.post('/api/v1/households/:householdId/ai/chatgpt/helper',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const profile=await transaction(async(client)=>{const row=(await client.query<{ext_agent_host_id:string}>(`INSERT INTO ai_chatgpt_helper_profiles(household_id,account_id) VALUES($1,$2) ON CONFLICT(household_id,account_id) DO UPDATE SET updated_at=clock_timestamp() RETURNING ext_agent_host_id`,[auth.householdId,auth.accountId])).rows[0]!;await audit(client,auth,'ai.chatgpt_helper_prepared','ai_chatgpt_helper_profile',auth.accountId,{tokenFree:true});return row;});
+    const base=`${runtime.publicOrigin}/api/v1/households/${auth.householdId}/ai/chatgpt/helper-files`;
+    const output='$HOME/samvev-chatgpt-credential.json',registration='$HOME/.config/samvev/chatgpt-registration.json';
+    reply.header('Cache-Control','private, no-store');
+    return{status:'ready_for_local_consent',hostId:`urn:uuid:${profile.ext_agent_host_id}`,downloads:[{name:'chatgpt-connect.ts',url:`${base}/chatgpt-connect.ts`},{name:'chatgpt-connect-core.mjs',url:`${base}/chatgpt-connect-core.mjs`}],localCommand:`node ./chatgpt-connect.ts --host-id 'urn:uuid:${profile.ext_agent_host_id}' --registration \"${registration}\" --output \"${output}\"`,serverImportCommand:`npm run ai:chatgpt-import -- --household '${auth.householdId}' --owner-account '${auth.accountId}' --file '<credential-file-path>'`,requiresLocalBrowserConsent:true,automaticallyImports:false,automaticallyCallsModel:false};
+  });
+  app.get('/api/v1/households/:householdId/ai/chatgpt/helper-files/:file',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const file=params(request).file!;
+    if(file!=='chatgpt-connect.ts'&&file!=='chatgpt-connect-core.mjs')throw new DomainError('NOT_FOUND',404);
+    const data=await readFile(new URL(`../../../scripts/${file}`,import.meta.url));
+    return reply.header('Cache-Control','private, no-store').header('Content-Disposition',`attachment; filename=\"${file}\"`).type(file.endsWith('.mjs')?'text/javascript; charset=utf-8':'application/typescript; charset=utf-8').send(data);
+  });
+
   app.post('/api/v1/households/:householdId/ai/chatgpt/import',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     if(!runtime.secureCookies)throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'secure_import_required',command:'npm run ai:chatgpt-import'});
@@ -653,6 +684,14 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=parse(monitorTaskQualitySchema,request.body);return monitors.setQuality(auth,params(request).monitorId!,body.expectedRevision,body.quality);
   });
+  app.patch('/api/v1/households/:householdId/monitors/:monitorId/subjects',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    return replaceMonitorSubjects(auth,params(request).monitorId!,parse(monitorTaskSubjectsSchema,request.body));
+  });
+  app.put('/api/v1/households/:householdId/monitors/:monitorId/results/:runId/review',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    return reviewMonitorResult(auth,params(request).monitorId!,params(request).runId!,parse(monitorResultReviewSchema,request.body));
+  });
   app.delete('/api/v1/households/:householdId/monitors/:monitorId',async (request,reply) => {
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=parse(monitorTaskRevisionSchema,request.body);await monitors.remove(auth,params(request).monitorId!,body.expectedRevision);return reply.status(204).send();
@@ -665,7 +704,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const canManageAccounts=auth.capabilities.includes('account.manage');
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone);
-    const result = await pool.query(`SELECT p.id,p.display_name,p.avatar_key AS "avatarKey",p.age_group,p.revision AS person_revision,
+    const result = await pool.query(`SELECT p.id,p.display_name,p.avatar_key AS "avatarKey",p.age_group,p.revision AS person_revision,p.photo_revision AS "photoRevision",ph.revision AS asset_photo_revision,
       CASE WHEN $2 THEN p.birth_date::text ELSE NULL END AS birth_date,m.id AS membership_id,m.role_preset,
       CASE WHEN $2 THEN m.capabilities ELSE '[]'::jsonb END AS capabilities,m.revision,
       (m.account_id IS NOT NULL) AS has_login,(m.account_id IS NOT NULL AND a.password_hash IS NOT NULL AND a.disabled_at IS NULL) AS has_active_login,
@@ -675,9 +714,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       CASE WHEN $3 THEN a.revision ELSE NULL END AS account_revision,
       CASE WHEN $2 THEN COALESCE((SELECT json_agg(display_id) FROM membership_display_grants g WHERE g.membership_id=m.id),'[]') ELSE '[]'::json END AS display_ids
       FROM persons p LEFT JOIN memberships m ON m.person_id=p.id AND m.household_id=p.household_id LEFT JOIN accounts a ON a.id=m.account_id
+      LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE p.household_id=$1 ORDER BY p.created_at`, [auth.householdId,canManagePeople,canManageAccounts]);
     return { people: result.rows.map((row)=>{
-      const person=row as Record<string,unknown>;
+      const person=row as Record<string,unknown>;person.photo=photoProjection(auth.householdId,String(person.id),typeof person.asset_photo_revision==='number'?person.asset_photo_revision:null);delete person.asset_photo_revision;
       if(canManagePeople && typeof person.birth_date==='string')person.calculated_age=ageOnDate(person.birth_date,today);
       if(canManagePeople || canManageAccounts)return row;
       const visible={...row};
@@ -687,6 +727,68 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       delete visible.account_status;
       return visible;
     }) };
+  });
+
+  app.get('/api/v1/households/:householdId/people/:personId/monitors',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const person=await pool.query('SELECT id FROM persons WHERE id=$1 AND household_id=$2',[params(request).personId,auth.householdId]);
+    if(!person.rowCount)throw new DomainError('NOT_FOUND',404);
+    reply.header('Cache-Control','private, no-store');
+    return{tasks:await personMonitorSummaries(pool,auth.householdId,params(request).personId!,auth.accountId)};
+  });
+
+  app.put('/api/v1/households/:householdId/people/:personId/photo',{bodyLimit:14_100_000},async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);const personId=params(request).personId!;
+    if(auth.personId!==personId)requireCapability(auth.capabilities,'people.manage');
+    const body=parse(personPhotoUploadSchema,request.body);const photo=await normalizeProfilePhoto(body.imageBase64,body.crop);
+    const result=await transaction(async(client)=>{
+      const person=(await client.query<{photo_revision:number}>('SELECT photo_revision FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE',[personId,auth.householdId])).rows[0];
+      if(!person)throw new DomainError('NOT_FOUND',404);
+      if(person.photo_revision!==body.expectedPhotoRevision)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'photo'});
+      const next=person.photo_revision+1;
+      await client.query(`INSERT INTO person_profile_photos(person_id,household_id,revision,content_sha256,original_mime,width,height,variant_96,variant_512,updated_by_account_id)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        ON CONFLICT(person_id) DO UPDATE SET revision=EXCLUDED.revision,content_sha256=EXCLUDED.content_sha256,original_mime=EXCLUDED.original_mime,width=EXCLUDED.width,height=EXCLUDED.height,variant_96=EXCLUDED.variant_96,variant_512=EXCLUDED.variant_512,updated_by_account_id=EXCLUDED.updated_by_account_id,updated_at=clock_timestamp()`,[personId,auth.householdId,next,photo.contentSha256,photo.originalMime,photo.width,photo.height,photo.variant96,photo.variant512,auth.accountId]);
+      await client.query('UPDATE persons SET photo_revision=$3 WHERE id=$1 AND household_id=$2',[personId,auth.householdId,next]);
+      await audit(client,auth,'person.photo_updated','person',personId,{photoRevision:next});return next;
+    });
+    reply.header('Cache-Control','private, no-store');return{personId,photoRevision:result};
+  });
+
+  app.delete('/api/v1/households/:householdId/people/:personId/photo',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);const personId=params(request).personId!;
+    if(auth.personId!==personId)requireCapability(auth.capabilities,'people.manage');
+    const body=parse(personPhotoRevisionSchema,request.body);
+    await transaction(async(client)=>{
+      const person=(await client.query<{photo_revision:number}>('SELECT photo_revision FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE',[personId,auth.householdId])).rows[0];if(!person)throw new DomainError('NOT_FOUND',404);
+      if(person.photo_revision!==body.expectedPhotoRevision)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'photo'});
+      const deleted=await client.query('DELETE FROM person_profile_photos WHERE person_id=$1 AND household_id=$2 RETURNING person_id',[personId,auth.householdId]);
+      if(!deleted.rowCount)throw new DomainError('NOT_FOUND',404);
+      await client.query('UPDATE persons SET photo_revision=photo_revision+1 WHERE id=$1 AND household_id=$2',[personId,auth.householdId]);
+      await audit(client,auth,'person.photo_removed','person',personId,{photoRevision:body.expectedPhotoRevision});
+    });
+    return reply.status(204).send();
+  });
+
+  app.get('/api/v1/households/:householdId/people/:personId/photo/:variant',async(request,reply)=>{
+    const householdId=params(request).householdId!,personId=params(request).personId!,variant=params(request).variant!;
+    if(!['96','512'].includes(variant))throw new DomainError('NOT_FOUND',404);
+    const requestedRevision=Number((request.query as Record<string,unknown>).v);
+    if(!Number.isSafeInteger(requestedRevision)||requestedRevision<1)throw new DomainError('NOT_FOUND',404);
+    let authorized=false;
+    try{const auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'household.view');authorized=true;}catch(error){if(!(error instanceof DomainError)||error.code!=='UNAUTHENTICATED')throw error;}
+    if(!authorized){
+      const display=await displayAuth(request);if(display.householdId!==householdId||display.privacyMode)throw new DomainError('NOT_FOUND',404);
+      const allowed=await pool.query(`SELECT 1 FROM persons p WHERE p.id=$1 AND p.household_id=$2 AND (
+        EXISTS(SELECT 1 FROM messages msg JOIN memberships am ON am.id=msg.author_membership_id JOIN message_display_targets mt ON mt.message_id=msg.id AND mt.household_id=msg.household_id WHERE am.person_id=p.id AND msg.household_id=p.household_id AND mt.display_id=$3 AND msg.state='published' AND msg.publish_at<=clock_timestamp() AND msg.expires_at>clock_timestamp() AND mt.delivery_state IN ('queued','delivered','displayed'))
+        OR ($4 AND EXISTS(SELECT 1 FROM integration_items item JOIN integration_connections connection ON connection.id=item.connection_id AND connection.household_id=item.household_id AND connection.revoked_at IS NULL JOIN integration_connection_display_grants grant_row ON grant_row.connection_id=connection.id AND grant_row.household_id=connection.household_id AND grant_row.display_id=$3 JOIN integration_item_display_targets idt ON idt.item_id=item.id AND idt.household_id=item.household_id AND idt.display_id=$3 WHERE item.household_id=p.household_id AND item.status='active' AND (item.publish_at IS NULL OR item.publish_at<=clock_timestamp()) AND (item.expires_at IS NULL OR item.expires_at>clock_timestamp()) AND (EXISTS(SELECT 1 FROM integration_item_person_targets ip WHERE ip.item_id=item.id AND ip.person_id=p.id) OR EXISTS(SELECT 1 FROM integration_item_person_subjects subject WHERE subject.item_id=item.id AND subject.person_id=p.id))))
+      )`,[personId,householdId,display.id,display.externalItemsEnabled]);
+      if(!allowed.rowCount)throw new DomainError('NOT_FOUND',404);
+    }
+    const photo=(await pool.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2`,[personId,householdId])).rows[0];
+    if(!photo||photo.revision!==requestedRevision)throw new DomainError('NOT_FOUND',404);const etag=`\"photo-${photo.revision}-${createHash('sha256').update(photo.data).digest('hex').slice(0,16)}-${variant}\"`;
+    reply.header('Cache-Control','private, no-store').header('ETag',etag).header('X-Content-Type-Options','nosniff').type('image/webp');
+    if(request.headers['if-none-match']===etag)return reply.status(304).send();return reply.send(photo.data);
   });
 
   app.post('/api/v1/households/:householdId/people', async (request, reply) => {
@@ -847,11 +949,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
     reply.header('Cache-Control','private, no-store');
     const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:'en'|'nb';show_upcoming_birthday:boolean}>(`SELECT id,name,timezone,default_locale,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
-    const people=await pool.query<{id:string;display_name:string;avatar_key:string|null;age_group:string;birth_date:string|null}>(`SELECT id,display_name,avatar_key,age_group,birth_date::text FROM persons WHERE household_id=$1 ORDER BY created_at,id`,[auth.householdId]);
+    const people=await pool.query<{id:string;display_name:string;avatar_key:string|null;age_group:string;birth_date:string|null;photo_revision:number;asset_photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.age_group,p.birth_date::text,p.photo_revision,ph.revision AS asset_photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 ORDER BY p.created_at,p.id`,[auth.householdId]);
     const canViewAll=auth.capabilities.includes('household.manage');
-    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_person_id:string;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,p.display_name AS author_name,p.id AS author_person_id,m.publish_at,m.expires_at,m.revision,m.audience_household,
+    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_person_id:string;author_photo_revision:number|null;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,p.display_name AS author_name,p.id AS author_person_id,ph.revision AS author_photo_revision,m.publish_at,m.expires_at,m.revision,m.audience_household,
       COALESCE((SELECT json_agg(pa.person_id ORDER BY pa.person_id) FROM message_person_audiences pa WHERE pa.message_id=m.id),'[]') AS person_ids
-      FROM messages m JOIN memberships am ON am.id=m.author_membership_id JOIN persons p ON p.id=am.person_id
+      FROM messages m JOIN memberships am ON am.id=m.author_membership_id JOIN persons p ON p.id=am.person_id LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE m.household_id=$1 AND m.state IN ('scheduled','published') AND m.expires_at>clock_timestamp()
         AND m.publish_at<clock_timestamp()+interval '2 days'
         AND ($2 OR m.audience_household OR m.author_membership_id=$3 OR EXISTS(SELECT 1 FROM message_person_audiences va WHERE va.message_id=m.id AND va.person_id=$4))
@@ -862,10 +964,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {
       household:{id:household.id,name:household.name,timezone:household.timezone,locale:household.default_locale},
       viewer:{personId:auth.personId,membershipId:auth.membershipId},
-      people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,ageGroup:person.age_group})),
+      people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photoRevision:person.photo_revision,photo:photoProjection(auth.householdId,person.id,person.asset_photo_revision),ageGroup:person.age_group})),
       upcomingBirthday,items:await homeItems(auth.householdId,auth.personId,canViewAll),
       messages:messages.rows.map((message)=>({
-        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,authorPersonId:message.author_person_id,
+        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,authorPersonId:message.author_person_id,authorPhoto:photoProjection(auth.householdId,message.author_person_id,message.author_photo_revision),
         publishAt:message.publish_at.toISOString(),expiresAt:message.expires_at.toISOString(),revision:message.revision,
         targets:{household:message.audience_household,personIds:message.person_ids}
       })),serverNow:new Date().toISOString()
@@ -985,6 +1087,37 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       await audit(client,auth,'integration.credential_revoked','integration_credential',credentialId,{connectionId});
     });
     return {connection:await integrationConnectionResponse(connectionId,auth.householdId)};
+  });
+
+  app.get('/api/v1/households/:householdId/calendar-connections',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store');return{connections:await calendars.list(auth)};
+  });
+  app.get('/api/v1/households/:householdId/calendar-connections/readiness',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store');return{providers:calendars.readiness(runtime.publicOrigin)};
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarConnectionCreateSchema,request.body);return reply.status(201).send({connection:await calendars.create(auth,body)});
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/oauth/start',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');return calendars.startOAuth(auth,params(request).connectionId!,runtime.publicOrigin);
+  });
+  app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');return{connection:await calendars.updateSource(auth,params(request).connectionId!,params(request).sourceId!,parse(calendarSourceUpdateSchema,request.body))};
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId/preview',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body.expectedSourceRevision);
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/oauth/:provider/complete',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft')throw new DomainError('NOT_FOUND',404);const body=parse(calendarOAuthCompleteSchema,request.body);await calendars.completeOAuth(auth,provider,body.completionToken);reply.header('Cache-Control','private, no-store');return{connection:await calendars.list(auth)};
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sync',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarConnectionRevisionSchema,request.body);const result=await calendars.sync(auth,params(request).connectionId!,body.expectedRevision);return reply.status(200).send({result,connection:await calendars.get(auth,params(request).connectionId!)});
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/disconnect',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarConnectionRevisionSchema,request.body);return{connection:await calendars.disconnect(auth,params(request).connectionId!,body.expectedRevision)};
+  });
+  app.get('/api/v1/calendar/oauth/:provider/callback',async(request,reply)=>{
+    const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft')throw new DomainError('NOT_FOUND',404);const query=request.query as Record<string,unknown>;if(typeof query.state!=='string'||query.state.length>512||(typeof query.code==='string'&&query.code.length>4096)||(typeof query.error==='string'&&query.error.length>256))throw new DomainError('VALIDATION_FAILED',400);const staged=await calendars.stageOAuthCallback(provider,query.state,typeof query.code==='string'?query.code:undefined,typeof query.error==='string'?query.error:undefined);reply.header('Cache-Control','private, no-store');if(staged.denied)return reply.redirect(`${runtime.publicOrigin}/integrations?calendar=consent_denied`);return reply.redirect(`${runtime.publicOrigin}/integrations#calendar-oauth=${encodeURIComponent(staged.completionToken)}`);
   });
 
   app.post('/api/v1/integrations/items',async(request,reply)=>{

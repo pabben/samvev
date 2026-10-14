@@ -76,6 +76,23 @@ export const personUpdateSchema = z.object({
   expectedRevision: z.number().int().positive()
 }).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
 
+export const personPhotoCropSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().gt(0).max(1),
+  height: z.number().gt(0).max(1)
+}).strict().refine((value) => value.x + value.width <= 1 && value.y + value.height <= 1, 'crop_out_of_bounds');
+
+export const personPhotoUploadSchema = z.object({
+  imageBase64: z.string().min(4).max(14_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/, 'image_base64_invalid'),
+  expectedPhotoRevision: z.number().int().nonnegative(),
+  crop: personPhotoCropSchema.optional()
+}).strict();
+
+export const personPhotoRevisionSchema = z.object({
+  expectedPhotoRevision: z.number().int().positive()
+}).strict();
+
 const loginSetupSchema = z.object({
   email: emailSchema,
   loginMethod: z.enum(['password','invitation']).default('password'),
@@ -255,6 +272,36 @@ export const integrationCredentialCreateSchema = z.object({
 }).strict();
 export const integrationCredentialRevokeSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
 
+export const calendarProviders = ['google','microsoft','ics'] as const;
+export const calendarBridgeKinds = ['direct','spond_calendar'] as const;
+const calendarSecretUrlSchema=z.string().url().max(4096).refine((value)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password&&!url.hash;}catch{return false;}},'https_calendar_url_required');
+export const calendarConnectionCreateSchema=z.object({
+  provider:z.enum(calendarProviders),
+  name:nameSchema,
+  bridgeKind:z.enum(calendarBridgeKinds).default('direct'),
+  icsUrl:calendarSecretUrlSchema.optional()
+}).strict().superRefine((value,ctx)=>{
+  if(value.provider==='ics'&&!value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_required'});
+  if(value.provider!=='ics'&&value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_not_allowed'});
+  if(value.bridgeKind==='spond_calendar'&&value.provider==='ics')ctx.addIssue({code:'custom',path:['provider'],message:'spond_bridge_requires_google_or_microsoft'});
+});
+export const calendarSourceUpdateSchema=z.object({
+  expectedRevision:z.number().int().positive(),
+  enabled:z.boolean(),
+  bridgeKind:z.enum(calendarBridgeKinds).default('direct'),
+  appliesTo:z.object({household:z.boolean().default(false),personIds:z.array(uuidSchema).max(50).default([])}).strict()
+    .refine((value)=>value.household||value.personIds.length>0,'calendar_subject_required')
+    .refine((value)=>new Set(value.personIds).size===value.personIds.length,'duplicate_person_subject'),
+  visibility:z.object({
+    household:z.boolean().default(false),
+    personIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_person_reader'),
+    displayIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_display_target')
+  }).strict().refine((value)=>value.household||value.personIds.length>0||value.displayIds.length>0,'calendar_reader_required')
+}).strict();
+export const calendarConnectionRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const calendarOAuthCompleteSchema=z.object({completionToken:z.string().min(32).max(256)}).strict();
+export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive()}).strict();
+
 export const aiOperations = ['generate', 'extract', 'classify', 'plan'] as const;
 export const aiModelTiers = ['routine', 'strong'] as const;
 export const aiReasoningEfforts = ['none', 'low', 'medium', 'high'] as const;
@@ -403,6 +450,15 @@ export const monitorTaskUpdateSchema = monitorTaskCreateSchema.partial().extend(
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'expectedRevision'));
 
 export const monitorTaskRevisionSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const monitorTaskSubjectsSchema = z.object({
+  expectedSubjectsRevision: z.number().int().positive(),
+  personIds: z.array(uuidSchema).max(50)
+    .refine((value) => new Set(value).size === value.length, 'duplicate_person_subject')
+}).strict();
+export const monitorResultReviewSchema = z.object({
+  disposition: z.enum(['saved','handled','dismissed']),
+  expectedRevision: z.number().int().nonnegative()
+}).strict();
 export const monitorTaskQualitySchema = z.object({
   expectedRevision: z.number().int().positive(),
   quality: z.enum(['standard', 'smarter'])

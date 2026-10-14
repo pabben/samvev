@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MonitorSourceFetcher, isBlockedMonitorAddress, normalizeMonitorUrl, selectRelevantSource, sourceUrlFromInstruction } from './source-fetcher.ts';
+import { MonitorSourceFetcher, SecretSubscriptionFetcher, isBlockedMonitorAddress, normalizeMonitorUrl, normalizeSecretSubscriptionUrl, selectRelevantSource, sourceUrlFromInstruction } from './source-fetcher.ts';
 
 const resolver=async()=>[{address:'93.184.216.34',family:4 as const}];
 const response=(body:string|Buffer,type:string,status=200,location?:string)=>({status,headers:{'content-type':type,location,etag:undefined,'last-modified':undefined},body:Buffer.isBuffer(body)?body:Buffer.from(body)});
@@ -122,4 +122,18 @@ test('linked PDF redirects and redirect exhaustion use the same URL policy',asyn
 test('agent link fetches reject cross-origin redirects before following them',async()=>{
   let calls=0;const fetcher=new MonitorSourceFetcher(resolver,async()=>{calls++;return response('', 'text/html',302,'https://other.example/path');});
   await assert.rejects(()=>fetcher.fetch('https://example.com/news',{followLinkedPdf:false,redirectOrigin:'https://example.com'}),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');assert.equal(calls,1);
+});
+
+test('secret calendar URLs preserve opaque query credentials but keep the pinned SSRF boundary',async()=>{
+  assert.equal(normalizeSecretSubscriptionUrl('https://calendar.example/feed.ics?token=opaque#ignored'),'https://calendar.example/feed.ics?token=opaque');
+  for(const url of ['http://calendar.example/feed.ics','https://user:secret@calendar.example/feed.ics','https://127.0.0.1/feed.ics','https://metadata.google.internal/feed.ics'])assert.throws(()=>normalizeSecretSubscriptionUrl(url),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
+  let calls=0;const fetcher=new SecretSubscriptionFetcher(resolver,async()=>{calls++;return response('', 'text/calendar',302,'https://10.0.0.8/private.ics');});
+  await assert.rejects(()=>fetcher.fetch('https://calendar.example/feed.ics?token=opaque'),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');assert.equal(calls,1);
+});
+
+test('secret calendar responses require bounded calendar content',async()=>{
+  const valid=new SecretSubscriptionFetcher(resolver,async()=>response('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n','text/calendar'));
+  assert.match(await valid.fetch('https://calendar.example/feed.ics?token=opaque'),/BEGIN:VCALENDAR/);
+  const invalid=new SecretSubscriptionFetcher(resolver,async()=>response('<html>not a calendar</html>','text/html'));
+  await assert.rejects(()=>invalid.fetch('https://calendar.example/feed.ics'),(error:any)=>error.code==='MONITOR_SOURCE_UNSUPPORTED');
 });

@@ -185,3 +185,31 @@ export class MonitorSourceFetcher {
     finally{clearTimeout(timeout);options.signal?.removeEventListener('abort',abort);}
   }
 }
+
+/** Secret subscription URLs may legitimately carry opaque query credentials.
+ * They use the same DNS/IP pinning and redirect checks as monitor fetches, but
+ * are never returned in projections or logs. */
+export function normalizeSecretSubscriptionUrl(value:string):string{
+  let url:URL;try{url=new URL(value);}catch{throw new DomainError('VALIDATION_FAILED',400);}
+  const hostname=url.hostname.replace(/^\[|\]$/g,'').toLowerCase();
+  if(url.protocol!=='https:'||!hostname||url.username||url.password||hostname.includes('%')||blockedNames.has(hostname)||hostname.endsWith('.metadata.google.internal'))throw new DomainError('AI_ENDPOINT_BLOCKED',422);
+  if(isIP(hostname)&&isBlockedMonitorAddress(hostname))throw new DomainError('AI_ENDPOINT_BLOCKED',422);url.hash='';return url.toString();
+}
+
+export class SecretSubscriptionFetcher{
+  constructor(private readonly resolver:MonitorResolver=defaultResolver,private readonly transport=fetchPinned,private readonly timeoutMs=TIMEOUT_MS){}
+  async fetch(rawUrl:string):Promise<string>{
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),this.timeoutMs);
+    try{
+      let url=new URL(normalizeSecretSubscriptionUrl(rawUrl));let response:Awaited<ReturnType<typeof fetchPinned>>|undefined;
+      for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){
+        const target=await resolvePublic(url,this.resolver,controller.signal);response=await this.transport(url,target,controller.signal);
+        if(response.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);
+        if(response.status>=300&&response.status<400&&response.headers.location){if(redirects===MAX_REDIRECTS)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);url=new URL(normalizeSecretSubscriptionUrl(new URL(response.headers.location,url).toString()));continue;}break;
+      }
+      if(!response||response.status<200||response.status>=300)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);
+      const type=(response.headers['content-type']??'').split(';')[0]!.trim().toLowerCase();if(type&&!['text/calendar','text/plain','application/octet-stream'].includes(type))throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
+      const text=response.body.toString('utf8');if(!/^BEGIN:VCALENDAR\r?$/m.test(text)||!/^END:VCALENDAR\r?$/m.test(text))throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);return text;
+    }catch(error){if(controller.signal.aborted)throw new DomainError('MONITOR_SOURCE_TIMEOUT',504);if(error instanceof DomainError)throw error;throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);}finally{clearTimeout(timeout);}
+  }
+}
