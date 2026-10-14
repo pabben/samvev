@@ -25,3 +25,18 @@
 }
 @media(max-width:900px){.calendar-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.calendar-provider{padding:16px}}
 @media(max-width:640px){.member-shell .birthday-card{display:grid;grid-template-columns:28px minmax(0,1fr);gap:4px 10px;padding:12px 14px;margin-bottom:14px;align-items:center}.member-shell .birthday-card .birthday-mark{font-size:24px;grid-column:1;grid-row:1/span 2}.member-shell .birthday-card>div:nth-child(2){display:flex;flex-wrap:wrap;gap:3px 10px;align-items:baseline}.member-shell .birthday-card .eyebrow{width:100%;font-size:11px;margin:0}.member-shell .birthday-card h2{font-size:16px;margin:0}.member-shell .birthday-card p{font-size:13px;margin:0}.member-shell .birthday-card .birthday-relative{grid-column:2;text-align:left}.calendar-provider-grid{gap:10px}.calendar-provider{grid-template-columns:1fr;gap:6px;padding:14px;min-height:140px}.calendar-provider>svg{grid-row:auto}.calendar-provider>span{grid-column:1}.calendar-sources li{flex-wrap:wrap}.calendar-sources .button{max-width:100%;width:100%}.monitor-subjects{align-items:flex-start;flex-direction:column}.calendar-source-editor .form-actions,.photo-editor .form-actions{flex-wrap:wrap}.calendar-source-editor .form-actions>.button{flex-grow:1}.wizard-progress{grid-template-columns:1fr}.wizard-progress li{border-bottom-width:2px}.chatgpt-wizard .form-actions{flex-wrap:wrap}}
+
+/* A complete person entry shares one generous target on low-height displays.
+   All text grows in normal flow; the detail drawer contains every item/task. */
+@media(min-width:1001px) and (max-height:850px){
+ .hub-light.hub-wide .hub-people-multirow .hub-person-combined>header{display:block;padding:10px 12px}
+ .hub-light.hub-wide .hub-people-multirow .hub-person-combined .hub-person-identity{display:grid;grid-template-columns:60px minmax(0,1fr);gap:7px 10px;min-height:44px;text-align:left;align-items:center;width:100%}
+ .hub-person-combined .hub-person-overview{display:block;grid-column:1/-1;font-size:14px;line-height:1.4;color:var(--muted);min-width:0;text-align:left}
+ .hub-person-combined .hub-person-activity{display:block}
+ .hub-person-combined .hub-person-rest{white-space:nowrap;color:var(--teal)}
+ .hub-person-combined .person-task-inline{display:flex;align-items:flex-start;gap:5px;font-size:13px;line-height:1.4;color:var(--teal);margin-top:3px}
+ .hub-person-combined .person-task-inline>svg{flex-shrink:0;margin-top:1px}
+ .hub-dark.hub-wide .hub-people-summary .hub-person-combined .hub-person-identity{gap:0 10px;align-items:center}
+ .hub-dark.hub-wide .hub-people-summary .hub-person-combined .avatar{grid-column:1;grid-row:1/span 2;align-self:start}
+ .hub-dark.hub-wide .hub-people-summary .hub-person-combined .hub-person-overview{grid-column:2;font-size:13px}
+}
