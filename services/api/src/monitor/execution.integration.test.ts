@@ -202,7 +202,41 @@ test('queued interpretation, manual and scheduled work recheck the real AI bindi
     if(kind!=='interpretation')await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,state='active',approved_revision=revision,next_check_at=CASE WHEN $3='scheduled' THEN clock_timestamp()-interval '1 minute' ELSE NULL END WHERE id=$1`,[taskId,JSON.stringify(rule),kind]);
     const fetcher={fetch:async()=>({finalUrl:'https://example.com/plan',contentType:'text/html',title:'Synthetic',headings:['Synthetic answer'],text:'Synthetic answer',fingerprint:'synthetic',fetchedAt:new Date().toISOString(),links:[],evidenceComplete:true,evidenceKind:'web'})} as any;const service=new MonitorService(ai,fetcher);const engine=new MonitorEngine(fetcher,ai);const queue=new MonitorExecutionQueue(service,engine,ai,()=>now);
     if(kind==='scheduled')assert.equal(await queue.enqueueScheduled(),1);else await queue.enqueue(actor,taskId,1,kind);
-    const blocker=await pool.connect();try{await blocker.query('BEGIN');const blockerPid=(await blocker.query<{pid:number}>('SELECT pg_backend_pid() pid')).rows[0]!.pid;await blocker.query('SELECT household_id FROM ai_settings WHERE household_id=$1 FOR UPDATE',[actor.householdId]);const running=queue.runOne();let waiting=false;for(let attempt=0;attempt<200;attempt++){const result=await pool.query<{waiting:boolean}>(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))) waiting`,[blockerPid]);if(result.rows[0]!.waiting){waiting=true;break;}await new Promise((resolve)=>setTimeout(resolve,5));}const debug=(await pool.query(`SELECT status,error_code,error_details FROM monitor_executions WHERE task_id=$1`,[taskId])).rows;assert.equal(waiting,true,`real AiAdmin authorization must reach a database fence held after queue admission: ${JSON.stringify({wireCalls,debug})}`);await blocker.query('UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1',[actor.householdId]);await blocker.query('COMMIT');assert.equal(await running,'failed');}finally{try{await blocker.query('ROLLBACK');}catch{}blocker.release();await fs.rm(keyDir,{recursive:true,force:true});}
+    const blocker=await pool.connect();let running:Promise<'idle'|'succeeded'|'failed'|'superseded'>|undefined;let blockerFinalized=false;
+    try{
+      await blocker.query('BEGIN');
+      const blockerIdentity=(await blocker.query<{pid:number;database_name:string}>('SELECT pg_backend_pid() pid,current_database() database_name')).rows[0]!;
+      assert.equal(blockerIdentity.database_name,'samvev_test');
+      const held=await blocker.query('SELECT household_id FROM ai_settings WHERE household_id=$1 FOR UPDATE',[actor.householdId]);
+      assert.equal(held.rowCount,1,'the test must hold the exact current AI settings row');
+      running=queue.runOne();
+      let waiter:{pid:number;query:string}|undefined;const waitDeadline=Date.now()+8_000;
+      while(Date.now()<waitDeadline&&wireCalls===0){
+        waiter=(await pool.query<{pid:number;query:string}>(`SELECT pid,query FROM pg_stat_activity
+          WHERE datname=current_database() AND state='active' AND $1=ANY(pg_blocking_pids(pid))
+          AND query ILIKE '%FROM ai_settings WHERE household_id=$1 FOR SHARE%'
+          ORDER BY pid LIMIT 1`,[blockerIdentity.pid])).rows[0];
+        if(waiter)break;
+        await new Promise((resolve)=>setTimeout(resolve,5));
+      }
+      const debug=(await pool.query(`SELECT status,error_code,error_details FROM monitor_executions WHERE task_id=$1`,[taskId])).rows;
+      const fenceDebug={kind,databaseName:blockerIdentity.database_name,blockerPid:blockerIdentity.pid,heldRows:held.rowCount,waiterPid:waiter?.pid??null,waiterQuery:waiter?.query??null,wireCalls,debug};
+      assert.equal(wireCalls,0,`provider transport was reached before the final AI settings fence: ${JSON.stringify(fenceDebug)}`);
+      assert.ok(waiter,`real AiAdmin settings authorization did not reach the held FOR SHARE fence: ${JSON.stringify(fenceDebug)}`);
+      assert.notEqual(waiter.pid,blockerIdentity.pid);
+      await blocker.query('UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1',[actor.householdId]);
+      await blocker.query('COMMIT');blockerFinalized=true;
+      assert.equal(await running,'failed');
+      assert.equal(wireCalls,0,'provider transport must remain untouched after the fenced configuration change');
+    }finally{
+      if(!blockerFinalized){
+        try{await blocker.query('UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1',[actor.householdId]);await blocker.query('COMMIT');blockerFinalized=true;}
+        catch{try{await blocker.query('ROLLBACK');}catch{}}
+      }
+      blocker.release();
+      if(running)await running.catch(()=>undefined);
+      await fs.rm(keyDir,{recursive:true,force:true});
+    }
     assert.equal(wireCalls,0);const attempts=(await pool.query<{actual_dispatch:boolean;outcome:string}>(`SELECT actual_dispatch,outcome FROM ai_usage_events WHERE household_id=$1`,[actor.householdId])).rows;assert.deepEqual(attempts,[{actual_dispatch:false,outcome:'preflight_rejected'}]);
   });
 });
