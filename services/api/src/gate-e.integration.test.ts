@@ -61,7 +61,7 @@ before(async()=>{
 
 after(async()=>{
   await app.close();
-  const listenerCount=await pool.query(`SELECT count(*)::int AS count FROM pg_stat_activity WHERE application_name='samvev-api-projection-listener'`);
+  const listenerCount=await pool.query(`SELECT count(*)::int AS count FROM pg_stat_activity WHERE datname=current_database() AND application_name='samvev-api-projection-listener'`);
   assert.equal(listenerCount.rows[0].count,0);
   await pool.end();
 });

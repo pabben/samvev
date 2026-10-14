@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test,{afterEach,beforeEach} from 'node:test';
-import {CalendarService,DefaultCalendarTransport} from './service.ts';
+import {CalendarService,DefaultCalendarTransport,parseIcsEvents} from './service.ts';
 
 const originalFetch=globalThis.fetch;
 beforeEach(()=>{process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_ID='synthetic-google';process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET='synthetic-google-secret';process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID='synthetic-microsoft';process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET='synthetic-microsoft-secret';});
@@ -35,6 +35,22 @@ test('provider 200 responses fail closed when list schemas are malformed',async(
   globalThis.fetch=async()=>json({unexpected:'shape'});const transport=new DefaultCalendarTransport();
   await assert.rejects(()=>transport.listCalendars('google','access'),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE'&&error.details.reason==='calendar_provider_response_invalid');
   await assert.rejects(()=>transport.listEvents('microsoft','access','calendar-id',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'}),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE');
+});
+
+test('provider JSON is streamed under byte, item and string bounds',async()=>{
+  globalThis.fetch=async()=>new Response(JSON.stringify({items:[{id:'primary',summary:'x'.repeat(1024*1024)}]}),{status:200});
+  await assert.rejects(()=>new DefaultCalendarTransport().listCalendars('google','access'),(error:any)=>error.code==='MONITOR_SOURCE_TOO_LARGE'&&error.details.reason==='calendar_provider_response_too_large');
+  globalThis.fetch=async()=>new Response(JSON.stringify({items:Array.from({length:3001},(_,index)=>({id:`calendar-${index}`,summary:'Synthetic'}))}),{status:200});
+  await assert.rejects(()=>new DefaultCalendarTransport().listCalendars('google','access'),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE'&&error.details.reason==='calendar_provider_response_invalid');
+  globalThis.fetch=async()=>json({items:[{id:'primary',summary:'x'.repeat(513)}]});
+  await assert.rejects(()=>new DefaultCalendarTransport().listCalendars('google','access'),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE'&&error.details.reason==='calendar_provider_response_invalid');
+  globalThis.fetch=async()=>new Response(JSON.stringify({items:[]}),{status:200,headers:{'content-length':String(1024*1024+1)}});
+  await assert.rejects(()=>new DefaultCalendarTransport().listCalendars('google','access'),(error:any)=>error.code==='MONITOR_SOURCE_TOO_LARGE');
+});
+
+test('ICS expansion rejects unsafe high-frequency recurrences before materializing them',()=>{
+  const malicious='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:fast\r\nDTSTART:20261001T000000Z\r\nDTEND:20261001T000001Z\r\nRRULE:FREQ=SECONDLY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+  assert.throws(()=>parseIcsEvents(malicious,{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'}),(error:any)=>error.code==='MONITOR_SOURCE_UNSUPPORTED'&&error.details.reason==='calendar_recurrence_frequency_unsupported');
 });
 
 test('refresh persists rotated provider tokens and Google revoke is explicit',async()=>{

@@ -103,6 +103,12 @@ async function durableRateLimit(bucket: string, key: string, limit: number, wind
   if ((result.rows[0]?.attempts ?? 0) > limit) throw new DomainError('RATE_LIMITED', 429);
 }
 
+async function operationRateLimit(request:FastifyRequest,auth:AuthContext,bucket:string,limits:{account:number;household:number;ip:number;windowSeconds:number}):Promise<void>{
+  await durableRateLimit(`${bucket}_account`,auth.accountId,limits.account,limits.windowSeconds);
+  await durableRateLimit(`${bucket}_household`,auth.householdId,limits.household,limits.windowSeconds);
+  await durableRateLimit(`${bucket}_ip`,request.ip,limits.ip,limits.windowSeconds);
+}
+
 function cookieOptions(maxAge: number, secure: boolean, path = '/'): Record<string, unknown> {
   return { httpOnly: true, sameSite: 'strict', secure, path, maxAge };
 }
@@ -372,7 +378,7 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; photoNormalizer?:typeof normalizeProfilePhoto; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const logger=process.env.NODE_ENV==='test'&&!options.logStream?false:{
     level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
@@ -384,6 +390,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
   const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
   const calendars=new CalendarService(options.calendarTransport,new AiCredentialVault(options.aiKeyFile));
+  const normalizePhoto=options.photoNormalizer??normalizeProfilePhoto;
   await app.register(cookie);
   app.addHook('onSend',async(_request,reply,payload)=>{
     applyBrowserSecurityHeaders(reply,responseSecurityHeaders);
@@ -624,6 +631,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.post('/api/v1/households/:householdId/ai/chatgpt/helper',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    await operationRateLimit(request,auth,'chatgpt_helper',{account:10,household:30,ip:20,windowSeconds:3600});
     await transaction(async(client)=>{await client.query(`INSERT INTO ai_chatgpt_helper_profiles(household_id,account_id) VALUES($1,$2) ON CONFLICT(household_id,account_id) DO UPDATE SET updated_at=clock_timestamp()`,[auth.householdId,auth.accountId]);await audit(client,auth,'ai.chatgpt_helper_prepared','ai_chatgpt_helper_profile',auth.accountId,{tokenFree:true});});
     const hostId=await aiAdmin.chatgpt.hostId(auth.installationId);
     const base=`${runtime.publicOrigin}/api/v1/households/${auth.householdId}/ai/chatgpt/helper-files`;
@@ -741,7 +749,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.put('/api/v1/households/:householdId/people/:personId/photo',{bodyLimit:14_100_000},async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);const personId=params(request).personId!;
     if(auth.personId!==personId)requireCapability(auth.capabilities,'people.manage');
-    const body=parse(personPhotoUploadSchema,request.body);const photo=await normalizeProfilePhoto(body.imageBase64,body.crop);
+    await operationRateLimit(request,auth,'person_photo_upload',{account:30,household:120,ip:60,windowSeconds:3600});
+    const body=parse(personPhotoUploadSchema,request.body);const photo=await normalizePhoto(body.imageBase64,body.crop);
     const result=await transaction(async(client)=>{
       const person=(await client.query<{photo_revision:number}>('SELECT photo_revision FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE',[personId,auth.householdId])).rows[0];
       if(!person)throw new DomainError('NOT_FOUND',404);
@@ -1098,28 +1107,28 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store');return{providers:calendars.readiness(runtime.publicOrigin)};
   });
   app.post('/api/v1/households/:householdId/calendar-connections',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarConnectionCreateSchema,request.body);return reply.status(201).send({connection:await calendars.create(auth,body)});
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_connection_create',{account:12,household:30,ip:24,windowSeconds:3600});const body=parse(calendarConnectionCreateSchema,request.body);return reply.status(201).send({connection:await calendars.create(auth,body)});
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/oauth/start',async(request)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');return calendars.startOAuth(auth,params(request).connectionId!,runtime.publicOrigin);
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_oauth_start',{account:20,household:60,ip:40,windowSeconds:3600});return calendars.startOAuth(auth,params(request).connectionId!,runtime.publicOrigin);
   });
   app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');return{connection:await calendars.updateSource(auth,params(request).connectionId!,params(request).sourceId!,parse(calendarSourceUpdateSchema,request.body))};
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId/preview',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body.expectedSourceRevision);
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_preview',{account:60,household:180,ip:120,windowSeconds:3600});const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body.expectedSourceRevision);
   });
   app.post('/api/v1/households/:householdId/calendar-connections/oauth/:provider/complete',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft')throw new DomainError('NOT_FOUND',404);const body=parse(calendarOAuthCompleteSchema,request.body);await calendars.completeOAuth(auth,provider,body.completionToken);reply.header('Cache-Control','private, no-store');return{connection:await calendars.list(auth)};
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sync',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarConnectionRevisionSchema,request.body);const result=await calendars.sync(auth,params(request).connectionId!,body.expectedRevision);return reply.status(200).send({result,connection:await calendars.get(auth,params(request).connectionId!)});
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_manual_sync',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(calendarConnectionRevisionSchema,request.body);const result=await calendars.sync(auth,params(request).connectionId!,body.expectedRevision);return reply.status(200).send({result,connection:await calendars.get(auth,params(request).connectionId!)});
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/disconnect',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarConnectionRevisionSchema,request.body);return{connection:await calendars.disconnect(auth,params(request).connectionId!,body.expectedRevision)};
   });
   app.get('/api/v1/calendar/oauth/:provider/callback',async(request,reply)=>{
-    const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft')throw new DomainError('NOT_FOUND',404);const query=request.query as Record<string,unknown>;if(typeof query.state!=='string'||query.state.length>512||(typeof query.code==='string'&&query.code.length>4096)||(typeof query.error==='string'&&query.error.length>256))throw new DomainError('VALIDATION_FAILED',400);const staged=await calendars.stageOAuthCallback(provider,query.state,typeof query.code==='string'?query.code:undefined,typeof query.error==='string'?query.error:undefined);reply.header('Cache-Control','private, no-store');if(staged.denied)return reply.redirect(`${runtime.publicOrigin}/integrations?calendar=consent_denied`);return reply.redirect(`${runtime.publicOrigin}/integrations#calendar-oauth=${encodeURIComponent(staged.completionToken)}`);
+    await durableRateLimit('calendar_oauth_callback_ip',request.ip,60,900);const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft')throw new DomainError('NOT_FOUND',404);const query=request.query as Record<string,unknown>;if(typeof query.state!=='string'||query.state.length>512||(typeof query.code==='string'&&query.code.length>4096)||(typeof query.error==='string'&&query.error.length>256))throw new DomainError('VALIDATION_FAILED',400);const staged=await calendars.stageOAuthCallback(provider,query.state,typeof query.code==='string'?query.code:undefined,typeof query.error==='string'?query.error:undefined);reply.header('Cache-Control','private, no-store');if(staged.denied)return reply.redirect(`${runtime.publicOrigin}/integrations?calendar=consent_denied`);return reply.redirect(`${runtime.publicOrigin}/integrations#calendar-oauth=${encodeURIComponent(staged.completionToken)}`);
   });
 
   app.post('/api/v1/integrations/items',async(request,reply)=>{
