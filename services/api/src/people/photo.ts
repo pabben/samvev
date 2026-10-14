@@ -25,7 +25,7 @@ function decodeBase64(value:string):Buffer{
 
 export async function normalizeProfilePhoto(imageBase64:string,crop?:{x:number;y:number;width:number;height:number}):Promise<NormalizedProfilePhoto>{
   const input=decodeBase64(imageBase64);
-  let metadata:Awaited<ReturnType<sharp.Sharp['metadata']>>;
+  let metadata:Awaited<ReturnType<ReturnType<typeof sharp>['metadata']>>;
   try{metadata=await sharp(input,{failOn:'warning',limitInputPixels:MAX_PROFILE_PHOTO_PIXELS}).metadata();}
   catch{throw new DomainError('VALIDATION_FAILED',400,{reason:'photo_invalid'});}
   if(!metadata.format||!acceptedFormats.has(metadata.format)||!metadata.width||!metadata.height)throw new DomainError('VALIDATION_FAILED',400,{reason:'photo_format_invalid'});
