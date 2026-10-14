@@ -75,8 +75,10 @@ its bottom was 1067.781px within 1080px, with height 113.797px.
   four-person backup to this test DB only. No QA installation is reseeded.
 - **Isolated first run:** separate `samvev_round8_setup`, unclaimed, demo disabled.
   Welcome/owner form were opened without claiming or resetting an installation.
-- **Public:** <https://samvev.pabben.org/> is reachable, but the authorized update
-  is **BLOCKED**, not deployed. See the exact missing control-plane details below.
+- **Public:** <https://samvev.pabben.org/> now runs the same frozen candidate.
+  Actual HTTPS login/navigation passed56 checks. See the separate
+  [deployment report](ROUND_8_PUBLIC_DEPLOY.md) for backup/migration/runtime evidence
+  and the completed current-version restore audit.
 
 Nine QA tables are compared with fresh Round 8 before-state hashes; protected
 main `.git` has 229 unchanged files and retains its stale `390f6a6…` HEAD.
@@ -110,7 +112,8 @@ and logout and all served asset hashes match the frozen source.
 All108 current actual captures (14 ordinary plus94 supplementary) and both
 derived comparisons were personally opened by the final UX reviewer; all hashes
 and dimensions were independently verified. Scoped local UI/evidence is accepted;
-public deployment is excluded and remains blocked.
+this local visual verdict excludes public deployment. Its later actual HTTPS
+visual review also accepted the separate50 safe public images.
 All 14 ordinary latest images are regenerated and opened. The previous valid
 Round 7 latest is archived byte-identically at
 `archive/20261013194236-f65d75f5-ba8caa81/`; intermediate candidate captures retain
@@ -124,63 +127,51 @@ actual isolated first-run forms, selected portrait reflow, actual paired display
 and four-person desktop comparison. Stress DTO injection is explicitly separated
 from actual baseline captures; no mock screenshot is presented as real transport.
 
-## Authorized public publication — concrete operational block
+## Authorized public publication — access resolved
 
-User authorization is present; no further general deploy consent is required.
-The user supplied the historical target: `claude` / `192.168.0.144`, Samvev
-root `/home/administrator/apper/samvev`, `.env`, exact project `samvev-m1`,
-backend4173, volume `samvev-m1-postgres-data`, historical Newt peer192.168.0.188.
-These remain target information, not verified current container/source/proxy facts.
+The initial local handoff was blocked by rejected SSH identities. The user
+installed the dedicated public deployment key; the authorized immutable
+publication then completed on the existing Samvev installation. No new general
+deploy consent was requested. Current source15d is independently bound to the
+actual public image,199 inputs and10 served asset hashes.
 
-Default SSH encountered a system configuration permission error. No global file
-was changed. The connection was concretized with an explicit no-system-config
-transport and a workspace-local ignored first-use host-key pin, without modifying
-global SSH/known_hosts. SSH reached `administrator@192.168.0.144`, then rejected
-login with **Permission denied (publickey,password)**. No SSH configuration exists for administrator. Both existing identity files were
-tried explicitly and rejected; agent absence alone was not treated as conclusive.
-A separate non-overwriting Ed25519 deployment identity was created in ignored
-project-local storage. The user has the concrete pinned-host `ssh-copy-id` command
-to install its public key by entering the server password directly in their terminal.
-No private key or password is published; this is an access prerequisite, not new
-deploy consent. Remote commands have not executed, so active Compose labels,
-image/source, DB/ledger, immediate trusted proxy and private public test-account
-configuration cannot yet be verified.
-HTTPS read-only checks return health200, claimed=true, demo=false and
-anonymous member/display projection401. These establish availability and an
-access boundary; they do **not** prove current source or authenticated UI.
-Public browser-policy headers were absent in that existing response. The
-candidate adds a bounded shared CSP/nosniff/referrer/frame policy to ordinary
-responses and both raw SSE paths, with short public-only HSTS; this fix is
-source-tested and cannot be claimed applied to the unchanged public site.
+[Public deployment report](ROUND_8_PUBLIC_DEPLOY.md) and
+[public manifest](round-8/public/manifest.json) record the actual environment.
+All56 HTTPS checks passed;50 safe originals are published after all58 were
+personally reviewed. Eight operator/account/setup originals remain private.
+Existing public data, credentials, volume, vault mount and proxy route are retained.
+Canonical017–020 were applied after old/candidate clone checks; no new migration
+was authored. An additional prescribed current20 post-deployment restore audit passed with
+exact recorded command, checksum/integrity/auth/cleanup and live unchanged checks.
+The initial historical two-flag audit gap remains explicitly disclosed.
 
-No public backup, restore gate, migration, image replacement, proxy change,
-public account modification or authenticated public screenshot was performed.
-Public deployed source remains unknown. LAN `admin/admin` is never exposed as
-public backend. Starting a stale local stack or widening proxy trust would not
-resolve rejected SSH authentication. Public deployment acceptance remains
-BLOCKED until existing authenticated access to claude is supplied.
+Two already-approved daily installation monitors became due at their stored
+pre-cutover times and made three failed local-provider attempts, separate from
+the synthetic browser-test household. No browser/model/manual-monitor action
+was triggered by the HTTPS journey. Existing schedules/settings and normal
+worker service are preserved; no all-server-zero-provider claim is made.
 
 ## Migrations, rollback and limits
 
 No new migration, route, contract, OAuth, provider behavior or accounting change
 was introduced. Existing canonical 20-migration ledger is verified for QA/test;
-no public migration was run. Candidate rollback is a normal feature revert of
+public canonical017–020 were applied without changing their SQL/history. Candidate rollback is a normal feature revert of
 presentation and bounded header changes, followed by source-bound runtime/build
-and capture; no stored QA data must be rolled back. A public rollback plan must
-first be bound to the actual old immutable image/configuration and verified
-fresh backup/restore gate before any public update.
+and capture; no stored QA data must be rolled back. Public old image/configuration and fresh backups are retained; the deployment
+report records limited old-read compatibility and the controlled rollback path.
 
 Remaining minor visual polish: small preferences selector text, tall birthday
 summary on mobile Messages and differing portrait heading alignment. True200% uncovered narrow-view overflow in tabs, birthday/preferences, More,
 person editor and welcome. At <=319px these now wrap/stack; only the aria-hidden
 decorative welcome scene is hidden. Text sizes and full controls remain; no
 global overflow clipping is added. Natural
-scroll is retained for long forms/content and genuine 200% zoom. No live AI call,
-ChatGPT consent, eligibility, account balance or subscription load is verified.
+scroll is retained for long forms/content and genuine 200% zoom. No live AI test was requested. Existing scheduled local-provider attempts during
+publication failed and are disclosed separately. Live ChatGPT consent, eligibility,
+account balance and subscription load remain unverified.
 No private data, secrets, active invitation/pairing code or token is introduced.
 No PR, merge, main/force push, tag, release, Actions dispatch or unrelated
-application/global server change is performed. Only the feature branch is
-published; the public deployment block is stated rather than bypassed.
+application/global server change is performed. Only the feature branch is pushed; the specifically authorized public test
+publication is documented separately.
 
 ## Changed source files
 
@@ -220,6 +211,6 @@ Release gate: local feature publication readiness PASS, with independent checks 
 199 source inputs, live runtime fingerprint,20 migrations,10 built/served assets,
 108 screenshot hashes/dimensions, comparison inputs,224 prior evidence files,
 229 protected Git files and nine QA tables. No local P0/P1 finding.
-Full Round8/public criterion6 remains BLOCKED on confirmed SSH authentication,
-with the prepared deployment key awaiting user installation. No public deployed
-source or authenticated HTTPS navigation is claimed.
+The SSH block was subsequently resolved. Public source-bound HTTPS UI/security
+and data-preservation checks PASS; final public release/restore audit PASS is recorded
+in the separate deployment report.

@@ -4,8 +4,10 @@ Source: `15d047192abd63f4be18a90108fe969096da78d0`. Round: `20261013220837-15d04
 
 Primary: actual isolated six-person family (two adults/four children). All entries
 are real browser captures of synthetic API/database state. Ordinary preserved
-five-person LAN is in [latest](../latest/manifest.json). Public deployment is
-blocked at SSH authentication; no LAN image is claimed as a public capture.
+five-person LAN is in [latest](../latest/manifest.json). Public deployment now uses the same frozen source; its separate
+[50-image HTTPS set](public/README.md) shows the retained one-person synthetic
+public household. No LAN image is claimed as a public capture. See the
+[deployment report](../ROUND_8_PUBLIC_DEPLOY.md) for runtime and recovery evidence.
 
 [Report](../ROUND_8_REPORT.md) · [Validation](validation.json) · [Manifest](manifest.json)
 

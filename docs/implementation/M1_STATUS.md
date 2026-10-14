@@ -16,15 +16,25 @@ reference/R7/current comparisons are explicitly distinguished. Round
 clone, build/runtime and served assets. Prior224 evidence files and protected229
 Git files are unchanged, as are all nine QA tables (five people/18 messages).
 Literal admin/admin login/logout works on LAN; qa-db/app/worker remain healthy.
-Temporary apps/setup DB removed. No live provider requests or real/private data.
-Public test publication is authorized but BLOCKED by SSH authentication to claude;
-both existing identities were explicitly rejected. A dedicated ignored deployment
-key is ready; user has the pinned-host ssh-copy-id installation command. No remote backup/migration/deployment,
-public account/proxy modification or public source verification has occurred.
-See [Round 8 report](../design/review/ROUND_8_REPORT.md) and
-[validation](../design/review/round-8/validation.json). UX scoped local ACCEPT; security/privacy and local release gate PASS.
-Overall/public acceptance remains BLOCKED; no public deployed-source claim. No PR/merge/main/force push or
-Actions dispatch. No new migration; rollback is a normal feature revert.
+Temporary apps/setup DB removed. Local QA and isolated captures made no live provider requests and used no
+real/private data.
+Public test publication is deployed on the same frozen source/image91ec.
+HTTPS56 checks PASS: normal restricted-account UI login/logout,32 page/theme/
+viewport journeys, permissions/cookies/Origin/CSRF, source assets and unbuffered
+SSE. All58 originals reviewed;50 published,8 account/provider originals private.
+Existing public core7 hashes match; canonical017–020 applied, old image/config
+and fresh private backups retained. Three existing daily local-provider attempts
+failed after their pre-existing due times; no browser/manual AI action, no settings
+change. Worker resumed normally, all3public services healthy; next runs on2026-10-14.
+Current-version prescribed post-deployment restore PASS: fresh258237-byte backup,
+exact recorded flags,20 NOOP checksums/integrity/auth/cleanup/live unchanged.
+Final public release gate PASS; actual container/source/assets/data/recovery verified.
+Initial old restore exact ownership/privilege flags were not auditable; the later
+drill is not falsely labelled pre-cutover.
+See [Round 8 report](../design/review/ROUND_8_REPORT.md),
+[public deployment](../design/review/ROUND_8_PUBLIC_DEPLOY.md) and
+[validation](../design/review/round-8/validation.json). No PR/merge/main/force push
+or Actions dispatch; no new migration and no private data/secret introduced.
 
 ## M3 design round 7 — 2026-10-13
 

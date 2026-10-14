@@ -16,10 +16,19 @@
   },
   "ordinaryLanManifest": "../latest/manifest.json",
   "publicDeployment": {
-    "status": "blocked",
-    "reason": "SSH reaches user-supplied claude192.168.0.144, but both existing identities were explicitly rejected. Dedicated project-local deployment key prepared; user has ssh-copy-id installation command. Current remote runtime/test-account configuration remains unverified; no public runtime changed.",
+    "status": "deployed; actual HTTPS QA and current-version recovery PASS",
     "url": "https://samvev.pabben.org/",
-    "authenticatedQaPerformed": false
+    "deployedSourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+    "imageId": "sha256:91ecaa372bd43a8482e8c04c6d55f6f306219aafc8570f329cfbbd2bff9ba559",
+    "authenticatedQaPerformed": true,
+    "checks": 56,
+    "publishedActualScreenshots": 50,
+    "privateOriginalsExcluded": 8,
+    "manifest": "public/manifest.json",
+    "report": "../ROUND_8_PUBLIC_DEPLOY.md",
+    "existingScheduledLocalProviderAttempts": 3,
+    "providerResult": "all failed; existing pre-cutover schedules, not browser/manual QA",
+    "recovery": "public/recovery.json"
   },
   "screenshots": [
     {

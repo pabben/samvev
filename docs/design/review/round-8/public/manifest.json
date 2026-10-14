@@ -1,0 +1,773 @@
+{
+  "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+  "deployedSourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+  "origin": "https://samvev.pabben.org",
+  "generatedAt": "2026-10-13T23:31:54.263226+00:00",
+  "environment": "actual public HTTPS Samvev, immutable runtime",
+  "imageId": "sha256:91ecaa372bd43a8482e8c04c6d55f6f306219aafc8570f329cfbbd2bff9ba559",
+  "dataState": "existing retained synthetic live-E2E household; exactly one person, one membership and reduced capabilities verified privately; other households never captured",
+  "personCount": 1,
+  "injectedTransport": false,
+  "actualHttpsUi": true,
+  "ordinaryLanLatestUnchanged": true,
+  "privateOriginalsExcluded": {
+    "count": 8,
+    "surfaces": [
+      "preferences",
+      "ai-setup"
+    ],
+    "reason": "Account identity and retained private operator/provider configuration; originals reviewed privately, not modified or published"
+  },
+  "screenshots": [
+    {
+      "filename": "login-desktop-light.png",
+      "sha256": "0e6778b6b27463105542b30c84063626197511325be5fe3eee5ffb9b3ab248c3",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "login",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:20.461Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "home-desktop-light.png",
+      "sha256": "860b1f964cc1084c91d6165a3dcefd0825068e0cae74cf3ebb6cc350c00f462e",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "home",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:39.133Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "person-detail-desktop-light.png",
+      "sha256": "93959a7b0e303297b8eb1fa082e78479d2d15700c8f3bb6b2f77e931dadd5614",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "person-details",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:39.769Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-desktop-light.png",
+      "sha256": "ffc0404a6b77f118ed2470530041a214a456dc6609c2c21c2541d70e3e293448",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "messages",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:40.804Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-planned-desktop-light.png",
+      "sha256": "84d2e434c71e750838dbb27230e64e78c6bda6b36b6a82eea1843e8fc9ca14e6",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "messages-planned",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:41.192Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-history-desktop-light.png",
+      "sha256": "edf1d48eb3d18bb5041797e1f5843c163f6183c97a215fe572802a800c16ffa6",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "messages-history",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:41.533Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "composer-desktop-light.png",
+      "sha256": "2675e3ebd22ccb37e9ffe2f11e429050c109d87cad59cca1922a6354459be75b",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "composer",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:42.224Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "people-desktop-light.png",
+      "sha256": "5c7b6d10054a377354b79439af6c10ee84d3fd9f1cdee9926d4801940537f8ee",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "people",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:43.350Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "more-desktop-light.png",
+      "sha256": "870e019d3024f6cbd2e8b6a920a1f59f188f4d4f31baa078001ec59be27fd4c8",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "more",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:44.265Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "displays-desktop-light.png",
+      "sha256": "3927072b5d290bbe446769a2937be6ccda86593f48c61ec68be791b25f25f94b",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "displays",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:45.200Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "integrations-desktop-light.png",
+      "sha256": "589ead4ceb5e1ca474829785efcdac490fad0d6d3cc145fbe2120cba692e6c4b",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "integrations",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:46.286Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "monitors-desktop-light.png",
+      "sha256": "25583f3b0ebe2c261a5c1d8daa3a3ebf72a36c28dd6a14359a21fc602cb0de87",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "monitors",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:47.377Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "ai-desktop-light.png",
+      "sha256": "74bad50d3851421d31df835815cabf52fb68543d63bbc346df83ae46b198c0c7",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "surface": "ai",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:48.758Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "home-mobile-light.png",
+      "sha256": "801751ba9257fa5deeb24003edf3f5b0866d14707289ecebb5fd8741c3b8e043",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "home",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:52.476Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "person-detail-mobile-light.png",
+      "sha256": "64829bad34a7300dc05cabe27d10443092ee7bf9017cb0149b1c39ea6c210411",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "person-details",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:52.657Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-mobile-light.png",
+      "sha256": "822468084d11c05b46e6a74604289f9f085b3bf725985a476e59f60f7a3555b4",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "messages",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:53.403Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-planned-mobile-light.png",
+      "sha256": "246fff2be07521169b8e28448c8728c0bd105fcabdaf1a1af984a528ca576945",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "messages-planned",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:53.536Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-history-mobile-light.png",
+      "sha256": "ff81ae87b8dc15c48e0334a37464c7726a3b1bdb34d4da4f8beff7e905be1132",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "messages-history",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:53.670Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "composer-mobile-light.png",
+      "sha256": "66c6bd886a9defa7cda904d45ef4c31fa17c99fb9bba2a839724a21791cdcef7",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "composer",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:53.889Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "people-mobile-light.png",
+      "sha256": "9d8df9248fc6b8f0da0278eaa060adba6a8398b4a78f1f676c0b17993128a540",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "people",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:54.575Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "more-mobile-light.png",
+      "sha256": "696481f8df8e61f0b3cc235edff1494e4231a90728979cb5335f41e880b198d7",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "more",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:55.245Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "displays-mobile-light.png",
+      "sha256": "d0c12393f35d5922fae2458d55a5a05c4309d2af3dace754803742baa0819bb8",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "displays",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:55.923Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "integrations-mobile-light.png",
+      "sha256": "ab88ace77ae8a96240cda4d715ee7bd214cb8f5b791fc55dd34c33f0440b1d68",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "integrations",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:56.791Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "monitors-mobile-light.png",
+      "sha256": "c1a48d44b95dac9c3c5da3c3e42d21521e25b6962aabe7db6dc3ebb2236e90a2",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "monitors",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:57.661Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "ai-mobile-light.png",
+      "sha256": "397f6d40d43b85ece083dbcbe3509bde9f89c3613afe2477750ce6ec4531aa88",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "surface": "ai",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:24:58.764Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "home-desktop-dark.png",
+      "sha256": "e01862643aec3ffa1abb0dd5cddc9e47eac017e06a55709756fef3bc92401933",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "home",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:01.818Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "person-detail-desktop-dark.png",
+      "sha256": "82d750a72012469c16fe532f54ad4c7cb873385810e1a0a9f623d798e8550e3f",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "person-details",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:03.036Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-desktop-dark.png",
+      "sha256": "ff7689cacdc0ecbe025af91a43b260a2096a858202b9933775f846a71903f0e2",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "messages",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:04.502Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-planned-desktop-dark.png",
+      "sha256": "047092e58cf7c1cb9c0237c905f8e6d4ae121ee04e9e7ae59d38774ea8db7811",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "messages-planned",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:05.294Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-history-desktop-dark.png",
+      "sha256": "987b69e0637b1d7fd48a3cdcb2c5c4d1634c18e89a4c6e91fde781ba96023ed4",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "messages-history",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:06.093Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "composer-desktop-dark.png",
+      "sha256": "b09e20551a3f736f9d694bcac5bf915a9763a78d475c944b8ca84d6bdc43cce4",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "composer",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:07.149Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "people-desktop-dark.png",
+      "sha256": "9b437ec7ef8dce3e77cfc5068ddbc6c0640f939cbbe73df7ae13981702520f41",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "people",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:08.810Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "more-desktop-dark.png",
+      "sha256": "4a90c05604d185e12f8d5cb0b283fcdb94f39e5636fcd1c7b8d5acd0ccbff9fb",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "more",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:10.166Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "displays-desktop-dark.png",
+      "sha256": "47cadb2b270f7bc0a39ed83f3a7c8fbbbbfb90f71b77b75b96dfcd5831a38996",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "displays",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:11.487Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "integrations-desktop-dark.png",
+      "sha256": "f6436f7be9f62607f111c62be4cabae027c37606bfd63b6348b025e6310435c2",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "integrations",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:13.037Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "monitors-desktop-dark.png",
+      "sha256": "f897cbd50672d6ad9c898b464148d3839d440dfc79a3d75c4481d935bf6d1521",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "monitors",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:14.590Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "ai-desktop-dark.png",
+      "sha256": "2436e7217c0443da25187f38b1186900b22accfc98c2251e728cbf71275acfde",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "surface": "ai",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:16.399Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "home-mobile-dark.png",
+      "sha256": "67b452fa00148450037f016bb2cb37d9d11cd6fa91111c5cd9d13bfeb9f2f889",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "home",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:20.767Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "person-detail-mobile-dark.png",
+      "sha256": "bf220704358d3be1ab78ae91a3005878e99a0959cb28078e2a1765ef365eeb71",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "person-details",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:21.192Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-mobile-dark.png",
+      "sha256": "d5c8add914cfe45a0b1e39cf3efc34fa18fc50599b9ceae8d4368f6e6af84315",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "messages",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:22.070Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-planned-mobile-dark.png",
+      "sha256": "eec4e52129ccdb5b8fb5f8efdb9b914d2ae4eebc827a8e8ebf2832160f80add6",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "messages-planned",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:22.252Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "messages-history-mobile-dark.png",
+      "sha256": "3e17f64e2fd2e5b70bded66afac31d32252bc51972067af1a96eedd2d0370ca8",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "messages-history",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:22.440Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "composer-mobile-dark.png",
+      "sha256": "2500b7f93551f4238aea425743d0f0af5910dd79c2c1f519c5972d13ae0c8566",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "composer",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:22.736Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "people-mobile-dark.png",
+      "sha256": "eeb66ae5318f7efc97662137184af8b80881a8c2127a0b615f6b83fb93a7fabc",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "people",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:23.529Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "more-mobile-dark.png",
+      "sha256": "af7625cbc7da1241947658dce20049fa4ae4e80ec667b32584bc0276acc34f32",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "more",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:24.271Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "displays-mobile-dark.png",
+      "sha256": "e88d53b23145ea5276d1044c235703a228e97d2d1bf7d9d7631e5a9b5147849e",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "displays",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:25.007Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "integrations-mobile-dark.png",
+      "sha256": "ab21571e796b74df1631fe19efde8ebe1352167f7183bca9d611a7ce50df83d7",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "integrations",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:25.903Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "monitors-mobile-dark.png",
+      "sha256": "a3700d7cf444d22574cc82f37be432f33dadb9d8394b375aed839cc0bb4e2c78",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "monitors",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:26.826Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "ai-mobile-dark.png",
+      "sha256": "3d763c78223e2609365d21f05ad5836070606fce331f27d494745d4c7dbf90d3",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "ai",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:27.939Z",
+      "injectedTransport": false,
+      "publishable": true
+    },
+    {
+      "filename": "logged-out-mobile.png",
+      "sha256": "89d38bd703478bae3861732c4ed1e61e3f06b3a7cca78c103af3f2072c5cf743",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "surface": "logout",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "origin": "https://samvev.pabben.org",
+      "capturedAt": "2026-10-13T23:25:29.304Z",
+      "injectedTransport": false,
+      "publishable": true
+    }
+  ]
+}

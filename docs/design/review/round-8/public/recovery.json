@@ -1,0 +1,69 @@
+{
+  "candidateImage": "samvev-m1/runtime:15d047192abd63f4be18a90108fe969096da78d0",
+  "chronology": "post-deployment recovery drill; it does not alter or retroactively validate the pre-cutover restore drill",
+  "cleanup": "named clone containers, internal network, and named clone volume removed by the drill trap; backup and protected drill evidence retained",
+  "isolation": {
+    "candidateAppReadOnly": true,
+    "cloneOnly": true,
+    "hostPortsPublished": false,
+    "liveAiKeyMounted": false,
+    "networkInternal": true,
+    "workerStarted": false
+  },
+  "liveUnchangedBeforeAfter": true,
+  "migration": {
+    "ledgerMatchesCandidateSource": true,
+    "ledgerRows": 20,
+    "migratorNoopAt20": true
+  },
+  "schema": {
+    "amcheck": true,
+    "expectedNotValidConstraintOnly": true,
+    "foreignKeys": 83,
+    "invalidIndexes": 0,
+    "numericalInvalidOrNaNRates": 0,
+    "rateSnapshotRows": 5,
+    "unvalidatedConstraints": 1,
+    "amcheckMethod": "SQL amcheck bt_index_check over valid B-tree indexes; not the pg_amcheck executable"
+  },
+  "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+  "syntheticCredential": {
+    "afterLogout": 401,
+    "exactCapabilities": true,
+    "exactlyOneMembership": true,
+    "exactlyOnePerson": true,
+    "login": 200,
+    "logout": 204,
+    "markerProofValid": true,
+    "me": 200,
+    "noInstallationManage": true,
+    "normalReadStatuses": [
+      200,
+      200,
+      200,
+      200,
+      200
+    ],
+    "normalReads": true,
+    "roleHouseholdAdmin": true,
+    "syntheticHousehold": true
+  },
+  "verifiedAtUtc": "2026-10-13T23:44:33Z",
+  "backup": {
+    "archiveChecksumUnchanged": true,
+    "bytes": 258237,
+    "mode": "0600",
+    "sha256": "fbe2333fca5261ae40aeea44ed6e4f913a564488c94a6651e11bd670efc68125",
+    "tocParsedAfterRestore": true,
+    "tocParsedBeforeRestore": true,
+    "filename": "samvev-round8-postdeploy-15d0471-20261013T234416Z.dump"
+  },
+  "restore": {
+    "command": "pg_restore --exit-on-error --single-transaction --no-owner --no-privileges -U [POSTGRES_USER] -d [POSTGRES_DB] < [fresh-custom-archive]",
+    "exitOnError": true,
+    "noOwner": true,
+    "noPrivileges": true,
+    "singleTransaction": true,
+    "privateTranscriptRetained": true
+  }
+}

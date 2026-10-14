@@ -2,7 +2,7 @@
   "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
   "roundId": "20261013220837-15d04719-3db04bd7",
   "localResult": "PASS",
-  "publicPublication": "BLOCKED: both existing SSH identities rejected; dedicated non-overwriting project-local deployment key prepared; waiting for user ssh-copy-id installation. No remote modification.",
+  "publicPublication": "PASS: deployed source-bound candidate; actual HTTPS UI/security and current-version recovery verified; existing local-provider failures disclosed",
   "qa": {
     "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
     "executedAt": "2026-10-13T22:26:11Z",
@@ -123,7 +123,7 @@
   },
   "lanLogin": {
     "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
-    "checkedAt": "2026-10-13T22:30:43.703Z",
+    "checkedAt": "2026-10-13T23:26:56.221Z",
     "origin": "http://192.168.0.220:4173",
     "health": "ok",
     "literalAdminAdminUiLoginAndLogout": true,
@@ -169,9 +169,134 @@
     "services/api/src/external-intelligence.integration.test.ts"
   ],
   "reviewers": {
-    "security": "source and artifact/privacy PASS; public deployment BLOCKED",
-    "ux": "Scoped UI/evidence ACCEPT: all108 actual current captures and2 derived comparisons personally opened/hash verified; public excluded",
-    "requirements": "Local criteria1\u20135/7 PASS; overall/public criterion6 BLOCKED solely on real SSH access prerequisite",
-    "releaseGate": "Local feature publication readiness PASS: independent source/runtime/assets/data/Git/prior-evidence/image/QA checks; full/public criterion6 BLOCKED on confirmed SSH authentication prerequisite"
+    "security": "Public source/auth/privacy PASS; report three existing failed scheduled local-provider attempts, not browser provider calls",
+    "ux": "Public UI/privacy ACCEPT: all58 actual originals personally opened/hash verified;50 safe published and8 kept private",
+    "requirements": "PASS: all Round8 criteria including source-bound public HTTPS deployment and separately recorded current-version20 recovery; initial historical restore-command gap disclosed",
+    "releaseGate": "PASS: authorized public test publication; independently verified public actual container199 source/10 build+served assets,20 live canonical checksums,58/50 public privacy,158 total actual captures,backup hashes/modes,current recovery,LAN9tables/229Git; existing provider failures/historical audit limitations accurately scoped",
+    "qaPublicFinal": "PASS: final56 HTTPS checks,58 original and50 published hashes/dimensions/source, complete current20 recovery semantic audit, LAN9 tables/229Git/healthy; frozen278 suite remains valid"
+  },
+  "public": {
+    "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+    "origin": "https://samvev.pabben.org",
+    "httpsChecks": 56,
+    "pageViewportThemeJourneys": 32,
+    "failures": [],
+    "pageErrors": [],
+    "browserProviderRequests": [],
+    "publishedScreenshots": 50,
+    "privateOriginalsExcluded": 8,
+    "actualSse": {
+      "status": 200,
+      "contentType": "text/event-stream",
+      "buffering": "no",
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'",
+      "readyAt": 93.09999990463257,
+      "heartbeatAt": 15097.799999952316
+    },
+    "stableCoreHashesMatched": 7,
+    "liveCanonicalMigrationChecksumsMatched": 20,
+    "existingScheduledLocalProviderAttempts": 3,
+    "allAttemptsFailed": true,
+    "aiUsageEventsBefore": 223,
+    "aiUsageEventsAfter": 226,
+    "normalWorkerResumed": true,
+    "restoreAudit": "PASS: separately recorded post-deployment current20 recovery; does not retrovalidate initial old-drill invocation flags",
+    "recovery": {
+      "candidateImage": "samvev-m1/runtime:15d047192abd63f4be18a90108fe969096da78d0",
+      "chronology": "post-deployment recovery drill; it does not alter or retroactively validate the pre-cutover restore drill",
+      "cleanup": "named clone containers, internal network, and named clone volume removed by the drill trap; backup and protected drill evidence retained",
+      "isolation": {
+        "candidateAppReadOnly": true,
+        "cloneOnly": true,
+        "hostPortsPublished": false,
+        "liveAiKeyMounted": false,
+        "networkInternal": true,
+        "workerStarted": false
+      },
+      "liveUnchangedBeforeAfter": true,
+      "migration": {
+        "ledgerMatchesCandidateSource": true,
+        "ledgerRows": 20,
+        "migratorNoopAt20": true
+      },
+      "schema": {
+        "amcheck": true,
+        "expectedNotValidConstraintOnly": true,
+        "foreignKeys": 83,
+        "invalidIndexes": 0,
+        "numericalInvalidOrNaNRates": 0,
+        "rateSnapshotRows": 5,
+        "unvalidatedConstraints": 1,
+        "amcheckMethod": "SQL amcheck bt_index_check over valid B-tree indexes; not the pg_amcheck executable"
+      },
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "syntheticCredential": {
+        "afterLogout": 401,
+        "exactCapabilities": true,
+        "exactlyOneMembership": true,
+        "exactlyOnePerson": true,
+        "login": 200,
+        "logout": 204,
+        "markerProofValid": true,
+        "me": 200,
+        "noInstallationManage": true,
+        "normalReadStatuses": [
+          200,
+          200,
+          200,
+          200,
+          200
+        ],
+        "normalReads": true,
+        "roleHouseholdAdmin": true,
+        "syntheticHousehold": true
+      },
+      "verifiedAtUtc": "2026-10-13T23:44:33Z",
+      "backup": {
+        "archiveChecksumUnchanged": true,
+        "bytes": 258237,
+        "mode": "0600",
+        "sha256": "fbe2333fca5261ae40aeea44ed6e4f913a564488c94a6651e11bd670efc68125",
+        "tocParsedAfterRestore": true,
+        "tocParsedBeforeRestore": true,
+        "filename": "samvev-round8-postdeploy-15d0471-20261013T234416Z.dump"
+      },
+      "restore": {
+        "command": "pg_restore --exit-on-error --single-transaction --no-owner --no-privileges -U [POSTGRES_USER] -d [POSTGRES_DB] < [fresh-custom-archive]",
+        "exitOnError": true,
+        "noOwner": true,
+        "noPrivileges": true,
+        "singleTransaction": true,
+        "privateTranscriptRetained": true
+      }
+    },
+    "retentionAudit": {
+      "checkedAt": "2026-10-13T23:36:53.154101+00:00",
+      "liveLedgerChecksumsMatched": 20,
+      "stableCoreTablesHashReceiptsMatched": 7,
+      "allPass": true
+    },
+    "finalRuntime": {
+      "checkedAt": "2026-10-13T23:33:33.308912+00:00",
+      "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+      "independentMainCheck": true,
+      "exactComposeProject": "samvev-m1",
+      "runtimeServices": {
+        "app": "healthy",
+        "worker": "healthy",
+        "db": "healthy"
+      },
+      "immutableAppAndWorkerSourceMatches": true,
+      "databaseContainerRetained": true,
+      "migrationLedgerRows": 20,
+      "invalidIndexes": 0,
+      "unvalidatedConstraints": [
+        "ai_rate_snapshots_nonnegative_rates"
+      ],
+      "aiUsageEvents": 226,
+      "actualDispatches": 3,
+      "queuedOrRunning": 0,
+      "isolatedRuntimeClonesRemoved": true
+    }
   }
 }
