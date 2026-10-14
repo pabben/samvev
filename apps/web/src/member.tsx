@@ -29,7 +29,7 @@ import { AiSettingsPanel } from "./ai-settings";
 import { MonitorsPanel } from "./monitors";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 
-import { initialMemberTab, primaryMemberTab, type MemberTab } from "./member-navigation";
+import { initialMemberTab, memberTabUrl, primaryMemberTab, type MemberTab } from "./member-navigation";
 
 export function MemberApp({
   me,
@@ -54,7 +54,7 @@ export function MemberApp({
   const [photoPersonId,setPhotoPersonId]=useState<string>();
   const openTask=(taskId:string)=>{setTaskNavigation({taskId,key:Date.now()});setTab("monitors")};
   const newPersonTask=(personId:string)=>{setTaskNavigation({personId,key:Date.now()});setTab("monitors")};
-  useEffect(()=>{const url=new URL(location.href);url.searchParams.set("tab",tab);history.replaceState(null,"",`${url.pathname}${url.search}${url.hash}`)},[tab]);
+  useEffect(()=>{history.replaceState(null,"",memberTabUrl(location.href,tab))},[tab]);
   const previousTab=useRef(tab);
   const activePrimary=primaryMemberTab(tab);
   useEffect(()=>{

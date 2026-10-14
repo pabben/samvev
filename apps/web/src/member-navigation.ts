@@ -10,3 +10,11 @@ export function initialMemberTab(url:string):MemberTab {
  const value=parsed.searchParams.get('tab');
  return (['home','messages','people','more','displays','integrations','monitors','ai'] as const).includes(value as MemberTab)?value as MemberTab:'home';
 }
+
+/** Member pages share the root route; Home has no redundant tab parameter. */
+export function memberTabUrl(url:string,tab:MemberTab):string {
+ const parsed=new URL(url,'https://samvev.invalid');
+ if(tab==='home')parsed.searchParams.delete('tab');
+ else parsed.searchParams.set('tab',tab);
+ return `/${parsed.search}${parsed.hash}`;
+}

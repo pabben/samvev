@@ -4,7 +4,7 @@ import type {Projection} from '../src/types';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {squareCrop} from '../src/photo-presentation';
-import {initialMemberTab} from '../src/member-navigation';
+import {initialMemberTab,memberTabUrl} from '../src/member-navigation';
 import {itemHousehold,itemSubjectIds,personItems} from '../src/home-presentation';
 import {personTaskStatusKey} from '../src/person-task-presentation';
 import type {HubItem} from '../src/home-types';
@@ -58,4 +58,16 @@ test('offline display preserves only already-authorized active calendar subjects
  assert.deepEqual(currentHub(projection,clock,500)?.people.map(p=>p.id),['subject']);
  assert.deepEqual(currentHub(projection,clock,1000)?.people,[]);
  assert.equal(currentHub(projection,clock,2000),undefined);
+});
+
+test('Home canonicalizes to root while member deep links and pending calendar completion survive navigation',()=>{
+ assert.equal(initialMemberTab('/?tab=home'),'home');
+ for(const url of ['/','/?tab=home','/?tab=people','/integrations?tab=integrations'])assert.equal(memberTabUrl(url,'home'),'/');
+ for(const tab of ['people','integrations','monitors','ai'] as const){
+  const url=memberTabUrl('/',tab);
+  assert.equal(url,`/?tab=${tab}`);
+  assert.equal(initialMemberTab(url),tab);
+ }
+ assert.equal(memberTabUrl('/integrations#calendar-oauth=synthetic-token','integrations'),'/?tab=integrations#calendar-oauth=synthetic-token');
+ assert.equal(memberTabUrl('/integrations?calendar=consent_denied','integrations'),'/?calendar=consent_denied&tab=integrations');
 });
