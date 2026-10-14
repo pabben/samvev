@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
-import { classifyVisibleImage, protectedPhotoEvidence } from './design-review-assets.mjs';
+import { classifyVisibleImage, protectedPhotoEvidence, publicProtectedPhotoEvidence } from './design-review-assets.mjs';
 import { maskReviewPrivacy } from './design-review-privacy.mjs';
 
 const root = process.cwd();
@@ -166,6 +166,8 @@ try {
   }
   await Promise.all(protectedPhotoChecks);
   for (const key of visibleProtectedPhotoKeys) expect(visibleProtectedPhotos.has(key), `authorized protected photo response: ${key}`).toBe(true);
+  const privatePhotoEvidence=[...visibleProtectedPhotoKeys].map(key=>visibleProtectedPhotos.get(key));
+  await writeFile(resolve(localRoot, `protected-image-validation-${roundId}.json`), `${JSON.stringify({sourceSha,roundId,images:privatePhotoEvidence},null,2)}\n`, {mode:0o600});
   const requiredLoadedAssets = new Set([...served.entryAssets, ...visibleStaticImages]);
   for (const asset of requiredLoadedAssets) {
     expect(served.allAssets, `visible/entry asset exists in dist: ${asset}`).toContain(asset);
@@ -182,7 +184,7 @@ try {
   await api('/auth/logout', 'POST', undefined, { 'X-CSRF-Token': sessionCsrf });
   sessionActive = false;
   original = undefined;
-  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort(), authorizedDynamicImages: [...visibleProtectedPhotoKeys].map(key => visibleProtectedPhotos.get(key)).sort((a,b) => a.route.localeCompare(b.route) || a.version - b.version) }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
+  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort(), authorizedDynamicImages: privatePhotoEvidence.map(publicProtectedPhotoEvidence).sort((a,b) => a.route.localeCompare(b.route) || a.version - b.version) }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
   completed = true;
   console.log(`Staged ${screenshots.length} verified screenshots for host publication (round ${roundId}).`);
 } catch {

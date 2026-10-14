@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyVisibleImage, protectedPhotoEvidence } from './design-review-assets.mjs';
+import { classifyVisibleImage, protectedPhotoEvidence, publicProtectedPhotoEvidence, validatePublicPhotoEvidence } from './design-review-assets.mjs';
 
 const base = 'http://192.168.0.220:4173';
 const household = '11111111-1111-4111-8111-111111111111';
@@ -25,4 +25,14 @@ test('rejects unverified, unauthorized or malformed dynamic images', () => {
   assert.throws(() => protectedPhotoEvidence({ image, status: 200, contentType: 'image/jpeg', bytes: Buffer.from('jpeg') }), /content type/);
   assert.throws(() => classifyVisibleImage(`/api/v1/households/${household}/people/${person}/photo/96?v=3&token=no`, base), /exactly one/);
   assert.throws(() => classifyVisibleImage('https://outside.example/avatar.png', base), /unexpected origin/);
+});
+
+test('public manifest excludes photo content/path fingerprints and byte lengths but private proof retains them',()=>{
+ const privateEvidence=protectedPhotoEvidence({image:classifyVisibleImage(photo,base),status:200,contentType:'image/webp',bytes:Buffer.from('synthetic-webp')});
+ assert.match(privateEvidence.sha256,/^[a-f0-9]{64}$/);assert.match(privateEvidence.pathSha256,/^[a-f0-9]{64}$/);
+ const published=publicProtectedPhotoEvidence(privateEvidence);
+ assert.deepEqual(published,{route:'/api/v1/households/:householdId/people/:personId/photo/96',version:3,status:200,contentType:'image/webp'});
+ assert.doesNotThrow(()=>validatePublicPhotoEvidence([published]));
+ assert.throws(()=>validatePublicPhotoEvidence([privateEvidence]),/private or unsupported/);
+ for(const key of ['sha256','pathSha256','bytes','personId'])assert.throws(()=>validatePublicPhotoEvidence([{...published,[key]:'forbidden'}]),/private or unsupported/);
 });

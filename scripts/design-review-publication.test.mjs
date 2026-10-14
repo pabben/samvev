@@ -57,9 +57,13 @@ test('host stage validation requires the exact fourteen PNG dimensions and hashe
     }
   }
   const proof = { sourceSha:'a'.repeat(40),inputFingerprint:'inputs',runtimeFingerprint:'runtime',migrationFingerprint:'migrations',distHashes:{'index.html':'index'},runtime:{after:{app:{publicOrigin:'http://192.168.0.220:4173'}}} };
-  const manifest = { roundId:'round-test',commitSha:proof.sourceSha,source:{origin:'http://192.168.0.220:4173',syntheticDemo:true},provenance:{sourceSha:proof.sourceSha,inputFingerprint:'inputs',runtimeFingerprint:'runtime',migrationFingerprint:'migrations',distHashes:proof.distHashes},screenshots };
+  const manifest = { roundId:'round-test',commitSha:proof.sourceSha,source:{origin:'http://192.168.0.220:4173',syntheticDemo:true},provenance:{authorizedDynamicImages:[],sourceSha:proof.sourceSha,inputFingerprint:'inputs',runtimeFingerprint:'runtime',migrationFingerprint:'migrations',distHashes:proof.distHashes},screenshots };
   await writeFile(join(stage,'manifest.json'),JSON.stringify(manifest));
   await assert.doesNotReject(() => validateStagedRound({stage,proof}));
+  manifest.provenance.authorizedDynamicImages=[{route:'/api/v1/households/:householdId/people/:personId/photo/96',version:1,status:200,contentType:'image/webp',sha256:'a'.repeat(64)}];
+  await writeFile(join(stage,'manifest.json'),JSON.stringify(manifest));
+  await assert.rejects(()=>validateStagedRound({stage,proof}),/private or unsupported/);
+  manifest.provenance.authorizedDynamicImages=[];
   manifest.screenshots[0].sha256='0'.repeat(64);
   await writeFile(join(stage,'manifest.json'),JSON.stringify(manifest));
   await assert.rejects(() => validateStagedRound({stage,proof}),/PNG hash/);
