@@ -10,7 +10,7 @@ export const localRoot = resolve(root, '.local/design-review');
 export const proofPath = resolve(localRoot, 'build-provenance.json');
 export const runtimeProofPath = resolve(localRoot, 'runtime-provenance.json');
 const prefixes = ['apps/', 'packages/', 'services/', 'scripts/'];
-const exact = new Set(['package.json', 'package-lock.json', '.npmrc', 'Dockerfile', 'compose.yaml', '.env.example', 'tsconfig.json']);
+const exact = new Set(['package.json', 'package-lock.json', '.npmrc', '.dockerignore', 'Dockerfile', 'compose.yaml', '.env.example', 'tsconfig.json']);
 const runtimeServices = { app: 'samvev-m1-qa-app-1', worker: 'samvev-m1-qa-worker-1', db: 'samvev-m1-qa-db-1' };
 const expectedDatabaseUrl = 'postgresql://samvev_qa:synthetic-qa-data-only@qa-db:5432/samvev_qa';
 const hash = value => createHash('sha256').update(value).digest('hex');
@@ -19,6 +19,13 @@ const git = (repo, args) => execFileSync('git', ['-C', repo, ...args], { encodin
 const docker = args => execFileSync('docker', args, { encoding: 'utf8', maxBuffer: 4 * 1024 * 1024 }).trim();
 export const safeSha = sha => /^[a-f0-9]{40}$/.test(sha ?? '');
 export const isRuntimeLeafCommand = (args, sourceFile) => /(^|\/)node$/.test(args?.[0] ?? '') && args.includes('--import') && args.some(value => /\/tsx\/dist\/loader\.mjs$/.test(value)) && args.includes(sourceFile);
+
+export function requireRuntimeDockerignore(contents) {
+  const rules = String(contents).split(/\r?\n/).map(line => line.trim()).filter(line => line && !line.startsWith('#'));
+  if (!rules.includes('docs/design/review/')) throw new Error('Docker build context must exclude published design-review artifacts.');
+  if (rules.some(rule => /^!docs\/design\/review(?:\/|$)/.test(rule))) throw new Error('Docker build context must not re-include design-review artifacts.');
+  return rules;
+}
 
 export function requireMatchingProof(proof, inputs, assets, runtime) {
   if (!safeSha(proof?.sourceSha)) throw new Error('Invalid build provenance source SHA.');
@@ -36,6 +43,8 @@ export async function verifyInputs({ rootDir = root, cloneDir = clone } = {}) {
   const sourceSha = git(cloneDir, ['rev-parse', 'HEAD']);
   if (!safeSha(sourceSha)) throw new Error('Invalid canonical source SHA.');
   const files = trackedBuildInputs(cloneDir);
+  requireRuntimeDockerignore(await readFile(resolve(rootDir, '.dockerignore'), 'utf8'));
+  requireRuntimeDockerignore(await readFile(resolve(cloneDir, '.dockerignore'), 'utf8'));
   const rootHashes = {};
   const cloneHashes = {};
   for (const path of files) {

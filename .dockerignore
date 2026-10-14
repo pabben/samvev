@@ -2,6 +2,7 @@
 .github
 .agents
 .codex
+docs/design/review/
 node_modules
 **/node_modules
 dist

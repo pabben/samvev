@@ -4,7 +4,7 @@ import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { isRuntimeLeafCommand, requireMatchingProof, requireMatchingRuntimeProof, requireRuntimeTransition, safeSha, verifyInputs } from './design-review-provenance.mjs';
+import { isRuntimeLeafCommand, requireMatchingProof, requireMatchingRuntimeProof, requireRuntimeTransition, requireRuntimeDockerignore, safeSha, verifyInputs } from './design-review-provenance.mjs';
 
 const sha = 'a'.repeat(40);
 const inputs = { sourceSha: sha, inputFingerprint: 'inputs' };
@@ -20,6 +20,11 @@ test('rejects changed build input and stale served bundle', () => {
 test('rejects an unsafe provenance SHA', () => {
   assert.equal(safeSha('../not-a-commit'), false);
   assert.throws(() => requireMatchingProof({ ...proof, sourceSha: 'bad' }, inputs, assets, runtime), /Invalid/);
+});
+test('requires published review artifacts to stay outside the runtime build context', () => {
+  assert.doesNotThrow(() => requireRuntimeDockerignore('.git\ndocs/design/review/\nnode_modules\n'));
+  assert.throws(() => requireRuntimeDockerignore('.git\nnode_modules\n'), /exclude published design-review artifacts/);
+  assert.throws(() => requireRuntimeDockerignore('docs/design/review/\n!docs/design/review/latest/\n'), /must not re-include/);
 });
 test('rejects stale runtime processes and database migration state', () => {
   const migrations = { fingerprint: 'migrations', files: { 'services/api/migrations/001.sql': '1'.repeat(64) } };
@@ -48,12 +53,16 @@ test('verifies real Git blob bytes and rejects an edited tracked input', async t
   const base = join(process.cwd(), '.local/design-review-tests', randomUUID()); const source = join(base, 'source'); const mounted = join(base, 'mounted');
   t.after(() => rm(base, { recursive: true, force: true })); await mkdir(join(source, 'apps/web/src'), { recursive: true });
   await writeFile(join(source, 'apps/web/src/demo.js'), 'export const demo = 1;\n');
+  await writeFile(join(source, '.dockerignore'), 'docs/design/review/\n');
   await writeFile(join(source, '.gitignore'), 'apps/web/dist/\n');
   const run = (cwd, args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
   execFileSync('git', ['init', source]); run(source, ['config', 'user.email', 'synthetic@example.invalid']); run(source, ['config', 'user.name', 'Synthetic']); run(source, ['add', '.']); run(source, ['commit', '-m', 'fixture']);
   execFileSync('git', ['clone', source, mounted]);
   const verified = await verifyInputs({ cloneDir: source, rootDir: mounted });
   assert.equal(safeSha(verified.sourceSha), true);
+  await writeFile(join(mounted, '.dockerignore'), 'docs/design/review/\nnode_modules\n');
+  await assert.rejects(() => verifyInputs({ cloneDir: source, rootDir: mounted }), /differs/);
+  await writeFile(join(mounted, '.dockerignore'), 'docs/design/review/\n');
   await mkdir(join(mounted, 'apps/web/dist'), { recursive: true }); await writeFile(join(mounted, 'apps/web/dist/generated.js'), 'generated\n');
   await assert.doesNotReject(() => verifyInputs({ cloneDir: source, rootDir: mounted }));
   await writeFile(join(mounted, 'apps/web/src/demo.js'), 'export const demo = 2;\n');

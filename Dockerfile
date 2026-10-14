@@ -28,7 +28,9 @@ COPY --chown=node:node package.json .npmrc ./
 FROM base AS dependencies
 
 COPY --chown=node:node . ./
-RUN npm ci --ignore-scripts
+# Keep dependency installation and its cache cleanup in one layer. A canonical
+# runtime needs the dependencies, never npm's recoverable cache.
+RUN npm ci --ignore-scripts && npm cache clean --force
 
 FROM dependencies AS development
 
@@ -39,6 +41,9 @@ ENTRYPOINT ["dumb-init", "--"]
 # Public immutable images must contain the web build, not only the API source.
 # A Git archive intentionally excludes generated dist files.
 FROM dependencies AS runtime
+
+ARG SAMVEV_SOURCE_SHA=unproven
+LABEL org.opencontainers.image.revision="${SAMVEV_SOURCE_SHA}"
 
 RUN npm run build --workspace @samvev/web
 

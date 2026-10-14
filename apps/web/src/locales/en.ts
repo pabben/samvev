@@ -12,6 +12,10 @@ export const en = {
   chatPendingValidation:"Account validation is still pending. Review its status above before continuing.",
 
   hubViewPersonalOne: "View 1 entry",
+  CALENDAR_CLIENT_CONFIGURATION_INVALID: "The Samvev operator must correct the calendar service registration and its access settings. Then connect the account again. Existing events are preserved.",
+  calendar_client_configuration_invalid: "The Samvev operator must correct the calendar service registration and its access settings. Then connect the account again. Existing events are preserved.",
+  calendarReconnectAfterSetup: "Connect after setup is corrected",
+  calendarReconnectBeforeUpdate: "Connect the account again before previewing or updating. Active calendars resume automatically after successful sign-in.",
   CALENDAR_CONSENT_DENIED: "Calendar consent was cancelled. Connect the account again when ready.",
   CALENDAR_REAUTHORIZATION_REQUIRED: "Calendar access has expired. Connect the account again.",
 
@@ -39,6 +43,11 @@ export const en = {
   personTasksTitle: "Tasks for this person",
   personTasksEmpty: "No tasks linked yet.",
   personTaskCount: "{count} tasks",
+  personTaskQueued: "Waiting to start",
+  personTaskQueuedAt: "Queued",
+  personTaskStartedAt: "Started",
+  personTaskExecutionFailed: "The last check could not complete. Open the task to review its status.",
+  personTaskInterrupted: "The last check was interrupted on the server. Open the task to review its status.",
   personTaskRunning: "In progress",
   personTaskNotRun: "Not run yet",
   personTaskNoFindings: "No relevant findings",

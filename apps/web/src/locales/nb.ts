@@ -13,6 +13,10 @@ export const nb: Record<TranslationKey, string> = {
   chatPendingValidation:"Kontovalidering gjenstår. Se statusen ovenfor før du fortsetter.",
 
   hubViewPersonalOne: "Se 1 oppføring",
+  CALENDAR_CLIENT_CONFIGURATION_INVALID: "Den som drifter Samvev, må rette kalenderens tjenesteregistrering og tilgangsinnstillinger. Koble deretter til kontoen på nytt. Eksisterende avtaler beholdes.",
+  calendar_client_configuration_invalid: "Den som drifter Samvev, må rette kalenderens tjenesteregistrering og tilgangsinnstillinger. Koble deretter til kontoen på nytt. Eksisterende avtaler beholdes.",
+  calendarReconnectAfterSetup: "Koble til etter rettet oppsett",
+  calendarReconnectBeforeUpdate: "Koble til kontoen på nytt før forhåndsvisning eller oppdatering. Aktive kalendere oppdateres automatisk etter vellykket innlogging.",
   CALENDAR_CONSENT_DENIED: "Kalendersamtykket ble avbrutt. Koble til kontoen igjen når du er klar.",
   CALENDAR_REAUTHORIZATION_REQUIRED: "Kalendertilgangen er utløpt. Koble til kontoen på nytt.",
 
@@ -40,6 +44,11 @@ export const nb: Record<TranslationKey, string> = {
   personTasksTitle: "Oppdrag for personen",
   personTasksEmpty: "Ingen oppdrag er koblet til ennå.",
   personTaskCount: "{count} oppdrag",
+  personTaskQueued: "Venter på å starte",
+  personTaskQueuedAt: "Satt i kø",
+  personTaskStartedAt: "Startet",
+  personTaskExecutionFailed: "Siste kontroll kunne ikke fullføres. Åpne oppdraget for å se status.",
+  personTaskInterrupted: "Siste kontroll ble avbrutt på serveren. Åpne oppdraget for å se status.",
   personTaskRunning: "Pågår",
   personTaskNotRun: "Ikke kjørt",
   personTaskNoFindings: "Ingen relevante funn",
