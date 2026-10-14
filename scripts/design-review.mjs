@@ -5,6 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+import { classifyVisibleImage, protectedPhotoEvidence } from './design-review-assets.mjs';
 
 const root = process.cwd();
 const baseURL = process.env.DESIGN_REVIEW_BASE_URL;
@@ -108,8 +109,23 @@ try {
   await api('/me/preferences', 'PATCH', { locale: 'nb', theme: 'light' }, { 'X-CSRF-Token': original.csrf });
   const page = await context.newPage();
   const loadedAssets = new Set();
-  const visibleImages = new Set();
-  page.on('request', request => { const url = new URL(request.url()); if (url.origin === baseURL && url.pathname.startsWith('/assets/')) loadedAssets.add(url.pathname); });
+  const visibleStaticImages = new Set();
+  const visibleProtectedPhotoKeys = new Set();
+  const visibleProtectedPhotos = new Map();
+  const protectedPhotoChecks = [];
+  page.on('request', request => {
+    const url = new URL(request.url());
+    if (url.origin === baseURL && url.pathname.startsWith('/assets/')) loadedAssets.add(url.pathname);
+  });
+  page.on('response', response => {
+    let image;
+    try { image = classifyVisibleImage(response.url(), baseURL); } catch { return; }
+    if (image.kind !== 'protected-photo') return;
+    protectedPhotoChecks.push((async () => {
+      const evidence = protectedPhotoEvidence({ image, status: response.status(), contentType: response.headers()['content-type'], bytes: await response.body() });
+      visibleProtectedPhotos.set(image.key, evidence);
+    })());
+  });
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await assertFamilyHub(page, personIds, 'light');
@@ -121,7 +137,12 @@ try {
       await page.evaluate(() => scrollTo(0, 0));
       const filename = `${surface}-${theme}.png`;
       const renderedPersonIds = await assertFamilyHub(page, personIds, theme);
-      for (const path of await page.locator('img:visible').evaluateAll(images => images.map(image => new URL(image.currentSrc || image.src).pathname))) visibleImages.add(path);
+      for (const value of await page.locator('img:visible').evaluateAll(images => images.map(image => ({ src: image.currentSrc || image.src, complete: image.complete, width: image.naturalWidth })))) {
+        expect(value.complete && value.width > 0, `visible image loaded: ${value.src}`).toBe(true);
+        const image = classifyVisibleImage(value.src, baseURL);
+        if (image.kind === 'static') visibleStaticImages.add(image.path);
+        else visibleProtectedPhotoKeys.add(image.key);
+      }
       await page.screenshot({ path: resolve(stage, filename), fullPage: false });
       screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: false, uiVerification: { ...verification, personIds: renderedPersonIds } });
     }
@@ -129,12 +150,19 @@ try {
       const filename = `${surface}-${theme}-full.png`;
       await page.setViewportSize({ width, height });
       const renderedPersonIds = await assertFamilyHub(page, personIds, theme);
-      for (const path of await page.locator('img:visible').evaluateAll(images => images.map(image => new URL(image.currentSrc || image.src).pathname))) visibleImages.add(path);
+      for (const value of await page.locator('img:visible').evaluateAll(images => images.map(image => ({ src: image.currentSrc || image.src, complete: image.complete, width: image.naturalWidth })))) {
+        expect(value.complete && value.width > 0, `visible image loaded: ${value.src}`).toBe(true);
+        const image = classifyVisibleImage(value.src, baseURL);
+        if (image.kind === 'static') visibleStaticImages.add(image.path);
+        else visibleProtectedPhotoKeys.add(image.key);
+      }
       await page.screenshot({ path: resolve(stage, filename), fullPage: true });
       screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: true, uiVerification: { ...verification, personIds: renderedPersonIds } });
     }
   }
-  const requiredLoadedAssets = new Set([...served.entryAssets, ...visibleImages]);
+  await Promise.all(protectedPhotoChecks);
+  for (const key of visibleProtectedPhotoKeys) expect(visibleProtectedPhotos.has(key), `authorized protected photo response: ${key}`).toBe(true);
+  const requiredLoadedAssets = new Set([...served.entryAssets, ...visibleStaticImages]);
   for (const asset of requiredLoadedAssets) {
     expect(served.allAssets, `visible/entry asset exists in dist: ${asset}`).toContain(asset);
     expect(loadedAssets, `page loaded visible/entry asset: ${asset}`).toContain(asset);
@@ -150,7 +178,7 @@ try {
   await api('/auth/logout', 'POST', undefined, { 'X-CSRF-Token': sessionCsrf });
   sessionActive = false;
   original = undefined;
-  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort() }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
+  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort(), authorizedDynamicImages: [...visibleProtectedPhotoKeys].map(key => visibleProtectedPhotos.get(key)).sort((a,b) => a.route.localeCompare(b.route) || a.version - b.version) }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
   completed = true;
   console.log(`Staged ${screenshots.length} verified screenshots for host publication (round ${roundId}).`);
 } finally {
