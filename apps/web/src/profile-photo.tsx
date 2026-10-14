@@ -9,10 +9,22 @@ export function PhotoEditor({person,householdId,onClose,onSaved}:{person:Person;
  const [zoom,setZoom]=useState(1),[x,setX]=useState(.5),[y,setY]=useState(.5);
  const generation=useRef(0);const canvas=useRef<HTMLCanvasElement>(null);
  useEffect(()=>()=>{generation.current++},[]);
- useEffect(()=>()=>{if(selection)URL.revokeObjectURL(selection.url)},[selection]);
  const crop=selection?squareCrop(selection.width,selection.height,zoom,x,y):undefined;
  useEffect(()=>{if(!selection||!crop)return;let active=true;const image=new Image();image.onload=()=>{if(!active)return;canvas.current?.getContext('2d')?.drawImage(image,crop.x*selection.width,crop.y*selection.height,crop.width*selection.width,crop.height*selection.height,0,0,256,256)};image.src=selection.url;return()=>{active=false}},[selection,zoom,x,y]);
- const choose=async(file:File|undefined)=>{if(!file)return;const current=++generation.current;setError(null);setSelection(undefined);if(file.size>10*1024*1024){setError(new ApiError('photo_too_large'));return}const url=URL.createObjectURL(file);try{const image=new Image();image.src=url;await image.decode();if(image.naturalWidth*image.naturalHeight>40_000_000)throw new ApiError('photo_dimensions_too_large');const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]!);reader.onerror=reject;reader.readAsDataURL(file)});if(current!==generation.current){URL.revokeObjectURL(url);return}setSelection({url,base64,width:image.naturalWidth,height:image.naturalHeight});setZoom(1);setX(.5);setY(.5)}catch{URL.revokeObjectURL(url);if(current===generation.current)setError(new ApiError('photo_invalid'))}};
+ const choose=async(file:File|undefined)=>{
+  if(!file)return;
+  const current=++generation.current;setError(null);setSelection(undefined);
+  if(file.size>10*1024*1024){setError(new ApiError('photo_too_large'));return}
+  try{
+   // The application CSP permits data: images, not blob: images. Decode the
+   // FileReader URL directly; the server still validates the actual bytes.
+   const url=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result));reader.onerror=reject;reader.readAsDataURL(file)});
+   const image=new Image();image.src=url;await image.decode();
+   if(image.naturalWidth*image.naturalHeight>40_000_000)throw new ApiError('photo_dimensions_too_large');
+   if(current!==generation.current)return;
+   setSelection({url,base64:url.slice(url.indexOf(',')+1),width:image.naturalWidth,height:image.naturalHeight});setZoom(1);setX(.5);setY(.5);
+  }catch(error){if(current===generation.current)setError(error instanceof ApiError?error:new ApiError('photo_invalid'))}
+ };
  const base=`/households/${householdId}/people/${person.id}/photo`;
  return <Dialog title={t('photoTitle',{name:person.display_name})} onClose={onClose}><div className="form-stack photo-editor" aria-busy={busy}>
  <p>{t('photoHint')}</p>{selection?<canvas ref={canvas} width={256} height={256} role="img" aria-label={t('photoPreview')}/>:<div className="photo-current"><Avatar name={person.display_name} personId={person.id} avatarKey={person.avatarKey} photo={person.photo}/></div>}

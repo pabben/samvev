@@ -2,7 +2,7 @@ import { PersonTasks } from "./person-tasks";
 import { PhotoEditor } from "./profile-photo";
 import { personAccent } from "./person-identity";
 import { avatarImages, avatarLabels } from "./avatars";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { ageOnDate, initialDisplayGrants, loginPresentation } from "./person-policy";
 import type { Display, HouseholdSettings, Membership, Person } from "./types";
@@ -61,7 +61,7 @@ export function PeoplePanel({ people, displays, member, householdSettings, refre
     })}</div>
     {taskPerson&&onOpenTask&&<Dialog title={taskPerson.display_name} onClose={()=>setTaskPerson(undefined)}><PersonTasks householdId={member.household_id} personId={taskPerson.id} timezone={member.timezone} onOpen={id=>{setTaskPerson(undefined);onOpenTask(id)}} onNew={onNewTask?personId=>{setTaskPerson(undefined);onNewTask(personId)}:undefined}/></Dialog>}
     {photoPerson&&<PhotoEditor person={photoPerson} householdId={member.household_id} onClose={()=>setPhotoPerson(undefined)} onSaved={refresh}/>}
-    {editing !== undefined && <PersonEditor person={editing} displays={displays} member={member} onClose={() => setEditing(undefined)} onSaved={refresh} onPhoto={person=>{setEditing(undefined);setPhotoPerson(person)}} />}
+    {editing !== undefined && <PersonEditor person={editing?people.find(person=>person.id===editing.id)??editing:editing} displays={displays} member={member} onClose={() => setEditing(undefined)} onSaved={refresh} />}
   </>;
 }
 
@@ -70,9 +70,12 @@ function BirthdaySetting({ settings, householdId, refresh }: { settings: Househo
   return <section className="household-feature"><div><h2>{t("showUpcomingBirthday")}</h2><p>{t("showUpcomingBirthdayHint")}</p></div><Check label={t("showUpcomingBirthday")} checked={settings.show_upcoming_birthday} disabled={busy} onChange={(enabled)=>void run(async()=>{await api(`/households/${householdId}/settings`,"PATCH",{showUpcomingBirthday:enabled,expectedRevision:settings.revision});await refresh();})}/><ErrorNotice error={error}/></section>;
 }
 
-function PersonEditor({ person, displays, member, onClose, onSaved,onPhoto }: { person: Person | null; displays: Display[]; member: Membership; onClose: () => void; onSaved: () => Promise<void>;onPhoto:(person:Person)=>void }) {
+function PersonEditor({ person, displays, member, onClose, onSaved }: { person: Person | null; displays: Display[]; member: Membership; onClose: () => void; onSaved: () => Promise<void> }) {
   const { t } = useI18n();
   const { busy, error, run } = useAction();
+  const [editingPhoto,setEditingPhoto]=useState(false);
+  const photoReturnFocus=useRef(false),photoButton=useRef<HTMLButtonElement>(null);
+  useEffect(()=>{if(!editingPhoto&&photoReturnFocus.current){photoReturnFocus.current=false;const frame=requestAnimationFrame(()=>photoButton.current?.focus());return()=>cancelAnimationFrame(frame)}},[editingPhoto]);
   const [name, setName] = useState(person?.display_name ?? "");
   const [avatarKey, setAvatarKey] = useState<string | null>(person?.avatarKey ?? null);
   const [birthDate, setBirthDate] = useState(person?.birth_date ?? "");
@@ -103,6 +106,8 @@ function PersonEditor({ person, displays, member, onClose, onSaved,onPhoto }: { 
   };
   const loginPayload = { email, loginMethod, ...(loginMethod === "password" ? { password } : {}), locale: member.household_locale, theme: "system" };
   const ownerConfirmation = needsOwnerConfirmation ? { confirmInstallationOwner: ownerConfirmed } : {};
+
+  if(editingPhoto&&person)return <PhotoEditor person={person} householdId={member.household_id} onSaved={onSaved} onClose={()=>{photoReturnFocus.current=true;setEditingPhoto(false)}}/>;
 
   if (invitationToken) {
     const inviteUrl = `${location.origin}/invitation#token=${invitationToken}`;
@@ -135,7 +140,7 @@ function PersonEditor({ person, displays, member, onClose, onSaved,onPhoto }: { 
       }
       onClose();
     }); }}>
-      <section className="editor-section"><h3>{t("personDetails")}</h3>{person&&<button type="button" className="button" onClick={()=>onPhoto(person)}>{t("photoEdit")}</button>}
+      <section className="editor-section"><h3>{t("personDetails")}</h3>{person&&<button type="button" className="button" ref={photoButton} onClick={()=>setEditingPhoto(true)}>{t("photoEdit")}</button>}
         <Field label={t("personName")}><input value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoFocus /></Field>
         <fieldset className="avatar-picker"><legend>{t("avatarChoose")}</legend><p className="field-hint">{t("avatarChooseHint")}</p><div className="avatar-options">{[null,...Object.keys(avatarImages)].map((key,index)=><label key={key??"initials"} className={avatarKey===key?"selected":""}><input type="radio" name="person-avatar" checked={avatarKey===key} onChange={()=>setAvatarKey(key)}/><Avatar name={name} personId={person?.id} avatarKey={key}/><span>{t(index===0?"avatarInitials":avatarLabels[index-1]!)}</span></label>)}</div></fieldset>
         <div className="form-grid"><Field label={t("birthDate")} hint={t("birthDateHint")}><input type="date" value={birthDate} max={householdToday} min="1900-01-01" onChange={(event) => { const value=event.target.value; setBirthDate(value); if(value){const age=ageOnDate(value,householdToday);setAgeGroup(age>=18?"adult":age>=13?"teen":"child");} }} /></Field>
