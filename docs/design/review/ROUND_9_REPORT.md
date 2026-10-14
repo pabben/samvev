@@ -65,6 +65,10 @@ designgodkjenning.
   målrettede tester og Bash-syntaks ble også kjørt på 6f. Avbrutte eller mislykkede foreløpige
   kjøringer er ikke telt som PASS. Worker har ingen egne enhetstester; dens
   oppførsel dekkes av integrasjon og nettleserflyter.
+- En tilleggskontroll på 6f bekrefter ekte native 200 % nettleserzoom og
+  at alle undersøkte kontroller er tilgjengelige med naturlig scroll og
+  trial-klikk, samt separat fokus på skip-lenken; se
+  [zoom-reachability.json](round-9/checks/zoom-reachability.json).
 - Isolert UI-test dekker bildeopplasting/bytte/sletting/fallback, kalender- og
   Spond-broflyter med syntetisk transport, oppdragets metadata uten dispatch,
   tilgangsfiltrering, NB/EN, temaer, responsive flater, Axe og native
@@ -160,11 +164,14 @@ ressurser. Ingen Pangolin- eller global proxyendring ble gjort.
 Den endelige 6f-offentlige HTTPS-suiten besto 63 kontroller og genererte 62
 kontrollbilder ved `2026-10-14T05:32:27.924Z`. Den kontrollerte faktisk
 innlogging med den beholdte syntetiske kontoen, navigasjon i lys/mørk og
-desktop/mobil, CSP/Origin/CSRF, SSE-heartbeat, logout, public own-photo
-save/varianter og at LAN-demoens `admin/admin` avvises offentlig. Suiten gjorde
+desktop/mobil, CSP/Origin/CSRF, SSE-heartbeat, logout, bevaring av eget
+syntetisk profilbilde og beskyttede bildevarianter, valg/beskjæring/avbryt og
+at LAN-demoens `admin/admin` avvises offentlig. Suiten gjorde
 ingen providerkall, feil eller page errors. De publiserbare bildene blir filtrert
 separat fra private operatørbilder. Eksterne kontoer/kilder er aldri bekreftet
-bare av syntetisk transport.
+bare av syntetisk transport. Den første faktiske offentlige bildelagringen
+skjedde på a99; 6f-kontrollen beholdt dette bildet og verifiserte variantene
+uten å overskrive det. CRUD-flyten er separat kjørt mot isolert 6f.
 
 Den særskilte post-cutover recovery-drillen på a99 besto mot den da gjeldende
 offentlige testdatabasen: ny custom-backup med kontrollert TOC og modus 0600,

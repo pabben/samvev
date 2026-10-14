@@ -12,7 +12,7 @@
     "Secure Strict cookies and HttpOnly session",
     "public R9 readiness is actual server state without provider contact",
     "public R9 own-person tasks use authenticated manager projection",
-    "actual public own synthetic photo save and protected variants",
+    "actual public own synthetic photo persistence and protected variants (existing photo preserved)",
     "wrong-origin authentication rejected without login",
     "CSRF-less preference mutation rejected without changing values",
     "HTTPS member SSE ready and unbuffered heartbeat",
@@ -76,5 +76,11 @@
   "baselineInjectedTransport": false,
   "syntheticOnly": true,
   "publishedScreenshotCount": 50,
-  "privateScreenshotCount": 12
+  "privateScreenshotCount": 12,
+  "photoRunBranch": {
+    "priorPhotoPreserved": true,
+    "newPhotoSaveOnFinalRun": false,
+    "initialPublicPhotoSaveSourceSha": "a99fbce575a11498fc7d1206bb998ef94eb83010",
+    "note": "Conditional harness saves only if absent; final run followed preservation branch. Initial earlier public save and final isolated CRUD evidence are separate."
+  }
 }

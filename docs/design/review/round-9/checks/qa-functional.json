@@ -64,6 +64,25 @@
     ],
     "finalSourceRelationship": "This resilience receipt is AAC evidence; it is not represented as a fresh 6F rerun."
   },
+  "nativeZoomReachability": {
+    "status": "pass",
+    "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+    "receipt": "docs/design/review/round-9/checks/zoom-reachability.json",
+    "method": "MV3 chrome.tabs.setZoom at native 200%; no CSS zoom or CDP scaling.",
+    "scope": "Natural-scroll reachability of rendered enabled Home controls, using Playwright trial clicks only. The intentionally offscreen skip link is tested separately by keyboard focus and trial click.",
+    "runs": [
+      "desktop, Norwegian Bokmal, light",
+      "desktop, English, dark",
+      "mobile, Norwegian Bokmal, light",
+      "mobile, English, dark"
+    ],
+    "assertions": [
+      "Native zoom is 2 with half-sized browser viewport and device pixel ratio 2.",
+      "Document root and body have no horizontal overflow.",
+      "Every rendered enabled control becomes trial-actionable after scrollIntoViewIfNeeded.",
+      "The skip link is offscreen initially, then becomes visible and focus-visible by keyboard focus."
+    ]
+  },
   "finalUiCapture": {
     "status": "pass",
     "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",

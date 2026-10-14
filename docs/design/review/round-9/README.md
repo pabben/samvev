@@ -2,8 +2,8 @@
 
 Dette katalogtreet er tilleggsevidens for runde 9. Den ordinære review-runden
 er fortsatt [latest](../latest/manifest.json), med round ID
-`20261014044706-a99fbce5-ac729e11` og kilde
-`a99fbce575a11498fc7d1206bb998ef94eb83010`.
+`20261014052355-6f9f5c50-3f5e1278` og kilde
+`6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e`.
 
 `six-home/` er den isolerte, ekte seks-personers hovedfixturen: to voksne og
 fire barn, kun fiktive data. Den er normaltilstanden for designvurdering.

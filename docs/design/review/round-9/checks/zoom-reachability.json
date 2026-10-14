@@ -1,0 +1,157 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "allPass": true,
+  "method": "MV3 chrome.tabs.setZoom (browser zoom, not CSS zoom or CDP scaling)",
+  "scope": "Home controls are verified as reachable by natural scroll at native 200% zoom; trial clicks do not dispatch actions.",
+  "runs": [
+    {
+      "surface": "desktop",
+      "locale": "nb",
+      "theme": "light",
+      "nativeZoom": 2,
+      "nativeZoomError": null,
+      "layout": {
+        "innerWidth": 720,
+        "innerHeight": 500,
+        "devicePixelRatio": 2,
+        "cssZoom": "1",
+        "rootScrollWidth": 720,
+        "rootClientWidth": 720,
+        "bodyScrollWidth": 720,
+        "bodyClientWidth": 720,
+        "noHorizontalOverflow": true
+      },
+      "renderedEnabledControls": 31,
+      "trialPassed": 31,
+      "excludedOffscreenSkipLink": true,
+      "skipLink": {
+        "initiallyOffscreen": true,
+        "keyboardVisible": true,
+        "focusVisible": true,
+        "trialPassed": true
+      },
+      "checks": {
+        "nativeZoom": true,
+        "halfViewport": true,
+        "devicePixelRatio": true,
+        "noCssZoom": true,
+        "noHorizontalOverflow": true,
+        "allReachableControlsTrialActionable": true,
+        "skipLinkInitiallyOffscreen": true,
+        "skipLinkKeyboardReachable": true
+      }
+    },
+    {
+      "surface": "desktop",
+      "locale": "en",
+      "theme": "dark",
+      "nativeZoom": 2,
+      "nativeZoomError": null,
+      "layout": {
+        "innerWidth": 720,
+        "innerHeight": 500,
+        "devicePixelRatio": 2,
+        "cssZoom": "1",
+        "rootScrollWidth": 720,
+        "rootClientWidth": 720,
+        "bodyScrollWidth": 720,
+        "bodyClientWidth": 720,
+        "noHorizontalOverflow": true
+      },
+      "renderedEnabledControls": 31,
+      "trialPassed": 31,
+      "excludedOffscreenSkipLink": true,
+      "skipLink": {
+        "initiallyOffscreen": true,
+        "keyboardVisible": true,
+        "focusVisible": true,
+        "trialPassed": true
+      },
+      "checks": {
+        "nativeZoom": true,
+        "halfViewport": true,
+        "devicePixelRatio": true,
+        "noCssZoom": true,
+        "noHorizontalOverflow": true,
+        "allReachableControlsTrialActionable": true,
+        "skipLinkInitiallyOffscreen": true,
+        "skipLinkKeyboardReachable": true
+      }
+    },
+    {
+      "surface": "mobile",
+      "locale": "nb",
+      "theme": "light",
+      "nativeZoom": 2,
+      "nativeZoomError": null,
+      "layout": {
+        "innerWidth": 195,
+        "innerHeight": 422,
+        "devicePixelRatio": 2,
+        "cssZoom": "1",
+        "rootScrollWidth": 195,
+        "rootClientWidth": 195,
+        "bodyScrollWidth": 195,
+        "bodyClientWidth": 195,
+        "noHorizontalOverflow": true
+      },
+      "renderedEnabledControls": 21,
+      "trialPassed": 21,
+      "excludedOffscreenSkipLink": true,
+      "skipLink": {
+        "initiallyOffscreen": true,
+        "keyboardVisible": true,
+        "focusVisible": true,
+        "trialPassed": true
+      },
+      "checks": {
+        "nativeZoom": true,
+        "halfViewport": true,
+        "devicePixelRatio": true,
+        "noCssZoom": true,
+        "noHorizontalOverflow": true,
+        "allReachableControlsTrialActionable": true,
+        "skipLinkInitiallyOffscreen": true,
+        "skipLinkKeyboardReachable": true
+      }
+    },
+    {
+      "surface": "mobile",
+      "locale": "en",
+      "theme": "dark",
+      "nativeZoom": 2,
+      "nativeZoomError": null,
+      "layout": {
+        "innerWidth": 195,
+        "innerHeight": 422,
+        "devicePixelRatio": 2,
+        "cssZoom": "1",
+        "rootScrollWidth": 195,
+        "rootClientWidth": 195,
+        "bodyScrollWidth": 195,
+        "bodyClientWidth": 195,
+        "noHorizontalOverflow": true
+      },
+      "renderedEnabledControls": 23,
+      "trialPassed": 23,
+      "excludedOffscreenSkipLink": true,
+      "skipLink": {
+        "initiallyOffscreen": true,
+        "keyboardVisible": true,
+        "focusVisible": true,
+        "trialPassed": true
+      },
+      "checks": {
+        "nativeZoom": true,
+        "halfViewport": true,
+        "devicePixelRatio": true,
+        "noCssZoom": true,
+        "noHorizontalOverflow": true,
+        "allReachableControlsTrialActionable": true,
+        "skipLinkInitiallyOffscreen": true,
+        "skipLinkKeyboardReachable": true
+      }
+    }
+  ],
+  "failures": []
+}
