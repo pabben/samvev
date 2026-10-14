@@ -49,7 +49,7 @@ try {
     else if(path===base&&request.method()==='POST'){
       check(!Object.hasOwn(body,'sourceUrl'),'MOCK_SOURCE_WAS_MANUALLY_ENTERED');
       check(body.targets.personIds.length===1&&body.targets.personIds[0]===person&&body.targets.displayIds.length===0,'MOCK_TARGET_SCOPE');
-      task={...body,id,sourceUrl:null,sourceKinds:['weather'],state:'draft',revision:1,approvedRevision:null,interpretedRule:null,events:[],lastCheckedAt:null,nextCheckAt:null,lastResult:null,lastChangedAt:null,errorCode:null,stats:{checks:0,aiCalls:0,unchanged:0}};
+      task={...body,id,subjects:{personIds:[],revision:1},sourceUrl:null,sourceKinds:['weather'],state:'draft',revision:1,approvedRevision:null,interpretedRule:null,events:[],lastCheckedAt:null,nextCheckAt:null,lastResult:null,lastChangedAt:null,errorCode:null,stats:{checks:0,aiCalls:0,unchanged:0}};
       value=projected();status=201;
     } else if([`${base}/${id}/interpret`,`${base}/${id}/test`].includes(path)){
       const now=new Date().toISOString();
@@ -85,6 +85,6 @@ try {
   prefs={locale:'nb',theme:'light'};await page.setViewportSize({width:1440,height:1000});await navigate();await assertPopulatedUi(page,id,'nb','light','result');
   await deleteThroughUi(page,base,task,()=>navigate());check(!task,'MOCK_DELETE_FAILED');check(errors===0,'MOCK_BROWSER_ERROR');
   await context.close();
-  console.log('PASS delayed async panel navigation; browser-driven create/setup/Test now/delete; persistent reload/no enqueue; populated running/terminal NB/EN mobile/desktop theme/Axe/focus/reduced-motion; synthetic intercepted APIs only');
+  console.log('PASS delayed async panel navigation; browser-driven save draft/no automatic dispatch/explicit setup/Test now/delete; persistent reload/no enqueue; populated running/terminal NB/EN mobile/desktop theme/Axe/focus/reduced-motion; synthetic intercepted APIs only');
 } catch(error) {console.error(`FAIL ${safeCode(error)}`);process.exitCode=1;}
 finally {await browser.close();}

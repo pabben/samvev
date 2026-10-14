@@ -2,7 +2,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { check } from './live-runtime-support.mjs';
 const text = {
-  nb: { new: 'Nytt oppdrag', instruction: 'Din forespørsel', options: 'Kilde og andre valg (valgfritt)', name: 'Navn på oppdrag (valgfritt)', source: 'Kilde (valgfritt)', setup: 'Lag oppsett fra forespørselen', test: 'Test nå', approve: 'Godkjenn og aktiver', delete: 'Slett', confirm: 'Ja, slett oppdraget', leave: 'Du kan forlate siden. Samvev fortsetter i bakgrunnen.', ready: 'Venter på din godkjenning' },
+  nb: { new: 'Nytt oppdrag', instruction: 'Din forespørsel', options: 'Kilde og andre valg (valgfritt)', name: 'Navn på oppdrag (valgfritt)', source: 'Kilde (valgfritt)', save: 'Lagre utkast', setup: 'Lag oppsett fra forespørselen', test: 'Test nå', approve: 'Godkjenn og aktiver', delete: 'Slett', confirm: 'Ja, slett oppdraget', leave: 'Du kan forlate siden. Samvev fortsetter i bakgrunnen.', ready: 'Venter på din godkjenning' },
   en: { test: 'Test now', approve: 'Approve and activate', delete: 'Delete', confirm: 'Yes, delete task', leave: 'You can leave this page. Samvev continues in the background.', ready: 'Waiting for your approval' },
 };
 export async function keyboardActivate(page, target) {
@@ -36,14 +36,35 @@ export async function createSetupThroughUi(page, base, name, instruction, rememb
   check(await form.getByLabel(t.source, { exact: true }).inputValue() === '', 'UI_SOURCE_NOT_EMPTY');
   const targets = form.locator('.monitor-targets input[type=checkbox]');
   check(await targets.count() === 1, 'UI_TARGET_ISOLATION'); await targets.check();
-  const created = responseFor(page, base, 'POST');
-  const enqueued = page.waitForResponse((response) => response.request().method() === 'POST' && new URL(response.url()).pathname.startsWith(`/api/v1${base}/`) && new URL(response.url()).pathname.endsWith('/interpret'), { timeout: 30000 }).catch(() => null);
-  await keyboardActivate(page, form.getByRole('button', { name: t.setup, exact: true }));
-  const response = await created; check(response?.status() === 201, 'UI_CREATE_FAILED');
-  const task = await response.json(); await remember(task);
-  const enqueueResponse = await enqueued; check(enqueueResponse?.status() === 202, 'UI_SETUP_NOT_DURABLE');
-  const { run } = await enqueueResponse.json(); check(run.taskId === task.id, 'UI_SETUP_WRONG_TASK');
-  return { task, run };
+  const unexpectedDispatches=[];
+  const observeDraft=(request)=>{
+    const path=new URL(request.url()).pathname;
+    if(request.method()==='POST'&&path.startsWith(`/api/v1${base}/`)&&/\/(interpret|test|run)$/.test(path))unexpectedDispatches.push(path);
+  };
+  page.on('request',observeDraft);
+  try {
+    const created = responseFor(page, base, 'POST');
+    await keyboardActivate(page, form.getByRole('button', { name: t.save, exact: true }));
+    const response = await created; check(response?.status() === 201, 'UI_CREATE_FAILED');
+    const task = await response.json(); await remember(task);
+    check(task.state==='draft'&&!task.activeExecution&&!task.interpretedRule,'UI_CREATE_NOT_DRAFT');
+    const card=page.locator(`#monitor-card-${task.id}`);
+    await form.waitFor({state:'hidden'});await card.waitFor({state:'visible'});
+    // A reload observes the persisted draft, catches deferred automatic enqueue,
+    // and proves that setup remains a separate, explicit action.
+    await page.reload();await card.waitFor({state:'visible'});
+    check(unexpectedDispatches.length===0,'UI_DRAFT_AUTO_DISPATCHED');
+    check(!await card.locator('.monitor-progress').count(),'UI_DRAFT_ALREADY_RUNNING');
+    const setup=card.getByRole('button',{name:t.setup,exact:true});
+    check(await setup.isEnabled(),'UI_DRAFT_SETUP_UNAVAILABLE');
+    page.off('request',observeDraft);
+    const enqueued=responseFor(page,`${base}/${task.id}/interpret`,'POST');
+    await keyboardActivate(page,setup);
+    const enqueueResponse = await enqueued; check(enqueueResponse?.status() === 202, 'UI_SETUP_NOT_DURABLE');
+    const { run } = await enqueueResponse.json(); check(run.taskId === task.id, 'UI_SETUP_WRONG_TASK');
+    return { task, run };
+  } finally {page.off('request',observeDraft);}
+
 }
 export async function testThroughUi(page, base, task, locale = 'nb') {
   const response = responseFor(page, `${base}/${task.id}/test`, 'POST');
