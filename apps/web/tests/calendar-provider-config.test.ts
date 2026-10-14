@@ -120,3 +120,17 @@ test('actual Family Hub member/display timelines and compact person summaries re
   }
  }
 });
+
+test('actual shared person previews and detail cards label all-day dates instead of a shifted midnight clock',()=>{
+ Object.defineProperty(globalThis,'document',{configurable:true,value:{documentElement:{dataset:{theme:'light'}}}});
+ Object.defineProperty(globalThis,'matchMedia',{configurable:true,value:()=>({matches:false})});
+ const allDay={...staleItem,publishAt:'2026-10-21T00:00:00Z',startsAt:'2026-10-22T00:00:00Z',endsAt:'2026-10-23T00:00:00Z',expiresAt:'2026-10-24T00:00:00Z',metadata:{...staleItem.metadata,allDay:true}};
+ const people=[{id:'synthetic-person-0',displayName:'Synthetic'}];
+ for(const locale of ['nb','en'] as const)for(const display of [false,true]){
+  const markup=renderToStaticMarkup(createElement(LocaleProvider,{locale,children:createElement(FamilyHub,{people,items:[allDay],messages:[],zone:'Europe/Oslo',householdName:'Synthetic',now:Date.parse('2026-10-22T12:00:00Z'),display})}));
+  const label=locale==='nb'?'Hele dagen':'All day';
+  assert.match(markup,new RegExp(`<small>${label} · [^<]*22`));assert.doesNotMatch(markup,/<small>[^<]*02[:.]00/);
+  const detail=renderToStaticMarkup(createElement(LocaleProvider,{locale,children:createElement(ItemCard,{item:allDay,people,zone:'America/Los_Angeles',display})}));
+  assert.match(detail,new RegExp(`<time[^>]*>${label} · [^<]*22`));assert.doesNotMatch(detail,/<time[^>]*>[^<]*(?:21|23|02:00|17:00)/);
+ }
+});

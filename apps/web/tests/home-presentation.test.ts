@@ -204,3 +204,22 @@ test('counted collection details resolve current permitted content and message u
  assert.deepEqual(resolveHubDetail({kind:'collection',id:'messages'},[],[],[message],now),{kind:'collection',id:'messages',items:[],messages:[message]});
  assert.deepEqual(resolveHubDetail({kind:'collection',id:'important'},[],[],[],now),{kind:'collection',id:'important',items:[],messages:[]});
 });
+
+test('long six-person identities use balanced readable columns while short names keep existing layout',async()=>{
+ const {peopleCardMinWidth}=await import('../src/home-presentation');
+ const long=Array.from({length:6},(_,i)=>({displayName:`Synthetic person ${i} with a deliberately long calendar name`}));
+ assert.equal(peopleCardMinWidth(long),240);
+ assert.deepEqual(adaptivePeopleLayout(6,950,14,peopleCardMinWidth(long)),{columns:3,rows:2});
+ const normal=['Ada','Bo','Celine','David','Eva','Finn'].map(displayName=>({displayName}));
+ assert.equal(peopleCardMinWidth(normal),144);
+ assert.deepEqual(adaptivePeopleLayout(6,950,14,peopleCardMinWidth(normal)),{columns:6,rows:1});
+});
+test('calendar all-day agenda membership follows civil dates and excludes the exclusive final day',()=>{
+ const calendar={...item,startsAt:'2026-10-22T00:00:00Z',endsAt:'2026-10-24T00:00:00Z',metadata:{allDay:true,calendar:{provider:'google',sourceId:'synthetic',bridgeKind:'direct',subjectHousehold:false}}};
+ for(const zone of ['Europe/Oslo','America/Los_Angeles']){
+  assert.equal(dayEvents([calendar],Date.parse('2026-10-21T12:00:00Z'),zone).length,0);
+  assert.equal(dayEvents([calendar],Date.parse('2026-10-22T12:00:00Z'),zone).length,1);
+  assert.equal(dayEvents([calendar],Date.parse('2026-10-23T12:00:00Z'),zone).length,1);
+  assert.equal(dayEvents([calendar],Date.parse('2026-10-24T12:00:00Z'),zone).length,0);
+ }
+});

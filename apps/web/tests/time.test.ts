@@ -44,3 +44,16 @@ test('event ranges retain both localized times, household date changes and all-d
   assert.ok(formatEventRange('2026-10-12T16:00:00Z',null,locale,'Europe/Oslo').length>0);
  }
 });
+
+test('calendar all-day display preserves civil dates and exclusive ends in both time-zone directions',async()=>{
+ const {formatCalendarEventRange}=await import('../src/time.ts');
+ for(const locale of ['nb','en'])for(const zone of ['Europe/Oslo','America/Los_Angeles','Pacific/Kiritimati']){
+  const one=formatCalendarEventRange('2026-10-22T00:00:00Z','2026-10-23T00:00:00Z',locale,zone,true);
+  assert.match(one,/22/);assert.doesNotMatch(one,/23|21|02[:.]00|00[:.]00/);
+  assert.equal(formatCalendarEventRange('2026-10-22','2026-10-23',locale,zone,true),one);
+  assert.equal(formatCalendarEventRange('2026-10-22',null,locale,zone,true),one);
+  const multiple=formatCalendarEventRange('2026-10-22T00:00:00Z','2026-10-25T00:00:00Z',locale,zone,true);
+  assert.match(multiple,/22/);assert.match(multiple,/24/);assert.doesNotMatch(multiple,/25/);
+  assert.equal(formatCalendarEventRange('2026-10-22T06:00:00Z','2026-10-22T07:00:00Z',locale,zone,false),formatEventRange('2026-10-22T06:00:00Z','2026-10-22T07:00:00Z',locale,zone));
+ }
+});

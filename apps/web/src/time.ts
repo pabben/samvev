@@ -59,3 +59,11 @@ export function formatEventRange(start:string,end:string|null,locale:string,zone
  if(!end||Date.parse(end)<=Date.parse(start))return formatDate(start,locale,zone,options);
  return new Intl.DateTimeFormat(locale,{timeZone:zone,...options}).formatRange(new Date(start),new Date(end));
 }
+
+/** Calendar all-day bounds are civil dates with an exclusive end, not local clock instants. */
+export function formatCalendarEventRange(start:string,end:string|null,locale:string,zone:string,allDay=false):string {
+ if(!allDay)return formatEventRange(start,end,locale,zone);
+ const startDay=start.slice(0,10),endDay=end?.slice(0,10);
+ const inclusiveEnd=endDay&&endDay>startDay?new Date(Date.parse(`${endDay}T12:00:00Z`)-86400000).toISOString().slice(0,10):startDay;
+ return formatEventRange(`${startDay}T12:00:00Z`,`${inclusiveEnd}T12:00:00Z`,locale,'UTC',true);
+}

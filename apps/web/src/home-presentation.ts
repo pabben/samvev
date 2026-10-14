@@ -9,7 +9,7 @@ export function dayKey(now:number, zone:string, offset=0) {
 }
 export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
   const day=dayKey(now,zone,offset);
-  return items.filter(i=>i.kind==='event'&&i.startsAt&&wallInput(i.startsAt,zone).slice(0,10)===day)
+  return items.filter(i=>i.kind==='event'&&i.startsAt&&(i.metadata.calendar&&i.metadata.allDay?i.startsAt.slice(0,10)<=day&&(i.endsAt&&i.endsAt.slice(0,10)>i.startsAt.slice(0,10)?day<i.endsAt.slice(0,10):day===i.startsAt.slice(0,10)):wallInput(i.startsAt,zone).slice(0,10)===day))
     .sort((a,b)=>Number(Boolean(b.metadata.allDay))-Number(Boolean(a.metadata.allDay)) || Date.parse(a.startsAt!)-Date.parse(b.startsAt!));
 }
 export function itemSubjectIds(item:HubItem) { return item.metadata.calendar ? item.subjects?.personIds??[] : item.targets.personIds; }
@@ -27,11 +27,16 @@ export function importantPreviewLimit({dark,compact,lowHeight}:{dark:boolean;com
 // Measure the people panel, not the window: the neighbouring agenda keeps its
 // own share. Above four identities, balance partial rows instead of leaving one
 // tall card alone. A card keeps room for the existing avatar and readable name.
-export function adaptivePeopleLayout(count:number,width:number,gap:number) {
+export function adaptivePeopleLayout(count:number,width:number,gap:number,minCardWidth=144) {
   if(count<=4||width<=0)return null;
-  const capacity=Math.max(1,Math.min(6,Math.floor((width+gap)/(144+gap))));
+  const capacity=Math.max(1,Math.min(6,Math.floor((width+gap)/(minCardWidth+gap))));
   const rows=Math.ceil(count/capacity);
   return {columns:Math.ceil(count/rows),rows};
+}
+
+/** Full names remain visible; reserve readable columns only when the roster needs them. */
+export function peopleCardMinWidth(people:Pick<HubPerson,'displayName'>[]){
+ return people.some(person=>person.displayName.trim().length>24||person.displayName.split(/\s+/u).some(word=>word.length>14))?240:144;
 }
 
 // Stable section keys preserve open details while visual and reading order move together.
