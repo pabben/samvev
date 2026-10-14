@@ -1,0 +1,14 @@
+{
+  "integration_connections": {
+    "count": 31,
+    "baselineEqual": true
+  },
+  "integration_items": {
+    "count": 213,
+    "baselineEqual": true
+  },
+  "ai_chatgpt_registrations": {
+    "count": 0,
+    "baselineEqual": true
+  }
+}

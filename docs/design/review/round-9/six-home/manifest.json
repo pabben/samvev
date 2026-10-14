@@ -1,0 +1,148 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "provisional": false,
+  "sourceBound": true,
+  "purpose": "R9 final isolated six-person Family Hub evidence",
+  "screenshots": [
+    {
+      "filename": "six-desktop-1920-dark.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:50.439Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "c11957a0a551d79234b86327ab601b8a73959f2d9a4cdaaf895020323eb32e78"
+    },
+    {
+      "filename": "six-desktop-1920-light.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:46.090Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "aadcb3fa1fbe1ca3c328c5d21cb31f2a0d439bc51a925623c70db6801acc868e"
+    },
+    {
+      "filename": "six-ipad-landscape-dark.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:52.897Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "dark",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "5bb6a70c7af32055c9d3a9ee8ce532bab91f79eadaf63bea8bf0633ec38864da"
+    },
+    {
+      "filename": "six-ipad-landscape-light.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:48.217Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "light",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "e9468420df055aa13f2a5373ef691abe7477124d60a3549d7c471095e0f483bf"
+    },
+    {
+      "filename": "six-ipad-portrait-dark.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:51.938Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "dark",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "21d34dbe794ed20b16d509a4ec7418472108649f9eee33b84de18d8c1c6dc30f"
+    },
+    {
+      "filename": "six-ipad-portrait-light.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:47.564Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "light",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "472702d46d8a44cb498c80f31317b69982b9aad353e255f6555694ffd7bd5978"
+    },
+    {
+      "filename": "six-mobile-dark.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:50.960Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "2226328160bb0d9172e313151e4da279180e7a564eb43fa23c57cd301abf6dcf"
+    },
+    {
+      "filename": "six-mobile-light.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:46.503Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "801718cfaa6b6b06747af5d547824f35c27067be2149e932f61c31bf452e968c"
+    },
+    {
+      "filename": "six-shelly-1280-dark.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:53.794Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "dark",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "bb59b0684103802c49f8046550bc450b84da04096f3044b73371ae78bd555b5a"
+    },
+    {
+      "filename": "six-shelly-1280-light.png",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "capturedAt": "2026-10-14T05:21:49.110Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "light",
+      "locale": "nb",
+      "dataState": "actual isolated API/database fixture; six synthetic people with uploaded protected portrait assets",
+      "injectedTransport": false,
+      "sha256": "217372c7861caafe062f3c8d330ca351c30764a35465a343de9c743f8576ad9d"
+    }
+  ]
+}

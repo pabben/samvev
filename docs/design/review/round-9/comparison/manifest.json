@@ -1,0 +1,179 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "previousSourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+  "generatedBy": ".local/m3/design-round9/build-comparisons.mjs",
+  "purpose": "traceable visual review evidence; no design approval or near-identity assertion",
+  "comparisons": [
+    {
+      "filename": "desktop-light.png",
+      "kind": "derived review comparison, not an additional UI capture",
+      "theme": "light",
+      "comparison": "reference four-person app plane; round-8 six-person actual UI; round-9 six-person actual UI",
+      "reference": {
+        "path": "docs/design/ChatGPT Image 24. sep. 2026, 23_51_09.png",
+        "sha256": "4dc87f25a02c2dded6d03ba487f10fbe810d55d9cd0378fbfe160661dcd01462",
+        "approximateAppCorners": [
+          [
+            68,
+            157
+          ],
+          [
+            856,
+            130
+          ],
+          [
+            853,
+            633
+          ],
+          [
+            68,
+            615
+          ]
+        ],
+        "method": "same-width app-plane strip mapping; approximate perspective correction; room, device frame and collage excluded; no pixel-parity claim"
+      },
+      "before": {
+        "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+        "path": "docs/design/review/round-8/six-home/six-desktop-1920-light.png",
+        "sha256": "b749bd684f8829a4edc4a6fdec1956f4496b7d41dcec4b4467d2aacf838ddbb2"
+      },
+      "current": {
+        "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+        "path": "docs/design/review/round-9/six-home/six-desktop-1920-light.png",
+        "sha256": "aadcb3fa1fbe1ca3c328c5d21cb31f2a0d439bc51a925623c70db6801acc868e"
+      },
+      "sha256": "6767db3c36e9fa5c7dcabd715d39572cbd9c028ed36efd0941868e025702f7bf"
+    },
+    {
+      "filename": "desktop-dark.png",
+      "kind": "derived review comparison, not an additional UI capture",
+      "theme": "dark",
+      "comparison": "reference four-person app plane; round-8 six-person actual UI; round-9 six-person actual UI",
+      "reference": {
+        "path": "docs/design/ChatGPT Image 24. sep. 2026, 23_52_06 (4).png",
+        "sha256": "092a4ad005c214a3f0dc25a2446a6818e507936e3e99f3bb7b99e92b9fd10e98",
+        "approximateAppCorners": [
+          [
+            60,
+            104
+          ],
+          [
+            1024,
+            104
+          ],
+          [
+            1024,
+            663
+          ],
+          [
+            60,
+            659
+          ]
+        ],
+        "method": "same-width app-plane strip mapping; approximate perspective correction; room, device frame and collage excluded; no pixel-parity claim"
+      },
+      "before": {
+        "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+        "path": "docs/design/review/round-8/six-home/six-desktop-1920-dark.png",
+        "sha256": "0cbc96915e1a25694ca8be53f15cef80b3563cd0f5a24bd772ee053f00f57a9a"
+      },
+      "current": {
+        "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+        "path": "docs/design/review/round-9/six-home/six-desktop-1920-dark.png",
+        "sha256": "c11957a0a551d79234b86327ab601b8a73959f2d9a4cdaaf895020323eb32e78"
+      },
+      "sha256": "849882ee5bd95ce409bf3f8b88e96989cc7ae01056a0f502831779c0ce10e5e9"
+    },
+    {
+      "filename": "shelly-light.png",
+      "kind": "derived review comparison, not an additional UI capture",
+      "theme": "light",
+      "comparison": "reference desktop app plane for material/composition only; round-8 and round-9 six-person Shelly XL actual UI",
+      "reference": {
+        "path": "docs/design/ChatGPT Image 24. sep. 2026, 23_51_09.png",
+        "sha256": "4dc87f25a02c2dded6d03ba487f10fbe810d55d9cd0378fbfe160661dcd01462",
+        "approximateAppCorners": [
+          [
+            68,
+            157
+          ],
+          [
+            856,
+            130
+          ],
+          [
+            853,
+            633
+          ],
+          [
+            68,
+            615
+          ]
+        ],
+        "method": "same-width app-plane strip mapping; approximate perspective correction; reference is not a Shelly viewport; no viewport-equivalence or pixel-parity claim"
+      },
+      "before": {
+        "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+        "path": "docs/design/review/round-8/six-home/six-shelly-1280-light.png",
+        "sha256": "312479ba4665096d666f1f07df9b7fb811d177c4add29e9ed10258f5755ef516"
+      },
+      "current": {
+        "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+        "path": "docs/design/review/round-9/six-home/six-shelly-1280-light.png",
+        "sha256": "217372c7861caafe062f3c8d330ca351c30764a35465a343de9c743f8576ad9d"
+      },
+      "sha256": "9ad13891fb40c73b1798d34fbffb1bf262bef402be63fb9e940c2121d2f83cd1"
+    },
+    {
+      "filename": "shelly-dark.png",
+      "kind": "derived review comparison, not an additional UI capture",
+      "theme": "dark",
+      "comparison": "reference desktop app plane for material/composition only; round-8 and round-9 six-person Shelly XL actual UI",
+      "reference": {
+        "path": "docs/design/ChatGPT Image 24. sep. 2026, 23_52_06 (4).png",
+        "sha256": "092a4ad005c214a3f0dc25a2446a6818e507936e3e99f3bb7b99e92b9fd10e98",
+        "approximateAppCorners": [
+          [
+            60,
+            104
+          ],
+          [
+            1024,
+            104
+          ],
+          [
+            1024,
+            663
+          ],
+          [
+            60,
+            659
+          ]
+        ],
+        "method": "same-width app-plane strip mapping; approximate perspective correction; reference is not a Shelly viewport; no viewport-equivalence or pixel-parity claim"
+      },
+      "before": {
+        "sourceSha": "15d047192abd63f4be18a90108fe969096da78d0",
+        "path": "docs/design/review/round-8/six-home/six-shelly-1280-dark.png",
+        "sha256": "9434d11701342594412a4ef2a3a1cf6db766dbd6e3239a4aa9c3018ace690448"
+      },
+      "current": {
+        "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+        "path": "docs/design/review/round-9/six-home/six-shelly-1280-dark.png",
+        "sha256": "bb59b0684103802c49f8046550bc450b84da04096f3044b73371ae78bd555b5a"
+      },
+      "sha256": "50ea1d351369fbc0ebf1a19edcc20d6385267d39c4c52e67632bb1024886d4b3"
+    }
+  ],
+  "assessment": {
+    "observedImprovements": [
+      "Round 9 keeps six distinct person cards with activity/status information in both themes.",
+      "Round 9 makes the compact Shelly person/activity layout easier to compare directly with the prior six-person capture."
+    ],
+    "remainingDistance": [
+      "The authoritative concepts have a different product composition and illustration/typography system.",
+      "Samvev retains a more information-dense card grid and different materials from the references.",
+      "Fixture content, timestamps and person counts differ by design; the comparison cannot establish pixel parity or design approval."
+    ]
+  }
+}

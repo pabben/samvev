@@ -1,0 +1,40 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "sourceBound": true,
+  "mode": "explicit injected DTO presentation stress",
+  "screenshots": [
+    {
+      "filename": "empty-1-desktop-light.png",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "people": 1,
+      "theme": "light",
+      "fixture": "injected response DTO; no persistence or provider",
+      "sha256": "750de56a8a1485b3b02f9a4aa6a25ea9276190e63d147975e823c84b524a4223"
+    },
+    {
+      "filename": "empty-2-desktop-light.png",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "people": 2,
+      "theme": "light",
+      "fixture": "injected response DTO; no persistence or provider",
+      "sha256": "9e3def0a9ae1523fd6bde7c97dd7856586b97b5fe6a96e68a4bc7f3fd51a3966"
+    },
+    {
+      "filename": "empty-3-desktop-light.png",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "people": 3,
+      "theme": "light",
+      "fixture": "injected response DTO; no persistence or provider",
+      "sha256": "d52f87a9f0f1dd734b2cb0328e232ab096243c4066aa7aa2420e358f1e9f4f71"
+    }
+  ]
+}

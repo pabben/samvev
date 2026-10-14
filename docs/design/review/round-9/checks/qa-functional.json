@@ -1,0 +1,173 @@
+{
+  "finalSourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "purpose": "Sanitized QA proof index. It records executed evidence and source scope without identifiers, credentials, URLs, or fixture content.",
+  "functionalSuite": {
+    "status": "pass",
+    "executedSourceSha": "aacb7629e836758f25c098601d618d419803a73e",
+    "finalSourceRelationship": "The final 6F change is the host runtime wrapper, its tests, and guide material. Application/package behavior is unchanged since AAC. A full functional-suite rerun at 6F is not claimed.",
+    "totalTests": 305,
+    "commands": [
+      {
+        "command": "npm test (workspace runner: node scripts/run-workspace-command.mjs test)",
+        "package": "@samvev/web",
+        "packageCommand": "tsx --test tests/*.test.ts",
+        "passed": 62,
+        "receipt": ".local/m3/design-round9/isolated-tests-final.log"
+      },
+      {
+        "command": "npm test (workspace runner: node scripts/run-workspace-command.mjs test)",
+        "package": "@samvev/contracts",
+        "packageCommand": "node --import tsx --test src/*.test.ts",
+        "passed": 5,
+        "receipt": ".local/m3/design-round9/isolated-tests-final.log"
+      },
+      {
+        "command": "npm test (workspace runner: node scripts/run-workspace-command.mjs test)",
+        "package": "@samvev/core",
+        "packageCommand": "node --import tsx --test src/*.test.ts",
+        "passed": 3,
+        "receipt": ".local/m3/design-round9/isolated-tests-final.log"
+      },
+      {
+        "command": "npm test (workspace runner: node scripts/run-workspace-command.mjs test)",
+        "package": "@samvev/api",
+        "packageCommand": "node --import tsx --test --test-concurrency=1 src/*.test.ts src/ai/*.test.ts src/calendar/*.test.ts src/monitor/*.test.ts src/people/*.test.ts",
+        "passed": 235,
+        "receipts": [
+          ".local/m3/design-round9/isolated-tests-final.log",
+          ".local/m3/design-round9/backend-dependency-final.log"
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "status": "pass",
+    "command": "npm run check (node scripts/run-workspace-command.mjs check; each package runs tsc --noEmit)",
+    "passedPackages": 5,
+    "receipt": ".local/m3/design-round9/check-final.log"
+  },
+  "e2eHarness": {
+    "status": "pass",
+    "command": "npm run test:e2e-harness (node --test tests/e2e/live-runtime.test.mjs && node tests/e2e/live-runtime-browser-smoke.mjs)",
+    "passed": 10,
+    "receipt": ".local/m3/design-round9/patched-e2e-final.log",
+    "scope": "Harness scenarios and browser smoke evidence; intercepted APIs are explicitly synthetic where the receipt says so."
+  },
+  "nativeResilience": {
+    "status": "pass",
+    "executedSourceSha": "aacb7629e836758f25c098601d618d419803a73e",
+    "receipt": ".local/m3/design-round9/qa/native-resilience/result.json",
+    "verified": [
+      "Four browser-zoom runs at 200% using MV3 chrome.tabs.setZoom, across light and dark themes.",
+      "Reduced-motion transition behavior.",
+      "Native EventSource construction and browser offline-to-online recovery."
+    ],
+    "finalSourceRelationship": "This resilience receipt is AAC evidence; it is not represented as a fresh 6F rerun."
+  },
+  "finalUiCapture": {
+    "status": "pass",
+    "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+    "totalScreenshots": 57,
+    "sets": [
+      {
+        "name": "six-home",
+        "screenshots": 10,
+        "receipt": "docs/design/review/round-9/six-home/manifest.json",
+        "scope": "Actual isolated application and database using fictional fixture data."
+      },
+      {
+        "name": "count-stress",
+        "screenshots": 3,
+        "receipt": "docs/design/review/round-9/count-stress/manifest.json",
+        "scope": "Explicit injected response-DTO presentation stress test; it does not exercise persistence or a provider."
+      },
+      {
+        "name": "new-flow-matrix",
+        "screenshots": 44,
+        "receipt": "docs/design/review/round-9/new-flow-manifest.json",
+        "scope": "Actual isolated application UI. Calendar-provider exercises use the isolated synthetic transport."
+      }
+    ],
+    "flowReceipts": [
+      ".local/m3/design-round9/qa/photo-ui-flow.json",
+      ".local/m3/design-round9/qa/photo-matrix.json",
+      ".local/m3/design-round9/qa/task-ui-flow.json",
+      ".local/m3/design-round9/qa/task-matrix.json",
+      ".local/m3/design-round9/qa/task-multiple-subjects-ui.json",
+      ".local/m3/design-round9/qa/calendar-provider-ui.json",
+      ".local/m3/design-round9/qa/calendar-matrix.json",
+      ".local/m3/design-round9/qa/chatgpt-matrix.json",
+      ".local/m3/design-round9/qa/birthday-message-ui.json"
+    ],
+    "captureTreatment": "All visible images, fonts, themes, locale, and hashes are recorded by their manifests. A host identifier is redacted in the public AI evidence. Normal visual captures suppress a transient keyboard-focus overlay; keyboard focus is verified separately.",
+    "servedDistribution": {
+      "status": "pass",
+      "scope": "The isolated service's served web distribution was compared byte-for-byte with the locally built distribution before this capture set.",
+      "filesCompared": 10,
+      "privateReceipts": [
+        ".local/m3/design-round9/qa/local-dist-6f.sha256",
+        ".local/m3/design-round9/qa/served-dist-6f.sha256"
+      ]
+    }
+  },
+  "operationsAndPreservation": {
+    "publicHttps": {
+      "status": "pass",
+      "checks": 63,
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "publishedScreenshots": 50,
+      "privateScreenshots": 12,
+      "receipt": "docs/design/review/round-9/manifest.json"
+    },
+    "lanAdmin": {
+      "status": "pass",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "scope": "Administrator login/logout, health, preferences unchanged, and served distribution checks.",
+      "receipts": [
+        "docs/design/review/round-9/checks/lan.json",
+        ".local/m3/design-round9/lan-login-final-6f.log"
+      ]
+    },
+    "postCutoverRecovery": {
+      "status": "pass",
+      "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+      "verified": [
+        "Fresh current backup and isolated PostgreSQL restore.",
+        "Migration is a no-op on the preserved database.",
+        "Ten served web assets match the runtime image.",
+        "Task-subject links and their audit rows are preserved.",
+        "Live configuration remains unchanged and clone resources were cleaned."
+      ],
+      "receipts": [
+        "docs/design/review/round-9/checks/post-cutover-recovery.json",
+        "docs/design/review/round-9/checks/public-cutover.json",
+        "docs/design/review/round-9/checks/final-candidate-compatibility.json"
+      ]
+    },
+    "preservation": {
+      "status": "pass",
+      "scope": "Eight recorded data-table categories plus messages remained preserved. One message reached its natural expiry; identity, content, audience, publication, revision, and expiry invariants remained valid.",
+      "receipts": [
+        "docs/design/review/round-9/checks/lan-preservation.json",
+        "docs/design/review/round-9/checks/lan-integration-preservation.json",
+        ".local/m3/design-round9/qa-current-message-preservation.json",
+        ".local/m3/design-round9/qa-restored-integration-preservation.json"
+      ]
+    }
+  },
+  "privacy": {
+    "fixtureData": "Public isolated captures use fictional data only.",
+    "excludedFromThisIndex": [
+      "credentials",
+      "private identifiers",
+      "calendar URLs",
+      "private task content"
+    ]
+  },
+  "limitations": [
+    "Historical preliminary or interrupted failures are excluded from pass counts.",
+    "The injected count-stress captures are presentation evidence only.",
+    "AAC functional and resilience evidence is retained because application behavior did not change through 6F; this document does not claim those suites were rerun at 6F.",
+    "The source-bound operations, recovery, and preservation records listed here are 6F evidence; earlier preliminary evidence remains excluded from these pass claims."
+  ]
+}

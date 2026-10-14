@@ -1,0 +1,31 @@
+{
+  "roundId": "20261014052355-6f9f5c50-3f5e1278",
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "runtimeImage": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+  "status": "6f immutable public cutover, 63-check HTTPS suite, post-cutover recovery and native wrapper readiness complete",
+  "deploymentEvidence": {
+    "immutableCutover": true,
+    "publicHttpsUi": true,
+    "publicHttpsChecks": 63,
+    "publishedPublicScreenshots": 50,
+    "postCutoverRestore": {"completed": true, "sourceAtOperation": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e"},
+    "chatgptRuntimeWrapperReadiness": {"completed": true, "nativeHostPythonPath": true, "credentialRead": false, "providerOrModelCall": false}
+  },
+  "features": [
+    {"feature":"Design composition, six people and count reflow","implemented":true,"tested":"57 isolated current-source captures; responsive count stress; public HTTPS UI suite","publicAvailable":true,"externalLiveVerified":false,"userActions":[]},
+    {"feature":"Focus, compact cards, birthday, return arrow and AI help","implemented":true,"tested":"actual UI focus/resilience/Axe coverage and public navigation suite","publicAvailable":true,"externalLiveVerified":false,"userActions":[]},
+    {"feature":"Protected persistent person photos","implemented":true,"tested":"isolated API/UI, restart and clone backup/restore with native WebP checks; public own-photo save/variants","publicAvailable":true,"externalLiveVerified":false,"userActions":[]},
+    {"feature":"Google Calendar read adapter","implemented":true,"tested":"isolated transport and UI flow","publicAvailable":true,"externalLiveVerified":false,"userActions":["Create OAuth web registration; store client credentials privately; consent and select calendars in Samvev."]},
+    {"feature":"Outlook/Microsoft 365 read adapter","implemented":true,"tested":"isolated transport and UI flow","publicAvailable":true,"externalLiveVerified":false,"userActions":["Create delegated app registration and private client secret; select tenant and consent."]},
+    {"feature":"ICS HTTPS subscription","implemented":true,"tested":"isolated parser, SSRF/redirect, lifecycle and UI coverage","publicAvailable":true,"externalLiveVerified":false,"userActions":["Enter a private HTTPS ICS URL in the app, then choose source visibility."]},
+    {"feature":"Calendar lifecycle, cancellation and restoration","implemented":true,"tested":"isolated paging, DST, recurrence, exception, cancellation and restoration coverage","publicAvailable":true,"externalLiveVerified":false,"userActions":[]},
+    {"feature":"Spond via cloud calendar","implemented":true,"tested":"isolated Spond-like event/change/cancellation and source-reuse coverage","publicAvailable":true,"externalLiveVerified":false,"userActions":["Enable Spond calendar sync to the selected Google/Outlook account and choose that calendar in Samvev."]},
+    {"feature":"ChatGPT guidance and runtime preparation","implemented":true,"tested":"isolated guide/runtime preparation; no import or model call","publicAvailable":true,"externalLiveVerified":false,"userActions":["Run local companion, complete personal consent and private import; verify inference separately."]},
+    {"feature":"Google/Gemini assessment (provider not implemented)","implemented":true,"providerImplemented":false,"implementationScope":"assessment only","tested":"documented assessment","publicAvailable":true,"externalLiveVerified":false,"userActions":["Clarify exact Google product and configure eligible API/billing before a separate implementation decision."]},
+    {"feature":"Person-linked monitor subjects and results","implemented":true,"tested":"isolated metadata, access, no-dispatch and result-review coverage; public authenticated projection","publicAvailable":true,"externalLiveVerified":false,"userActions":[]},
+    {"feature":"Existing private two-task association","implemented":true,"tested":"private invariant receipt: two metadata links, preserved identity/history/approval/schedule and no model/interpret/copy","publicAvailable":true,"externalLiveVerified":false,"userActions":[]},
+    {"feature":"Read-only local AI diagnosis","implemented":true,"implementationScope":"published bounded diagnosis; private retained logs remain private","tested":"read-only retained metadata review","publicAvailable":true,"externalLiveVerified":false,"userActions":[]},
+    {"feature":"Regression, privacy and delivery evidence","implemented":true,"tested":"305 isolated tests, five workspace checks, E2E 10, wrapper 3 plus Bash syntax, source-bound 14 latest plus 57 isolated captures, 75-output UX review and 63 public HTTPS checks","publicAvailable":true,"externalLiveVerified":false,"userActions":[]}
+  ],
+  "privacy": "No private names, identifiers, credentials, ICS URLs or task content are present in this matrix."
+}

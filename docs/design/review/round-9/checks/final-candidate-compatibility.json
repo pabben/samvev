@@ -1,0 +1,17 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "imageId": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+  "freshCurrentCustomBackup": true,
+  "backupToc": true,
+  "isolatedPostgres17Restore": true,
+  "migrationNoop": true,
+  "directDbPhotoEquality": true,
+  "taskSubjectAndAuditEquality": true,
+  "amcheck": true,
+  "twoReadOnlyBindsNoPorts": true,
+  "liveUnchanged": true,
+  "scope": "Actual final candidate compatibility before cutover against a fresh current public database; live source remained a99",
+  "migrationLedgerRows": 23,
+  "currentPublicPhotoHttpBytesMatch": true,
+  "cloneHadNoWorkerOrLiveVaultOrModelCalls": true
+}

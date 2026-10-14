@@ -1,0 +1,48 @@
+{
+  "sourceSha": "a99fbce575a11498fc7d1206bb998ef94eb83010",
+  "metadataOperation": {
+    "sourceShaAtOperation": "aacb7629e836758f25c098601d618d419803a73e",
+    "finalSourceHasSameSubjectApiBytes": true,
+    "requestedExistingTasks": 2,
+    "linkedExistingTasks": 2,
+    "postcondition": {
+      "eachTaskSubjectsRevision": 2,
+      "eachTaskSubjectRows": 1,
+      "eachTaskAuthorizedAuditRows": 1,
+      "functionalRevisionPreserved": true,
+      "approvalProviderRegistrationPreserved": true,
+      "cadenceAndTargetsPreserved": true,
+      "runHistoryPreserved": true,
+      "queuedOrRunningAfterOperation": 0,
+      "leasesAfterOperation": 0
+    },
+    "execution": "The normal in-image CLI ran once with a mode-600 private input streamed to the read-only app container's tmpfs. No direct SQL mutation, model call, interpretation, activation, schedule, approval or target change was used."
+  },
+  "historicalRound8Dispatches": {
+    "count": 3,
+    "classification": {
+      "upstreamTransportFailure": 1,
+      "invalidResponseWithoutRetainedDetailedCause": 2
+    },
+    "interpretation": "The transport failure had no classifiable HTTP response. The two invalid-response rows have no retained detailed execution diagnostic. These records do not establish a single provider root cause."
+  },
+  "naturalScheduledDispatchesSinceRound9Baseline": {
+    "observedReadOnly": true,
+    "normalBackgroundActivityPreserved": true,
+    "diagnosticAndMetadataOperationsTriggeredNoProviderCalls": true,
+    "privateRunDetailsRetainedOutsideGit": true,
+    "validLiveModelResponseNotClaimed": true
+  },
+  "finalWorkerState": {
+    "singleNormalWorkerHealthy": true,
+    "approvedSchedulesPreserved": true,
+    "privateTimingAndRuntimeDetailsExcluded": true
+  },
+  "privacy": {
+    "containsPersonNames": false,
+    "containsTaskIds": false,
+    "containsPrompts": false,
+    "containsProviderConfiguration": false,
+    "containsPrivateHostAddresses": false
+  }
+}

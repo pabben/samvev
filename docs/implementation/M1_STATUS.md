@@ -868,13 +868,23 @@ host-global service modified. No merge, tag, release or production deployment.
   smoke, and a two-run fresh migration 001–016 gate. It has not been committed,
   deployed or exercised by the expanded post-fix live Lillesand matrix.
 
-## M3 round 9 implementation checkpoint — 2026-10-14
+## M3 round 9 — 2026-10-14
 
-Expanded mailbox `74eeaab` is in progress. Backend implements protected photo
-variants, task subjects, calendar adapters and canonical ChatGPT helper identity;
-frontend implements the associated workflows and targeted responsive fixes.
-Reported intermediate checks: API 231/231 and web 59/59. These are not a final
-QA/release gate. Isolated visual review, complete retest, all 14 source-bound
-latest screenshots, recovery drills and authorized public test cutover remain
-pending. Real external OAuth/Spond/ChatGPT consent is not claimed. The public
-round-8 runtime and existing LAN data remain the baseline until verified cutover.
+Mailbox `74eeaab` is implemented in source
+`6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e`. The immutable public test image is
+`sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453`.
+Protected person photos, task subjects, Google/Microsoft/ICS read adapters, the
+Spond calendar bridge and the truthful ChatGPT guide are available. The isolated
+suite passed 305 tests, five workspace checks and 10 E2E checks on byte-identical
+application/package inputs before the a99 Dockerfile-only packaging correction; the current
+ordinary 14-image round is `20261014052355-6f9f5c50-3f5e1278`, supplemented by
+57 isolated source-bound flow images. Public cutover preserves schema 23,
+configuration and data. The actual 6f HTTPS suite passed 63 checks and produced 62
+control captures. External OAuth/ICS/Spond/ChatGPT consent and live provider
+validation remain owner actions, and Gemini is not implemented. A final 6f
+post-cutover PostgreSQL 17 clone/backup/photo/subject/audit/amcheck recovery
+gate and native no-import/no-provider runtime-wrapper readiness check also
+passed. Final UX review opened 75 review outputs without an outstanding visual
+blocker; it does not claim owner design approval. The detailed
+boundaries, recovery evidence and user actions are in
+[ROUND_9_REPORT.md](../design/review/ROUND_9_REPORT.md).

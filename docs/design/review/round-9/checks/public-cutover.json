@@ -1,0 +1,13 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "imageId": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+  "ledger": 23,
+  "appWorkerHealthy": true,
+  "dbVolumePreserved": true,
+  "environmentVaultPortsUserReadonlyPreserved": true,
+  "safeCutoverNoActiveExecutions": true,
+  "allTenActualServedWebAssetsMatch": true,
+  "databaseMigrationNotReplayed": true,
+  "backupTaken": true,
+  "at": "2026-10-14T05:29:19.628276+00:00"
+}

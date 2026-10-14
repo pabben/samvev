@@ -139,15 +139,24 @@ a versioned M3 visual baseline where appropriate, then environment-specific
 release/backup/security checks. Real integrations and physical hardware validation
 are separate follow-ups. Local completion does not authorize production actions.
 
-## Round 9 candidate — 2026-10-14 (in progress)
+## Round 9 public test candidate — 2026-10-14
 
-The expanded mailbox supersedes the older scope above. Protected person photos,
-Google/Microsoft/ICS read adapters, the Spond cloud-calendar reuse path, independent
-AI task subjects and a truthful ChatGPT setup guide are implemented.
+Mailbox `74eeaab` is implemented in
+`6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e` and cut over as immutable public
+test image `sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453`.
+Protected photos, independent monitor subjects, Google/Microsoft/ICS read
+adapters, the documented Spond cloud-calendar bridge and the ChatGPT setup guide
+are present. Isolated tests (305), five workspace checks and E2E (10) ran on
+application/package inputs byte-identical to a99 before its Dockerfile-only packaging
+correction; source-bound review images (14 ordinary plus 57 affected-flow) and
+the 6f public suite's 63 actual HTTPS checks passed. The public suite verifies retained synthetic-account login,
+navigation, policy boundaries, SSE and own-photo persistence; it made no provider
+calls. The final 6f post-cutover recovery gate and native wrapper readiness
+check passed without credential import or provider contact. Final UX review of
+75 review outputs found no visual blocker and makes no design-approval claim.
+Real external consents, calendar accounts, private ICS URLs, ChatGPT import
+and inference are deliberately not claimed, and Gemini is unimplemented. See
 [ADR 0022](../decisions/0022-person-assets-calendar-and-task-subjects.md),
-[calendar setup](../CALENDAR_CONNECTIONS.md) and
-[ChatGPT setup](../CHATGPT_PLAN_CONNECTION.md) describe the delivered boundaries.
-Actual isolated browser review, full retest, current-source screenshots and the
-authorized public restore/cutover/HTTPS gate are still pending. Previous evidence
-keeps its original source and does not certify this candidate. Real provider
-consent/account validation remains a separate user action.
+[calendar setup](../CALENDAR_CONNECTIONS.md),
+[ChatGPT setup](../CHATGPT_PLAN_CONNECTION.md) and the
+[round 9 report](../design/review/ROUND_9_REPORT.md).

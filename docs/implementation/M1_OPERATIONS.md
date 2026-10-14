@@ -306,6 +306,12 @@ Check ledger checksums and database integrity using the actual installed tool
 (or explicitly documented SQL `amcheck`); do not infer success from dump size.
 No clone may start a worker, contact real providers or mount the live vault.
 
+The public image must use the Dockerfile `runtime` target, which builds the web
+workspace inside the immutable image. The `development` target does not include
+a Git archive’s generated frontend. Before cutover, request the actual `/` and
+every asset listed by the candidate build manifest from the candidate clone;
+compare their hashes. An API health response alone does not prove a usable UI.
+
 During the already authorized test cutover preserve the existing environment,
 volume, vault, proxy route and approved schedules. App and worker use the same
 immutable source image. Check health, real HTTPS login/navigation/assets and

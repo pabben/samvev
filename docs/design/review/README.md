@@ -10,9 +10,13 @@ bash scripts/design-review.sh
 
 Round 9 privacy policy: ordinary `latest/` captures verify the real retained LAN
 Home and all person controls, then apply explicit screenshot masks to person
-names/initials, potentially private profile images and authored text. They do
+names/initials, protected profile images, authored text and dynamic calendar,
+reminder, schedule, location, provenance and task content. They do
 not replace API responses, alter stored data or change the UI. The manifest
-records redactions and hashed semantic identities. This protects copied test
+records redactions and hashed semantic identities. Protected image content
+hashes and byte counts remain in an ignored, mode-0600 validation receipt; the
+public manifest retains only a templated route, version, status and MIME type.
+This protects copied test
 labels that can coincide with private household names. Visual assessment of
 identity, photos and rich content uses the separate, entirely synthetic six-
 person fixture under `round-9/`, with clear fixture/transport provenance and
