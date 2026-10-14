@@ -1,80 +1,67 @@
-# Samvev – runde 10: målrettet retting etter runde 9
+# Samvev – samlet implementeringsprompt: kalender-GUI og Spond via Home Assistant
 
-Fortsett i samme server-Codex-økt under et aktivt `/goal`. Work har gjennomgått runde 9 og endrer bare denne mailboxen; server-Codex implementerer, tester og publiserer. Dette erstatter den fullførte runde-9-bestillingen med fem konkrete funksjonsrettinger og nødvendig bygg-/driftskontroll. Ikke start en generell design- eller funksjonsrunde.
+Utfør denne mailboxen eksplisitt når eieren ber om det. Ikke auto-eksekver ved lesing. Dette er neste avgrensede implementeringspakke etter fullført runde 10, ikke en generell designrunde. Implementer og test faktisk; en mulighetsvurdering alene oppfyller ikke bestillingen.
 
-## Mål, baseline og autonomi
+## Baseline og arbeidsflyt
 
-- Repo/branch: `pabben/samvev`, `feat/m3-family-hub`.
-- Runde 9 source/deploy: `6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e`.
-- Runde 9 review: `8156731376fb6205b909aaee4824bac18ff7941d`.
-- Round ID: `20261014052355-6f9f5c50-3f5e1278`.
-- Offentlig test: https://samvev.pabben.org/.
+Repo `pabben/samvev`, featurebranch `feat/m3-family-hub`, arbeidsområde `/home/administrator/apper/samvev`. Fullført runde 10 source/deploy: `ca7359b0ce511f930aec3df0e11ce94ac4d203e6`; review: `39c7e7c06475a7d8e4a35d9750a249b31baf74d3`; round ID `20261014094940-ca7359b0-428c5403`. Offentlig test: https://samvev.pabben.org/. LAN: http://192.168.0.220:4173/.
 
-Les AGENTS, review-README, ROUND_9_REPORT, leveransematrisen, manifests, ADR 0022 og gjeldende drifts-/recovery-bevis. Integrer eventuelt nyere branch-arbeid uten reset eller overskriving. Bruk publishing-checkouten og bevar beskyttet hoved-.git. Følg prosjektets fagreview med parallelle lesende agenter, én skriver om gangen, etterreview, qa_engineer og release_gate sist.
+Hent siste featurebranch gjennom `.local/design-review-publish`; kontroller gren, status, samtidige agenter og nyere arbeid før endring. Bevar arbeid og beskyttet hoved-.git; ikke bruk gammel hoved-HEAD som ny UI-kilde. Les AGENTS, README, produktkrav, arkitektur, relevante ADR-er, `docs/CALENDAR_CONNECTIONS.md`, `docs/HOME_ASSISTANT.md`, ADR 0022, review-README, ROUND_9_REPORT, ROUND_10_REPORT og gjeldende deploy-/recovery-bevis. Følg prosjektets fagreview: første lesende reviews parallelt, én skriver om gangen, security/requirements/UX etterreview, full QA og release gate sist. Ikke start parallelle eller konkurrerende integrasjonsarkitekturer.
 
-Jobb autonomt gjennom reproduksjon, retting, tester, kildebundet runtime/capture, review og allerede autorisert offentlig testpublisering. Velg rutinemessige detaljer selv. Manglende ekstern konto, OAuth-samtykke eller diskutvidelse skal bare blokkere avhengig live-kontroll/deploy; fullfør alt øvrig arbeid. Bevar et konkret gjenopptakingsnotat ved budsjett-/kontekstgrense. Stopp kontrollsløyfen når målet er dokumentert nådd.
+Runde 9/10 har allerede Google/Microsoft OAuth, PKCE/sesjonsbundet callback, krypterte tokens, ICS, kalendervalg, subjects/lesere/displays, forhåndsvisning, aktivering, fullsnapshot og synkstatus. Runde 10 rettet metadata, gjenopptak etter samtykke, tokenfeil, oppdragsstatus og stabil paginering; bevar disse regresjonstestene. Administratorregistrering bruker fortsatt miljøkonfigurasjon. Spond-broen bruker foreløpig Google/Outlook; det er ikke den ønskede primærveien. HA-dokumentasjonen er ikke bevis på implementert eller live tilkobling. Verifiser dagens kode før utvidelse.
 
-Work har kontrollert alle 125 unike PNG-hasher, 227 kildeinput-hasher og et representativt visuelt utvalg, samt relevant kode og publiserte receipter. Ikke påstå at Work åpnet alle bilder eller gjentok serverens tester. Runde 9s 63 HTTPS-kontroller og recovery er serverens bevis. De 305 testene gjaldt en tidligere kandidat med samme applikasjonskode; finalkilden hadde separate wrapper-/capture-/driftskontroller. Full kanonisk finalbygg feilet på diskplass; den dokumenterte overlay-leveransen skal ikke omtales som et bestått fullbygg.
+## 1. Direkte Google og Outlook – vanlig bruker
 
-Profilbilder, personkoblinger, kalenderadaptere, Spond-bro og ChatGPT-guide er levert. Ingen ny visuell P0/P1-regresjon er bekreftet i utvalget; dette er ikke endelig eiergodkjenning av referanselikhet. Reelle kalenderkontoer/Spond og ChatGPT-samtykke/import er fortsatt ikke live-verifisert. Lokal AI er heller ikke dokumentert fungerende. De fem P2-funnene nedenfor gjelder kodebaner som tidligere kontroller ikke dekket, ikke en påstand om at alle pågår i den private installasjonen.
+Lever flyten Integrasjoner → Google Kalender / Outlook → Koble til → leverandørens innlogging/samtykke → velg kalendere → personer og synlighet → forhåndsvis → aktiver. Ingen client-ID, klienthemmelighet, YAML eller serverkonfigurasjon i familiemedlemmets flyt. HA skal ikke være nødvendig.
 
-## 1. Kalenderens person-/husstandsmerking må følge kildeendringen
+Støtt flere kontoer og kalendere uten sammenblanding. Skill kontoeier, hvem kalenderen gjelder, lesere og skjermer. Kobling til et barn gir ingen automatisk familie-/displaydeling. Vis oppdatering, ny innlogging, frakobling, faktisk synkstatus og siste vellykkede oppdatering. Bare lesing: ingen endringer, invitasjoner eller svar hos leverandørene.
 
-I baseline oppdaterer `services/api/src/calendar/service.ts:updateSource` kilde, personer og mål, men ikke eksisterende elementers `metadata.calendar.subjectHousehold` eller `bridgeKind`. `reconcileSource` erstatter metadata bare når hendelsens fingerprint endres. `home-presentation.ts:itemHousehold` prioriterer dette metadatafeltet; persondetaljer i `family-hub.tsx` bruker det til gruppering. En kalender endret fra husstanden til én person kan dermed fortsette som fellesinnhold etter uendret synk.
+## 2. Egen administratorveiviser
 
-Rett kildeavledet metadata atomisk ved endring, og sørg for trygg konvergens for allerede lagrede feilmerkede elementer. Bevar hendelses-ID-er, historikk, revisjonsvern og tombstones. Ikke slett/reimporter kalenderen eller bruk hendelsestittel som identitet. Subject og lesere er fortsatt forskjellige begreper; dette funnet er ikke dokumentasjon på en tilgangslekkasje.
+Skill installasjonsadministrator fra vanlig husstandsadministrator og medlem; håndhev riktig tilgang server-side. Ikke gi alle familiemanagere installasjonsomfattende hemmelighetstilgang. Gjenbruk eksisterende autoritetsmodell, eller dokumenter/test nødvendig avgrenset tillegg.
 
-Test begge retninger mellom husstand og person, flere personer og endret Spond-bromerking. Kontroller lagrede data, ny lasting/SSE og uendret neste providersnapshot. Vis at korrekt person-/fellesgruppe nå brukes, uten endrede leser-/displayrettigheter eller duplikater.
+Vis Google/Microsoft konfigurasjonsstatus, offisielle registreringsinnganger, korrekt returadresse med kopieringsknapp, nødvendige leserettigheter og kontotyper. Tilby validert import av Googles nedlastede WEB OAuth-konfigurasjonsfil og manuell alternativregistrering. Microsoft får sikkert skjema for nødvendige registreringsverdier. Avvis feil klienttype/returadresse og uventede/for store filer uten rå innhold i logger.
 
-## 2. Automatisk synk må gjenopptas etter ny OAuth-innlogging
+Lagre hemmeligheter kryptert server-side med eksisterende vault, aldri tilbake i API/UI; app og worker skal bruke samme autoritative konfigurasjon. Gjenbruk allerede konfigurert registrering. Lag eksplisitt overgang/precedens og rollback fra eksisterende miljøverdier; ikke behold to konkurrerende konfigurasjonskilder eller rediger .env automatisk uten sikker plan. Audit uten hemmeligheter; test adgang, CSRF, secret-rotasjon og restart.
 
-Ved `calendar_reauthorization_required` setter `syncConnection` tilstanden til utløpt og `next_sync_at=NULL`. `completeOAuth` lagrer nye tokens og «connected», men setter ingen ny synktid. Workerens `runCalendarSyncBatch` velger bare forfalte ikke-null tider, og UI laster bare status på nytt. Tidligere aktive kalendere kan derfor bli stående «tilkoblet» uten automatisk oppdatering.
+Skill «Appregistrering mangler», «Appen er konfigurert», «Konto er tilkoblet» og «Kalendersynk er kontrollert». Utfylt skjema eller syntetisk test betyr ikke live konto. Kontroller gjeldende Google-krav til testmodus, refresh-tokenutløp og verifisering mot offisielle kilder med dato. Microsoft skal støtte private og jobb-/skolekontoer når registrering og organisasjon tillater det. GUI kan ikke omgå ekstern registrering, samtykke eller administratorgodkjenning.
 
-Et vellykket, kontobundet OAuth-forløp skal planlegge synk for fortsatt godkjente, aktiverte kilder uten at brukeren må trykke Oppdater. Bevar generation-/lease-/scope-vern. Førstegangstilkobling uten aktiverte kilder skal ikke publisere kalenderinnhold. Deaktiverte kilder og frakoblede tilkoblinger skal ikke reaktiveres av en generell reparasjon.
+## 3. Spond → Home Assistant → Samvev
 
-Test hele livsløpet isolert: utløpt → nytt samtykkesvar → worker velger jobben → vellykket synk uten manuell handling. Test også ingen aktive kilder, frakobling og et gammelt callback-/workerforsøk. Vurder avgrenset reparasjon av eksisterende «connected + aktive kilder + NULL»-tilstand uten å omgå uttrykkelig pause/frakobling.
+Spond Tracker https://github.com/agjendem/ha-spond-tracker er allerede installert i eierens HA, bekreftet av eieren. Ikke be om reinstallasjon. Eieren ønsker dette uavhengig av Samvev. Primærvei er HA direkte, uten Google/Outlook som mellomledd; eksisterende kalenderbro kan beholdes tydelig som alternativ.
 
-## 3. Klassifiser tilbakekalte refresh-tokens korrekt
+Lever Integrasjoner → Spond → Via Home Assistant → Koble til → velg datakilder/personer → forhåndsvis → aktiver. Undersøk faktisk HA-instans og installert versjon/datatilgang/entiteter gjennom tilgjengelig autorisert tilgang og lokal dokumentasjon; ikke gjett adresse, entitetsnavn eller identiteter. Ikke gjør bredt nettverkssøk. Gjenbruk eksisterende HA-tilkobling om den finnes.
 
-`calendar/service.ts:jsonRequest` klassifiserer etter HTTP-status og behandler bare 401 som ny innlogging nødvendig. OAuth `invalid_grant` med HTTP 400 blir generisk providerfeil, og kalenderen forsøkes igjen hvert 15. minutt. Google dokumenterer 400 for ugyldig, utløpt eller tilbakekalt grant/refresh-token.
+Undersøk og implementer HA-nettleserautorisasjon der autorisert nettverksvei og HA-kontrakten gjør det mulig. Langlivet tokenkopiering skal ikke være normal brukeropplevelse. Dokumenter faktisk tokenrettighet: Samvev-entitetsfiltrering begrenser ikke nødvendigvis HA-tokenets rettigheter. Sikre URL/redirect/SSRF mot den uttrykkelig autoriserte instansen; ikke åpne generell tilgang til private nett.
 
-Bruk dokumenterte, avgrensede feilkoder i tokenresponsen til å skille utløpt/tilbakekalt brukertilgang fra midlertidig providerfeil og operatørens klientkonfigurasjonsfeil. Ikke klassifiser alle 400-svar som utløpt konto, og ikke logg rå respons, tokens eller klienthemmeligheter. Gjeldende Google-/Microsoft-adaptere skal ha konsistent, forståelig status og riktig neste handling.
+Spond-passord skal aldri inn i Samvev. Ingen offentlig eksponering av HA, Pangolin-endring eller svekket nettverksvern. Ikke reinstallér, endre automasjoner eller restart HA uten konkret behov og nødvendig godkjenning. Hvis tilgang mangler, fullfør adapter/GUI/testforberedelser og spør bare etter konkret nødvendig tilgang, aldri hemmeligheter i chat.
 
-Test `invalid_grant`/400, relevant klientkonfigurasjonsfeil, 429, 5xx og nettverksfeil med isolert transport. Utløpt tilgang skal gi ny-innlogging-handling og stoppe vanlig retry til tilgangen er gjenopprettet. Verifiser deretter gjenopptak fra punkt 2. Endre ikke ChatGPT-refresh som en utilsiktet del av denne kalenderrettingen.
+## 4. Importkontrakt og personvern
 
-Primærkilde: https://developers.google.com/identity/openid-connect/reference — token-endepunktets feiloversikt.
+Undersøk trackerens faktiske strukturerte data, tidsromsinnhenting og endringshendelser fra installert versjon og primærkilder. Hent relevante arrangementer og tilgjengelige oppgaver/forpliktelser, eksempelvis kjøring/dugnad. Ikke baser komplett import på «neste hendelse» eller en kort sensorliste. Hvis faktisk tracker/API ikke leverer et komplett vindu eller oppgaver, implementer bare dokumentert tilgjengelig funksjon og vis presis begrensning; ikke fabriker støtte.
 
-## 4. Personkort må vise også tidlige og avbrutte oppdragsfeil
+Bruk stabile kilde-, person- og hendelsesidentifikatorer der tilgjengelig. Eksplisitt kontrollerbar personkobling, aldri automatisk fornavnsmatching. Kildesammenblanding skal synliggjøres og avklares. Bevar forskjell mellom avlyst, avslått, ubesvart og foreløpig. Ingen automatiske AI-oppdrag, poengoppgaver eller påmeldinger; ingen accept/decline-tjenester eller annen tilbakeføring til Spond. Ingen løfte om chat, innboks eller vedlegg uten implementert/testet støtte.
 
-`services/api/src/monitor/subjects.ts:personMonitorSummaries` henter siste ferdige forsøk bare fra `monitor_runs`; executions brukes bare til å finne queued/running. `monitor/execution.ts` kan lagre en terminal failed execution før en run er opprettet, blant annet ved forberedelsesfeil og `MONITOR_WORKER_INTERRUPTED`. Personkortet kan da vise «Ikke kjørt» eller gammel suksess uten den nye feilen.
+Full innhenting ved oppstart og gjenoppretting; endringshendelser bare supplement. Gjentatt synk må være idempotent. Samme arrangement via HA og Google/Outlook krever sikker ekstern identitet eller uttrykkelig kildevalg; ikke fuzzy sammenslåing på tittel/tid. Bruk eksisterende snapshot-, lease-, revision-, tombstone- og tilgangsmodell.
 
-La siste relevante execution/run gi korrekt status og tidspunkt, med én logisk kjøring når begge rader finnes. Definer stabil tidsrekkefølge og håndtering av gjeldende oppdragsrevisjon, erstattede forsøk og queued/running. Bevar et eldre gyldig resultat som tydelig eldre; ikke erstatt det med et oppdiktet forslag eller rå intern feil. Lag ikke kunstige runs bare for å fylle visningen.
+Overfør minimum nødvendig data, ikke øvrige deltaker-/medlemslister til familiens skjermer. Ved feil behold siste gyldige innhold med utdatert-status; feil er ikke tom kalender. Frakobling stopper hentinger og følger eksisterende importtilbaketrekkingsregler, uten sletting av egne Samvev-avtaler.
 
-Test API og faktisk personvisning for: aldri kjørt, første forsøk feiler før run, tidlig feil etter eldre vellykket resultat, avbrutt worker, vanlig fullført run og aktiv kjøring. Verifiser korrekt siste/neste kontroll og lenke til eksisterende oppdrag. Bevar serverfiltrering; barn/delte skjermer skal ikke få nye rettigheter.
+## 5. Design, tester og kildebevis
 
-Dette er en visnings-/lesemodellretting. Ingen manuell kjøring, tolking, kopiering, ny aktivering eller endring av de to allerede koblede oppdragene, deres subjectmetadata, mottakere, godkjenning eller tidsplan.
+Bevar gjeldende design og primærreferansene `docs/design/ChatGPT Image 24. sep. 2026, 23_51_09.png` og `docs/design/ChatGPT Image 24. sep. 2026, 23_52_06 (4).png`. NB/EN, tilgjengelighet, lys/mørk, mobil/iPad/stor skjerm/Shelly. Ingen separat teknisk adminstil. Test lange navn, tomt, feil og seks fiktive personer (2 voksne/4 barn) isolert; ikke opprett/erstatt virkelige personer.
 
-## 5. Frys kalenderens tidsvindu gjennom hele pagineringen
+Automatiser bruker-/installasjonsadmin-/barn-/displaygrenser, OAuth-avbrudd/feil/utløp/frakobling, konto-/kalenderisolasjon, person-/privat-/deltvisning, tidssoner, heldag, gjentakelser, avlysninger, gjentatt synk, duplikater og gjenoppretting etter nedetid. Test tokenrettigheter, hemmelighetslagring, konfigurasjonskildemigrering, HA-urlvern og feilstatus. Ingen tester mot vanlig QA eller offentlig DB. Ingen modellkall, manuell oppdragskjøring eller endret godkjent tidsplan som testverktøy.
 
-`calendar/service.ts:syncConnection` kaller `windowFor()` inne i callbacken til `allPages`. Google-forespørslene får dermed nye `timeMin/timeMax` når klokken endrer seg mellom sider. Googles pagineringskontrakt krever samme forespørsel med neste `pageToken`. Kodeavviket er bekreftet; faktisk provideravvisning er ikke live-demonstrert.
+Fullfør relevant samlet retest/check/build og kanonisk immutable finalbygg. Kildefiler, QA runtime og manifest sourceSHA skal samsvare med faktisk kildecheckpoint, ikke beskyttet gammel HEAD. Kjør `bash scripts/design-review.sh`, verifiser alle 14 latest-bilder og suppler målrettet nye veivisere/person-/feilflyter. Screenshots skal vise ekte UI, ikke login/feilsider; maskert syntetisk innhold, ingen private navn eller kalenderdata. Bevar tidligere arkiv og bevis.
 
-Beregn ett stabilt tidsvindu for den aktuelle snapshot-innhentingen og bruk det gjennom alle sidene. Bevar avgrenset fullsnapshot-modell og eksisterende tidsone-/heldags-/gjentakelsesbehandling; dette bestiller ingen ny inkrementell synkarkitektur.
+## 6. Autorisert testpublisering og ferdigkrav
 
-Test med en klokke som flytter seg og flere sider, inkludert en tom mellomside med neste token. Sammenlign forespørslene: bare sidetoken skal endres. Kontroller at ufullstendig innhenting eller sidefeil ikke trekker tilbake tidligere hendelser, og at fullført snapshot ikke lager duplikater.
+Testpublisering til https://samvev.pabben.org/ er allerede autorisert. Bevar data, offentlige kontoer/konfigurasjon/secrets/vault/porter og LAN admin/admin. Bruk bekreftet etablert SSH-/Compose-/backup-/restore-/rollbackvei, kun prosjekt samvev-m1, ingen andre prosjekter/globalendringer. Ny kapasitetskontroll før tungt bygg/transfer/restore: runde 10 etterlot begrenset diskmargin. Ingen brede prune eller sletting av data/backuper/rollback-images.
 
-Primærkilde: https://developers.google.com/workspace/calendar/api/guides/pagination.
+Bevar migrationschecksummer; eventuelle tillegg er additive/idempotente. Verifiser fersk backup i isolert restore, kandidat og faktisk gammel-kodekompatibilitet der rollback krever det, kilde-/imageidentitet, app/worker/DB og faktisk HTTPS-innlogging/navigasjon/tilgang/SSE. Bevar to eksisterende personkoblede oppdrag, identiteter, godkjenninger, mottakere og tidsplaner uten kopier/modellkall. Rapporter naturlig bakgrunnsaktivitet separat.
 
-## Kapasitet, bevaring og ferdigkontroll
+Fullfør alt uten personlig innlogging/leverandørgodkjenning. Ett ventende samtykke blokkerer ikke resten. Liveundersøk HA bare gjennom autorisert tilgang; Google/Microsoft kontrolleres med ekte samtykke når tilgjengelig. Skill implementert, syntetisk test, faktisk kontoautorisering og faktisk synkroniserte data – ingen live-PASS på syntetisk grunnlag.
 
-Gjør en lesende kapasitetskontroll før tunge bygg/restore: ledig plass, Samvevs aktuelle byggbehov og nødvendige backup-/rollbackmarginer. Ikke gjenta fullbygg til disken fylles. Ingen bred Docker-prune, sletting av databaser/volumer/backuper/rollback-images, globale endringer eller inngrep i andre prosjekter. Eventuell opprydding må være entydig Samvev-spesifikk, gjenoppbyggbar og innen etablert autorisasjon. Hvis kapasitet krever operatør: fullfør kode og tilgjengelige tester først, dokumenter konkret plassbehov/tiltak og la eksisterende drift stå. Ingen fiktiv PASS eller deploypåstand.
+Oppdater CALENDAR_CONNECTIONS, HOME_ASSISTANT, relevant ADR/driftsdokumentasjon og M1_STATUS; lag samlet leveranserapport med endrede filer, tester, migrasjon/rollback, kilde/deploy/reviewSHA, roundID, manifest og direkte GUI-lenker. Samle konkrete gjenstående eierhandlinger i én GUI-sjekkliste med hvor/hva, aldri hemmeligheter i chat. Tidligere utestet ChatGPT-samtykke/import og lokalAI-eierkontroll beholdes som tydelig restpunkt; ikke start en ny AI-arkitektur eller endre oppdrag for kalenderpakken.
 
-- Bevar reelle data, kontoer, rettigheter, beskyttede profilbilder, oppdragskoblinger og LAN-demoens `admin/admin`. Begge miljøer skal fortsatt kjøre. Ingen reseed, passordreset eller tester mot ordinær QA-database; bruk eksisterende isolerte test-databasevern.
-- Ingen nye eksterne samtykker, credential-importer, modellkall, manuelle retries eller betalt fallback for QA. Bevar én normal worker og allerede godkjente tidsplaner. Rapporter eventuell naturlig bakgrunnsaktivitet separat. Kalenderfeilene skal kunne etterprøves med isolerte providertransporter.
-- Reproduser de fem feilene og legg til målrettede regresjonstester som feiler før og består etter rettingen. Følg prosjektets nødvendige samlede retest. Bevar eksisterende migrationsfiler/checksummer; bruk bare nødvendig additiv, idempotent reparasjon dersom lagrede data krever det. Dokumenter kompatibilitet og rollback.
-- Lag nytt kildecheckpoint og sporbar runtime/build. Fullfør kanonisk bygg når kapasiteten tillater det; dokumenter faktisk byggemetode og begrensninger. Regenerer de 14 ordinære latest-bildene via gjeldende rutine og personvernmasker. Lag `round-10/` med målrettede bevis for berørte kalender-/personflyter i begge temaer, mobil og større skjerm. Bruk den syntetiske seks-personersfixturen (2 voksne/4 barn). Ingen plikt til å kopiere hele runde 9s bildematrise.
-- Bevar felles design, NB/EN, tilgjengelighet, scroll og eksisterende visningsgrenser. Visuell kontroll skal gjelde faktisk rendret innhold; ikke gi egen endelig designgodkjenning.
-- Publiser rettelsene til den allerede autoriserte offentlige testversjonen når kilde/build, review og backup-/restore-/rollback-forutsetningene er verifisert. Bruk etablert Samvev-driftsvei, uten ny SSH-etablering eller global proxyendring. Verifiser app/worker/database, inn-/utlogging, berørte flyter, tilgangsgrenser og SSE over faktisk HTTPS. Skill isolert leverandørtest fra ekte kontoverifikasjon; privat konto-/kalenderinnhold og hemmeligheter skal ikke i offentlige bevis.
-
-Lever `ROUND_10_REPORT.md` og påkrevd prosjektstatus med ett resultat per funn, endrede filer, utførte tester, migrasjon/reparasjon, kilde- og byggbevis, backup/restore, faktisk deployet SHA og gjenværende brukerhandlinger. Oppgi source SHA, senere review SHA, round ID og direkte lenker. Bevar tidligere bevis med riktig kilde. OAuth/ICS/Spond/ChatGPT-oppsett som fortsatt krever eierens handling skal fortsatt stå tydelig som ikke live-verifisert.
-
-DCO-signert commit/push bare til `feat/m3-family-hub`. Ingen PR, merge, main-/force-push, tag, release eller Actions-dispatch. Ikke stopp ved planen eller første rettede feil: fullfør alle tilgjengelige deler og avslutt med kort, etterprøvbar status.
+DCO-signert commit/push kun featurebranch. Ingen PR, merge, main-/force-push, tag/release eller Actions-dispatch. Fortsett implementering, fagreview, feilretting, tester, visuell iterasjon og tilgjengelig publisering til dokumentert ferdig, budsjettgrense eller alle gjenværende veier faktisk trenger eier. Ikke stopp ved vurdering eller plan.
