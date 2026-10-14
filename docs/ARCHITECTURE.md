@@ -117,7 +117,9 @@ Adapters translate external systems into common events and actions. Initial adap
 - website/PDF source
 - optional Home Assistant
 
-Later adapters can add calendars, Spond, Google Keep import and other services.
+Round 9 implements read-only Google/Microsoft/ICS calendar adapters and a
+Spond cloud-calendar bridge. Direct Spond APIs, calendar writes, Google Keep
+import and other services remain future adapters, subject to actual validation.
 
 ## 3. Multi-household model
 

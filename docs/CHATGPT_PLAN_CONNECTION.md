@@ -59,7 +59,9 @@ runtime database/vault. It never selects `qa-app` automatically.
 
 ```sh
 cd /home/administrator/apper/samvev
-bash scripts/chatgpt-import-runtime.sh --check
+bash scripts/chatgpt-import-runtime.sh --check \
+  --household '<household-uuid>' \
+  --owner-account '<owner-account-uuid>'
 bash scripts/chatgpt-import-runtime.sh \
   --household '<household-uuid>' \
   --owner-account '<owner-account-uuid>' \

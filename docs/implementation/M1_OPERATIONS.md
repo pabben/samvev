@@ -293,3 +293,30 @@ The 2026-09-20 execution of this procedure is recorded in
 from deployed candidate `f82951b`. Physical display validation remains
 **DEFERRED BY OWNER — NOT VERIFIED — NON-BLOCKING for the current merge**. It is
 separate follow-up work and is not represented as tested by this procedure.
+
+### Round 9 profile storage and runtime import
+
+Profile images are normalized variants in the database, not files in the web
+export. A candidate must pass a two-stage isolated drill **before** new public
+photo writes: restore the fresh current custom archive with the flags above,
+migrate with the selected immutable candidate, save/read synthetic image
+variants through the actual authorized API, create a second archive, restore
+it into another fresh clone and compare image bytes/hashes through the API.
+Check ledger checksums and database integrity using the actual installed tool
+(or explicitly documented SQL `amcheck`); do not infer success from dump size.
+No clone may start a worker, contact real providers or mount the live vault.
+
+During the already authorized test cutover preserve the existing environment,
+volume, vault, proxy route and approved schedules. App and worker use the same
+immutable source image. Check health, real HTTPS login/navigation/assets and
+normal worker count afterward. Keep the prior image/configuration and private
+backup. An old-image read check does not promise safe old-code writes against
+new schemas; do not overwrite post-cutover data to roll back UI.
+
+Install the exact candidate `scripts/chatgpt-import-runtime.sh` in the confirmed
+public Samvev directory and verify its source hash. Its `--check --household
+UUID --owner-account UUID` validates readiness without import/provider calls.
+Actual import is an explicit owner-consented operator action, never part of
+review, deployment or worker startup. See
+[the ChatGPT guide](../CHATGPT_PLAN_CONNECTION.md). Round-specific receipts and
+actual deployed/source SHAs belong in the round report, not this generic guide.

@@ -14,6 +14,13 @@ Samvev leser Google Kalender, Outlook/Microsoft 365 og HTTPS-baserte ICS-abonnem
 
 Første adapterversjon henter fullstendige, paginerte snapshots av et avgrenset vindu: siste 7 og neste 180 dager. Bare en komplett henting kan erstatte kalenderinnhold. Ved nettverks-/sidefeil beholdes siste gyldige innhold. Gjentatt synk gir ikke nye kopier. En avlyst og senere gjenopprettet forekomst får en ny intern incarnation, mens den gamle withdrawal-tombstonen beholdes. Ulike kilder slås ikke sammen bare fordi titlene ligner.
 
+Henting er avgrenset til 100 sider, 10 000 hendelser og 8 MiB per snapshot;
+provider-JSON har også en strømmet bytegrense. ICS-regler per time, minutt eller
+sekund avvises før ekspansjon; daglige/ukentlige/månedlige/årlige gjentakelser
+støttes innenfor vinduet og forekomstgrensen. For store svar gir en synlig feil
+og beholder siste gyldige innhold. Maksimalt 12 aktive kalenderforbindelser per
+husstand og varige konto-/husstands-/IP-grenser beskytter tunge operasjoner.
+
 ## Spond via kalender
 
 Velg **Spond via kalender**. I Spond aktiverer du kalendersynk og velger en konto som også finnes i Google Kalender eller Outlook. Kontroller i denne kontoens kalender at arrangementet vises; en lokal telefonkalender alene kan ikke leses av Samvev. Velg deretter den samme kalenderen i Samvev, forhåndsvis og knytt den til riktig person. Bruk en allerede tilkoblet kilde når den finnes, så det ikke oppstår en ekstra import.

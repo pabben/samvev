@@ -138,3 +138,16 @@ Before PR/release: explicit instruction, owner design feedback and diff review,
 a versioned M3 visual baseline where appropriate, then environment-specific
 release/backup/security checks. Real integrations and physical hardware validation
 are separate follow-ups. Local completion does not authorize production actions.
+
+## Round 9 candidate — 2026-10-14 (in progress)
+
+The expanded mailbox supersedes the older scope above. Protected person photos,
+Google/Microsoft/ICS read adapters, the Spond cloud-calendar reuse path, independent
+AI task subjects and a truthful ChatGPT setup guide are implemented.
+[ADR 0022](../decisions/0022-person-assets-calendar-and-task-subjects.md),
+[calendar setup](../CALENDAR_CONNECTIONS.md) and
+[ChatGPT setup](../CHATGPT_PLAN_CONNECTION.md) describe the delivered boundaries.
+Actual isolated browser review, full retest, current-source screenshots and the
+authorized public restore/cutover/HTTPS gate are still pending. Previous evidence
+keeps its original source and does not certify this candidate. Real provider
+consent/account validation remains a separate user action.
