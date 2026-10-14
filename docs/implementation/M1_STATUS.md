@@ -867,3 +867,14 @@ host-global service modified. No merge, tag, release or production deployment.
   checks, all typechecks, production build, browser/Axe/responsive/reduced-motion
   smoke, and a two-run fresh migration 001–016 gate. It has not been committed,
   deployed or exercised by the expanded post-fix live Lillesand matrix.
+
+## M3 round 9 implementation checkpoint — 2026-10-14
+
+Expanded mailbox `74eeaab` is in progress. Backend implements protected photo
+variants, task subjects, calendar adapters and canonical ChatGPT helper identity;
+frontend implements the associated workflows and targeted responsive fixes.
+Reported intermediate checks: API 231/231 and web 59/59. These are not a final
+QA/release gate. Isolated visual review, complete retest, all 14 source-bound
+latest screenshots, recovery drills and authorized public test cutover remain
+pending. Real external OAuth/Spond/ChatGPT consent is not claimed. The public
+round-8 runtime and existing LAN data remain the baseline until verified cutover.

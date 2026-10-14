@@ -19,7 +19,21 @@ enforce different disclosure policies server-side. External display content
 requires item targeting, a connection grant and display opt-in. PostgreSQL drives
 SSE invalidations; clients refetch snapshots, poll as fallback and expire caches.
 
-No real HA/OpenAI/Homey/calendar/school/weather/push connection is added. See the
+Round 9 adds implemented read-only Google/Microsoft calendar and HTTPS ICS
+adapters, with source subjects separate from reader/display audiences, encrypted
+credentials, session-bound PKCE callbacks, independent worker leases and atomic
+bounded full-snapshot reconciliation. Provider registration/account consent is
+still an external validation gate; synthetic tests are not live verification.
+Spond is a selected cloud-calendar bridge, not a private Spond API.
+
+Normalized profile photo variants are durable PostgreSQL bytea, protected by
+current membership/display authorization and monotonic person revision. No
+original upload or EXIF is retained. AI task subjects have an independent
+metadata revision/audit and cannot activate, reinterpret, schedule or widen a
+task's audience. See [ADR 0022](decisions/0022-person-assets-calendar-and-task-subjects.md)
+and [calendar setup](CALENDAR_CONNECTIONS.md).
+
+No new live HA/Homey/school/push adapter is implied. See the
 [handoff contract](implementation/M3_API.md) and
 [future validation issue](backlog/M3_INTEGRATION_VALIDATION.md).
 

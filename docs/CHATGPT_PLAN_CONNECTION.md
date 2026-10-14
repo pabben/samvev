@@ -1,5 +1,9 @@
 # Connect a ChatGPT plan to Samvev
 
+Open **More → AI → ChatGPT** (`/?tab=ai`) for readiness and one next step.
+The guide downloads the two real companion files; its manual progress flags
+are not server-confirmed authentication.
+
 This preview uses a local browser companion because Samvev's LAN page must not
 receive bearer or refresh tokens over clear HTTP. Run the helper on the machine
 with the browser and Node.js 24. The helper can be copied there independently;
@@ -46,18 +50,27 @@ ssh samvev-vm 'chmod 600 /home/administrator/apper/samvev/.local/samvev-chatgpt-
 On the VM, use the household ID and the account ID of the owner who granted
 consent. The command verifies that this account is an active household manager,
 validates the signed access token and scopes again, creates initial AI settings
-when needed, and imports into the encrypted vault. For the synthetic QA
-environment in Compose project `samvev-m1`, run the import inside the existing
-QA app container so it uses the QA database and mounted QA vault:
+when needed, and imports into the encrypted vault. For the public test runtime, run from the confirmed Samvev directory on its
+server. The app's guide supplies the exact household and owner IDs; they are
+private operator values, not examples to publish. The checked-in wrapper
+selects only the healthy `samvev-m1` **app** service, validates its immutable
+image and network, and runs a restricted one-shot importer with the existing
+runtime database/vault. It never selects `qa-app` automatically.
 
 ```sh
 cd /home/administrator/apper/samvev
-docker exec samvev-m1-qa-app-1 npm run ai:chatgpt-import -- \
+bash scripts/chatgpt-import-runtime.sh --check
+bash scripts/chatgpt-import-runtime.sh \
   --household '<household-uuid>' \
   --owner-account '<owner-account-uuid>' \
-  --file /workspace/.local/samvev-chatgpt-credential.json && \
-  rm /home/administrator/apper/samvev/.local/samvev-chatgpt-credential.json
+  --file .local/samvev-chatgpt-credential.json
 ```
+
+`--check` performs readiness checks without reading/importing credentials or
+calling a provider. A successful import does not prove inference works. Delete
+the server transfer file after the importer reports success. For a deliberately
+isolated synthetic QA import, use the separately configured QA CLI rather than
+this public-runtime wrapper. Never transfer a real credential into a fixture.
 
 After the server import reports success, also delete the original credential
 record on the **browser machine**:
@@ -92,3 +105,25 @@ different owner's registration.
 The account and public preview must support the documented agent OAuth scopes
 and Responses route. Automated tests inject a synthetic transport and make no
 paid provider call. An owner must complete real OpenAI consent before live use.
+
+## Google/Gemini assessment (2026-10-14)
+
+Google Calendar connection is independent of Google AI subscriptions. Some
+linked Google AI Pro/Ultra and Developer Program plans may include conditional
+GenAI/Cloud credits. The unidentified name “Google Plus” establishes no specific
+entitlement. Gemini still needs an API project/key and eligible Cloud Billing;
+Prepay requires an active positive paid balance before eligible credits can be
+used. No billing activation or purchase is part of this round.
+
+Samvev has no implemented Gemini adapter. Adding it requires a separately
+reviewed provider/vault/model/rate/usage implementation and actual account tests;
+it is not an automatic fallback. Check the exact existing subscription before
+considering it. Sources checked on the date above:
+[Google Developer Program plans](https://developers.google.com/program/plans-and-pricing),
+[program FAQ](https://developers.google.com/profile/help/faq),
+[Gemini billing](https://ai.google.dev/gemini-api/docs/billing).
+
+The VM identity and local companion follow the official
+[self-hosted VM flow](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms)
+and [Sign in with ChatGPT guide](https://developers.openai.com/siwc/token-sharing-open-source/sign-in).
+Real owner consent and a separate successful model run are distinct evidence.

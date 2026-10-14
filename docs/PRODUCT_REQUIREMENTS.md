@@ -7,14 +7,24 @@ Status: **Draft foundation requirements**
 M3 prioritizes Home: dynamic people, Today/Tomorrow, chronological events,
 important reminders, messages, structured summaries/lists and live updates.
 AI tasks remain experimental and secondary. A generic External Intelligence API
-accepts already-derived items without source-specific endpoints or live external
-connections. [ADR 0020](decisions/0020-external-intelligence-family-hub.md) defines
+accepts already-derived items. Round 9 also implements optional read-only
+Google/Outlook/ICS adapters and a documented Spond cloud-calendar bridge; real
+registration and consent are required separately. [ADR 0020](decisions/0020-external-intelligence-family-hub.md) defines
 the contract and disclosure boundaries.
 
 The two September 24, 2026 PNGs identified in the
 [M3 visual review](implementation/artifacts/m3/README.md) override older mockups.
 Warm light, navy glass dark and system appearance belong to one application,
 covering mobile, both iPad orientations, 1920×1080 and 1280×752 touch displays.
+Round 9 requires six people (two adults, four children) as the primary synthetic
+review, protected individual profile images including people without accounts,
+and person-linked task status/results without granting child/display access to
+AI instructions. Subject edits never trigger interpretation/model calls or
+change approved schedules. Calendar “about whom” and “visible to whom” are
+separate. Photo storage must pass database-plus-photo restore before public use.
+The ChatGPT guide distinguishes preparation, consent/import, authentication,
+reauthorization and usage limits; authentication alone is not a model test.
+
 The foundation roadmap below remains broader than the delivered M3 scope.
 
 ## 1. Product goals
