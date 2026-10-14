@@ -1,3 +1,4 @@
+import {calendarMemberAccess} from './calendar-provider-config';
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PhotoEditor } from "./profile-photo";
 import { calendarPendingHousehold } from "./calendar-connections";
@@ -47,7 +48,9 @@ export function MemberApp({
   const { t, locale } = useI18n();
   const [household, setHousehold] = useState(()=>me.memberships.find(m=>m.household_id===calendarPendingHousehold())?.household_id??me.memberships[0]!.household_id);
   const member = me.memberships.find((m) => m.household_id === household)!;
+  const canAccessCalendars = calendarMemberAccess(member);
   const canManageHousehold = member.capabilities.includes("household.manage");
+  const canAccessIntegrations = canAccessCalendars||canManageHousehold;
   const base = `/households/${household}`;
   const [tab, setTab] = useState<MemberTab>(()=>initialMemberTab(location.href));
   const [taskNavigation,setTaskNavigation]=useState<{taskId?:string;personId?:string;key:number}>({key:0});
@@ -115,10 +118,10 @@ export function MemberApp({
       );
   }, [member.id]);
   useEffect(() => {
-    if (["ai", "monitors", "integrations"].includes(tab) && !canManageHousehold) {
+    if ((["ai", "monitors"].includes(tab) && !canManageHousehold)||(tab==="integrations"&&!canAccessIntegrations)) {
       setTab("messages");
     }
-  }, [member.id, tab, canManageHousehold]);
+  }, [member.id, tab, canManageHousehold, canAccessIntegrations]);
   const nextStep = async (next: string) => {
     await api("/setup/progress", "PATCH", { setupStep: next });
     setStep(next);
@@ -276,10 +279,10 @@ export function MemberApp({
           {photoPersonId&&people.some(p=>p.id===photoPersonId)&&<PhotoEditor person={people.find(p=>p.id===photoPersonId)!} householdId={household} onClose={()=>setPhotoPersonId(undefined)} onSaved={refresh}/>}
           {tab === "home" ? (
             <Home key={household} householdId={household} taskAccess={canManageHousehold?{householdId:household,onOpen:openTask,onNew:newPersonTask}:undefined} onEditPhoto={personId=>{if(personId===member.person_id||can("people.manage"))setPhotoPersonId(personId)}} editablePhotoIds={people.filter(person=>person.id===member.person_id||can("people.manage")).map(person=>person.id)} onSessionChange={onSessionChange} onManagePeople={can("people.manage") ? () => setTab("people") : undefined} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
-          ) : tab === "integrations" && can("household.manage") ? (
-            <IntegrationsPanel key={household} member={member} displays={displays} people={people}/>
+          ) : tab === "integrations" && canAccessIntegrations ? (
+            <IntegrationsPanel key={household} member={member} displays={displays} people={people} installationId={me.account.installation_id} accountId={me.account.id}/>
           ) : tab === "more" ? (
-            <><section className="section-heading"><div><p className="eyebrow">Samvev</p><h1>{t("more")}</h1><p>{t("hubMoreBody")}</p></div></section><div className="hub-more-grid"><button className="surface-card hub-more-card" onClick={() => setTab("displays")}><Icon name="display" size={30}/><h2>{t("displays")}</h2><p>{t("displaysBody")}</p></button>{can("household.manage") && <><button className="surface-card hub-more-card" onClick={() => setTab("integrations")}><Icon name="spark" size={30}/><h2>{t("integrations")}</h2><p>{t("integrationBody")}</p></button><section className="surface-card hub-experimental"><p className="eyebrow">{t("hubExperimental")}</p><button className="button" onClick={() => setTab("monitors")}>{t("monitors")}</button><button className="button" onClick={() => setTab("ai")}>{t("ai")}</button></section></>}</div></>
+            <><section className="section-heading"><div><p className="eyebrow">Samvev</p><h1>{t("more")}</h1><p>{t("hubMoreBody")}</p></div></section><div className="hub-more-grid"><button className="surface-card hub-more-card" onClick={() => setTab("displays")}><Icon name="display" size={30}/><h2>{t("displays")}</h2><p>{t("displaysBody")}</p></button>{canAccessIntegrations && <button className="surface-card hub-more-card" onClick={() => setTab("integrations")}><Icon name="spark" size={30}/><h2>{t("integrations")}</h2><p>{t("calendarIntro")}</p></button>}{can("household.manage")&&<><section className="surface-card hub-experimental"><p className="eyebrow">{t("hubExperimental")}</p><button className="button" onClick={() => setTab("monitors")}>{t("monitors")}</button><button className="button" onClick={() => setTab("ai")}>{t("ai")}</button></section></>}</div></>
           ) : tab === "monitors" && can("household.manage") ? (
             <MonitorsPanel key={`${household}-${taskNavigation.key}`} initialTaskId={taskNavigation.taskId} initialPersonId={taskNavigation.personId} householdId={household} timezone={member.timezone} people={people} displays={displays}/>
           ) : tab === "ai" && can("household.manage") ? (

@@ -1,7 +1,7 @@
 import {api} from './api';
 export interface CalendarPreview {
- sourceId:string;sourceRevision:number;totalCount:number;
- events:{title:string;start:string;end:string|null;allDay:boolean;location?:string}[];
+ sourceId:string;sourceRevision:number;totalCount:number;window?:{from:string;to:string};
+ events:{title:string;start:string;end:string|null;allDay:boolean;status?:string;location?:string}[];
 }
 export type DraftCalendarPreview=CalendarPreview&{draftSignature:string};
 /** Read source events only. Draft people/reader choices are never sent or saved here. */

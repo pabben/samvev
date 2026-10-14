@@ -54,3 +54,5 @@ Full snapshots have bounded retention (−7/+180 days) rather than incremental
 provider cursors. Real OAuth registration, consent, subscriptions and Spond
 cloud visibility remain external tests. Synthetic transports prove behavior,
 not a live account. No automatic paid provider fallback or consent is added.
+
+The primary Spond bridge and provider registration are extended by [ADR 0023](0023-calendar-registration-and-home-assistant.md); other decisions remain unchanged.

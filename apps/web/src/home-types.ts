@@ -8,7 +8,7 @@ export interface HubItem {
   entries: { label: string; detail?: string }[]; priority: 'low'|'normal'|'high'|'urgent';
   publishAt: string|null; startsAt: string|null; endsAt: string|null; expiresAt: string|null;
   source: { label: string; url?: string; links?: {label:string;url:string}[]; observedAt:string; generatedAt?:string; uncertainty:'low'|'medium'|'high'|'unknown' };
-  metadata: {calendar?:{provider:string;sourceId:string;bridgeKind:string;subjectHousehold:boolean};category?:string;icon?:string;location?:string;allDay?:boolean;actionUrl?:string}; revision:number; updatedAt:string;
+  metadata: {calendar?:{provider:string;sourceId:string;bridgeKind:string;subjectHousehold:boolean;freshness?:'current'|'stale';lastSuccessfulSyncAt?:string|null;reason?:'sync_failed'|'provider_disabled'|'reauthorization_required'};category?:string;icon?:string;location?:string;allDay?:boolean;actionUrl?:string}; revision:number; updatedAt:string;
 }
 export interface HubMessage { authorPhoto?:import("./types").PersonPhoto|null; authorAvatarKey?: string|null; authorPersonId?: string|null; id:string;body:string;importance:'normal'|'attention';authorName:string;publishAt:string;expiresAt:string;revision:number;targets?:{household:boolean;personIds:string[]} }
 export interface HomeProjection { household:{id:string;name:string;timezone:string;locale:Locale};viewer:{personId:string;membershipId:string};people:HubPerson[];items:HubItem[];messages:HubMessage[];upcomingBirthday:UpcomingBirthday|null;serverNow:string }

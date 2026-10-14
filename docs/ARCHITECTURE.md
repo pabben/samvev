@@ -33,7 +33,11 @@ metadata revision/audit and cannot activate, reinterpret, schedule or widen a
 task's audience. See [ADR 0022](decisions/0022-person-assets-calendar-and-task-subjects.md)
 and [calendar setup](CALENDAR_CONNECTIONS.md).
 
-No new live HA/Homey/school/push adapter is implied. See the
+The calendar GUI package adds installation-scoped vault registrations, adult
+owner-only private sources and an optional read-only HA Spond adapter using the
+same calendar lifecycle. See [ADR 0023](decisions/0023-calendar-registration-and-home-assistant.md).
+Actual HA instance/provider consent is a separate live verification gate.
+No live HA/Homey/school/push verification is implied. See the
 [handoff contract](implementation/M3_API.md) and
 [future validation issue](backlog/M3_INTEGRATION_VALIDATION.md).
 

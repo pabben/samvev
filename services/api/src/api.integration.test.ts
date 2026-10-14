@@ -260,7 +260,8 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '021_round9_people_photos_and_monitor_subjects.sql',
     '022_round9_calendar_connections.sql',
     '023_round9_chatgpt_helper_profiles.sql',
-    '024_round10_calendar_and_monitor_repairs.sql'
+    '024_round10_calendar_and_monitor_repairs.sql',
+    '025_calendar_provider_gui_and_home_assistant.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
 });

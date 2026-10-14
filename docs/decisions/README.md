@@ -26,3 +26,4 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0020](0020-external-intelligence-family-hub.md) | Scoped external intelligence connections and durable family-hub items | Accepted for M3 implementation |
 | [0021](0021-chatgpt-plan-oauth-and-usage-accounting.md) | Owner-bound ChatGPT OAuth, public Responses dispatch and auditable route-specific usage | Accepted for M3 preview |
 | [0022](0022-person-assets-calendar-and-task-subjects.md) | Protected person photos, read-only calendar snapshots and independent task subjects | Accepted for M3 R9 test candidate |
+| [0023](0023-calendar-registration-and-home-assistant.md) | Installation calendar GUI registration, adult private sources and optional HA Spond snapshots | Accepted for authorized test candidate |

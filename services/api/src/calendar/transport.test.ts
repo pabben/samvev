@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test,{afterEach,beforeEach} from 'node:test';
 import {CalendarService,DefaultCalendarTransport,parseIcsEvents} from './service.ts';
+import {parseHomeAssistantCalendarEvents} from './home-assistant-client.ts';
+import {normalizeHomeAssistantOrigin} from './provider-config.ts';
 
 const originalFetch=globalThis.fetch;
 beforeEach(()=>{process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_ID='synthetic-google';process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET='synthetic-google-secret';process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID='synthetic-microsoft';process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET='synthetic-microsoft-secret';});
@@ -9,10 +11,10 @@ function json(value:unknown,status=200){return new Response(JSON.stringify(value
 
 test('Google transport consumes official token, identity, list and cancellation shapes',async()=>{
   const calls:Array<{url:string;init?:RequestInit}>=[];
-  globalThis.fetch=async(input,init)=>{const url=String(input);calls.push({url,init});if(url.includes('/token'))return json({access_token:'access',refresh_token:'refresh',expires_in:3600,scope:'openid email https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.readonly'});if(url.includes('/userinfo'))return json({sub:'synthetic-subject',email:'calendar@test.invalid'});if(url.includes('/calendarList'))return json({items:[{id:'primary',summary:'Primary'}],nextPageToken:'next'});if(url.includes('/events'))return json({items:[{id:'single-id',iCalUID:'uid@example',summary:'Moved',start:{dateTime:'2026-10-25T10:00:00+01:00'},end:{dateTime:'2026-10-25T11:00:00+01:00'}},{id:'deleted-recurring',recurringEventId:'series-id',originalStartTime:{dateTime:'2026-10-26T09:00:00+01:00'},status:'cancelled'}]});return new Response(null,{status:204});};
+  globalThis.fetch=async(input,init)=>{const url=String(input);calls.push({url,init});if(url.includes('/token'))return json({access_token:'access',refresh_token:'refresh',expires_in:3600,scope:'openid email https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.readonly'});if(url.includes('/userinfo'))return json({sub:'synthetic-subject',email:'calendar@test.invalid'});if(url.includes('/calendarList'))return json({items:[{id:'primary',summary:'Primary'}],nextPageToken:'next'});if(url.includes('/events'))return json({items:[{id:'single-id',iCalUID:'uid@example',summary:'Moved',attendees:[{self:true,responseStatus:'needsAction'},{displayName:'Must not be retained',responseStatus:'accepted'}],start:{dateTime:'2026-10-25T10:00:00+01:00'},end:{dateTime:'2026-10-25T11:00:00+01:00'}},{id:'deleted-recurring',recurringEventId:'series-id',originalStartTime:{dateTime:'2026-10-26T09:00:00+01:00'},status:'cancelled'}]});return new Response(null,{status:204});};
   const transport=new DefaultCalendarTransport();const tokens=await transport.exchangeCode('google',{code:'code',verifier:'verifier',redirectUri:'https://samvev.test.invalid/callback'});assert.equal(tokens.providerSubject,'synthetic-subject');assert.equal(tokens.refreshToken,'refresh');
   const tokenBody=new URLSearchParams(String(calls.find((call)=>call.url.includes('/token'))?.init?.body));assert.equal(tokenBody.get('client_secret'),'synthetic-google-secret');
-  assert.deepEqual((await transport.listCalendars('google','access')).items,[{externalId:'primary',name:'Primary'}]);const first=await transport.listEvents('google','access','primary',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(first.items[0]!.instanceId,'single-id');assert.deepEqual(first.items[1],{uid:'series-id',instanceId:'2026-10-26T09:00:00+01:00',title:'Untitled event',start:'2026-10-26T09:00:00+01:00',end:null,allDay:false,cancelled:true,location:undefined});assert.ok(calls.some((call)=>call.url.includes('showDeleted=true')));
+  assert.deepEqual((await transport.listCalendars('google','access')).items,[{externalId:'primary',name:'Primary'}]);const first=await transport.listEvents('google','access','primary',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(first.items[0]!.instanceId,'single-id');assert.equal(first.items[0]!.status,'unanswered');assert.equal(JSON.stringify(first.items).includes('Must not be retained'),false);assert.deepEqual(first.items[1],{uid:'series-id',instanceId:'2026-10-26T09:00:00+01:00',title:'Untitled event',start:'2026-10-26T09:00:00+01:00',end:null,allDay:false,cancelled:true,status:'cancelled',location:undefined});assert.ok(calls.some((call)=>call.url.includes('showDeleted=true')));
 });
 
 test('confidential web registrations require both provider credentials and publish exact callbacks',async()=>{
@@ -24,9 +26,30 @@ test('confidential web registrations require both provider credentials and publi
   await assert.rejects(()=>new DefaultCalendarTransport().exchangeCode('google',{code:'code',verifier:'verifier',redirectUri:'https://samvev.test.invalid/api/v1/calendar/oauth/google/callback'}),(error:any)=>error.code==='CONFLICT'&&error.details.reason==='google_calendar_registration_missing');
 });
 
+test('Home Assistant calendar parsing follows official object dates and requires upstream stable UIDs',()=>{
+  const events=parseHomeAssistantCalendarEvents([
+    {uid:'stable-event',summary:'🟡 Synthetic practice',start:{dateTime:'2026-10-25T10:00:00+01:00'},end:{dateTime:'2026-10-25T11:00:00+01:00'},description:'must be discarded',location:'Synthetic hall'},
+    {uid:'stable-task',recurrence_id:'task-instance',summary:'🔧 Synthetic driving duty',start:{date:'2026-10-26'},end:{date:'2026-10-27'},status:'cancelled'},
+    {uid:'stable-tentative',summary:'Synthetic tentative',start:{dateTime:'2026-10-27T10:00:00Z'},end:{dateTime:'2026-10-27T11:00:00Z'},status:'tentative'},
+    {uid:'stable-confirmed',summary:'Synthetic confirmed',start:{dateTime:'2026-10-28T10:00:00Z'},end:{dateTime:'2026-10-28T11:00:00Z'},status:'confirmed'}
+  ],'calendar.synthetic_spond');
+  assert.deepEqual(events,[
+    {uid:'stable-event',instanceId:'single',title:'🟡 Synthetic practice',start:'2026-10-25T10:00:00+01:00',end:'2026-10-25T11:00:00+01:00',allDay:false,cancelled:false,location:'Synthetic hall'},
+    {uid:'stable-task',instanceId:'task-instance',title:'🔧 Synthetic driving duty',start:'2026-10-26',end:'2026-10-27',allDay:true,cancelled:true,status:'cancelled',location:undefined},
+    {uid:'stable-tentative',instanceId:'single',title:'Synthetic tentative',start:'2026-10-27T10:00:00Z',end:'2026-10-27T11:00:00Z',allDay:false,cancelled:false,status:'tentative',location:undefined},
+    {uid:'stable-confirmed',instanceId:'single',title:'Synthetic confirmed',start:'2026-10-28T10:00:00Z',end:'2026-10-28T11:00:00Z',allDay:false,cancelled:false,status:'confirmed',location:undefined}
+  ]);
+  const rescheduled=parseHomeAssistantCalendarEvents([{uid:'stable-event',summary:'🟡 Synthetic practice',start:{dateTime:'2026-10-25T12:00:00+01:00'},end:{dateTime:'2026-10-25T13:00:00+01:00'}}],'calendar.synthetic_spond');
+  assert.equal(rescheduled[0]!.instanceId,'single');assert.equal(rescheduled[0]!.uid,events[0]!.uid);
+  assert.equal('description' in events[0]!,false);
+  assert.throws(()=>parseHomeAssistantCalendarEvents([{summary:'No identity',start:{dateTime:'2026-10-25T10:00:00Z'}}],'calendar.synthetic_spond'),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE'&&error.details.reason==='home_assistant_calendar_identity_missing');
+  assert.equal(normalizeHomeAssistantOrigin('http://192.168.1.20:8123'),'http://192.168.1.20:8123');
+  assert.throws(()=>normalizeHomeAssistantOrigin('http://user:secret@192.168.1.20:8123/path'),(error:any)=>error.code==='VALIDATION_FAILED');
+});
+
 test('Microsoft transport keeps stable single identities and rejects untrusted next links',async()=>{
-  globalThis.fetch=async(input)=>{const url=String(input);if(url.includes('/calendarView'))return json({value:[{id:'event-id',subject:'Moved event',start:{dateTime:'2026-10-25T09:00:00.0000000'},end:{dateTime:'2026-10-25T10:00:00.0000000'},isAllDay:false,isCancelled:false}]});return json({value:[]});};
-  const transport=new DefaultCalendarTransport();const page=await transport.listEvents('microsoft','access','calendar-id',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(page.items[0]!.uid,'event-id');assert.equal(page.items[0]!.instanceId,'single');
+  globalThis.fetch=async(input)=>{const url=String(input);if(url.includes('/calendarView'))return json({value:[{id:'event-id',subject:'Moved event',start:{dateTime:'2026-10-25T09:00:00.0000000'},end:{dateTime:'2026-10-25T10:00:00.0000000'},isAllDay:false,isCancelled:false,responseStatus:{response:'declined'}}]});return json({value:[]});};
+  const transport=new DefaultCalendarTransport();const page=await transport.listEvents('microsoft','access','calendar-id',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(page.items[0]!.uid,'event-id');assert.equal(page.items[0]!.instanceId,'single');assert.equal(page.items[0]!.status,'declined');
   await assert.rejects(()=>transport.listCalendars('microsoft','access','https://attacker.invalid/steal'),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
   await assert.rejects(()=>transport.listEvents('microsoft','access','calendar-id',{from:'x',to:'y'},'https://graph.microsoft.com/v1.0/users/other/messages'),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
 });

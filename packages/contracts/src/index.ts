@@ -272,8 +272,8 @@ export const integrationCredentialCreateSchema = z.object({
 }).strict();
 export const integrationCredentialRevokeSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
 
-export const calendarProviders = ['google','microsoft','ics'] as const;
-export const calendarBridgeKinds = ['direct','spond_calendar'] as const;
+export const calendarProviders = ['google','microsoft','ics','home_assistant'] as const;
+export const calendarBridgeKinds = ['direct','spond_calendar','spond_home_assistant'] as const;
 const calendarSecretUrlSchema=z.string().url().max(4096).refine((value)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password&&!url.hash;}catch{return false;}},'https_calendar_url_required');
 export const calendarConnectionCreateSchema=z.object({
   provider:z.enum(calendarProviders),
@@ -284,6 +284,8 @@ export const calendarConnectionCreateSchema=z.object({
   if(value.provider==='ics'&&!value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_required'});
   if(value.provider!=='ics'&&value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_not_allowed'});
   if(value.bridgeKind==='spond_calendar'&&value.provider==='ics')ctx.addIssue({code:'custom',path:['provider'],message:'spond_bridge_requires_google_or_microsoft'});
+  if(value.provider==='home_assistant'&&value.bridgeKind!=='spond_home_assistant')ctx.addIssue({code:'custom',path:['bridgeKind'],message:'home_assistant_requires_spond_bridge'});
+  if(value.provider!=='home_assistant'&&value.bridgeKind==='spond_home_assistant')ctx.addIssue({code:'custom',path:['provider'],message:'spond_home_assistant_requires_home_assistant'});
 });
 export const calendarSourceUpdateSchema=z.object({
   expectedRevision:z.number().int().positive(),
@@ -301,6 +303,15 @@ export const calendarSourceUpdateSchema=z.object({
 export const calendarConnectionRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
 export const calendarOAuthCompleteSchema=z.object({completionToken:z.string().min(32).max(256)}).strict();
 export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive()}).strict();
+export const calendarProviderConfigurationSchema=z.object({
+  expectedRevision:z.number().int().nonnegative(),
+  status:z.enum(['active','disabled']),
+  clientId:z.string().trim().min(1).max(1000).optional(),
+  clientSecret:z.string().trim().min(1).max(4000).optional(),
+  tenant:z.string().trim().min(1).max(100).optional(),
+  origin:z.string().url().max(2048).optional(),
+  googleOAuthJson:z.unknown().optional()
+}).strict();
 
 export const aiOperations = ['generate', 'extract', 'classify', 'plan'] as const;
 export const aiModelTiers = ['routine', 'strong'] as const;

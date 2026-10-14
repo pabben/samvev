@@ -17,7 +17,7 @@ import {
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
   integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
-  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,
+  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,
   integrationCapabilities,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
@@ -153,6 +153,12 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
   return { accountId: account.accountId,sessionId:account.sessionId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
 }
 
+async function authForInstallation(request:FastifyRequest,installationId:string):Promise<AuthContext>{
+  const account=await sessionAccount(request);if(account.installationId!==installationId)throw new DomainError('NOT_FOUND',404);
+  const row=(await pool.query<{id:string;household_id:string;person_id:string;role_preset:string;capabilities:Capability[]}>(`SELECT membership.id,membership.household_id,membership.person_id,membership.role_preset,membership.capabilities FROM memberships membership JOIN households household ON household.id=membership.household_id AND household.installation_id=$1 JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult' WHERE membership.account_id=$2 AND membership.capabilities ? 'installation.manage' ORDER BY membership.id LIMIT 1`,[installationId,account.accountId])).rows[0];
+  if(!row)throw new DomainError('FORBIDDEN',403);return{accountId:account.accountId,sessionId:account.sessionId,installationId,membershipId:row.id,householdId:row.household_id,personId:row.person_id,rolePreset:row.role_preset,capabilities:row.capabilities};
+}
+
 async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
   const token = request.cookies[DISPLAY_COOKIE];
   if (!token) throw new DomainError('UNAUTHENTICATED', 401);
@@ -239,6 +245,7 @@ interface ExternalItemRow {
   ends_at:Date|null; expires_at:Date|null; source:Record<string,unknown>; metadata:Record<string,unknown>;
   status:string; revision:number; updated_at:Date; person_ids:string[]; display_ids:string[];
   subject_person_ids:string[];
+  calendar_connection_state:string|null; calendar_last_sync_succeeded_at:Date|null; calendar_provider_status:string|null; calendar_owner_authorized:boolean;
 }
 
 function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean}={}):Record<string,unknown>{
@@ -248,6 +255,17 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
   const metadata=options.forDisplay
     ? Object.fromEntries(Object.entries(row.metadata).filter(([key])=>key!=='actionUrl'))
     : row.metadata;
+  const storedCalendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?metadata.calendar as Record<string,unknown>:undefined;
+  const storedFreshnessReason=['sync_failed','provider_disabled','reauthorization_required'].includes(String(storedCalendar?.freshnessReason))?String(storedCalendar?.freshnessReason):undefined;
+  const calendarIsStale=row.calendar_connection_state?row.calendar_owner_authorized!==true||storedCalendar?.freshness==='stale'||!['connected','syncing'].includes(row.calendar_connection_state):false;
+  const calendarFreshness=row.calendar_connection_state?{
+    freshness:calendarIsStale?'stale':'current',
+    lastSuccessfulSyncAt:row.calendar_last_sync_succeeded_at?.toISOString()??null,
+    ...(calendarIsStale?{reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':row.calendar_connection_state==='error'?'sync_failed':storedFreshnessReason??'reauthorization_required'}:{})
+  }:undefined;
+  const calendarMetadata=calendarFreshness&&metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)
+    ?{...Object.fromEntries(Object.entries(metadata.calendar as Record<string,unknown>).filter(([key])=>key!=='freshnessReason')),...calendarFreshness}
+    :calendarFreshness;
   return {
     id:row.id,
     ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
@@ -257,12 +275,16 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
     title:row.title,body:row.body,entries:row.entries,priority:row.priority,
     publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
     endsAt:row.ends_at?.toISOString()??null,expiresAt:row.expires_at?.toISOString()??null,
-    source,metadata,revision:row.revision,updatedAt:row.updated_at.toISOString()
+    source,metadata:{...metadata,...(calendarMetadata?{calendar:calendarMetadata}:{})},revision:row.revision,updatedAt:row.updated_at.toISOString()
   };
 }
 
 const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.content_locale,i.target_household,i.title,i.body,i.entries,i.priority,
   i.publish_at,i.starts_at,i.ends_at,i.expires_at,i.source,i.metadata,i.status,i.revision,i.updated_at,
+  (SELECT calendar.state FROM calendar_connections calendar WHERE calendar.integration_connection_id=i.connection_id) AS calendar_connection_state,
+  (SELECT calendar.last_sync_succeeded_at FROM calendar_connections calendar WHERE calendar.integration_connection_id=i.connection_id) AS calendar_last_sync_succeeded_at,
+  (SELECT provider.status FROM calendar_connections calendar JOIN households calendar_household ON calendar_household.id=calendar.household_id LEFT JOIN installation_calendar_provider_configs provider ON provider.installation_id=calendar_household.installation_id AND provider.provider=calendar.provider WHERE calendar.integration_connection_id=i.connection_id) AS calendar_provider_status,
+  EXISTS(SELECT 1 FROM calendar_connections calendar JOIN memberships calendar_owner ON calendar_owner.account_id=calendar.owner_account_id AND calendar_owner.household_id=calendar.household_id JOIN persons calendar_person ON calendar_person.id=calendar_owner.person_id AND calendar_person.household_id=calendar_owner.household_id AND calendar_person.age_group='adult' JOIN accounts calendar_account ON calendar_account.id=calendar.owner_account_id AND calendar_account.disabled_at IS NULL WHERE calendar.integration_connection_id=i.connection_id AND calendar_owner.capabilities ? 'household.view') AS calendar_owner_authorized,
   COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_targets t WHERE t.item_id=i.id),'[]') AS person_ids,
   COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_subjects t WHERE t.item_id=i.id),'[]') AS subject_person_ids,
   COALESCE((SELECT json_agg(t.display_id ORDER BY t.display_id) FROM integration_item_display_targets t WHERE t.item_id=i.id),'[]') AS display_ids`;
@@ -529,8 +551,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.get('/api/v1/me', async (request) => {
     const session = await sessionAccount(request);
-    const account = await pool.query(`SELECT id,email_normalized AS email,locale,theme FROM accounts WHERE id=$1`, [session.accountId]);
-    const memberships = await pool.query(`SELECT m.id,m.household_id,m.person_id,m.role_preset,m.capabilities,m.revision,h.name AS household_name,h.timezone,h.default_locale AS household_locale,p.display_name,
+    const account = await pool.query(`SELECT id,installation_id,email_normalized AS email,locale,theme FROM accounts WHERE id=$1`, [session.accountId]);
+    const memberships = await pool.query(`SELECT m.id,m.household_id,m.person_id,m.role_preset,m.capabilities,m.revision,h.name AS household_name,h.timezone,h.default_locale AS household_locale,p.display_name,p.age_group,(m.capabilities ? 'household.view' AND p.age_group='adult') AS calendar_access,
       COALESCE((SELECT json_agg(display_id) FROM membership_display_grants g WHERE g.membership_id=m.id),'[]') AS display_ids
       FROM memberships m JOIN households h ON h.id=m.household_id JOIN persons p ON p.id=m.person_id WHERE m.account_id=$1 ORDER BY h.name`, [session.accountId]);
     return { account: account.rows[0], memberships: memberships.rows, csrfToken: request.cookies[CSRF_COOKIE] };
@@ -1101,35 +1123,38 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   });
 
   app.get('/api/v1/households/:householdId/calendar-connections',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store');return{connections:await calendars.list(auth)};
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return{connections:await calendars.list(auth)};
   });
   app.get('/api/v1/households/:householdId/calendar-connections/readiness',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store');return{providers:calendars.readiness(runtime.publicOrigin)};
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const canAdmin=Boolean((await pool.query(`SELECT 1 FROM memberships membership JOIN households household ON household.id=membership.household_id AND household.installation_id=$1 WHERE membership.account_id=$2 AND membership.capabilities ? 'installation.manage' LIMIT 1`,[auth.installationId,auth.accountId])).rowCount);reply.header('Cache-Control','private, no-store');return{providers:await calendars.connectionReadiness(auth,runtime.publicOrigin),canAdmin};
   });
   app.post('/api/v1/households/:householdId/calendar-connections',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_connection_create',{account:12,household:30,ip:24,windowSeconds:3600});const body=parse(calendarConnectionCreateSchema,request.body);return reply.status(201).send({connection:await calendars.create(auth,body)});
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_connection_create',{account:12,household:30,ip:24,windowSeconds:3600});const body=parse(calendarConnectionCreateSchema,request.body);return reply.status(201).send({connection:await calendars.create(auth,body)});
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/oauth/start',async(request)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_oauth_start',{account:20,household:60,ip:40,windowSeconds:3600});return calendars.startOAuth(auth,params(request).connectionId!,runtime.publicOrigin);
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_oauth_start',{account:20,household:60,ip:40,windowSeconds:3600});return calendars.startOAuth(auth,params(request).connectionId!,runtime.publicOrigin);
   });
   app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId',async(request)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');return{connection:await calendars.updateSource(auth,params(request).connectionId!,params(request).sourceId!,parse(calendarSourceUpdateSchema,request.body))};
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');return{connection:await calendars.updateSource(auth,params(request).connectionId!,params(request).sourceId!,parse(calendarSourceUpdateSchema,request.body))};
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId/preview',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_preview',{account:60,household:180,ip:120,windowSeconds:3600});const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body.expectedSourceRevision);
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_preview',{account:60,household:180,ip:120,windowSeconds:3600});const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body.expectedSourceRevision);
   });
   app.post('/api/v1/households/:householdId/calendar-connections/oauth/:provider/complete',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft')throw new DomainError('NOT_FOUND',404);const body=parse(calendarOAuthCompleteSchema,request.body);await calendars.completeOAuth(auth,provider,body.completionToken);reply.header('Cache-Control','private, no-store');return{connection:await calendars.list(auth)};
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft'&&provider!=='home_assistant')throw new DomainError('NOT_FOUND',404);const body=parse(calendarOAuthCompleteSchema,request.body);await calendars.completeOAuth(auth,provider,body.completionToken);reply.header('Cache-Control','private, no-store');return{connection:await calendars.list(auth)};
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sync',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_manual_sync',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(calendarConnectionRevisionSchema,request.body);const result=await calendars.sync(auth,params(request).connectionId!,body.expectedRevision);return reply.status(200).send({result,connection:await calendars.get(auth,params(request).connectionId!)});
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_manual_sync',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(calendarConnectionRevisionSchema,request.body);const result=await calendars.sync(auth,params(request).connectionId!,body.expectedRevision);return reply.status(200).send({result,connection:await calendars.get(auth,params(request).connectionId!)});
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/disconnect',async(request)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(calendarConnectionRevisionSchema,request.body);return{connection:await calendars.disconnect(auth,params(request).connectionId!,body.expectedRevision)};
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const body=parse(calendarConnectionRevisionSchema,request.body);return{connection:await calendars.disconnect(auth,params(request).connectionId!,body.expectedRevision)};
   });
   app.get('/api/v1/calendar/oauth/:provider/callback',async(request,reply)=>{
-    await durableRateLimit('calendar_oauth_callback_ip',request.ip,60,900);const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft')throw new DomainError('NOT_FOUND',404);const query=request.query as Record<string,unknown>;if(typeof query.state!=='string'||query.state.length>512||(typeof query.code==='string'&&query.code.length>4096)||(typeof query.error==='string'&&query.error.length>256))throw new DomainError('VALIDATION_FAILED',400);const staged=await calendars.stageOAuthCallback(provider,query.state,typeof query.code==='string'?query.code:undefined,typeof query.error==='string'?query.error:undefined);reply.header('Cache-Control','private, no-store');if(staged.denied)return reply.redirect(`${runtime.publicOrigin}/integrations?calendar=consent_denied`);return reply.redirect(`${runtime.publicOrigin}/integrations#calendar-oauth=${encodeURIComponent(staged.completionToken)}`);
+    await durableRateLimit('calendar_oauth_callback_ip',request.ip,60,900);const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft'&&provider!=='home_assistant')throw new DomainError('NOT_FOUND',404);const query=request.query as Record<string,unknown>;if(typeof query.state!=='string'||query.state.length>512||(typeof query.code==='string'&&query.code.length>4096)||(typeof query.error==='string'&&query.error.length>256))throw new DomainError('VALIDATION_FAILED',400);const staged=await calendars.stageOAuthCallback(provider,query.state,typeof query.code==='string'?query.code:undefined,typeof query.error==='string'?query.error:undefined);reply.header('Cache-Control','private, no-store');if(staged.denied)return reply.redirect(`${runtime.publicOrigin}/integrations?calendar=consent_denied`);return reply.redirect(`${runtime.publicOrigin}/integrations#calendar-oauth=${encodeURIComponent(staged.completionToken)}`);
   });
+
+  app.get('/api/v1/installations/:installationId/calendar-providers',async(request,reply)=>{const auth=await authForInstallation(request,params(request).installationId!);reply.header('Cache-Control','private, no-store');return{installationId:auth.installationId,canAdmin:true,providers:await calendars.readiness(auth,runtime.publicOrigin)};});
+  app.put('/api/v1/installations/:installationId/calendar-providers/:provider',{bodyLimit:16*1024},async(request,reply)=>{const auth=await authForInstallation(request,params(request).installationId!),provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft'&&provider!=='home_assistant')throw new DomainError('NOT_FOUND',404);await operationRateLimit(request,auth,'calendar_provider_configuration',{account:20,household:40,ip:30,windowSeconds:3600});const body=parse(calendarProviderConfigurationSchema,request.body);reply.header('Cache-Control','private, no-store');return{installationId:auth.installationId,canAdmin:true,providers:await calendars.updateProvider(auth,provider,body,runtime.publicOrigin)};});
 
   app.post('/api/v1/integrations/items',async(request,reply)=>{
     const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.write');

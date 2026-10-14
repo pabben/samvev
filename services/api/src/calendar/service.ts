@@ -5,24 +5,32 @@ import { AiCredentialVault } from '../ai/credential-vault.ts';
 import { createOAuthAttempt } from '../ai/oauth-primitives.ts';
 import { pool, transaction, type DbClient } from '../db.ts';
 import { SecretSubscriptionFetcher } from '../monitor/source-fetcher.ts';
+import { CalendarProviderConfigurationService,calendarCallbackUri,type ProviderRuntimeConfig,type RegisteredCalendarProvider } from './provider-config.ts';
+import { HomeAssistantClient } from './home-assistant-client.ts';
 
-export type CalendarProvider='google'|'microsoft'|'ics';
-export interface CalendarActor{accountId:string;sessionId:string;installationId:string;householdId:string;membershipId:string;capabilities:string[];}
+export type CalendarProvider='google'|'microsoft'|'ics'|'home_assistant';
+export interface CalendarActor{accountId:string;sessionId:string;installationId:string;householdId:string;membershipId:string;personId?:string;capabilities:string[];}
 export interface CalendarTokenSet{accessToken:string;refreshToken?:string;expiresAt:string;scopes:string[];providerSubject:string;accountLabel?:string;}
-export interface CalendarInfo{externalId:string;name:string;}
-export interface CalendarEvent{uid:string;instanceId:string;title:string;start:string;end:string|null;allDay:boolean;cancelled:boolean;location?:string;}
+export interface CalendarInfo{externalId:string;name:string;provenance?:Record<string,unknown>;sourceWarning?:string;}
+export interface CalendarEvent{uid:string;instanceId:string;title:string;start:string;end:string|null;allDay:boolean;cancelled:boolean;status?:'confirmed'|'tentative'|'declined'|'unanswered'|'cancelled';location?:string;}
 export interface CalendarPage<T>{items:T[];nextPageToken?:string;responseBytes?:number;}
+type LegacyCalendarReadiness={google:{configured:boolean;redirectUri:string;requiredEnvironment:string[]};microsoft:{configured:boolean;redirectUri:string;requiredEnvironment:string[]};ics:{configured:true;redirectUri:null;requiredEnvironment:never[]}};
 export interface CalendarTransport{
-  exchangeCode(provider:Exclude<CalendarProvider,'ics'>,input:{code:string;verifier:string;redirectUri:string}):Promise<CalendarTokenSet>;
-  refresh(provider:CalendarProvider,refreshToken:string):Promise<CalendarTokenSet>;
-  revoke(provider:Exclude<CalendarProvider,'ics'>,token:string):Promise<'confirmed'|'local_only'>;
-  listCalendars(provider:Exclude<CalendarProvider,'ics'>,accessToken:string,pageToken?:string):Promise<CalendarPage<CalendarInfo>>;
-  listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string):Promise<CalendarPage<CalendarEvent>>;
+  exchangeCode(provider:Exclude<CalendarProvider,'ics'>,input:{code:string;verifier:string;redirectUri:string;config?:ProviderRuntimeConfig}):Promise<CalendarTokenSet>;
+  refresh(provider:CalendarProvider,refreshToken:string,config?:ProviderRuntimeConfig):Promise<CalendarTokenSet>;
+  revoke(provider:Exclude<CalendarProvider,'ics'>,token:string,config?:ProviderRuntimeConfig):Promise<'confirmed'|'local_only'>;
+  listCalendars(provider:Exclude<CalendarProvider,'ics'>,accessToken:string,pageToken?:string,config?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarInfo>>;
+  listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string,config?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarEvent>>;
   fetchIcs(url:string):Promise<string>;
 }
 
 type ProviderConfig={clientId:string;clientSecret:string;authorizationEndpoint:string;tokenEndpoint:string;scopes:string[]};
-function providerConfig(provider:Exclude<CalendarProvider,'ics'>):ProviderConfig{
+function providerConfig(provider:Exclude<CalendarProvider,'ics'|'home_assistant'>,runtime?:ProviderRuntimeConfig):ProviderConfig{
+  if(runtime){
+    if(runtime.provider!==provider||!runtime.clientSecret)throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'calendar_provider_configuration_invalid'});
+    if(provider==='google')return{clientId:runtime.clientId,clientSecret:runtime.clientSecret,authorizationEndpoint:'https://accounts.google.com/o/oauth2/v2/auth',tokenEndpoint:'https://oauth2.googleapis.com/token',scopes:['openid','email','https://www.googleapis.com/auth/calendar.calendarlist.readonly','https://www.googleapis.com/auth/calendar.events.readonly']};
+    return{clientId:runtime.clientId,clientSecret:runtime.clientSecret,authorizationEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(runtime.tenant??'common')}/oauth2/v2.0/authorize`,tokenEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(runtime.tenant??'common')}/oauth2/v2.0/token`,scopes:['openid','email','offline_access','Calendars.ReadBasic']};
+  }
   if(provider==='google'){
     const clientId=process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_ID?.trim(),clientSecret=process.env.SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET?.trim();if(!clientId||!clientSecret)throw new DomainError('CONFLICT',409,{reason:'google_calendar_registration_missing'});
     return{clientId,clientSecret,authorizationEndpoint:'https://accounts.google.com/o/oauth2/v2/auth',tokenEndpoint:'https://oauth2.googleapis.com/token',scopes:['openid','email','https://www.googleapis.com/auth/calendar.calendarlist.readonly','https://www.googleapis.com/auth/calendar.events.readonly']};
@@ -30,11 +38,6 @@ function providerConfig(provider:Exclude<CalendarProvider,'ics'>):ProviderConfig
   const clientId=process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID?.trim(),clientSecret=process.env.SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET?.trim();if(!clientId||!clientSecret)throw new DomainError('CONFLICT',409,{reason:'microsoft_calendar_registration_missing'});
   const tenant=(process.env.SAMVEV_MICROSOFT_CALENDAR_TENANT??'common').trim();
   return{clientId,clientSecret,authorizationEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/authorize`,tokenEndpoint:`https://login.microsoftonline.com/${encodeURIComponent(tenant)}/oauth2/v2.0/token`,scopes:['openid','email','offline_access','Calendars.ReadBasic']};
-}
-function callbackUri(publicOrigin:string,provider:Exclude<CalendarProvider,'ics'>):string{
-  let origin:URL;try{origin=new URL(publicOrigin);}catch{throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'calendar_public_origin_invalid'});}
-  if(!['http:','https:'].includes(origin.protocol)||origin.username||origin.password||origin.pathname!=='/'||origin.search||origin.hash||origin.origin!==publicOrigin)throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'calendar_public_origin_invalid'});
-  return `${origin.origin}/api/v1/calendar/oauth/${provider}/callback`;
 }
 const PROVIDER_JSON_MAX_BYTES=1024*1024;
 const PROVIDER_TOKEN_MAX_BYTES=256*1024;
@@ -80,17 +83,21 @@ function calendarInfo(value:unknown):CalendarInfo{
 }
 export class DefaultCalendarTransport implements CalendarTransport{
   private readonly ics=new SecretSubscriptionFetcher();
-  async exchangeCode(provider:Exclude<CalendarProvider,'ics'>,input:{code:string;verifier:string;redirectUri:string}):Promise<CalendarTokenSet>{
-    const config=providerConfig(provider);const params=new URLSearchParams({client_id:config.clientId,grant_type:'authorization_code',code:input.code,redirect_uri:input.redirectUri,code_verifier:input.verifier,client_secret:config.clientSecret});const {body:data}=await jsonRequest(config.tokenEndpoint,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params},PROVIDER_TOKEN_MAX_BYTES,'token');const accessToken=boundedString(data.access_token,32_000);const refreshToken=boundedString(data.refresh_token,32_000,{optional:true});const expiresIn=Number(data.expires_in??3600);if(!Number.isFinite(expiresIn)||expiresIn<=0||expiresIn>31_536_000)throw new DomainError('CONFLICT',409,{reason:'calendar_identity_invalid'});const {body:identity}=await jsonRequest(provider==='google'?'https://openidconnect.googleapis.com/v1/userinfo':'https://graph.microsoft.com/oidc/userinfo',{headers:{authorization:`Bearer ${accessToken}`}},PROVIDER_IDENTITY_MAX_BYTES);const subject=boundedString(identity.sub,512);const scopeText=data.scope===undefined?config.scopes.join(' '):boundedString(data.scope,8192)!;return{accessToken:accessToken!,...(refreshToken?{refreshToken}:{}),expiresAt:new Date(Date.now()+expiresIn*1000).toISOString(),scopes:scopeText.split(/\s+/).filter(Boolean),providerSubject:subject!,accountLabel:boundedString(identity.email,320,{optional:true})};
+  private readonly homeAssistant=new HomeAssistantClient();
+  async exchangeCode(provider:Exclude<CalendarProvider,'ics'>,input:{code:string;verifier:string;redirectUri:string;config?:ProviderRuntimeConfig}):Promise<CalendarTokenSet>{
+    if(provider==='home_assistant'){if(!input.config)throw new DomainError('AI_CONFIGURATION_INVALID',422);return this.homeAssistant.exchangeCode(input.config,input);}
+    const config=providerConfig(provider,input.config);const params=new URLSearchParams({client_id:config.clientId,grant_type:'authorization_code',code:input.code,redirect_uri:input.redirectUri,code_verifier:input.verifier,client_secret:config.clientSecret});const {body:data}=await jsonRequest(config.tokenEndpoint,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params},PROVIDER_TOKEN_MAX_BYTES,'token');const accessToken=boundedString(data.access_token,32_000);const refreshToken=boundedString(data.refresh_token,32_000,{optional:true});const expiresIn=Number(data.expires_in??3600);if(!Number.isFinite(expiresIn)||expiresIn<=0||expiresIn>31_536_000)throw new DomainError('CONFLICT',409,{reason:'calendar_identity_invalid'});const {body:identity}=await jsonRequest(provider==='google'?'https://openidconnect.googleapis.com/v1/userinfo':'https://graph.microsoft.com/oidc/userinfo',{headers:{authorization:`Bearer ${accessToken}`}},PROVIDER_IDENTITY_MAX_BYTES);const subject=boundedString(identity.sub,512);const scopeText=data.scope===undefined?config.scopes.join(' '):boundedString(data.scope,8192)!;return{accessToken:accessToken!,...(refreshToken?{refreshToken}:{}),expiresAt:new Date(Date.now()+expiresIn*1000).toISOString(),scopes:scopeText.split(/\s+/).filter(Boolean),providerSubject:subject!,accountLabel:boundedString(identity.email,320,{optional:true})};
   }
-  async refresh(provider:CalendarProvider,refreshToken:string):Promise<CalendarTokenSet>{if(provider==='ics')throw new DomainError('CONFLICT',409);const config=providerConfig(provider);const params=new URLSearchParams({client_id:config.clientId,grant_type:'refresh_token',refresh_token:refreshToken,scope:config.scopes.join(' '),client_secret:config.clientSecret});const {body:data}=await jsonRequest(config.tokenEndpoint,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params},PROVIDER_TOKEN_MAX_BYTES,'token');const accessToken=boundedString(data.access_token,32_000),nextRefresh=boundedString(data.refresh_token,32_000,{optional:true});const expiresIn=Number(data.expires_in??3600);if(!Number.isFinite(expiresIn)||expiresIn<=0||expiresIn>31_536_000)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});const scopeText=data.scope===undefined?config.scopes.join(' '):boundedString(data.scope,8192)!;return{accessToken:accessToken!,refreshToken:nextRefresh??refreshToken,expiresAt:new Date(Date.now()+expiresIn*1000).toISOString(),scopes:scopeText.split(/\s+/).filter(Boolean),providerSubject:'retained'};}
-  async revoke(provider:Exclude<CalendarProvider,'ics'>,token:string):Promise<'confirmed'|'local_only'>{if(provider!=='google')return'local_only';const response=await fetch('https://oauth2.googleapis.com/revoke',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token}),signal:AbortSignal.timeout(15_000)});if(!response.ok&&response.status!==400)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);return'confirmed';}
-  async listCalendars(provider:Exclude<CalendarProvider,'ics'>,accessToken:string,pageToken?:string):Promise<CalendarPage<CalendarInfo>>{
+  async refresh(provider:CalendarProvider,refreshToken:string,runtime?:ProviderRuntimeConfig):Promise<CalendarTokenSet>{if(provider==='ics')throw new DomainError('CONFLICT',409);if(provider==='home_assistant'){if(!runtime)throw new DomainError('AI_CONFIGURATION_INVALID',422);return this.homeAssistant.refresh(runtime,refreshToken);}const config=providerConfig(provider,runtime);const params=new URLSearchParams({client_id:config.clientId,grant_type:'refresh_token',refresh_token:refreshToken,scope:config.scopes.join(' '),client_secret:config.clientSecret});const {body:data}=await jsonRequest(config.tokenEndpoint,{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params},PROVIDER_TOKEN_MAX_BYTES,'token');const accessToken=boundedString(data.access_token,32_000),nextRefresh=boundedString(data.refresh_token,32_000,{optional:true});const expiresIn=Number(data.expires_in??3600);if(!Number.isFinite(expiresIn)||expiresIn<=0||expiresIn>31_536_000)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});const scopeText=data.scope===undefined?config.scopes.join(' '):boundedString(data.scope,8192)!;return{accessToken:accessToken!,refreshToken:nextRefresh??refreshToken,expiresAt:new Date(Date.now()+expiresIn*1000).toISOString(),scopes:scopeText.split(/\s+/).filter(Boolean),providerSubject:'retained'};}
+  async revoke(provider:Exclude<CalendarProvider,'ics'>,token:string,runtime?:ProviderRuntimeConfig):Promise<'confirmed'|'local_only'>{if(provider==='home_assistant'){if(!runtime)throw new DomainError('AI_CONFIGURATION_INVALID',422);return this.homeAssistant.revoke(runtime,token);}if(provider!=='google')return'local_only';const response=await fetch('https://oauth2.googleapis.com/revoke',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token}),signal:AbortSignal.timeout(15_000)});if(!response.ok&&response.status!==400)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);return'confirmed';}
+  async listCalendars(provider:Exclude<CalendarProvider,'ics'>,accessToken:string,pageToken?:string,runtime?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarInfo>>{
+    if(provider==='home_assistant'){if(!runtime||pageToken)throw new DomainError('AI_CONFIGURATION_INVALID',422);const items=await this.homeAssistant.listSources(runtime,accessToken);return{items,responseBytes:Buffer.byteLength(JSON.stringify(items))};}
     if(provider==='google'){const url=new URL('https://www.googleapis.com/calendar/v3/users/me/calendarList');url.searchParams.set('maxResults','250');if(pageToken)url.searchParams.set('pageToken',pageToken);const {body:data,bytes}=await jsonRequest(url.toString(),{headers:{authorization:`Bearer ${accessToken}`}});if(!Array.isArray(data.items)||data.items.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();return{items:data.items.map(calendarInfo),nextPageToken:nextToken(data.nextPageToken,4096),responseBytes:bytes};}
     const url=pageToken??'https://graph.microsoft.com/v1.0/me/calendars?$select=id,name&$top=100';const parsed=new URL(url);if(parsed.origin!=='https://graph.microsoft.com'||!parsed.pathname.startsWith('/v1.0/me/calendars'))throw new DomainError('AI_ENDPOINT_BLOCKED',422);const {body:data,bytes}=await jsonRequest(url,{headers:{authorization:`Bearer ${accessToken}`}});if(!Array.isArray(data.value)||data.value.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();return{items:data.value.map(calendarInfo),nextPageToken:nextToken(data['@odata.nextLink']),responseBytes:bytes};
   }
-  async listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string):Promise<CalendarPage<CalendarEvent>>{
+  async listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string,runtime?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarEvent>>{
     if(provider==='ics')throw new DomainError('CONFLICT',409);
+    if(provider==='home_assistant'){if(!runtime||pageToken)throw new DomainError('AI_CONFIGURATION_INVALID',422);const items=await this.homeAssistant.listEvents(runtime,accessToken,calendarId,window);return{items,responseBytes:Buffer.byteLength(JSON.stringify(items))};}
     if(provider==='google'){
       const url=new URL('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(calendarId)+'/events');
       url.searchParams.set('timeMin',window.from);url.searchParams.set('timeMax',window.to);url.searchParams.set('singleEvents','true');url.searchParams.set('showDeleted','true');url.searchParams.set('maxResults','2500');if(pageToken)url.searchParams.set('pageToken',pageToken);
@@ -98,36 +105,38 @@ export class DefaultCalendarTransport implements CalendarTransport{
       if(!Array.isArray(data.items)||data.items.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();
       return{items:data.items.map((item:any)=>{
         const cancelled=item?.status==='cancelled',recurring=typeof item?.recurringEventId==='string';
+        const ownResponse=Array.isArray(item?.attendees)?item.attendees.find((attendee:any)=>attendee&&attendee.self===true)?.responseStatus:undefined;
+        const status:CalendarEvent['status']=cancelled?'cancelled':item?.status==='tentative'||ownResponse==='tentative'?'tentative':ownResponse==='declined'?'declined':ownResponse==='needsAction'?'unanswered':'confirmed';
         const identityStart=item?.originalStartTime??{},actualStart=item?.start??identityStart;
         const identityValue=identityStart.dateTime??identityStart.date;
         const id=boundedString(item?.id,2048);if((recurring&&typeof identityValue!=='string')||(!cancelled&&typeof actualStart.dateTime!=='string'&&typeof actualStart.date!=='string'))throw invalidProviderResponse();
-        return{uid:boundedString(recurring?item.recurringEventId:(item.iCalUID??id),2048)!,instanceId:boundedString(recurring?identityValue:id,2048)!,title:boundedString(item.summary??'Untitled event',2048)!,start:boundedString(actualStart.dateTime??actualStart.date??'1970-01-01T00:00:00.000Z',100)!,end:item.end?boundedString(item.end.dateTime??item.end.date,100,{optional:true})??null:null,allDay:Boolean(actualStart.date&&!actualStart.dateTime),cancelled,location:boundedString(item.location,1024,{optional:true})};
+        return{uid:boundedString(recurring?item.recurringEventId:(item.iCalUID??id),2048)!,instanceId:boundedString(recurring?identityValue:id,2048)!,title:boundedString(item.summary??'Untitled event',2048)!,start:boundedString(actualStart.dateTime??actualStart.date??'1970-01-01T00:00:00.000Z',100)!,end:item.end?boundedString(item.end.dateTime??item.end.date,100,{optional:true})??null:null,allDay:Boolean(actualStart.date&&!actualStart.dateTime),cancelled,status,location:boundedString(item.location,1024,{optional:true})};
       }),nextPageToken:nextToken(data.nextPageToken,4096),responseBytes:bytes};
     }
-    const url=pageToken??`https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(window.from)}&endDateTime=${encodeURIComponent(window.to)}&$select=id,subject,start,end,isAllDay,isCancelled,seriesMasterId,originalStart,location&$top=100`;const parsed=new URL(url);if(parsed.origin!=='https://graph.microsoft.com'||!/^\/v1\.0\/me\/calendars\/[^/]+\/calendarView$/.test(parsed.pathname))throw new DomainError('AI_ENDPOINT_BLOCKED',422);const {body:data,bytes}=await jsonRequest(url,{headers:{authorization:`Bearer ${accessToken}`,Prefer:'outlook.timezone="UTC"'}});if(!Array.isArray(data.value)||data.value.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();const instant=(value:unknown)=>{const text=boundedString(value,100)!;return /(?:Z|[+-]\d\d:\d\d)$/.test(text)?text:`${text}Z`;};return{items:data.value.map((item:any)=>{const id=boundedString(item?.id,2048);if(!item||(!item.isCancelled&&typeof item.start?.dateTime!=='string'))throw invalidProviderResponse();const recurring=typeof item.seriesMasterId==='string';return{uid:boundedString(recurring?item.seriesMasterId:id,2048)!,instanceId:recurring?boundedString(item.originalStart??item.start?.dateTime,100)!:'single',title:boundedString(item.subject??'Untitled event',2048)!,start:instant(item.start?.dateTime??item.originalStart),end:item.end?.dateTime?instant(item.end.dateTime):null,allDay:Boolean(item.isAllDay),cancelled:Boolean(item.isCancelled),location:boundedString(item.location?.displayName,1024,{optional:true})}}),nextPageToken:nextToken(data['@odata.nextLink']),responseBytes:bytes};
+    const url=pageToken??`https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(window.from)}&endDateTime=${encodeURIComponent(window.to)}&$select=id,subject,start,end,isAllDay,isCancelled,seriesMasterId,originalStart,location,responseStatus&$top=100`;const parsed=new URL(url);if(parsed.origin!=='https://graph.microsoft.com'||!/^\/v1\.0\/me\/calendars\/[^/]+\/calendarView$/.test(parsed.pathname))throw new DomainError('AI_ENDPOINT_BLOCKED',422);const {body:data,bytes}=await jsonRequest(url,{headers:{authorization:`Bearer ${accessToken}`,Prefer:'outlook.timezone="UTC"'}});if(!Array.isArray(data.value)||data.value.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();const instant=(value:unknown)=>{const text=boundedString(value,100)!;return /(?:Z|[+-]\d\d:\d\d)$/.test(text)?text:`${text}Z`;};return{items:data.value.map((item:any)=>{const id=boundedString(item?.id,2048);if(!item||(!item.isCancelled&&typeof item.start?.dateTime!=='string'))throw invalidProviderResponse();const recurring=typeof item.seriesMasterId==='string',response=item.responseStatus?.response;const status:CalendarEvent['status']=item.isCancelled?'cancelled':response==='declined'?'declined':response==='tentativelyAccepted'?'tentative':response==='notResponded'||response==='none'?'unanswered':'confirmed';return{uid:boundedString(recurring?item.seriesMasterId:id,2048)!,instanceId:recurring?boundedString(item.originalStart??item.start?.dateTime,100)!:'single',title:boundedString(item.subject??'Untitled event',2048)!,start:instant(item.start?.dateTime??item.originalStart),end:item.end?.dateTime?instant(item.end.dateTime):null,allDay:Boolean(item.isAllDay),cancelled:Boolean(item.isCancelled),status,location:boundedString(item.location?.displayName,1024,{optional:true})}}),nextPageToken:nextToken(data['@odata.nextLink']),responseBytes:bytes};
   }
   fetchIcs(url:string){return this.ics.fetch(url);}
 }
 
 interface StoredCredential{accessToken?:string;refreshToken?:string;expiresAt?:string;providerSubject?:string;url?:string;}
-interface ConnectionRow{id:string;household_id:string;integration_connection_id:string;owner_account_id:string;provider:CalendarProvider;bridge_kind:string;name:string;state:string;credential_ciphertext:string|null;revision:number;sync_generation:number;lease_token:string|null;}
+interface ConnectionRow{id:string;household_id:string;installation_id:string;integration_connection_id:string;owner_account_id:string;provider:CalendarProvider;bridge_kind:string;name:string;state:string;credential_ciphertext:string|null;revision:number;sync_generation:number;lease_token:string|null;provider_config_revision:number;provider_client_id_hash:string|null;}
 const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 const calendarAad=(householdId:string,connectionId:string,accountId:string)=>`${householdId}:calendar:${connectionId}:account:${accountId}`;
 const windowFor=(now=new Date())=>({from:new Date(now.getTime()-7*86400_000).toISOString(),to:new Date(now.getTime()+180*86400_000).toISOString()});
-const requiredCalendarScopes=(provider:Exclude<CalendarProvider,'ics'>)=>providerConfig(provider).scopes.filter((scope)=>scope.includes('calendar')||scope==='Calendars.ReadBasic');
-function requireCalendarScopes(provider:Exclude<CalendarProvider,'ics'>,scopes:string[],reauthorization=false):void{if(requiredCalendarScopes(provider).some((scope)=>!scopes.includes(scope)))throw new DomainError(reauthorization?'CONFLICT':'FORBIDDEN',reauthorization?409:403,{reason:reauthorization?'calendar_reauthorization_required':'calendar_scopes_missing'});}
+const requiredCalendarScopes=(provider:Exclude<CalendarProvider,'ics'>,runtime?:ProviderRuntimeConfig)=>provider==='home_assistant'?['home_assistant_instance_token']:providerConfig(provider,runtime).scopes.filter((scope)=>scope.includes('calendar')||scope==='Calendars.ReadBasic');
+function requireCalendarScopes(provider:Exclude<CalendarProvider,'ics'>,scopes:string[],reauthorization=false,runtime?:ProviderRuntimeConfig):void{if(requiredCalendarScopes(provider,runtime).some((scope)=>!scopes.includes(scope)))throw new DomainError(reauthorization?'CONFLICT':'FORBIDDEN',reauthorization?409:403,{reason:reauthorization?'calendar_reauthorization_required':'calendar_scopes_missing'});}
 function calendarFailureCode(error:unknown):'CALENDAR_REAUTHORIZATION_REQUIRED'|'CALENDAR_CLIENT_CONFIGURATION_INVALID'|'CALENDAR_SYNC_FAILED'{const reason=error instanceof DomainError?error.details?.reason:undefined;return reason==='calendar_reauthorization_required'?'CALENDAR_REAUTHORIZATION_REQUIRED':reason==='calendar_client_configuration_invalid'?'CALENDAR_CLIENT_CONFIGURATION_INVALID':'CALENDAR_SYNC_FAILED';}
 function calendarItemMetadata(current:unknown,connection:Pick<ConnectionRow,'provider'>,source:{id:string;bridge_kind:string;subject_household:boolean},event?:CalendarEvent):Record<string,unknown>{
   const metadata=current&&typeof current==='object'&&!Array.isArray(current)?{...(current as Record<string,unknown>)}:{};
   const calendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?{...(metadata.calendar as Record<string,unknown>)}:{};
-  metadata.calendar={...calendar,provider:connection.provider,sourceId:source.id,bridgeKind:source.bridge_kind,subjectHousehold:source.subject_household};
+  if(event)delete calendar.freshnessReason;
+  metadata.calendar={...calendar,provider:connection.provider,sourceId:source.id,bridgeKind:source.bridge_kind,subjectHousehold:source.subject_household,freshness:event?'current':calendar.freshness??'current',...(event?{status:event.status??'unknown'}:{})};
   if(event){metadata.category='activity';metadata.allDay=event.allDay;if(event.location)metadata.location=event.location;else delete metadata.location;}
   return metadata;
 }
-function ensureManager(actor:CalendarActor){if(!actor.capabilities.includes('household.manage'))throw new DomainError('FORBIDDEN',403);}
 function canonicalEvent(event:CalendarEvent){
   const uid=boundedString(event.uid,2048),instanceId=boundedString(event.instanceId,2048),title=boundedString(event.title,2048),location=boundedString(event.location,1024,{optional:true});
-  if(typeof event.allDay!=='boolean'||typeof event.cancelled!=='boolean')throw invalidProviderResponse();
+  if(typeof event.allDay!=='boolean'||typeof event.cancelled!=='boolean'||event.status!==undefined&&!['confirmed','tentative','declined','unanswered','cancelled'].includes(event.status))throw invalidProviderResponse();
   let start:string,end:string|null;try{const rawStart=boundedString(event.start,100)!;start=/^\d{4}-\d{2}-\d{2}$/.test(rawStart)?`${rawStart}T00:00:00.000Z`:new Date(rawStart).toISOString();const rawEnd=boundedString(event.end,100,{optional:true});end=rawEnd?(/^\d{4}-\d{2}-\d{2}$/.test(rawEnd)?`${rawEnd}T00:00:00.000Z`:new Date(rawEnd).toISOString()):null;}catch{throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422,{reason:'calendar_event_time_invalid'});}
   if(end&&end<start)throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422,{reason:'calendar_event_time_invalid'});return{...event,uid:uid!,instanceId:instanceId!,start,end,title:title!.normalize('NFKC').trim().slice(0,160)||'Untitled event',location:location?.normalize('NFKC').trim().slice(0,160)};
 }
@@ -167,25 +176,32 @@ export function parseIcsEvents(text:string,window:{from:string;to:string}):Calen
 }
 
 export class CalendarService{
-  constructor(private readonly transport:CalendarTransport=new DefaultCalendarTransport(),private readonly vault=new AiCredentialVault(),private readonly now:()=>Date=()=>new Date()){}
-  readiness(publicOrigin:string){
-    const googleRequired=['SAMVEV_GOOGLE_CALENDAR_CLIENT_ID','SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET'];
-    const microsoftRequired=['SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID','SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET'];
-    return{
-      google:{configured:googleRequired.every((name)=>Boolean(process.env[name]?.trim())),redirectUri:callbackUri(publicOrigin,'google'),requiredEnvironment:googleRequired},
-      microsoft:{configured:microsoftRequired.every((name)=>Boolean(process.env[name]?.trim())),redirectUri:callbackUri(publicOrigin,'microsoft'),requiredEnvironment:microsoftRequired},
-      ics:{configured:true,redirectUri:null,requiredEnvironment:[]}
-    };
+  private readonly providers:CalendarProviderConfigurationService;
+  constructor(private readonly transport:CalendarTransport=new DefaultCalendarTransport(),private readonly vault=new AiCredentialVault(),private readonly now:()=>Date=()=>new Date(),providers?:CalendarProviderConfigurationService){this.providers=providers??new CalendarProviderConfigurationService(vault);}
+  readiness(actor:CalendarActor,publicOrigin:string):Promise<Record<string,unknown>>;
+  readiness(publicOrigin:string):LegacyCalendarReadiness;
+  readiness(actorOrOrigin:CalendarActor|string,publicOrigin?:string):Promise<Record<string,unknown>>|LegacyCalendarReadiness{
+    if(typeof actorOrOrigin!=='string')return this.providers.readiness(actorOrOrigin,publicOrigin!);
+    const origin=actorOrOrigin,googleRequired=['SAMVEV_GOOGLE_CALENDAR_CLIENT_ID','SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET'],microsoftRequired=['SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID','SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET'];return{google:{configured:googleRequired.every((name)=>Boolean(process.env[name]?.trim())),redirectUri:calendarCallbackUri(origin,'google'),requiredEnvironment:googleRequired},microsoft:{configured:microsoftRequired.every((name)=>Boolean(process.env[name]?.trim())),redirectUri:calendarCallbackUri(origin,'microsoft'),requiredEnvironment:microsoftRequired},ics:{configured:true,redirectUri:null,requiredEnvironment:[]}};
   }
-  async create(actor:CalendarActor,input:{provider:CalendarProvider;name:string;bridgeKind:'direct'|'spond_calendar';icsUrl?:string}){
-    ensureManager(actor);
+  updateProvider(actor:CalendarActor,provider:RegisteredCalendarProvider,input:{expectedRevision:number;status:'active'|'disabled';clientId?:string;clientSecret?:string;tenant?:string;origin?:string;googleOAuthJson?:unknown},publicOrigin:string){return this.providers.update(actor,provider,input,publicOrigin);}
+  async connectionReadiness(actor:CalendarActor,publicOrigin:string){
+    await this.authorize(actor);
+    const configured=async(provider:RegisteredCalendarProvider)=>{try{await this.providers.resolve(actor.installationId,provider);return true;}catch{return false;}};
+    return{google:{configured:await configured('google'),redirectUri:calendarCallbackUri(publicOrigin,'google')},microsoft:{configured:await configured('microsoft'),redirectUri:calendarCallbackUri(publicOrigin,'microsoft')},home_assistant:{configured:await configured('home_assistant'),redirectUri:calendarCallbackUri(publicOrigin,'home_assistant')},ics:{configured:true,redirectUri:null}};
+  }
+  async create(actor:CalendarActor,input:{provider:CalendarProvider;name:string;bridgeKind:'direct'|'spond_calendar'|'spond_home_assistant';icsUrl?:string}){
+    await this.authorize(actor);
+    let runtime:ProviderRuntimeConfig|undefined;if(input.provider!=='ics')runtime=await this.providers.resolve(actor.installationId,input.provider);
     return transaction(async(client)=>{
+      await this.authorize(actor,undefined,client);
+      if(runtime)await this.assertRuntimeConfig(client,actor.installationId,runtime);
       await client.query('SELECT id FROM households WHERE id=$1 FOR UPDATE',[actor.householdId]);
       const active=(await client.query<{count:number}>(`SELECT count(*)::int count FROM calendar_connections WHERE household_id=$1 AND disconnected_at IS NULL`,[actor.householdId])).rows[0]?.count??0;
       if(active>=12)throw new DomainError('CONFLICT',409,{reason:'calendar_connection_limit_reached'});
       const integration=(await client.query<{id:string}>('INSERT INTO integration_connections(household_id,name) VALUES($1,$2) RETURNING id',[actor.householdId,input.name])).rows[0]!;
       const state=input.provider==='ics'?'connected':'setup';
-      const connection=(await client.query<{id:string}>(`INSERT INTO calendar_connections(household_id,integration_connection_id,owner_account_id,provider,bridge_kind,name,state) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`,[actor.householdId,integration.id,actor.accountId,input.provider,input.bridgeKind,input.name,state])).rows[0]!;
+      const connection=(await client.query<{id:string}>(`INSERT INTO calendar_connections(household_id,integration_connection_id,owner_account_id,provider,bridge_kind,name,state,provider_config_revision,provider_client_id_hash) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,[actor.householdId,integration.id,actor.accountId,input.provider,input.bridgeKind,input.name,state,runtime?.revision??0,runtime?.clientIdHash??null])).rows[0]!;
       if(input.provider==='ics'){
         const cipher=await this.vault.encrypt(calendarAad(actor.householdId,connection.id,actor.accountId),JSON.stringify({url:input.icsUrl}));
         await client.query('UPDATE calendar_connections SET credential_ciphertext=$2 WHERE id=$1',[connection.id,cipher]);
@@ -196,17 +212,21 @@ export class CalendarService{
     });
   }
   async startOAuth(actor:CalendarActor,id:string,publicOrigin:string){
-    ensureManager(actor);const row=await this.row(actor,id);if(row.provider==='ics')throw new DomainError('CONFLICT',409);
-    const config=providerConfig(row.provider),attempt=createOAuthAttempt(),redirectUri=callbackUri(publicOrigin,row.provider);
+    const row=await this.row(actor,id);await this.authorize(actor,row);if(row.provider==='ics')throw new DomainError('CONFLICT',409);
+    if(row.owner_account_id!==actor.accountId)throw new DomainError('FORBIDDEN',403,{reason:'calendar_account_owner_required'});
+    const runtime=await this.providers.resolve(actor.installationId,row.provider),attempt=createOAuthAttempt(),redirectUri=calendarCallbackUri(publicOrigin,row.provider);
     const verifier=await this.vault.encrypt(calendarAad(actor.householdId,id,actor.accountId),attempt.verifier);
     await transaction(async(client)=>{
+      await this.authorize(actor,row,client);
+      await this.assertRuntimeConfig(client,actor.installationId,runtime);
       await client.query(`DELETE FROM calendar_oauth_sessions WHERE expires_at<clock_timestamp()-interval '1 day' OR consumed_at<clock_timestamp()-interval '1 day'`);
-      const changed=await client.query<{sync_generation:number}>(`UPDATE calendar_connections SET state='awaiting_consent',sync_generation=sync_generation+1,next_sync_at=NULL,lease_token=NULL,lease_expires_at=NULL,last_error_code=NULL,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND owner_account_id=$3 AND disconnected_at IS NULL RETURNING sync_generation`,[id,actor.householdId,actor.accountId]);if(!changed.rowCount)throw new DomainError('NOT_FOUND',404);
+      const changed=await client.query<{sync_generation:number}>(`UPDATE calendar_connections SET state='awaiting_consent',sync_generation=sync_generation+1,next_sync_at=NULL,lease_token=NULL,lease_expires_at=NULL,last_error_code=NULL,provider_config_revision=$4,provider_client_id_hash=$5,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND owner_account_id=$3 AND disconnected_at IS NULL RETURNING sync_generation`,[id,actor.householdId,row.owner_account_id,runtime.revision,runtime.clientIdHash]);if(!changed.rowCount)throw new DomainError('NOT_FOUND',404);
       await client.query(`UPDATE calendar_sync_attempts SET outcome='superseded',error_code='CALENDAR_SYNC_SUPERSEDED',completed_at=clock_timestamp() WHERE connection_id=$1 AND outcome='started'`,[id]);
       await client.query('UPDATE calendar_oauth_sessions SET consumed_at=COALESCE(consumed_at,clock_timestamp()),completion_hash=NULL,authorization_code_ciphertext=NULL WHERE connection_id=$1',[id]);
-      await client.query(`INSERT INTO calendar_oauth_sessions(connection_id,owner_account_id,initiating_session_id,state_hash,verifier_ciphertext,redirect_uri,connection_generation,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,clock_timestamp()+interval '10 minutes')`,[id,actor.accountId,actor.sessionId,tokenHash(attempt.state),verifier,redirectUri,changed.rows[0]!.sync_generation]);
+      await client.query(`INSERT INTO calendar_oauth_sessions(connection_id,owner_account_id,initiating_session_id,state_hash,verifier_ciphertext,redirect_uri,connection_generation,provider_config_revision,expires_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,clock_timestamp()+interval '10 minutes')`,[id,row.owner_account_id,actor.sessionId,tokenHash(attempt.state),verifier,redirectUri,changed.rows[0]!.sync_generation,runtime.revision]);
     });
-    const url=new URL(config.authorizationEndpoint);for(const [key,value] of Object.entries({client_id:config.clientId,response_type:'code',redirect_uri:redirectUri,scope:config.scopes.join(' '),state:attempt.state,code_challenge:attempt.challenge,code_challenge_method:'S256',access_type:'offline',prompt:'consent'}))url.searchParams.set(key,value);return{authorizationUrl:url.toString(),connectionId:id};
+    if(row.provider==='home_assistant')return{authorizationUrl:new HomeAssistantClient().authorizationUrl(runtime,redirectUri,attempt.state),connectionId:id};
+    const config=providerConfig(row.provider,runtime),url=new URL(config.authorizationEndpoint);for(const [key,value] of Object.entries({client_id:config.clientId,response_type:'code',redirect_uri:redirectUri,scope:config.scopes.join(' '),state:attempt.state,code_challenge:attempt.challenge,code_challenge_method:'S256',access_type:'offline',prompt:'consent'}))url.searchParams.set(key,value);return{authorizationUrl:url.toString(),connectionId:id};
   }
   async stageOAuthCallback(provider:Exclude<CalendarProvider,'ics'>,state:string,code?:string,error?:string){
     const completionToken=opaqueToken(),stateHash=tokenHash(state);
@@ -224,52 +244,59 @@ export class CalendarService{
     });
   }
   async completeOAuth(actor:CalendarActor,provider:Exclude<CalendarProvider,'ics'>,completionToken:string){
-    ensureManager(actor);
+    await this.authorize(actor);
     const session=await transaction(async(client)=>{
-      const found=(await client.query<{id:string;connection_id:string;owner_account_id:string;verifier_ciphertext:string;authorization_code_ciphertext:string;redirect_uri:string;connection_generation:number;household_id:string;provider:CalendarProvider}>(`
-        SELECT s.id,s.connection_id,s.owner_account_id,s.verifier_ciphertext,s.authorization_code_ciphertext,s.redirect_uri,s.connection_generation,c.household_id,c.provider
-        FROM calendar_oauth_sessions s JOIN calendar_connections c ON c.id=s.connection_id
+      const found=(await client.query<{id:string;connection_id:string;owner_account_id:string;verifier_ciphertext:string;authorization_code_ciphertext:string;redirect_uri:string;connection_generation:number;provider_config_revision:number;household_id:string;installation_id:string;provider:Exclude<CalendarProvider,'ics'>}>(`
+        SELECT s.id,s.connection_id,s.owner_account_id,s.verifier_ciphertext,s.authorization_code_ciphertext,s.redirect_uri,s.connection_generation,s.provider_config_revision,c.household_id,h.installation_id,c.provider
+        FROM calendar_oauth_sessions s JOIN calendar_connections c ON c.id=s.connection_id JOIN households h ON h.id=c.household_id
         JOIN memberships membership ON membership.account_id=s.owner_account_id AND membership.household_id=c.household_id
         JOIN accounts account ON account.id=s.owner_account_id AND account.disabled_at IS NULL
         JOIN sessions initiating ON initiating.id=s.initiating_session_id AND initiating.account_id=s.owner_account_id AND initiating.revoked_at IS NULL AND initiating.expires_at>clock_timestamp()
         WHERE s.completion_hash=$1 AND s.authorization_code_ciphertext IS NOT NULL AND s.expires_at>clock_timestamp()
-          AND s.owner_account_id=$2 AND s.initiating_session_id=$3 AND c.household_id=$4 AND c.provider=$5 AND c.owner_account_id=s.owner_account_id AND s.connection_generation=c.sync_generation AND c.state='awaiting_consent' AND c.disconnected_at IS NULL
-          AND membership.capabilities ? 'household.manage'
+          AND s.owner_account_id=$2 AND s.initiating_session_id=$3 AND c.household_id=$4 AND c.provider=$5 AND c.owner_account_id=s.owner_account_id AND s.connection_generation=c.sync_generation AND s.provider_config_revision=c.provider_config_revision AND c.state='awaiting_consent' AND c.disconnected_at IS NULL
+          AND membership.capabilities ? 'household.view' AND EXISTS(SELECT 1 FROM persons person WHERE person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult')
         FOR UPDATE OF s,c,membership,account,initiating`,[tokenHash(completionToken),actor.accountId,actor.sessionId,actor.householdId,provider])).rows[0];
       if(!found)throw new DomainError('CONFLICT',409,{reason:'calendar_oauth_state_invalid'});
       await client.query('UPDATE calendar_oauth_sessions SET completion_hash=NULL,authorization_code_ciphertext=NULL WHERE id=$1',[found.id]);
       return found;
     });
+    const runtime=await this.providers.resolve(session.installation_id,provider);if(runtime.revision!==session.provider_config_revision)throw new DomainError('CONFLICT',409,{reason:'calendar_oauth_superseded'});
     const aad=calendarAad(session.household_id,session.connection_id,session.owner_account_id);
     const [verifier,code]=await Promise.all([this.vault.decrypt(aad,session.verifier_ciphertext),this.vault.decrypt(aad,session.authorization_code_ciphertext)]);
     let tokens:CalendarTokenSet,pages:{items:CalendarInfo[];pageCount:number};
     try{
-      tokens=await this.transport.exchangeCode(provider,{code,verifier,redirectUri:session.redirect_uri});
-      requireCalendarScopes(provider,tokens.scopes);
-      pages=await this.allPages((page)=>this.transport.listCalendars(provider,tokens.accessToken,page),CALENDAR_LIST_MAX_ITEMS);
-      pages.items=pages.items.map((calendar)=>({externalId:boundedString(calendar.externalId,2048)!,name:boundedString(calendar.name,512)!}));
+      tokens=await this.transport.exchangeCode(provider,{code,verifier,redirectUri:session.redirect_uri,config:runtime});
+      requireCalendarScopes(provider,tokens.scopes,false,runtime);
+      pages=await this.allPages((page)=>this.transport.listCalendars(provider,tokens.accessToken,page,runtime),CALENDAR_LIST_MAX_ITEMS);
+      pages.items=pages.items.map((calendar)=>({externalId:boundedString(calendar.externalId,500)!,name:boundedString(calendar.name,200)!,provenance:calendar.provenance,sourceWarning:calendar.sourceWarning}));
     }catch(error){const code=calendarFailureCode(error);await pool.query(`UPDATE calendar_connections SET state=CASE WHEN $3='CALENDAR_REAUTHORIZATION_REQUIRED' THEN 'expired' ELSE 'error' END,last_error_code=CASE WHEN $3 IN ('CALENDAR_REAUTHORIZATION_REQUIRED','CALENDAR_CLIENT_CONFIGURATION_INVALID') THEN $3 ELSE 'CALENDAR_OAUTH_FAILED' END,next_sync_at=NULL,updated_at=clock_timestamp() WHERE id=$1 AND sync_generation=$2 AND state='awaiting_consent' AND disconnected_at IS NULL`,[session.connection_id,session.connection_generation,code]);throw error;}
     const credential=await this.vault.encrypt(aad,JSON.stringify(tokens));
     await transaction(async(client)=>{
-      const authorized=await client.query<{provider_subject_hash:string|null}>(`SELECT c.provider_subject_hash FROM calendar_connections c JOIN memberships m ON m.account_id=c.owner_account_id AND m.household_id=c.household_id JOIN accounts a ON a.id=c.owner_account_id AND a.disabled_at IS NULL JOIN calendar_oauth_sessions oauth ON oauth.id=$5 AND oauth.connection_id=c.id AND oauth.connection_generation=c.sync_generation JOIN sessions initiating ON initiating.id=oauth.initiating_session_id AND initiating.account_id=oauth.owner_account_id AND initiating.revoked_at IS NULL AND initiating.expires_at>clock_timestamp() WHERE c.id=$1 AND c.household_id=$2 AND c.owner_account_id=$3 AND c.provider=$4 AND c.sync_generation=$6 AND c.state='awaiting_consent' AND c.disconnected_at IS NULL AND oauth.initiating_session_id=$7 AND m.capabilities ? 'household.manage' FOR UPDATE OF c,m,a,oauth,initiating`,[session.connection_id,session.household_id,session.owner_account_id,provider,session.id,session.connection_generation,actor.sessionId]);
+	      await this.assertRuntimeConfig(client,session.installation_id,runtime);
+	      const authorized=await client.query<{provider_subject_hash:string|null}>(`SELECT c.provider_subject_hash FROM calendar_connections c JOIN memberships m ON m.account_id=c.owner_account_id AND m.household_id=c.household_id JOIN persons person ON person.id=m.person_id AND person.household_id=m.household_id AND person.age_group='adult' JOIN accounts a ON a.id=c.owner_account_id AND a.disabled_at IS NULL JOIN calendar_oauth_sessions oauth ON oauth.id=$5 AND oauth.connection_id=c.id AND oauth.connection_generation=c.sync_generation JOIN sessions initiating ON initiating.id=oauth.initiating_session_id AND initiating.account_id=oauth.owner_account_id AND initiating.revoked_at IS NULL AND initiating.expires_at>clock_timestamp() WHERE c.id=$1 AND c.household_id=$2 AND c.owner_account_id=$3 AND c.provider=$4 AND c.sync_generation=$6 AND c.state='awaiting_consent' AND c.disconnected_at IS NULL AND oauth.initiating_session_id=$7 AND oauth.provider_config_revision=$8 AND c.provider_config_revision=$8 AND m.capabilities ? 'household.view' FOR UPDATE OF c,m,person,a,oauth,initiating`,[session.connection_id,session.household_id,session.owner_account_id,provider,session.id,session.connection_generation,actor.sessionId,runtime.revision]);
       if(!authorized.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_oauth_superseded'});
       const providerSubjectHash=sha(`${provider}\n${tokens.providerSubject}`);if(authorized.rows[0]!.provider_subject_hash&&authorized.rows[0]!.provider_subject_hash!==providerSubjectHash)throw new DomainError('CONFLICT',409,{reason:'calendar_provider_account_mismatch'});
-      const duplicate=await client.query<{id:string}>('SELECT id FROM calendar_connections WHERE household_id=$1 AND provider=$2 AND provider_subject_hash=$3 AND id<>$4 AND disconnected_at IS NULL FOR SHARE',[session.household_id,provider,sha(`${provider}\n${tokens.providerSubject}`),session.connection_id]);
-      if(duplicate.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_account_already_connected',existingConnectionId:(duplicate.rows[0] as {id?:string}).id});
+      const duplicate=await client.query('SELECT 1 FROM calendar_connections WHERE household_id=$1 AND provider=$2 AND provider_subject_hash=$3 AND id<>$4 AND disconnected_at IS NULL FOR SHARE',[session.household_id,provider,sha(`${provider}\n${tokens.providerSubject}`),session.connection_id]);
+      if(duplicate.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_account_already_connected'});
       await client.query(`UPDATE calendar_connections SET state='connected',credential_ciphertext=$3,provider_subject_hash=$4,account_label=$5,granted_scopes=$6,access_expires_at=$7,revision=revision+1,next_sync_at=CASE WHEN EXISTS(SELECT 1 FROM calendar_sources WHERE connection_id=$1 AND enabled) THEN clock_timestamp() ELSE NULL END,last_error_code=NULL,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2`,[session.connection_id,session.household_id,credential,providerSubjectHash,tokens.accountLabel??null,tokens.scopes,tokens.expiresAt]);
-      for(const calendar of pages.items)await client.query(`INSERT INTO calendar_sources(household_id,connection_id,external_id,name) VALUES($1,$2,$3,$4) ON CONFLICT(connection_id,external_id) DO UPDATE SET name=EXCLUDED.name,updated_at=clock_timestamp()`,[session.household_id,session.connection_id,calendar.externalId,calendar.name]);
+	      for(const calendar of pages.items){
+          if(provider==='home_assistant')await client.query(`UPDATE calendar_sources legacy SET external_id=$3,updated_at=clock_timestamp() WHERE legacy.household_id=$1 AND legacy.connection_id=$2 AND legacy.external_id<>$3 AND legacy.source_provenance->>'registryId'=$3 AND NOT EXISTS(SELECT 1 FROM calendar_sources current WHERE current.connection_id=$2 AND current.external_id=$3)`,[session.household_id,session.connection_id,calendar.externalId]);
+          await client.query(`INSERT INTO calendar_sources(household_id,connection_id,external_id,name,bridge_kind,source_provenance) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(connection_id,external_id) DO UPDATE SET name=EXCLUDED.name,source_provenance=EXCLUDED.source_provenance,updated_at=clock_timestamp()`,[session.household_id,session.connection_id,calendar.externalId,calendar.name,provider==='home_assistant'?'spond_home_assistant':'direct',JSON.stringify({...calendar.provenance,...(calendar.sourceWarning?{warning:calendar.sourceWarning}:{})})]);
+        }
     });
     return{connectionId:session.connection_id,completed:true};
   }
-  async updateSource(actor:CalendarActor,connectionId:string,sourceId:string,input:{expectedRevision:number;enabled:boolean;bridgeKind:'direct'|'spond_calendar';appliesTo:{household:boolean;personIds:string[]};visibility:{household:boolean;personIds:string[];displayIds:string[]}}){
-    ensureManager(actor);
+  async updateSource(actor:CalendarActor,connectionId:string,sourceId:string,input:{expectedRevision:number;enabled:boolean;bridgeKind:'direct'|'spond_calendar'|'spond_home_assistant';appliesTo:{household:boolean;personIds:string[]};visibility:{household:boolean;personIds:string[];displayIds:string[]}}){
+    const connection=await this.row(actor,connectionId);await this.authorize(actor,connection);
     await transaction(async(client)=>{
       const source=await client.query<{id:string;provider:CalendarProvider}>(`SELECT s.id,c.provider FROM calendar_sources s JOIN calendar_connections c ON c.id=s.connection_id WHERE s.id=$1 AND s.connection_id=$2 AND s.household_id=$3 AND c.disconnected_at IS NULL FOR UPDATE OF s,c`,[sourceId,connectionId,actor.householdId]);
       if(!source.rowCount)throw new DomainError('NOT_FOUND',404);
+      const canShare=await this.authorize(actor,connection,client);if(!canShare&&(input.appliesTo.household||input.visibility.household||input.visibility.displayIds.length||input.appliesTo.personIds.length!==1||input.appliesTo.personIds[0]!==actor.personId||input.visibility.personIds.length!==1||input.visibility.personIds[0]!==actor.personId))throw new DomainError('FORBIDDEN',403,{reason:'calendar_private_mapping_required'});
       const people=[...new Set([...input.appliesTo.personIds,...input.visibility.personIds])];
       if(people.length&&(await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])',[actor.householdId,people])).rowCount!==people.length)throw new DomainError('NOT_FOUND',404);
       if(input.visibility.displayIds.length&&(await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL',[actor.householdId,input.visibility.displayIds])).rowCount!==input.visibility.displayIds.length)throw new DomainError('NOT_FOUND',404);
       if(input.bridgeKind==='spond_calendar'&&(await client.query(`SELECT 1 FROM calendar_connections WHERE id=$1 AND provider IN ('google','microsoft')`,[connectionId])).rowCount!==1)throw new DomainError('VALIDATION_FAILED',400,{reason:'spond_bridge_requires_google_or_microsoft'});
+      if(input.bridgeKind==='spond_home_assistant'&&(await client.query(`SELECT 1 FROM calendar_connections WHERE id=$1 AND provider='home_assistant'`,[connectionId])).rowCount!==1)throw new DomainError('VALIDATION_FAILED',400,{reason:'spond_home_assistant_requires_home_assistant'});
       const changed=await client.query('UPDATE calendar_sources SET enabled=$3,bridge_kind=$4,subject_household=$5,target_household=$6,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$7 RETURNING id',[sourceId,actor.householdId,input.enabled,input.bridgeKind,input.appliesTo.household,input.visibility.household,input.expectedRevision]);
       if(!changed.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       await client.query('DELETE FROM calendar_source_person_subjects WHERE source_id=$1',[sourceId]);
@@ -297,11 +324,11 @@ export class CalendarService{
     return this.get(actor,connectionId);
   }
   async preview(actor:CalendarActor,connectionId:string,sourceId:string,expectedSourceRevision:number){
-    ensureManager(actor);
+    const owned=await this.row(actor,connectionId);await this.authorize(actor,owned);
     const source=(await pool.query<{external_id:string;revision:number}>(`SELECT source.external_id,source.revision FROM calendar_sources source JOIN calendar_connections connection ON connection.id=source.connection_id WHERE source.id=$1 AND source.connection_id=$2 AND source.household_id=$3 AND connection.disconnected_at IS NULL`,[sourceId,connectionId,actor.householdId])).rows[0];
     if(!source)throw new DomainError('NOT_FOUND',404);
     if(source.revision!==expectedSourceRevision)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'calendar_source'});
-    const row=await this.row(actor,connectionId),window=windowFor(this.now());
+    const row=owned,window=windowFor(this.now());
     let events:CalendarEvent[],pageCount=0;
     const aad=calendarAad(row.household_id,row.id,row.owner_account_id);
     if(row.provider==='ics'){
@@ -309,27 +336,29 @@ export class CalendarService{
       if(!credential.url)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
       events=parseIcsEvents(await this.transport.fetchIcs(credential.url),window);pageCount=1;
     }else{
+      const runtime=await this.runtimeFor(row);
       let credential=JSON.parse(await this.vault.decrypt(aad,row.credential_ciphertext!)) as StoredCredential;
       if(!credential.accessToken||!credential.expiresAt)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
       if(new Date(credential.expiresAt).getTime()<Date.now()+60_000){
         if(!credential.refreshToken)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
-        const refreshed=await this.transport.refresh(row.provider,credential.refreshToken);
-        requireCalendarScopes(row.provider,refreshed.scopes,true);
+        const refreshed=await this.transport.refresh(row.provider,credential.refreshToken,runtime);
+        requireCalendarScopes(row.provider,refreshed.scopes,true,runtime);
         credential={...credential,...refreshed,providerSubject:credential.providerSubject};
         const changed=await pool.query(`UPDATE calendar_connections SET credential_ciphertext=$3,access_expires_at=$4,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND sync_generation=$5 AND state='connected' AND disconnected_at IS NULL`,[row.id,row.household_id,await this.vault.encrypt(aad,JSON.stringify(credential)),refreshed.expiresAt,row.sync_generation]);
         if(!changed.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_sync_superseded'});
       }
-      const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,credential.accessToken!,source.external_id,window,token));
+      const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,credential.accessToken!,source.external_id,window,token,runtime));
       events=pages.items.map(canonicalEvent);pageCount=pages.pageCount;
     }
     await this.assertPreviewFence(row,sourceId,source.revision);
-    return{sourceId,sourceRevision:source.revision,window,pageCount,totalCount:events.filter((event)=>!event.cancelled).length,events:events.filter((event)=>!event.cancelled).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,25).map((event)=>({title:event.title,start:event.start,end:event.end,allDay:event.allDay,location:event.location??null}))};
+    return{sourceId,sourceRevision:source.revision,window,pageCount,totalCount:events.filter((event)=>!event.cancelled).length,events:events.filter((event)=>!event.cancelled).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,25).map((event)=>({title:event.title,start:event.start,end:event.end,allDay:event.allDay,status:event.status??'unknown',location:event.location??null}))};
   }
   async disconnect(actor:CalendarActor,id:string,expectedRevision:number){
-    ensureManager(actor);
+    const owned=await this.row(actor,id);await this.authorize(actor,owned);
     const disconnected=await transaction(async(client)=>{
       const current=(await client.query<ConnectionRow>(`SELECT * FROM calendar_connections WHERE id=$1 AND household_id=$2 AND disconnected_at IS NULL FOR UPDATE`,[id,actor.householdId])).rows[0];
       if(!current)throw new DomainError('NOT_FOUND',404);if(current.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);
+      await this.authorize(actor,current,client);
       await client.query(`UPDATE calendar_connections SET state='disconnected',credential_ciphertext=NULL,revision=revision+1,sync_generation=sync_generation+1,next_sync_at=NULL,lease_token=NULL,lease_expires_at=NULL,disconnected_at=clock_timestamp(),last_error_code=NULL,updated_at=clock_timestamp() WHERE id=$1`,[id]);
       await this.withdrawAll(client,id);
       await client.query('UPDATE integration_connections SET revoked_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1',[current.integration_connection_id]);
@@ -338,7 +367,7 @@ export class CalendarService{
     });
     let remote:'confirmed'|'local_only'|'failed'=disconnected.provider==='ics'?'local_only':'failed';
     if(disconnected.provider!=='ics'&&disconnected.credentialCiphertext){
-      try{const secret=JSON.parse(await this.vault.decrypt(calendarAad(actor.householdId,id,disconnected.owner_account_id),disconnected.credentialCiphertext)) as StoredCredential;const token=secret.refreshToken??secret.accessToken;if(token)remote=await this.transport.revoke(disconnected.provider,token);else remote='local_only';}catch{remote='failed';}
+      try{const secret=JSON.parse(await this.vault.decrypt(calendarAad(actor.householdId,id,disconnected.owner_account_id),disconnected.credentialCiphertext)) as StoredCredential;const token=secret.refreshToken??secret.accessToken;if(token)remote=await this.transport.revoke(disconnected.provider,token,await this.runtimeFor(owned));else remote='local_only';}catch{remote='failed';}
     }
     const errorCode=remote==='confirmed'||disconnected.provider==='ics'?null:'CALENDAR_REMOTE_REVOCATION_UNCONFIRMED';
     await pool.query('UPDATE calendar_connections SET last_error_code=$2 WHERE id=$1 AND state=\'disconnected\'',[id,errorCode]);
@@ -354,17 +383,26 @@ export class CalendarService{
     return true;
   }
   async sync(actor:CalendarActor,id:string,expectedRevision?:number){
-    ensureManager(actor);const row=await this.row(actor,id);if(expectedRevision!==undefined&&row.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);return this.syncConnection(row);
+    const row=await this.row(actor,id);await this.authorize(actor,row);if(expectedRevision!==undefined&&row.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);return this.syncConnection(row);
   }
   async syncConnection(rowOrId:ConnectionRow|string){
-    const requested=typeof rowOrId==='string'?(await pool.query<ConnectionRow>('SELECT * FROM calendar_connections WHERE id=$1',[rowOrId])).rows[0]:rowOrId;if(!requested)throw new DomainError('NOT_FOUND',404);
+    const requested=typeof rowOrId==='string'?(await pool.query<ConnectionRow>('SELECT connection.*,household.installation_id FROM calendar_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1',[rowOrId])).rows[0]:rowOrId;if(!requested)throw new DomainError('NOT_FOUND',404);
     const lease=randomUUID();
     const claimed=await pool.query<ConnectionRow>(`UPDATE calendar_connections connection SET state='syncing',lease_token=$2,lease_expires_at=clock_timestamp()+interval '5 minutes',last_sync_started_at=clock_timestamp(),last_error_code=NULL
       WHERE connection.id=$1 AND connection.disconnected_at IS NULL AND connection.state IN ('connected','error','syncing') AND (connection.lease_expires_at IS NULL OR connection.lease_expires_at<clock_timestamp())
-        AND EXISTS(SELECT 1 FROM memberships membership JOIN accounts account ON account.id=membership.account_id AND account.disabled_at IS NULL WHERE membership.account_id=connection.owner_account_id AND membership.household_id=connection.household_id AND membership.capabilities ? 'household.manage')
+        AND EXISTS(SELECT 1 FROM memberships membership JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id JOIN accounts account ON account.id=membership.account_id AND account.disabled_at IS NULL WHERE membership.account_id=connection.owner_account_id AND membership.household_id=connection.household_id AND membership.capabilities ? 'household.view' AND person.age_group='adult')
         AND EXISTS(SELECT 1 FROM integration_connections authority WHERE authority.id=connection.integration_connection_id AND authority.household_id=connection.household_id AND authority.revoked_at IS NULL)
-      RETURNING connection.*`,[requested.id,lease]);
-    const row=claimed.rows[0];if(!row)throw new DomainError('CONFLICT',409,{reason:'calendar_sync_unavailable'});
+      RETURNING connection.*,(SELECT installation_id FROM households WHERE id=connection.household_id) installation_id`,[requested.id,lease]);
+    const row=claimed.rows[0];if(!row){
+      const fenced=await transaction(async(client)=>{
+        const invalid=await client.query<{integration_connection_id:string}>(`UPDATE calendar_connections connection SET state='expired',credential_ciphertext=NULL,next_sync_at=NULL,lease_token=NULL,lease_expires_at=NULL,sync_generation=sync_generation+1,last_error_code='CALENDAR_AUTHORIZATION_UNAVAILABLE',updated_at=clock_timestamp() WHERE connection.id=$1 AND connection.disconnected_at IS NULL AND connection.state IN ('connected','error','syncing') AND NOT EXISTS(SELECT 1 FROM memberships membership JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult' JOIN accounts account ON account.id=membership.account_id AND account.disabled_at IS NULL WHERE membership.account_id=connection.owner_account_id AND membership.household_id=connection.household_id AND membership.capabilities ? 'household.view') RETURNING connection.integration_connection_id`,[requested.id]);
+        const authority=invalid.rows[0];if(!authority)return false;
+        await client.query(`UPDATE integration_items SET metadata=jsonb_set(jsonb_set(metadata,'{calendar,freshness}','"stale"'::jsonb,true),'{calendar,freshnessReason}','"reauthorization_required"'::jsonb,true),revision=revision+1,updated_at=clock_timestamp() WHERE connection_id=$1 AND status='active' AND (metadata #>> '{calendar,freshness}' IS DISTINCT FROM 'stale' OR metadata #>> '{calendar,freshnessReason}' IS DISTINCT FROM 'reauthorization_required')`,[authority.integration_connection_id]);
+        await client.query(`UPDATE calendar_oauth_sessions SET consumed_at=COALESCE(consumed_at,clock_timestamp()),completion_hash=NULL,authorization_code_ciphertext=NULL WHERE connection_id=$1`,[requested.id]);return true;
+      });
+      if(fenced)throw new DomainError('CONFLICT',409,{reason:'calendar_owner_authorization_unavailable'});
+      throw new DomainError('CONFLICT',409,{reason:'calendar_sync_unavailable'});
+    }
     const generation=Number(row.sync_generation)+1;
     const attempt=(await pool.query<{id:string}>('INSERT INTO calendar_sync_attempts(connection_id,generation,outcome) VALUES($1,$2,\'started\') RETURNING id',[row.id,generation])).rows[0]!;
     let pageCount=0,eventCount=0;
@@ -376,35 +414,59 @@ export class CalendarService{
         const secret=JSON.parse(await this.vault.decrypt(aad,row.credential_ciphertext!)) as StoredCredential;if(!secret.url)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
         const text=await this.transport.fetchIcs(secret.url);snapshotBytes=Buffer.byteLength(text);if(snapshotBytes>SNAPSHOT_MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});if(sources[0])eventMap.set(sources[0].id,parseIcsEvents(text,snapshotWindow));pageCount=1;
       }else{
+        const runtime=await this.runtimeFor(row);
         let secret=JSON.parse(await this.vault.decrypt(aad,row.credential_ciphertext!)) as StoredCredential;
         if(!secret.accessToken||!secret.expiresAt)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
         if(new Date(secret.expiresAt).getTime()<Date.now()+60_000){
           if(!secret.refreshToken)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
-          const refreshed=await this.transport.refresh(row.provider,secret.refreshToken);requireCalendarScopes(row.provider,refreshed.scopes,true);secret={...secret,...refreshed,providerSubject:secret.providerSubject};
+          const refreshed=await this.transport.refresh(row.provider,secret.refreshToken,runtime);requireCalendarScopes(row.provider,refreshed.scopes,true,runtime);secret={...secret,...refreshed,providerSubject:secret.providerSubject};
           const persisted=await pool.query('UPDATE calendar_connections SET credential_ciphertext=$2,access_expires_at=$3 WHERE id=$1 AND lease_token=$4 AND disconnected_at IS NULL RETURNING id',[row.id,await this.vault.encrypt(aad,JSON.stringify(secret)),refreshed.expiresAt,lease]);
           if(!persisted.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_sync_superseded'});
         }
-        for(const source of sources){const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,secret.accessToken!,source.external_id,snapshotWindow,token));snapshotBytes+=pages.byteCount;if(snapshotBytes>SNAPSHOT_MAX_BYTES||eventCount+pages.items.length>SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});const canonical=pages.items.map(canonicalEvent);eventMap.set(source.id,canonical);pageCount+=pages.pageCount;eventCount+=canonical.length;}
+        for(const source of sources){const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,secret.accessToken!,source.external_id,snapshotWindow,token,runtime));snapshotBytes+=pages.byteCount;if(snapshotBytes>SNAPSHOT_MAX_BYTES||eventCount+pages.items.length>SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});const canonical=pages.items.map(canonicalEvent);eventMap.set(source.id,canonical);pageCount+=pages.pageCount;eventCount+=canonical.length;}
       }
       if(row.provider==='ics')for(const values of eventMap.values())eventCount+=values.length;
       await transaction(async(client)=>{
-        const locked=await client.query(`SELECT 1 FROM calendar_connections connection JOIN memberships membership ON membership.account_id=connection.owner_account_id AND membership.household_id=connection.household_id JOIN accounts account ON account.id=connection.owner_account_id AND account.disabled_at IS NULL JOIN integration_connections authority ON authority.id=connection.integration_connection_id AND authority.household_id=connection.household_id AND authority.revoked_at IS NULL WHERE connection.id=$1 AND connection.lease_token=$2 AND connection.lease_expires_at>clock_timestamp() AND connection.disconnected_at IS NULL AND membership.capabilities ? 'household.manage' FOR UPDATE OF connection,membership,account,authority`,[row.id,lease]);
+        const locked=await client.query(`SELECT 1 FROM calendar_connections connection JOIN memberships membership ON membership.account_id=connection.owner_account_id AND membership.household_id=connection.household_id JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id JOIN accounts account ON account.id=connection.owner_account_id AND account.disabled_at IS NULL JOIN integration_connections authority ON authority.id=connection.integration_connection_id AND authority.household_id=connection.household_id AND authority.revoked_at IS NULL WHERE connection.id=$1 AND connection.lease_token=$2 AND connection.lease_expires_at>clock_timestamp() AND connection.disconnected_at IS NULL AND membership.capabilities ? 'household.view' AND person.age_group='adult' FOR UPDATE OF connection,membership,person,account,authority`,[row.id,lease]);
         if(!locked.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_sync_superseded'});
         for(const [sourceId,events] of eventMap)await this.reconcileSource(client,row,sourceId,events,generation);
+        await client.query(`UPDATE integration_items SET metadata=jsonb_set(metadata #- '{calendar,freshnessReason}','{calendar,freshness}','"current"'::jsonb,true),revision=revision+1,updated_at=clock_timestamp() WHERE connection_id=$1 AND status='active' AND (metadata #>> '{calendar,freshness}' IS DISTINCT FROM 'current' OR metadata #> '{calendar,freshnessReason}' IS NOT NULL)`,[row.integration_connection_id]);
         await client.query(`UPDATE calendar_connections SET state='connected',sync_generation=$3,last_sync_succeeded_at=clock_timestamp(),next_sync_at=CASE WHEN EXISTS(SELECT 1 FROM calendar_sources WHERE connection_id=$1 AND enabled) THEN clock_timestamp()+interval '15 minutes' ELSE NULL END,last_error_code=NULL,lease_token=NULL,lease_expires_at=NULL,updated_at=clock_timestamp() WHERE id=$1 AND lease_token=$2`,[row.id,lease,generation]);
         await client.query(`UPDATE calendar_sync_attempts SET outcome='succeeded',page_count=$2,event_count=$3,completed_at=clock_timestamp() WHERE id=$1 AND outcome='started'`,[attempt.id,pageCount,eventCount]);
       });
       return{generation,pageCount,eventCount};
     }catch(error){
       const code=calendarFailureCode(error);
-      await pool.query(`UPDATE calendar_connections SET state=CASE WHEN $3='CALENDAR_REAUTHORIZATION_REQUIRED' THEN 'expired' ELSE 'error' END,last_error_code=$3,next_sync_at=CASE WHEN $3 IN ('CALENDAR_REAUTHORIZATION_REQUIRED','CALENDAR_CLIENT_CONFIGURATION_INVALID') THEN NULL ELSE clock_timestamp()+interval '15 minutes' END,lease_token=NULL,lease_expires_at=NULL,updated_at=clock_timestamp() WHERE id=$1 AND lease_token=$2`,[row.id,lease,code]);
-      await pool.query(`UPDATE calendar_sync_attempts SET outcome='failed',page_count=$2,event_count=$3,error_code=$4,completed_at=clock_timestamp() WHERE id=$1 AND outcome='started'`,[attempt.id,pageCount,eventCount,code]);throw error;
+      await transaction(async(client)=>{
+        const failed=await client.query(`UPDATE calendar_connections SET state=CASE WHEN $3='CALENDAR_REAUTHORIZATION_REQUIRED' THEN 'expired' ELSE 'error' END,last_error_code=$3,next_sync_at=CASE WHEN $3 IN ('CALENDAR_REAUTHORIZATION_REQUIRED','CALENDAR_CLIENT_CONFIGURATION_INVALID') THEN NULL ELSE clock_timestamp()+interval '15 minutes' END,lease_token=NULL,lease_expires_at=NULL,updated_at=clock_timestamp() WHERE id=$1 AND lease_token=$2 RETURNING integration_connection_id`,[row.id,lease,code]);
+        if(failed.rowCount)await client.query(`UPDATE integration_items SET metadata=jsonb_set(jsonb_set(metadata,'{calendar,freshness}','"stale"'::jsonb,true),'{calendar,freshnessReason}',to_jsonb($2::text),true),revision=revision+1,updated_at=clock_timestamp() WHERE connection_id=$1 AND status='active' AND (metadata #>> '{calendar,freshness}' IS DISTINCT FROM 'stale' OR metadata #>> '{calendar,freshnessReason}' IS DISTINCT FROM $2)`,[row.integration_connection_id,code==='CALENDAR_REAUTHORIZATION_REQUIRED'?'reauthorization_required':'sync_failed']);
+        await client.query(`UPDATE calendar_sync_attempts SET outcome='failed',page_count=$2,event_count=$3,error_code=$4,completed_at=clock_timestamp() WHERE id=$1 AND outcome='started'`,[attempt.id,pageCount,eventCount,code]);
+      });throw error;
     }
   }
-  async get(actor:CalendarActor,id:string,client:DbClient=pool){ensureManager(actor);const row=(await client.query<any>(`SELECT id,provider,bridge_kind,name,state,account_label,granted_scopes,revision,last_sync_started_at,last_sync_succeeded_at,next_sync_at,last_error_code,disconnected_at FROM calendar_connections WHERE id=$1 AND household_id=$2`,[id,actor.householdId])).rows[0];if(!row)throw new DomainError('NOT_FOUND',404);const sources=await client.query<any>(`SELECT s.id,s.external_id,s.name,s.enabled,s.bridge_kind,s.subject_household,s.target_household,s.revision,COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM calendar_source_person_subjects WHERE source_id=s.id),'[]') subject_person_ids,COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM calendar_source_person_readers WHERE source_id=s.id),'[]') reader_person_ids,COALESCE((SELECT json_agg(display_id ORDER BY display_id) FROM calendar_source_display_targets WHERE source_id=s.id),'[]') display_ids FROM calendar_sources s WHERE s.connection_id=$1 ORDER BY s.name,s.id`,[id]);return{id:row.id,provider:row.provider,bridgeKind:row.bridge_kind,name:row.name,state:row.state,accountLabel:row.account_label,grantedScopes:row.granted_scopes,revision:row.revision,lastSyncStartedAt:row.last_sync_started_at?.toISOString()??null,lastSyncSucceededAt:row.last_sync_succeeded_at?.toISOString()??null,nextSyncAt:row.next_sync_at?.toISOString()??null,errorCode:row.last_error_code,disconnectedAt:row.disconnected_at?.toISOString()??null,sources:sources.rows.map((source:any)=>({id:source.id,externalId:source.external_id,name:source.name,enabled:source.enabled,bridgeKind:source.bridge_kind,appliesTo:{household:source.subject_household,personIds:source.subject_person_ids},visibility:{household:source.target_household,personIds:source.reader_person_ids,displayIds:source.display_ids},revision:source.revision}))};}
-  async list(actor:CalendarActor){ensureManager(actor);const ids=await pool.query<{id:string}>('SELECT id FROM calendar_connections WHERE household_id=$1 ORDER BY created_at,id',[actor.householdId]);return Promise.all(ids.rows.map((row)=>this.get(actor,row.id)));}
-  private async row(actor:CalendarActor,id:string){const row=(await pool.query<ConnectionRow>('SELECT * FROM calendar_connections WHERE id=$1 AND household_id=$2',[id,actor.householdId])).rows[0];if(!row)throw new DomainError('NOT_FOUND',404);return row;}
-  private async assertPreviewFence(row:ConnectionRow,sourceId:string,sourceRevision:number):Promise<void>{const current=await pool.query(`SELECT 1 FROM calendar_connections connection JOIN calendar_sources source ON source.connection_id=connection.id AND source.id=$2 JOIN memberships membership ON membership.account_id=connection.owner_account_id AND membership.household_id=connection.household_id JOIN accounts account ON account.id=connection.owner_account_id AND account.disabled_at IS NULL JOIN integration_connections authority ON authority.id=connection.integration_connection_id AND authority.revoked_at IS NULL WHERE connection.id=$1 AND connection.household_id=$3 AND connection.owner_account_id=$4 AND connection.disconnected_at IS NULL AND connection.state='connected' AND connection.sync_generation=$5 AND source.revision=$6 AND membership.capabilities ? 'household.manage'`,[row.id,sourceId,row.household_id,row.owner_account_id,row.sync_generation,sourceRevision]);if(!current.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_preview_superseded'});}
+  async get(actor:CalendarActor,id:string,client:DbClient=pool){
+    const row=(await client.query<any>(`SELECT connection.*,household.installation_id,EXISTS(SELECT 1 FROM memberships owner_membership JOIN persons owner_person ON owner_person.id=owner_membership.person_id AND owner_person.household_id=owner_membership.household_id AND owner_person.age_group='adult' JOIN accounts owner_account ON owner_account.id=owner_membership.account_id AND owner_account.disabled_at IS NULL WHERE owner_membership.account_id=connection.owner_account_id AND owner_membership.household_id=connection.household_id AND owner_membership.capabilities ? 'household.view') owner_authorized FROM calendar_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1 AND connection.household_id=$2`,[id,actor.householdId])).rows[0];if(!row)throw new DomainError('NOT_FOUND',404);const canShare=await this.authorize(actor,row,client);
+    const sources=await client.query<any>(`SELECT s.id,s.external_id,s.name,s.enabled,s.bridge_kind,s.subject_household,s.target_household,s.source_provenance,s.revision,COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM calendar_source_person_subjects WHERE source_id=s.id),'[]') subject_person_ids,COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM calendar_source_person_readers WHERE source_id=s.id),'[]') reader_person_ids,COALESCE((SELECT json_agg(display_id ORDER BY display_id) FROM calendar_source_display_targets WHERE source_id=s.id),'[]') display_ids FROM calendar_sources s WHERE s.connection_id=$1 ORDER BY s.name,s.id`,[id]);
+    return{id:row.id,provider:row.provider,bridgeKind:row.bridge_kind,name:row.name,state:row.owner_authorized?row.state:'expired',accountLabel:row.account_label,grantedScopes:row.granted_scopes,revision:row.revision,ownerAccountId:row.owner_account_id,canShare,lastSyncStartedAt:row.last_sync_started_at?.toISOString()??null,lastSyncSucceededAt:row.last_sync_succeeded_at?.toISOString()??null,nextSyncAt:row.owner_authorized?row.next_sync_at?.toISOString()??null:null,errorCode:row.owner_authorized?row.last_error_code:'CALENDAR_AUTHORIZATION_UNAVAILABLE',disconnectedAt:row.disconnected_at?.toISOString()??null,sources:sources.rows.map((source:any)=>({id:source.id,externalId:source.external_id,name:source.name,enabled:source.enabled,bridgeKind:source.bridge_kind,sourceProvenance:source.source_provenance,sourceWarning:source.source_provenance?.warning??null,appliesTo:{household:source.subject_household,personIds:source.subject_person_ids},visibility:{household:source.target_household,personIds:source.reader_person_ids,displayIds:source.display_ids},revision:source.revision}))};
+  }
+  async list(actor:CalendarActor){const canShare=await this.authorize(actor);const ids=await pool.query<{id:string}>(`SELECT id FROM calendar_connections WHERE household_id=$1 AND ($2::boolean OR owner_account_id=$3) ORDER BY created_at,id`,[actor.householdId,canShare,actor.accountId]);return Promise.all(ids.rows.map((row)=>this.get(actor,row.id)));}
+  private async row(actor:CalendarActor,id:string,client:DbClient=pool){const row=(await client.query<ConnectionRow>('SELECT connection.*,household.installation_id FROM calendar_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1 AND connection.household_id=$2',[id,actor.householdId])).rows[0];if(!row)throw new DomainError('NOT_FOUND',404);return row;}
+  private async authorize(actor:CalendarActor,row?:Pick<ConnectionRow,'owner_account_id'>,client:DbClient=pool):Promise<boolean>{
+    if(!actor.capabilities.includes('household.view'))throw new DomainError('FORBIDDEN',403);
+    const authority=(await client.query<{age_group:string;capabilities:string[]}>(`SELECT person.age_group,membership.capabilities FROM memberships membership JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id JOIN accounts account ON account.id=membership.account_id AND account.disabled_at IS NULL WHERE membership.id=$1 AND membership.account_id=$2 AND membership.household_id=$3`,[actor.membershipId,actor.accountId,actor.householdId])).rows[0];
+    const manager=Boolean(authority?.capabilities.includes('household.manage'));if(!authority||!authority.capabilities.includes('household.view')||authority.age_group!=='adult')throw new DomainError('FORBIDDEN',403,{reason:'calendar_adult_account_required'});if(row&&!manager&&row.owner_account_id!==actor.accountId)throw new DomainError('NOT_FOUND',404);return manager;
+  }
+  private async runtimeFor(row:ConnectionRow):Promise<ProviderRuntimeConfig>{
+    if(row.provider==='ics')throw new DomainError('CONFLICT',409);const runtime=await this.providers.resolve(row.installation_id,row.provider);
+    if(runtime.source==='legacy_environment'&&runtime.revision===0&&row.provider_config_revision===0&&row.provider_client_id_hash===null){const bound=await pool.query(`UPDATE calendar_connections SET provider_client_id_hash=$2,updated_at=clock_timestamp() WHERE id=$1 AND provider_config_revision=0 AND provider_client_id_hash IS NULL AND disconnected_at IS NULL RETURNING id`,[row.id,runtime.clientIdHash]);if(!bound.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});row.provider_client_id_hash=runtime.clientIdHash;}
+    if(runtime.revision!==row.provider_config_revision||runtime.clientIdHash!==row.provider_client_id_hash)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});return runtime;
+  }
+  private async assertRuntimeConfig(client:DbClient,installationId:string,runtime:ProviderRuntimeConfig):Promise<void>{
+    await client.query('SELECT id FROM installations WHERE id=$1 FOR SHARE',[installationId]);
+    const current=(await client.query<{status:string;revision:number;client_id_hash:string|null}>('SELECT status,revision,client_id_hash FROM installation_calendar_provider_configs WHERE installation_id=$1 AND provider=$2 FOR SHARE',[installationId,runtime.provider])).rows[0];
+    const valid=runtime.source==='legacy_environment'?!current:Boolean(current&&current.status==='active'&&current.revision===runtime.revision&&current.client_id_hash===runtime.clientIdHash);if(!valid)throw new DomainError('CONFLICT',409,{reason:'calendar_provider_configuration_superseded'});
+  }
+  private async assertPreviewFence(row:ConnectionRow,sourceId:string,sourceRevision:number):Promise<void>{const current=await pool.query(`SELECT 1 FROM calendar_connections connection JOIN calendar_sources source ON source.connection_id=connection.id AND source.id=$2 JOIN memberships membership ON membership.account_id=connection.owner_account_id AND membership.household_id=connection.household_id JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id JOIN accounts account ON account.id=connection.owner_account_id AND account.disabled_at IS NULL JOIN integration_connections authority ON authority.id=connection.integration_connection_id AND authority.revoked_at IS NULL WHERE connection.id=$1 AND connection.household_id=$3 AND connection.owner_account_id=$4 AND connection.disconnected_at IS NULL AND connection.state='connected' AND connection.sync_generation=$5 AND source.revision=$6 AND membership.capabilities ? 'household.view' AND person.age_group='adult'`,[row.id,sourceId,row.household_id,row.owner_account_id,row.sync_generation,sourceRevision]);if(!current.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_preview_superseded'});}
   private async allPages<T>(fn:(token?:string)=>Promise<CalendarPage<T>>,maxItems=SNAPSHOT_MAX_ITEMS):Promise<{items:T[];pageCount:number;byteCount:number}>{const items:T[]=[];let token:string|undefined,pageCount=0,byteCount=0;const seen=new Set<string>();do{const page=await fn(token);if(!Array.isArray(page.items))throw invalidProviderResponse();pageCount++;byteCount+=page.responseBytes??Buffer.byteLength(JSON.stringify(page.items));if(items.length+page.items.length>maxItems||byteCount>SNAPSHOT_MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});items.push(...page.items);token=page.nextPageToken;if(token){if(pageCount>=100)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});if(typeof token!=='string'||token.length>8192||seen.has(token))throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'calendar_provider_response_invalid'});seen.add(token);}}while(token);return{items,pageCount,byteCount};}
   private async reconcileSource(client:DbClient,connection:ConnectionRow,sourceId:string,events:CalendarEvent[],generation:number){
     const source=(await client.query<any>(`SELECT s.*,COALESCE((SELECT array_agg(person_id ORDER BY person_id) FROM calendar_source_person_subjects WHERE source_id=s.id),'{}'::uuid[]) subject_person_ids,COALESCE((SELECT array_agg(person_id ORDER BY person_id) FROM calendar_source_person_readers WHERE source_id=s.id),'{}'::uuid[]) reader_person_ids,COALESCE((SELECT array_agg(display_id ORDER BY display_id) FROM calendar_source_display_targets WHERE source_id=s.id),'{}'::uuid[]) display_ids FROM calendar_sources s WHERE s.id=$1 AND s.connection_id=$2 AND s.enabled FOR UPDATE`,[sourceId,connection.id])).rows[0];

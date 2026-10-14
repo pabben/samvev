@@ -2,6 +2,8 @@ import type { MonitorTaskLifecycle } from "@samvev/contracts";
 export type Locale = "en" | "nb";
 export type Theme = "light" | "dark" | "system";
 export interface Membership {
+  age_group?: string;
+  calendar_access?: boolean;
   id: string;
   household_id: string;
   person_id: string;
@@ -15,7 +17,7 @@ export interface Membership {
   display_ids: string[];
 }
 export interface Me {
-  account: { id: string; email: string; locale: Locale; theme: Theme };
+  account: { installation_id: string; id: string; email: string; locale: Locale; theme: Theme };
   csrfToken: string;
   memberships: Membership[];
 }
