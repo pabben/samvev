@@ -96,9 +96,10 @@ requirements are delivered or explicitly resolved.
 
 ## External facts and remaining evidence
 
-Only the public test origin `https://samvev.pabben.org/` is confirmed. No
-verified legal operator name or privacy contact was found; public pages requiring
-those facts remain owner-blocked, and must not invent them. Provider registration,
+Only the public test origin `https://samvev.pabben.org/` is confirmed. At initial registration no
+verified operator name or privacy contact was found. The owner has since supplied
+confirmed public contact values privately; runtime configuration and pages are
+still pending and must use those values without putting them in Git. Provider registration,
 consent and source activation are separate from synthetic QA. These dependencies
 do not block isolated code work. No R13 tests, captures, backup/restore, build or
 deployment were run during requirements registration.
@@ -207,3 +208,39 @@ race and same-connection calendar narrowing independent of person filtering.
 Browser cookie-path behavior, final combined regression and public tests remain
 open. No physical HA commands, model calls, ordinary QA data changes, deployment
 or Actions dispatch occurred in this package.
+
+## Display messages checkpoint — 2026-10-15
+
+Display setup checkpoint `da2075c` was DCO-signed and feature-pushed. Package B
+adds additive migration 030, persisted display authors and sender-name snapshots,
+per-device action policy/recipient grants, restricted message creation and
+minimal replay acknowledgements. No setup selection grants actions; new devices
+remain read-only. Other action flags are primitives, not completed grocery,
+media or physical-control functionality.
+
+Writer display13 used gpt-6-luna/high; boundary13 used gpt-6.1-sol/high for a
+bounded review. Three findings (private edited-body replay, mutual-send lock
+ordering, expiry during waits) were repaired and re-reviewed closed. Main read
+critical storage/action paths and ran the combined backend suite independently.
+
+Final local isolated Compose test runner evidence:
+- **20/20 pass**, no failures/cancellations/skips,
+  `.local/m3/round13/backend-display-checkpoint.log` (API, Round 9, display
+  messages, Home and temperatures; serial, bounded named test container).
+- Dedicated display-message test passes with multiple security/concurrency
+  assertions, `display-message-final-rerun.log`; API typecheck passes,
+  `display-message-typecheck.log` in the same private evidence directory.
+- Two abandoned containers from earlier cancelled test CLI invocations were
+  identified by exact project/service/commands and stopped. The final combined
+  run used one owned container with explicit cleanup; no QA/public resource was
+  stopped or reset.
+
+Older member-only author joins can omit new display-authored rows. Recovery must
+retain a compatible reader or deploy a forward fix; never rewrite author history
+or automatically restore an old database. Public migration/restore and release
+verification remain pending. No public deployment has occurred in Round 13.
+
+Owner contact values have now been explicitly confirmed and stored in private
+installation preparation, not Git. Their runtime/public-page wiring remains
+pending; external Google/Microsoft console and consent steps are still separate
+owner actions. No secret or real household data was added to this checkpoint.

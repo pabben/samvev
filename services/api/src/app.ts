@@ -9,7 +9,7 @@ import type { Writable } from 'node:stream';
 import type pg from 'pg';
 import { ZodError, type ZodType } from 'zod';
 import {
-  accountStatusUpdateSchema, claimSchema, displaySetupCreateSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
+  accountStatusUpdateSchema, claimSchema, displayActionPolicyUpdateSchema, displayMessageCreateSchema, displaySetupCreateSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
   invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
@@ -65,6 +65,7 @@ interface AuthContext {
 
 interface DisplayContext {
   id: string;
+  name: string;
   householdId: string;
   locale: 'en' | 'nb';
   theme: 'light' | 'dark' | 'system';
@@ -191,8 +192,8 @@ async function authForInstallation(request:FastifyRequest,installationId:string)
 async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
   const token = request.cookies[DISPLAY_COOKIE];
   if (!token) throw new DomainError('UNAUTHENTICATED', 401);
-  const result = await pool.query<{ id: string; household_id: string; locale: 'en'|'nb'; theme: 'light'|'dark'|'system'; privacy_mode: boolean; external_items_enabled:boolean; setup_id:string; cards:string[]; card_order:string[]; family_layout_enabled:boolean; all_sources:boolean; all_sensors:boolean; album_ids:string[]; background_id:string|null }>(`
-    SELECT d.id,d.household_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
+  const result = await pool.query<{ id: string; name:string; household_id: string; locale: 'en'|'nb'; theme: 'light'|'dark'|'system'; privacy_mode: boolean; external_items_enabled:boolean; setup_id:string; cards:string[]; card_order:string[]; family_layout_enabled:boolean; all_sources:boolean; all_sensors:boolean; album_ids:string[]; background_id:string|null }>(`
+    SELECT d.id,d.name,d.household_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
       d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
     FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
     WHERE d.credential_hash=$1 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()`, [tokenHash(token)]);
@@ -207,7 +208,7 @@ async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
     pool.query<{sensor_id:string}>('SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id',[row.household_id,row.setup_id])
   ]);
   return {
-    id: row.id, householdId: row.household_id, locale: row.locale, theme: row.theme,
+    id: row.id,name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
     privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled,
     setupId:row.setup_id,cards:row.cards,cardOrder:row.card_order,familyLayoutEnabled:row.family_layout_enabled,
     allSources:row.all_sources,allSensors:row.all_sensors,selectedPersonIds:people.rows.map((item)=>item.person_id),grantedPersonIds:grants.rows.map((item)=>item.person_id),
@@ -215,6 +216,38 @@ async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
     sourceIds:sources.rows.map((item)=>item.connection_id),calendarSourceIds:calendarSources.rows.map((item)=>item.source_id),sensorIds:sensors.rows.map((item)=>item.sensor_id),
     albumIds:row.album_ids,backgroundId:row.background_id
   };
+}
+
+type DisplayActionKey='message_create'|'message_schedule'|'grocery_write'|'dinner_write'|'photo_upload'|'home_assistant_control';
+
+async function lockDisplayAction(client:DbClient,householdId:string,displayId:string,action:DisplayActionKey):Promise<boolean> {
+  const row=(await client.query<{allowed:boolean}>(`SELECT ${action} AS allowed FROM display_action_policies WHERE household_id=$1 AND display_id=$2 FOR UPDATE`,[householdId,displayId])).rows[0];
+  if(!row)throw new DomainError('UNAUTHENTICATED',401);
+  return row.allowed;
+}
+
+async function lockDisplayMessageActor(client:DbClient,request:FastifyRequest,display:DisplayContext,recipientDisplayIds:string[]):Promise<{id:string;householdId:string;name:string;messageSchedule:boolean}>{
+  const token=request.cookies[DISPLAY_COOKIE];if(!token)throw new DomainError('UNAUTHENTICATED',401);
+  if(recipientDisplayIds.includes(display.id))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+  const deviceIds=[...new Set([display.id,...recipientDisplayIds])].sort();
+  const devices=(await client.query<{id:string;household_id:string;name:string;credential_hash:string|null;credential_expires_at:Date|null;revoked_at:Date|null}>(`SELECT id,household_id,name,credential_hash,credential_expires_at,revoked_at FROM displays
+    WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE`,[display.householdId,deviceIds])).rows;
+  if(devices.length!==deviceIds.length)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+  const actor=devices.find((row)=>row.id===display.id);
+  if(!actor||actor.credential_hash!==tokenHash(token)||actor.revoked_at||!actor.credential_expires_at||actor.credential_expires_at<=new Date())throw new DomainError('UNAUTHENTICATED',401);
+  const recipients=devices.filter((row)=>row.id!==display.id);
+  if(recipients.some((row)=>row.revoked_at||!row.credential_expires_at||row.credential_expires_at<=new Date()))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+  if(!await lockDisplayAction(client,display.householdId,display.id,'message_create'))throw new DomainError('FORBIDDEN',403,{reason:'display_action_not_granted'});
+  const messageSchedule=await lockDisplayAction(client,display.householdId,display.id,'message_schedule');
+  return{id:actor.id,householdId:actor.household_id,name:actor.name,messageSchedule};
+}
+
+async function lockDisplayMessageRecipients(client:DbClient,display:DisplayContext,personIds:string[],displayIds:string[]):Promise<void>{
+  const people=personIds.length?(await client.query<{id:string}>(`SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR SHARE`,[display.householdId,personIds])).rows:[];
+  if(people.length!==personIds.length)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+  const allowedPeople=(await client.query<{person_id:string}>(`SELECT person_id FROM display_action_people WHERE household_id=$1 AND display_id=$2 AND person_id=ANY($3::uuid[]) ORDER BY person_id FOR SHARE`,[display.householdId,display.id,personIds])).rows;
+  const allowedDisplays=(await client.query<{recipient_display_id:string}>(`SELECT recipient_display_id FROM display_action_displays WHERE household_id=$1 AND display_id=$2 AND recipient_display_id=ANY($3::uuid[]) ORDER BY recipient_display_id FOR SHARE`,[display.householdId,display.id,displayIds])).rows;
+  if(allowedPeople.length!==personIds.length||allowedDisplays.length!==displayIds.length)throw new DomainError('FORBIDDEN',403,{reason:'message_recipient_not_allowed'});
 }
 
 async function integrationAuth(request: FastifyRequest): Promise<IntegrationContext> {
@@ -651,10 +684,11 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   const hardCache = new Date(now.getTime() + 15 * 60_000);
   const label=await pool.query<{display_name:string;household_name:string;timezone:string;show_upcoming_birthday:boolean}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone,h.show_upcoming_birthday FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
   const cards = display.privacyMode || !display.cards.includes('household_messages') ? [] : (await pool.query<{
-    id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_person_id:string; author_avatar_key:string|null;author_photo_revision:number|null
-  }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,p.display_name AS author_name,p.id AS author_person_id,p.avatar_key AS author_avatar_key,ph.revision AS author_photo_revision
+    id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_type:'member'|'display';author_display_id:string|null; author_person_id:string|null; author_avatar_key:string|null;author_photo_revision:number|null
+  }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,COALESCE(p.display_name,m.author_display_name) AS author_name,
+      CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.avatar_key AS author_avatar_key,ph.revision AS author_photo_revision
       FROM messages m JOIN message_display_targets t ON t.message_id=m.id AND t.household_id=m.household_id
-      JOIN memberships ms ON ms.id=m.author_membership_id JOIN persons p ON p.id=ms.person_id
+      LEFT JOIN memberships ms ON ms.id=m.author_membership_id LEFT JOIN persons p ON p.id=ms.person_id AND p.household_id=m.household_id
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE t.display_id=$1 AND m.household_id=$2 AND m.state='published' AND t.delivery_state IN ('queued','delivered','displayed')
         AND (m.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences restricted WHERE restricted.message_id=m.id)
@@ -662,7 +696,7 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
       ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId,display.selectedPersonIds])).rows.map((row) => ({
         id: row.id, kind: 'household_message', body: row.body, importance: row.importance,
-        author: row.author_name, authorPersonId:row.author_person_id, authorAvatarKey:row.author_avatar_key,authorPhoto:display.selectedPersonIds.includes(row.author_person_id)?displayPhotoProjection(row.author_person_id,row.author_photo_revision):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
+        author: row.author_name,authorType:row.author_type,authorDisplayId:row.author_display_id, authorPersonId:row.author_person_id, authorAvatarKey:row.author_avatar_key,authorPhoto:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?displayPhotoProjection(row.author_person_id,row.author_photo_revision):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
       }));
   if(!display.privacyMode && cards.length){
     const cardIds=cards.map((card)=>(card as {id:string}).id);
@@ -1302,9 +1336,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:'en'|'nb';show_upcoming_birthday:boolean}>(`SELECT id,name,timezone,default_locale,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
     const people=await pool.query<{id:string;display_name:string;avatar_key:string|null;age_group:string;birth_date:string|null;photo_revision:number;asset_photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.age_group,p.birth_date::text,p.photo_revision,ph.revision AS asset_photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 ORDER BY p.created_at,p.id`,[auth.householdId]);
     const canViewAll=auth.capabilities.includes('household.manage');
-    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_person_id:string;author_photo_revision:number|null;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,p.display_name AS author_name,p.id AS author_person_id,ph.revision AS author_photo_revision,m.publish_at,m.expires_at,m.revision,m.audience_household,
+    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_type:'member'|'display';author_display_id:string|null;author_person_id:string|null;author_photo_revision:number|null;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,COALESCE(p.display_name,m.author_display_name) AS author_name,CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,ph.revision AS author_photo_revision,m.publish_at,m.expires_at,m.revision,m.audience_household,
       COALESCE((SELECT json_agg(pa.person_id ORDER BY pa.person_id) FROM message_person_audiences pa WHERE pa.message_id=m.id),'[]') AS person_ids
-      FROM messages m JOIN memberships am ON am.id=m.author_membership_id JOIN persons p ON p.id=am.person_id LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
+      FROM messages m LEFT JOIN memberships am ON am.id=m.author_membership_id LEFT JOIN persons p ON p.id=am.person_id AND p.household_id=m.household_id LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE m.household_id=$1 AND m.state IN ('scheduled','published') AND m.expires_at>clock_timestamp()
         AND m.publish_at<clock_timestamp()+interval '2 days'
         AND NOT EXISTS(SELECT 1 FROM monitor_events school_event JOIN monitor_tasks school_task ON school_task.id=school_event.task_id AND school_task.household_id=school_event.household_id WHERE school_event.message_id=m.id AND school_task.presentation_kind='school')
@@ -1324,7 +1358,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photoRevision:person.photo_revision,photo:photoProjection(auth.householdId,person.id,person.asset_photo_revision),ageGroup:person.age_group})),
       upcomingBirthday:upcomingBirthday?safeUpcomingBirthday:null,upcomingBirthdays,schoolActivities:await schoolActivitiesForHome(auth.householdId,{personId:auth.personId,membershipId:auth.membershipId},canViewAll,localToday),items:await homeItems(auth.householdId,auth.personId,canViewAll),
       messages:messages.rows.map((message)=>({
-        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,authorPersonId:message.author_person_id,authorPhoto:photoProjection(auth.householdId,message.author_person_id,message.author_photo_revision),
+        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,authorType:message.author_type,authorDisplayId:message.author_display_id,authorPersonId:message.author_person_id,authorPhoto:message.author_person_id?photoProjection(auth.householdId,message.author_person_id,message.author_photo_revision):null,
         publishAt:message.publish_at.toISOString(),expiresAt:message.expires_at.toISOString(),revision:message.revision,
         targets:{household:message.audience_household,personIds:message.person_ids}
       })),serverNow:now.toISOString()
@@ -1716,6 +1750,70 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     });
   });
 
+  app.patch('/api/v1/households/:householdId/displays/:displayId/action-policy',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
+    const body=parse(displayActionPolicyUpdateSchema,request.body);const displayId=params(request).displayId!;
+    return transaction(async(client)=>{
+      if(body.displayIds.includes(displayId))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+      const lockIds=[...new Set([displayId,...body.displayIds])].sort();
+      const lockedDisplays=(await client.query<{id:string;revoked_at:Date|null;credential_expires_at:Date|null}>(`SELECT id,revoked_at,credential_expires_at FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE`,[auth.householdId,lockIds])).rows;
+      if(lockedDisplays.length!==lockIds.length)throw new DomainError('NOT_FOUND',404);
+      const current=(await client.query<{revision:number}>(`SELECT revision FROM display_action_policies WHERE household_id=$1 AND display_id=$2 FOR UPDATE`,[auth.householdId,displayId])).rows[0];
+      if(!current)throw new DomainError('NOT_FOUND',404);
+      const people=body.personIds.length?(await client.query<{id:string}>(`SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR SHARE`,[auth.householdId,body.personIds])).rows:[];
+      const recipientRows=lockedDisplays.filter((row)=>body.displayIds.includes(row.id));
+      if(people.length!==body.personIds.length||recipientRows.some((row)=>row.revoked_at||!row.credential_expires_at||row.credential_expires_at<=new Date()))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
+      await client.query(`UPDATE display_action_policies SET message_create=$3,message_schedule=$4,grocery_write=$5,dinner_write=$6,photo_upload=$7,home_assistant_control=$8,revision=revision+1,updated_at=clock_timestamp() WHERE household_id=$1 AND display_id=$2`,[auth.householdId,displayId,body.messageCreate,body.messageSchedule,body.groceryWrite,body.dinnerWrite,body.photoUpload,body.homeAssistantControl]);
+      await client.query('DELETE FROM display_action_people WHERE display_id=$1',[displayId]);
+      await client.query('DELETE FROM display_action_displays WHERE display_id=$1',[displayId]);
+      for(const personId of body.personIds)await client.query('INSERT INTO display_action_people(household_id,display_id,person_id) VALUES($1,$2,$3)',[auth.householdId,displayId,personId]);
+      for(const recipientId of body.displayIds)await client.query('INSERT INTO display_action_displays(household_id,display_id,recipient_display_id) VALUES($1,$2,$3)',[auth.householdId,displayId,recipientId]);
+      const policy=(await client.query(`SELECT revision,message_create AS "messageCreate",message_schedule AS "messageSchedule",grocery_write AS "groceryWrite",dinner_write AS "dinnerWrite",photo_upload AS "photoUpload",home_assistant_control AS "homeAssistantControl" FROM display_action_policies WHERE display_id=$1`,[displayId])).rows[0];
+      await audit(client,auth,'display.action_policy_updated','display',displayId,{revision:policy.revision,messageCreate:body.messageCreate,messageSchedule:body.messageSchedule,personRecipientCount:body.personIds.length,displayRecipientCount:body.displayIds.length});
+      return{...policy,personIds:body.personIds,displayIds:body.displayIds};
+    });
+  });
+
+  app.get('/api/v1/display/message-recipients',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
+    const policy=(await pool.query<{revision:number;messageCreate:boolean;messageSchedule:boolean}>(`SELECT revision,message_create AS "messageCreate",message_schedule AS "messageSchedule" FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])).rows[0];
+    if(!policy)throw new DomainError('UNAUTHENTICATED',401);
+    const [people,displays]=await Promise.all([
+      pool.query(`SELECT p.id,p.display_name AS "displayName" FROM display_action_people allowed JOIN persons p ON p.id=allowed.person_id AND p.household_id=allowed.household_id WHERE allowed.household_id=$1 AND allowed.display_id=$2 ORDER BY p.display_name,p.id`,[display.householdId,display.id]),
+      pool.query(`SELECT recipient.id,recipient.name FROM display_action_displays allowed JOIN displays recipient ON recipient.id=allowed.recipient_display_id AND recipient.household_id=allowed.household_id WHERE allowed.household_id=$1 AND allowed.display_id=$2 AND recipient.revoked_at IS NULL AND recipient.credential_expires_at>clock_timestamp() ORDER BY recipient.name,recipient.id`,[display.householdId,display.id])
+    ]);
+    return{policy,people:people.rows,displays:displays.rows};
+  });
+
+  app.post('/api/v1/display/messages',async(request,reply)=>{
+    const display=await displayAuth(request);const body=parse(displayMessageCreateSchema,request.body);
+    await durableRateLimit('display_message_create',display.id,12,60);
+    await durableRateLimit('display_message_create_ip',request.ip,60,60);
+    const publishAt=body.publishAt?new Date(body.publishAt):undefined;const expiresAt=new Date(body.expiresAt);
+    const requestHash=createHash('sha256').update(JSON.stringify(body)).digest('hex');
+    const result=await transaction(async(client)=>{
+      const actor=await lockDisplayMessageActor(client,request,display,body.audience.displayIds);
+      await lockDisplayMessageRecipients(client,display,body.audience.personIds,body.audience.displayIds);
+      const existing=(await client.query<{id:string;request_hash:string|null;state:string;revision:number}>(`SELECT id,request_hash,state,revision FROM messages WHERE author_display_id=$1 AND idempotency_key=$2 FOR UPDATE`,[actor.id,body.idempotencyKey])).rows[0];
+      const active=(await client.query<{count:number}>(`SELECT count(*)::int AS count FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[])
+        AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()`,[display.householdId,[actor.id,...body.audience.displayIds]])).rows[0]!.count;
+      if(active!==new Set([actor.id,...body.audience.displayIds]).size)throw new DomainError('UNAUTHENTICATED',401);
+      const now=new Date();const effectivePublishAt=publishAt??now;const state=initialMessageState(effectivePublishAt,expiresAt,now);
+      if(effectivePublishAt>now&&!actor.messageSchedule)throw new DomainError('FORBIDDEN',403,{reason:'display_action_not_granted'});
+      if(existing){if(existing.request_hash!==requestHash)throw new DomainError('CONFLICT',409,{reason:'idempotency_payload_mismatch'});return{id:existing.id,state:existing.state,revision:existing.revision,replayed:true};}
+      const inserted=(await client.query<{id:string;revision:number}>(`INSERT INTO messages(household_id,author_display_id,author_display_name,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at)
+        VALUES($1,$2,$3,$4,$5,false,$6,$7,$8,$9,CASE WHEN $8='published' THEN clock_timestamp() END) RETURNING id,revision`,[actor.householdId,actor.id,actor.name,body.body,body.importance,effectivePublishAt,expiresAt,state,body.idempotencyKey])).rows[0]!;
+      await client.query('UPDATE messages SET request_hash=$2 WHERE id=$1',[inserted.id,requestHash]);
+      for(const personId of body.audience.personIds)await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES($1,$2,$3)',[actor.householdId,inserted.id,personId]);
+      for(const recipientId of body.audience.displayIds)await client.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES($1,$2,$3,'queued')`,[actor.householdId,inserted.id,recipientId]);
+      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,actor_display_name,idempotency_key) VALUES($1,NULL,$2,1,'display',$3,$4,$5)`,[inserted.id,state,actor.id,actor.name,`create:${inserted.id}`]);
+      return{...(await client.query(`SELECT id,body,importance,publish_at AS "publishAt",expires_at AS "expiresAt",state,revision FROM messages WHERE id=$1`,[inserted.id])).rows[0],replayed:false};
+    });
+    return reply.status(result.replayed?200:201).header('Cache-Control','no-store').send(result);
+  });
+
   app.post('/api/v1/display/pairing/start', async (request, reply) => {
     const body = parse(pairingStartSchema, request.body);
     await durableRateLimit('pairing_start', request.ip, 10, 900);
@@ -1785,14 +1883,14 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'household.view');
     const all = auth.capabilities.includes('message.manage.household');
     const result = await pool.query(`SELECT m.id,m.body,m.importance,m.audience_household,m.publish_at,m.expires_at,m.state,m.revision,m.created_at,m.updated_at,
-      p.display_name AS author_name,p.id AS author_person_id,(m.author_membership_id=$3 OR $2) AS can_edit,
+      COALESCE(p.display_name,m.author_display_name) AS author_name,CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,COALESCE((m.author_membership_id=$3 OR $2),false) AS can_edit,
       COALESCE((SELECT json_agg(person_id) FROM message_person_audiences WHERE message_id=m.id),'[]') AS person_ids,
       COALESCE((SELECT json_agg(display_id) FROM message_display_targets WHERE message_id=m.id AND delivery_state<>'cancelled'),'[]') AS display_ids,
       COALESCE((SELECT json_agg(json_build_object('displayId',display_id,'state',delivery_state,'deliveredAt',delivered_at,'displayedAt',displayed_at,'revision',delivered_revision)) FROM message_display_targets WHERE message_id=m.id),'[]') AS deliveries,
       COALESCE((SELECT json_agg(json_build_object('action',CASE WHEN e.from_state=e.to_state THEN 'edited' ELSE 'withdrawn' END,'actorName',ep.display_name,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id)
         FROM message_lifecycle_events e JOIN memberships em ON em.account_id=e.actor_id AND em.household_id=m.household_id JOIN persons ep ON ep.id=em.person_id AND ep.household_id=em.household_id
         WHERE e.message_id=m.id AND e.actor_type='account' AND (e.from_state=e.to_state OR e.to_state IN ('cancelled','withdrawn'))),'[]') AS activity
-      FROM messages m JOIN memberships am ON am.id=m.author_membership_id JOIN persons p ON p.id=am.person_id
+      FROM messages m LEFT JOIN memberships am ON am.id=m.author_membership_id LEFT JOIN persons p ON p.id=am.person_id AND p.household_id=m.household_id
       WHERE m.household_id=$1 AND ($2 OR m.author_membership_id=$3 OR m.audience_household OR EXISTS(SELECT 1 FROM message_person_audiences pa WHERE pa.message_id=m.id AND pa.person_id=$4))
       ORDER BY m.created_at DESC LIMIT 200`, [auth.householdId,all,auth.membershipId,auth.personId]);
     return { messages: result.rows };

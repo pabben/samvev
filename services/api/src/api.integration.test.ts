@@ -103,12 +103,18 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   const sharedSetup=setupList.json().setups[0];
   assert.ok(sharedSetup.id);
   const setupUpdate=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/display-setups/${sharedSetup.id}`,headers:auth(adminCookie,adminCsrf),payload:{
-    name:sharedSetup.name,cards:['household_messages','family_layout'],cardOrder:['family_layout','household_messages'],familyLayoutEnabled:true,
+    name:sharedSetup.name,cards:['household_messages','family_layout','external_items','worth_remembering'],cardOrder:['family_layout','household_messages','external_items','worth_remembering'],familyLayoutEnabled:true,
     allSources:false,allSensors:false,personIds:[avatarPersonId],sourceIds:[],calendarSourceIds:[],sensorIds:[],albumIds:[],backgroundId:null,
     locale:'nb',theme:'dark',expectedRevision:sharedSetup.revision
   }});
   assert.equal(setupUpdate.statusCode,200,setupUpdate.body);
   assert.deepEqual(setupUpdate.json().personIds,[avatarPersonId]);
+  assert.equal(setupUpdate.json().cards.length,4);
+  const createdFourCardSetup=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/display-setups`,headers:auth(adminCookie,adminCsrf),payload:{
+    name:'Four card preview',cards:['household_messages','family_layout','external_items','today'],cardOrder:['today','family_layout','household_messages','external_items'],familyLayoutEnabled:true,
+    allSources:false,allSensors:false,personIds:[avatarPersonId],sourceIds:[],calendarSourceIds:[],sensorIds:[],albumIds:[],backgroundId:null,locale:'en',theme:'light'
+  }});
+  assert.equal(createdFourCardSetup.statusCode,201,createdFourCardSetup.body);assert.equal(createdFourCardSetup.json().cards.length,4);assert.deepEqual(createdFourCardSetup.json().cardOrder,['today','family_layout','household_messages','external_items']);
   const existingProfileGrant=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${displayId}`,headers:auth(adminCookie,adminCsrf),payload:{profilePersonIds:[avatarPersonId],birthdayPersonIds:[avatarPersonId]}});
   assert.equal(existingProfileGrant.statusCode,200,existingProfileGrant.body);
   const profileImage=await sharp({create:{width:32,height:24,channels:3,background:'#a86442'}}).png().toBuffer();
@@ -350,7 +356,8 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '026_home_assistant_calendars_and_temperature.sql',
     '027_home_assistant_origin_binding.sql',
     '028_home_school_activities.sql',
-    '029_reusable_display_setups.sql'
+    '029_reusable_display_setups.sql',
+    '030_display_message_actions.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
 });

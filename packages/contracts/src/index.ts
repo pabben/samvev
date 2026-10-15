@@ -154,6 +154,30 @@ export const messageUpdateSchema = z.object({
   expectedRevision: z.number().int().positive()
 }).strict();
 
+export const displayMessageCreateSchema = z.object({
+  body: z.string().trim().min(1).max(1000),
+  importance: z.enum(['normal', 'attention']).default('normal'),
+  audience: z.object({
+    personIds: z.array(uuidSchema).max(50).default([]),
+    displayIds: z.array(uuidSchema).max(50).default([])
+  }).strict().refine((value) => value.personIds.length > 0 || value.displayIds.length > 0, 'audience_required'),
+  publishAt: isoInstant.optional(),
+  expiresAt: isoInstant,
+  idempotencyKey: z.string().min(8).max(128)
+}).strict();
+
+export const displayActionPolicyUpdateSchema = z.object({
+  expectedRevision: z.number().int().positive(),
+  messageCreate: z.boolean(),
+  messageSchedule: z.boolean(),
+  groceryWrite: z.boolean(),
+  dinnerWrite: z.boolean(),
+  photoUpload: z.boolean(),
+  homeAssistantControl: z.boolean(),
+  personIds: z.array(uuidSchema).max(50).refine((value) => new Set(value).size === value.length, 'duplicate_person'),
+  displayIds: z.array(uuidSchema).max(50).refine((value) => new Set(value).size === value.length, 'duplicate_display')
+}).strict();
+
 export const pairingStartSchema = z.object({ verifierHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const pairingApproveSchema = z.object({
   code: z.string().regex(/^\d{6}$/), name: nameSchema, locale: localeSchema.optional(), theme: themeSchema.optional(),

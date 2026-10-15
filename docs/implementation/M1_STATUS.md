@@ -1022,3 +1022,10 @@ selection with independent device grants reviewed. Complete local API 4/4 and
 Round 9 5/5 regressions plus API typecheck pass; main inspected logs and critical
 ACL predicates. UI/actions/browser verification and public release still open.
 See docs/design/review/ROUND_13_STATUS.md; this is not a release completion.
+
+Round 13 display-message checkpoint: additive 030 persists true device authors,
+explicit action/recipient policy and safe replay. Main independently ran 20/20
+combined backend tests on isolated local Compose; bounded review findings closed.
+UI/native-content/media/HA/public pages and release verification remain open.
+Older member-only readers cannot be treated as a complete rollback for new
+messages; preserve history and use compatible/forward recovery.

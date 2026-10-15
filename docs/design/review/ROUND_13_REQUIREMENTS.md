@@ -107,3 +107,13 @@ passed bounded review. Local complete API (4/4) and Round 9 (5/5) tests pass.
 These include strengthened existing tests, not nine newly created test cases.
 Display UI, real-browser cookie checks, author/actions and public verification
 remain open. See ROUND_13_STATUS.md for exact evidence.
+
+### Display actions/backend integration evidence checkpoint
+
+R13-07 display-authored messages, explicit per-device recipient/action policy,
+author history and revocation/replay boundaries are locally implemented and
+reviewed. Main independently ran 20 combined API/calendar/Home/temperature/display
+backend tests, all passing (`backend-display-checkpoint.log`). UI and public
+verification remain open. Grocery/dinner/media/HA flags do not imply those
+features are implemented yet. Owner contact values for R13-11 are now confirmed
+privately; public config/pages are still pending.
