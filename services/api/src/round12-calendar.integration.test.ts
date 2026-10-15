@@ -12,7 +12,7 @@ import type { CalendarEvent, CalendarInfo, CalendarPage, CalendarProvider, Calen
 import type { HomeAssistantTemperatureCandidate, HomeAssistantTemperatureObservation } from './calendar/home-assistant-client.ts';
 
 type Session = { cookie:string; csrf:string };
-type Connection = { id:string; revision:number; provider?:CalendarProvider; disconnectedAt?:string|null; sources:Array<any>; temperatureSensors:Array<any> };
+type Connection = { id:string; revision:number; provider?:CalendarProvider; state?:string; errorCode?:string|null; disconnectedAt?:string|null; sources:Array<any>; temperatureSensors:Array<any> };
 
 const scopes = {
   google:['openid','email','https://www.googleapis.com/auth/calendar.calendarlist.readonly','https://www.googleapis.com/auth/calendar.events.readonly'],
@@ -113,13 +113,15 @@ test('F1 restores ordinary Google and Microsoft retries only after same-client r
   for(const provider of ['google','microsoft'] as const){
     const connection=await connect(provider,`Synthetic ${provider} repair`);const source=connection.sources[0];const enabled=await enable(connection,source,{household:true,personIds:[]});
     await api('POST',`/api/v1/households/${householdId}/calendar-connections/${connection.id}/sync`,{expectedRevision:enabled.connection.revision});
+    const initiallyCurrent=(await api('GET',`/api/v1/households/${householdId}/calendar-connections`)).connections.find((row:Connection)=>row.id===connection.id) as Connection,initialSource=initiallyCurrent.sources.find((item:any)=>item.id===source.id);assert.equal(initialSource.freshness,'current');assert.ok(initialSource.lastSyncSucceededAt);
     const before=(await pool.query<any>('SELECT last_sync_succeeded_at,credential_ciphertext FROM calendar_connections WHERE id=$1',[connection.id])).rows[0];
     await pool.query(`UPDATE calendar_connections SET state='error',last_error_code='CALENDAR_CLIENT_CONFIGURATION_INVALID',next_sync_at=NULL WHERE id=$1`,[connection.id]);
+    const invalid=(await api('GET',`/api/v1/households/${householdId}/calendar-connections`)).connections.find((row:Connection)=>row.id===connection.id) as Connection,invalidSource=invalid.sources.find((item:any)=>item.id===source.id);assert.equal(invalidSource.freshness,'stale');assert.equal(invalidSource.errorCode,'CALENDAR_CLIENT_CONFIGURATION_INVALID');assert.equal(invalidSource.lastSyncSucceededAt,initialSource.lastSyncSucceededAt,'invalid client does not fabricate a new source success');
     const revision=(await pool.query<{revision:number}>('SELECT revision FROM installation_calendar_provider_configs WHERE installation_id=$1 AND provider=$2',[installationId,provider])).rows[0]!.revision;
     await configure(provider,revision);const repaired=(await pool.query<any>('SELECT last_error_code,next_sync_at,last_sync_succeeded_at,credential_ciphertext FROM calendar_connections WHERE id=$1',[connection.id])).rows[0];
     assert.equal(repaired.last_error_code,'CALENDAR_RETRY_PENDING');assert.ok(repaired.next_sync_at);assert.equal(String(repaired.last_sync_succeeded_at),String(before.last_sync_succeeded_at));assert.equal(repaired.credential_ciphertext, before.credential_ciphertext);
-    const current=(await api('GET',`/api/v1/households/${householdId}/calendar-connections`)).connections.find((row:Connection)=>row.id===connection.id) as Connection;
-    await api('POST',`/api/v1/households/${householdId}/calendar-connections/${connection.id}/sync`,{expectedRevision:current.revision});
+    const current=(await api('GET',`/api/v1/households/${householdId}/calendar-connections`)).connections.find((row:Connection)=>row.id===connection.id) as Connection,currentSource=current.sources.find((item:any)=>item.id===source.id);assert.equal(current.errorCode,'CALENDAR_RETRY_PENDING');assert.equal(currentSource.freshness,'stale');assert.equal(currentSource.errorCode,'CALENDAR_RETRY_PENDING');assert.equal(currentSource.lastSyncSucceededAt,initialSource.lastSyncSucceededAt,'repair pending remains stale until the retry fetch succeeds');
+    const recovered=(await api('POST',`/api/v1/households/${householdId}/calendar-connections/${connection.id}/sync`,{expectedRevision:current.revision})).connection as Connection,recoveredSource=recovered.sources.find((item:any)=>item.id===source.id);assert.equal(recovered.state,'connected');assert.equal(recoveredSource.freshness,'current');assert.equal(recoveredSource.errorCode,null);assert.ok(recoveredSource.lastSyncSucceededAt);
   }
 });
 
