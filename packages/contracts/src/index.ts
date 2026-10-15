@@ -156,14 +156,46 @@ export const messageUpdateSchema = z.object({
 
 export const pairingStartSchema = z.object({ verifierHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const pairingApproveSchema = z.object({
-  code: z.string().regex(/^\d{6}$/), name: nameSchema, locale: localeSchema, theme: themeSchema,
+  code: z.string().regex(/^\d{6}$/), name: nameSchema, locale: localeSchema.optional(), theme: themeSchema.optional(),
+  setupId: uuidSchema.optional(),
   privacyMode: z.boolean().default(false), allowedContent: z.enum(['household_messages']).default('household_messages')
 }).strict();
 export const pairingRedeemSchema = z.object({ pairingId: uuidSchema, verifier: z.string().min(43).max(256) }).strict();
+const displaySetupIdsSchema = z.array(uuidSchema).max(100)
+  .refine((value) => new Set(value).size === value.length, 'duplicate_display_setup_id');
 export const displayUpdateSchema = z.object({
-  locale: localeSchema.optional(), theme: themeSchema.optional(), privacyMode: z.boolean().optional(),
-  externalItemsEnabled: z.boolean().optional(), revoked: z.literal(true).optional()
+  setupId: uuidSchema.optional(),locale: localeSchema.nullable().optional(), theme: themeSchema.nullable().optional(), privacyMode: z.boolean().optional(),
+  externalItemsEnabled: z.boolean().optional(), revoked: z.literal(true).optional(),
+  profilePersonIds: displaySetupIdsSchema.optional(),birthdayPersonIds:displaySetupIdsSchema.optional()
 }).strict().refine((value) => Object.keys(value).length > 0);
+
+export const displaySetupCards = ['household_messages','family_layout','external_items','worth_remembering','today','tomorrow','people','week','next','groceries','dinners','photos','home_assistant'] as const;
+const displaySetupCardSchema = z.enum(displaySetupCards);
+const displaySetupCardListSchema = z.array(displaySetupCardSchema).max(displaySetupCards.length)
+  .refine((value) => new Set(value).size === value.length, 'duplicate_display_setup_card');
+const displaySetupFieldsSchema = z.object({
+  name: nameSchema,
+  cards: displaySetupCardListSchema.default(['household_messages','family_layout','external_items']),
+  cardOrder: displaySetupCardListSchema.default(['household_messages','family_layout','external_items']),
+  familyLayoutEnabled: z.boolean().default(true),
+  allSources: z.boolean().default(false),
+  allSensors: z.boolean().default(false),
+  personIds: displaySetupIdsSchema.default([]),
+  sourceIds: displaySetupIdsSchema.default([]),
+  calendarSourceIds: displaySetupIdsSchema.default([]),
+  sensorIds: displaySetupIdsSchema.default([]),
+  albumIds: displaySetupIdsSchema.default([]),
+  backgroundId: uuidSchema.nullable().default(null),
+  locale: localeSchema,
+  theme: themeSchema.default('system')
+}).strict();
+function refineDisplaySetup(value: z.infer<typeof displaySetupFieldsSchema>, context: z.RefinementCtx): void {
+  if (value.cardOrder.length !== value.cards.length || value.cardOrder.some((card) => !value.cards.includes(card))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['cardOrder'], message: 'card_order_must_match_cards' });
+  }
+}
+export const displaySetupCreateSchema = displaySetupFieldsSchema.superRefine(refineDisplaySetup);
+export const displaySetupUpdateSchema = displaySetupFieldsSchema.extend({ expectedRevision: z.number().int().positive() }).strict().superRefine(refineDisplaySetup);
 export const renderAckSchema = z.object({ cardId: uuidSchema, revision: z.number().int().positive(), renderedAt: isoInstant }).strict();
 
 export const integrationItemKinds = ['reminder', 'alert', 'event', 'summary', 'list', 'observation'] as const;

@@ -169,3 +169,41 @@ performed for this package. Frontend integration and full acceptance remain open
 The next sequential writer is display13 (gpt-6-luna/high), for reusable display
 setups, device-specific pairing and server-filtered read projections. Other
 writers remain frozen. This checkpoint does not mark the overall round complete.
+
+## Display setup backend checkpoint — 2026-10-15
+
+Temperature/Home checkpoint `ac95609ff0d77dcb9dfbc6e13a9d8dc5a50d4a3b`
+was DCO-signed and pushed only to the feature branch with `[skip ci]`. The public
+app remains the Round 12 candidate. Main verified 229 protected root Git file
+hashes unchanged and migration files 001–028 identical to that checkpoint.
+
+Display package A adds migration 029, reusable setup CRUD, independent paired
+devices, per-device profile/birthday grants, selected source/person projections,
+scoped image routes, transactional authority rechecks and SSE invalidation.
+No device permissions follow a reused setup. Existing pairing/insert paths get
+compatible presentation defaults. Album/background selections fail closed until
+the media package supplies real storage and access rules. The screen UI, true
+display authorship and optional actions are still pending.
+
+Writer: display13, explicitly gpt-6-luna/high. Bounded reviewer and subsequent
+test repair: boundary13, explicitly gpt-6.1-sol/high. Main inspected the actual
+source predicates, shared photo authorization and final logs. Six review
+findings were repaired and re-reviewed. Repeated test-fixture failures were
+escalated to the stronger agent: global item queries were bound to durable
+source/connection/item identifiers instead of weakening assertions.
+
+Local isolated Compose test runner, serial:
+- Complete API integration: 4/4 pass,
+  `.local/m3/round13/display-strong-api-attempt1.log`.
+- Complete Round 9 integration: 5/5 pass,
+  `.local/m3/round13/display-strong-round9-final.log`.
+- API typecheck: pass,
+  `.local/m3/round13/display-strong-api-typecheck-final.log`.
+
+These are existing suites with additional assertions. They cover stored-photo
+isolation, conditional-response denial after grant revocation, legacy asset
+route denial, independent device revocation, a blocked-write/session-revocation
+race and same-connection calendar narrowing independent of person filtering.
+Browser cookie-path behavior, final combined regression and public tests remain
+open. No physical HA commands, model calls, ordinary QA data changes, deployment
+or Actions dispatch occurred in this package.

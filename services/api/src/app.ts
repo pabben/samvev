@@ -9,7 +9,7 @@ import type { Writable } from 'node:stream';
 import type pg from 'pg';
 import { ZodError, type ZodType } from 'zod';
 import {
-  accountStatusUpdateSchema, claimSchema, displayUpdateSchema, householdSettingsUpdateSchema,
+  accountStatusUpdateSchema, claimSchema, displaySetupCreateSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
   invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
@@ -70,6 +70,21 @@ interface DisplayContext {
   theme: 'light' | 'dark' | 'system';
   privacyMode: boolean;
   externalItemsEnabled: boolean;
+  setupId: string;
+  cards: string[];
+  cardOrder: string[];
+  familyLayoutEnabled: boolean;
+  allSources: boolean;
+  allSensors: boolean;
+  selectedPersonIds: string[];
+  grantedPersonIds: string[];
+  profilePersonIds: string[];
+  birthdayPersonIds: string[];
+  sourceIds: string[];
+  calendarSourceIds: string[];
+  sensorIds: string[];
+  albumIds: string[];
+  backgroundId: string | null;
 }
 type IntegrationCapability = (typeof integrationCapabilities)[number];
 interface IntegrationContext {
@@ -155,6 +170,18 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
   return { accountId: account.accountId,sessionId:account.sessionId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
 }
 
+async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability):Promise<void>{
+  const row=(await client.query<{capabilities:Capability[];csrf_hash:string}>(`SELECT membership.capabilities,session.csrf_hash
+    FROM sessions session JOIN accounts account ON account.id=session.account_id
+    JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2
+    WHERE session.id=$1 AND session.account_id=$3 AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND account.disabled_at IS NULL
+      AND membership.id=$4
+    FOR UPDATE OF session,account,membership`,[auth.sessionId,auth.householdId,auth.accountId,auth.membershipId])).rows[0];
+  if(!row)throw new DomainError('UNAUTHENTICATED',401);
+  if(isUnsafe(request.method)){const csrf=request.headers['x-csrf-token'];if(typeof csrf!=='string'||tokenHash(csrf)!==row.csrf_hash)throw new DomainError('CSRF_REQUIRED',403);}
+  requireCapability(row.capabilities,capability);
+}
+
 async function authForInstallation(request:FastifyRequest,installationId:string):Promise<AuthContext>{
   const account=await sessionAccount(request);if(account.installationId!==installationId)throw new DomainError('NOT_FOUND',404);
   const row=(await pool.query<{id:string;household_id:string;person_id:string;role_preset:string;capabilities:Capability[]}>(`SELECT membership.id,membership.household_id,membership.person_id,membership.role_preset,membership.capabilities FROM memberships membership JOIN households household ON household.id=membership.household_id AND household.installation_id=$1 JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult' WHERE membership.account_id=$2 AND membership.capabilities ? 'installation.manage' ORDER BY membership.id LIMIT 1`,[installationId,account.accountId])).rows[0];
@@ -164,15 +191,29 @@ async function authForInstallation(request:FastifyRequest,installationId:string)
 async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
   const token = request.cookies[DISPLAY_COOKIE];
   if (!token) throw new DomainError('UNAUTHENTICATED', 401);
-  const result = await pool.query<{ id: string; household_id: string; locale: 'en'|'nb'; theme: 'light'|'dark'|'system'; privacy_mode: boolean; external_items_enabled:boolean }>(`
-    SELECT id,household_id,locale,theme,privacy_mode,external_items_enabled FROM displays
-    WHERE credential_hash=$1 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()`, [tokenHash(token)]);
+  const result = await pool.query<{ id: string; household_id: string; locale: 'en'|'nb'; theme: 'light'|'dark'|'system'; privacy_mode: boolean; external_items_enabled:boolean; setup_id:string; cards:string[]; card_order:string[]; family_layout_enabled:boolean; all_sources:boolean; all_sensors:boolean; album_ids:string[]; background_id:string|null }>(`
+    SELECT d.id,d.household_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
+      d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
+    FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
+    WHERE d.credential_hash=$1 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()`, [tokenHash(token)]);
   const row = result.rows[0];
   if (!row) throw new DomainError('UNAUTHENTICATED', 401);
   await pool.query('UPDATE displays SET last_seen_at=clock_timestamp() WHERE id=$1', [row.id]);
+  const [people,grants,sources,calendarSources,sensors]=await Promise.all([
+    pool.query<{person_id:string}>('SELECT person_id FROM display_setup_people WHERE household_id=$1 AND setup_id=$2 ORDER BY person_id',[row.household_id,row.setup_id]),
+    pool.query<{person_id:string;profile_allowed:boolean;birthday_allowed:boolean}>('SELECT person_id,profile_allowed,birthday_allowed FROM display_person_grants WHERE household_id=$1 AND display_id=$2 ORDER BY person_id',[row.household_id,row.id]),
+    pool.query<{connection_id:string}>('SELECT connection_id FROM display_setup_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY connection_id',[row.household_id,row.setup_id]),
+    pool.query<{source_id:string}>('SELECT source_id FROM display_setup_calendar_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY source_id',[row.household_id,row.setup_id]),
+    pool.query<{sensor_id:string}>('SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id',[row.household_id,row.setup_id])
+  ]);
   return {
     id: row.id, householdId: row.household_id, locale: row.locale, theme: row.theme,
-    privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled
+    privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled,
+    setupId:row.setup_id,cards:row.cards,cardOrder:row.card_order,familyLayoutEnabled:row.family_layout_enabled,
+    allSources:row.all_sources,allSensors:row.all_sensors,selectedPersonIds:people.rows.map((item)=>item.person_id),grantedPersonIds:grants.rows.map((item)=>item.person_id),
+    profilePersonIds:grants.rows.filter((item)=>item.profile_allowed).map((item)=>item.person_id),birthdayPersonIds:grants.rows.filter((item)=>item.birthday_allowed).map((item)=>item.person_id),
+    sourceIds:sources.rows.map((item)=>item.connection_id),calendarSourceIds:calendarSources.rows.map((item)=>item.source_id),sensorIds:sensors.rows.map((item)=>item.sensor_id),
+    albumIds:row.album_ids,backgroundId:row.background_id
   };
 }
 
@@ -251,7 +292,7 @@ interface ExternalItemRow {
   temperature_sensor_available:boolean|null;
 }
 
-function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean}={}):Record<string,unknown>{
+function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean;selectedPersonIds?:string[]}={}):Record<string,unknown>{
   const source=options.forDisplay
     ? Object.fromEntries(Object.entries(row.source).filter(([key])=>!['url','links'].includes(key)))
     : row.source;
@@ -276,8 +317,8 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
     id:row.id,
     ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
     kind:row.kind,contentLocale:row.content_locale,
-    targets:{household:row.target_household,personIds:row.person_ids,...(options.includeExternalId?{displayIds:row.display_ids}:{})},
-    subjects:{personIds:row.subject_person_ids},
+    targets:{household:row.target_household,personIds:options.selectedPersonIds?row.person_ids.filter((id)=>options.selectedPersonIds!.includes(id)):row.person_ids,...(options.includeExternalId?{displayIds:row.display_ids}:{})},
+    subjects:{personIds:options.selectedPersonIds?row.subject_person_ids.filter((id)=>options.selectedPersonIds!.includes(id)):row.subject_person_ids},
     title:row.title,body:row.body,entries:row.entries,priority:row.priority,
     publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
     endsAt:row.ends_at?.toISOString()??null,expiresAt:row.expires_at?.toISOString()??null,
@@ -418,18 +459,25 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
 }
 
 async function displayHub(display:DisplayContext):Promise<Record<string,unknown>|undefined>{
-  if(display.privacyMode || !display.externalItemsEnabled)return undefined;
+  if(display.privacyMode || !display.externalItemsEnabled || !display.cards.includes('external_items'))return undefined;
   const rows=await pool.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
     FROM integration_items i
     JOIN integration_connections c ON c.id=i.connection_id AND c.household_id=i.household_id AND c.revoked_at IS NULL
     JOIN integration_connection_display_grants g ON g.connection_id=i.connection_id AND g.household_id=i.household_id AND g.display_id=$1
     JOIN integration_item_display_targets dt ON dt.item_id=i.id AND dt.household_id=i.household_id AND dt.display_id=$1
     WHERE i.household_id=$2 AND i.status='active'
+      AND ($3::boolean OR
+        (NOT EXISTS(SELECT 1 FROM calendar_occurrences source_occurrence WHERE source_occurrence.integration_item_id=i.id) AND c.id=ANY($4::uuid[])) OR
+        EXISTS(SELECT 1 FROM calendar_occurrences source_occurrence WHERE source_occurrence.integration_item_id=i.id AND source_occurrence.source_id=ANY($5::uuid[])))
+      AND ((i.metadata->'calendar' IS NOT NULL AND (COALESCE((i.metadata#>>'{calendar,subjectHousehold}')::boolean,false)
+          OR EXISTS(SELECT 1 FROM integration_item_person_subjects selected_subject WHERE selected_subject.item_id=i.id AND selected_subject.person_id=ANY($6::uuid[]))))
+        OR (i.metadata->'calendar' IS NULL AND (i.target_household
+          OR EXISTS(SELECT 1 FROM integration_item_person_targets selected_target WHERE selected_target.item_id=i.id AND selected_target.person_id=ANY($6::uuid[])))))
       AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp())
       AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
-    ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200`,[display.id,display.householdId]);
+      ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
+      i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200`,[display.id,display.householdId,display.allSources,display.sourceIds,display.calendarSourceIds,display.selectedPersonIds]);
   const temperatures=await pool.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
     FROM home_assistant_temperature_sensors sensor
     JOIN calendar_connections calendar ON calendar.id=sensor.connection_id AND calendar.household_id=sensor.household_id AND calendar.provider='home_assistant' AND calendar.disconnected_at IS NULL
@@ -439,13 +487,36 @@ async function displayHub(display:DisplayContext):Promise<Record<string,unknown>
     JOIN integration_items i ON i.id=sensor.integration_item_id AND i.household_id=sensor.household_id AND i.connection_id=c.id
     JOIN integration_item_display_targets dt ON dt.item_id=i.id AND dt.household_id=i.household_id AND dt.display_id=$1
     WHERE sensor.household_id=$2 AND sensor.enabled AND i.status='active'
+      AND ($3::boolean OR sensor.id=ANY($4::uuid[]))
+      AND (sensor.target_household OR EXISTS(SELECT 1 FROM home_assistant_temperature_person_readers selected_sensor_reader WHERE selected_sensor_reader.sensor_id=sensor.id AND selected_sensor_reader.person_id=ANY($5::uuid[])))
+      AND (i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets selected_item_reader WHERE selected_item_reader.item_id=i.id AND selected_item_reader.person_id=ANY($5::uuid[])))
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
       AND EXISTS(SELECT 1 FROM memberships owner JOIN persons owner_person ON owner_person.id=owner.person_id AND owner_person.household_id=owner.household_id AND owner_person.age_group='adult' JOIN accounts owner_account ON owner_account.id=owner.account_id AND owner_account.disabled_at IS NULL WHERE owner.account_id=calendar.owner_account_id AND owner.household_id=calendar.household_id AND owner.capabilities ? 'household.view')
-    ORDER BY sensor.display_order,sensor.id LIMIT 2000`,[display.id,display.householdId]);
+    ORDER BY sensor.display_order,sensor.id LIMIT 2000`,[display.id,display.householdId,display.allSensors,display.sensorIds,display.selectedPersonIds]);
   const allRows=[...rows.rows,...temperatures.rows];
   const personIds=[...new Set(allRows.flatMap((row)=>[...row.person_ids,...row.subject_person_ids]))];
-  const people=personIds.length?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,personIds])).rows:[];
-  return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:photoProjection(display.householdId,person.id,person.photo_revision)})),items:allRows.map((row)=>mapExternalItem(row,{forDisplay:true}))};
+  const permittedPeople=display.selectedPersonIds.length?personIds.filter((personId)=>display.selectedPersonIds.includes(personId)):[];
+  const people=permittedPeople.length?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,permittedPeople])).rows:[];
+  return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:displayPhotoProjection(person.id,person.photo_revision)})),items:allRows.map((row)=>mapExternalItem(row,{forDisplay:true,selectedPersonIds:display.selectedPersonIds}))};
+}
+
+async function displayPersonPhotoVisible(display:DisplayContext,personId:string):Promise<boolean>{
+  if(display.privacyMode||!display.selectedPersonIds.includes(personId))return false;
+  if(display.familyLayoutEnabled&&display.cards.includes('family_layout')&&display.profilePersonIds.includes(personId))return true;
+  if(display.cards.includes('household_messages')){
+    const message=await pool.query(`SELECT 1 FROM messages msg JOIN memberships author ON author.id=msg.author_membership_id
+      JOIN message_display_targets target ON target.message_id=msg.id AND target.household_id=msg.household_id
+      WHERE msg.household_id=$1 AND author.person_id=$2 AND target.display_id=$3 AND msg.state='published'
+        AND target.delivery_state IN ('queued','delivered','displayed') AND msg.publish_at<=clock_timestamp() AND msg.expires_at>clock_timestamp()
+        AND (msg.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id)
+          OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id AND audience.person_id=ANY($4::uuid[])))`,[display.householdId,personId,display.id,display.selectedPersonIds]);
+    if(message.rowCount)return true;
+  }
+  if(display.cards.includes('external_items')){
+    const hub=await displayHub(display);
+    if(hub&&Array.isArray(hub.people)&&(hub.people as Array<{id:string}>).some((person)=>person.id===personId))return true;
+  }
+  return false;
 }
 
 async function integrationConnectionResponse(connectionId:string,householdId:string):Promise<Record<string,unknown>>{
@@ -473,6 +544,87 @@ function photoProjection(householdId:string,personId:string,revision:number|null
   return revision?{revision,url96:`/api/v1/households/${householdId}/people/${personId}/photo/96?v=${revision}`,url512:`/api/v1/households/${householdId}/people/${personId}/photo/512?v=${revision}`}:null;
 }
 
+function displayPhotoProjection(personId:string,revision:number|null):Record<string,unknown>|null{
+  return revision?{revision,url96:`/api/v1/display/people/${personId}/photo/96?v=${revision}`,url512:`/api/v1/display/people/${personId}/photo/512?v=${revision}`}:null;
+}
+
+interface DisplaySetupInput {
+  name:string;cards:string[];cardOrder:string[];familyLayoutEnabled:boolean;allSources:boolean;allSensors:boolean;personIds:string[];sourceIds:string[];calendarSourceIds:string[];
+  sensorIds:string[];albumIds:string[];backgroundId:string|null;locale:'en'|'nb';theme:'light'|'dark'|'system';
+}
+
+type DisplaySetupQuery = Pick<pg.PoolClient,'query'>;
+
+async function displaySetupResponse(client:DisplaySetupQuery,householdId:string,setupId:string):Promise<Record<string,unknown>>{
+  const setup=(await client.query<{id:string;name:string;revision:number;cards:string[];card_order:string[];family_layout_enabled:boolean;all_sources:boolean;all_sensors:boolean;album_ids:string[];background_id:string|null;locale:'en'|'nb';theme:'light'|'dark'|'system';is_default:boolean}>(`SELECT id,name,revision,cards,card_order,family_layout_enabled,all_sources,all_sensors,album_ids,background_id,locale,theme,is_default FROM display_setups WHERE id=$1 AND household_id=$2`,[setupId,householdId])).rows[0];
+  if(!setup)throw new DomainError('NOT_FOUND',404);
+  const [people,sources,calendarSources,sensors]=await Promise.all([
+    client.query<{person_id:string}>('SELECT person_id FROM display_setup_people WHERE household_id=$1 AND setup_id=$2 ORDER BY person_id',[householdId,setupId]),
+    client.query<{connection_id:string}>('SELECT connection_id FROM display_setup_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY connection_id',[householdId,setupId]),
+    client.query<{source_id:string}>('SELECT source_id FROM display_setup_calendar_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY source_id',[householdId,setupId]),
+    client.query<{sensor_id:string}>('SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id',[householdId,setupId])
+  ]);
+  return {id:setup.id,name:setup.name,revision:setup.revision,cards:setup.cards,cardOrder:setup.card_order,familyLayoutEnabled:setup.family_layout_enabled,allSources:setup.all_sources,allSensors:setup.all_sensors,
+    personIds:people.rows.map((row)=>row.person_id),sourceIds:sources.rows.map((row)=>row.connection_id),calendarSourceIds:calendarSources.rows.map((row)=>row.source_id),sensorIds:sensors.rows.map((row)=>row.sensor_id),albumIds:setup.album_ids,backgroundId:setup.background_id,
+    locale:setup.locale,theme:setup.theme,isDefault:setup.is_default};
+}
+
+async function writeDisplaySetupSelections(client:DbClient,householdId:string,setupId:string,input:DisplaySetupInput,bumpRevision=true):Promise<void>{
+  if(input.albumIds.length || input.backgroundId)throw new DomainError('VALIDATION_FAILED',400,{reason:'display_media_not_available'});
+  const checks=await Promise.all([
+    client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.personIds]),
+    client.query('SELECT id FROM integration_connections WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.sourceIds]),
+    client.query('SELECT id FROM calendar_sources WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.calendarSourceIds]),
+    client.query('SELECT id FROM home_assistant_temperature_sensors WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.sensorIds])
+  ]);
+  for(const [index,ids] of [[0,input.personIds],[1,input.sourceIds],[2,input.calendarSourceIds],[3,input.sensorIds]] as const){
+    if(checks[index]!.rowCount!==new Set(ids).size)throw new DomainError('NOT_FOUND',404);
+  }
+  await client.query(`UPDATE display_setups SET name=$3,cards=$4::jsonb,card_order=$5::jsonb,family_layout_enabled=$6,
+    all_sources=$7,all_sensors=$8,album_ids=$9::jsonb,background_id=$10,locale=$11,theme=$12,revision=revision+$13::int,updated_at=clock_timestamp()
+    WHERE id=$1 AND household_id=$2`,[setupId,householdId,input.name,JSON.stringify(input.cards),JSON.stringify(input.cardOrder),input.familyLayoutEnabled,input.allSources,input.allSensors,JSON.stringify(input.albumIds),input.backgroundId,input.locale,input.theme,bumpRevision?1:0]);
+  for(const table of ['display_setup_people','display_setup_sources','display_setup_calendar_sources','display_setup_sensors'])await client.query(`DELETE FROM ${table} WHERE household_id=$1 AND setup_id=$2`,[householdId,setupId]);
+  for(const personId of input.personIds)await client.query('INSERT INTO display_setup_people(household_id,setup_id,person_id) VALUES($1,$2,$3)',[householdId,setupId,personId]);
+  for(const sourceId of input.sourceIds)await client.query('INSERT INTO display_setup_sources(household_id,setup_id,connection_id) VALUES($1,$2,$3)',[householdId,setupId,sourceId]);
+  for(const sourceId of input.calendarSourceIds)await client.query('INSERT INTO display_setup_calendar_sources(household_id,setup_id,source_id) VALUES($1,$2,$3)',[householdId,setupId,sourceId]);
+  for(const sensorId of input.sensorIds)await client.query('INSERT INTO display_setup_sensors(household_id,setup_id,sensor_id) VALUES($1,$2,$3)',[householdId,setupId,sensorId]);
+}
+
+async function updateDisplayPersonGrants(client:DbClient,householdId:string,displayId:string,profileIds?:string[],birthdayIds?:string[]):Promise<void>{
+  const requested=[...(profileIds??[]),...(birthdayIds??[])];
+  if(requested.length){
+    const selected=await client.query(`SELECT person_id FROM display_setup_people WHERE household_id=$1 AND setup_id=(SELECT setup_id FROM displays WHERE id=$2 AND household_id=$1) AND person_id=ANY($3::uuid[])`,[householdId,displayId,requested]);
+    if(selected.rowCount!==new Set(requested).size)throw new DomainError('VALIDATION_FAILED',400,{reason:'display_person_not_selected'});
+  }
+  if(profileIds){
+    await client.query(`DELETE FROM display_person_grants WHERE household_id=$1 AND display_id=$2 AND profile_allowed AND NOT birthday_allowed AND NOT(person_id=ANY($3::uuid[]))`,[householdId,displayId,profileIds]);
+    await client.query(`UPDATE display_person_grants SET profile_allowed=false WHERE household_id=$1 AND display_id=$2 AND profile_allowed AND birthday_allowed AND NOT(person_id=ANY($3::uuid[]))`,[householdId,displayId,profileIds]);
+    for(const personId of profileIds)await client.query(`INSERT INTO display_person_grants(household_id,display_id,person_id,profile_allowed) VALUES($1,$2,$3,true)
+      ON CONFLICT(display_id,person_id) DO UPDATE SET profile_allowed=true`,[householdId,displayId,personId]);
+  }
+  if(birthdayIds){
+    await client.query(`DELETE FROM display_person_grants WHERE household_id=$1 AND display_id=$2 AND birthday_allowed AND NOT profile_allowed AND NOT(person_id=ANY($3::uuid[]))`,[householdId,displayId,birthdayIds]);
+    await client.query(`UPDATE display_person_grants SET birthday_allowed=false WHERE household_id=$1 AND display_id=$2 AND birthday_allowed AND profile_allowed AND NOT(person_id=ANY($3::uuid[]))`,[householdId,displayId,birthdayIds]);
+    for(const personId of birthdayIds)await client.query(`INSERT INTO display_person_grants(household_id,display_id,person_id,birthday_allowed) VALUES($1,$2,$3,true)
+      ON CONFLICT(display_id,person_id) DO UPDATE SET birthday_allowed=true`,[householdId,displayId,personId]);
+  }
+}
+
+async function defaultDisplaySetup(client:DbClient,householdId:string):Promise<string>{
+  const household=(await client.query<{default_locale:'en'|'nb'}>('SELECT default_locale FROM households WHERE id=$1 FOR UPDATE',[householdId])).rows[0];
+  if(!household)throw new DomainError('NOT_FOUND',404);
+  const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,locale,theme,is_default,all_sources,all_sensors)
+    VALUES($1,'Default display setup',$2,'system',true,true,true)
+    ON CONFLICT (household_id) WHERE is_default DO NOTHING RETURNING id`,[householdId,household.default_locale]);
+  if(inserted.rowCount){
+    await client.query('INSERT INTO display_setup_people(household_id,setup_id,person_id) SELECT $1,$2,id FROM persons WHERE household_id=$1',[householdId,inserted.rows[0]!.id]);
+    return inserted.rows[0]!.id;
+  }
+  const existing=(await client.query<{id:string}>('SELECT id FROM display_setups WHERE household_id=$1 AND is_default',[householdId])).rows[0];
+  if(!existing)throw new DomainError('CONFLICT',409);
+  return existing.id;
+}
+
 async function validateAudience(client: DbClient, auth: AuthContext, personIds: string[], displayIds: string[], needsDisplayPublish = true): Promise<void> {
   if (personIds.length) {
     const found = await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])', [auth.householdId, personIds]);
@@ -497,18 +649,20 @@ async function audit(client: DbClient, auth: Pick<AuthContext,'installationId'|'
 async function projectionFor(display: DisplayContext): Promise<Record<string, unknown>> {
   const now = new Date();
   const hardCache = new Date(now.getTime() + 15 * 60_000);
-  const label=await pool.query<{display_name:string;household_name:string;timezone:string}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
-  const cards = display.privacyMode ? [] : (await pool.query<{
+  const label=await pool.query<{display_name:string;household_name:string;timezone:string;show_upcoming_birthday:boolean}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone,h.show_upcoming_birthday FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
+  const cards = display.privacyMode || !display.cards.includes('household_messages') ? [] : (await pool.query<{
     id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_person_id:string; author_avatar_key:string|null;author_photo_revision:number|null
   }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,p.display_name AS author_name,p.id AS author_person_id,p.avatar_key AS author_avatar_key,ph.revision AS author_photo_revision
       FROM messages m JOIN message_display_targets t ON t.message_id=m.id AND t.household_id=m.household_id
       JOIN memberships ms ON ms.id=m.author_membership_id JOIN persons p ON p.id=ms.person_id
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE t.display_id=$1 AND m.household_id=$2 AND m.state='published' AND t.delivery_state IN ('queued','delivered','displayed')
+        AND (m.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences restricted WHERE restricted.message_id=m.id)
+          OR EXISTS(SELECT 1 FROM message_person_audiences selected WHERE selected.message_id=m.id AND selected.person_id=ANY($3::uuid[])))
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
-      ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId])).rows.map((row) => ({
+      ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId,display.selectedPersonIds])).rows.map((row) => ({
         id: row.id, kind: 'household_message', body: row.body, importance: row.importance,
-        author: row.author_name, authorPersonId:row.author_person_id, authorAvatarKey:row.author_avatar_key,authorPhoto:photoProjection(display.householdId,row.author_person_id,row.author_photo_revision), publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
+        author: row.author_name, authorPersonId:row.author_person_id, authorAvatarKey:row.author_avatar_key,authorPhoto:display.selectedPersonIds.includes(row.author_person_id)?displayPhotoProjection(row.author_person_id,row.author_photo_revision):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
       }));
   if(!display.privacyMode && cards.length){
     const cardIds=cards.map((card)=>(card as {id:string}).id);
@@ -520,12 +674,32 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
       AND (t.delivery_state='queued' OR t.delivered_revision IS DISTINCT FROM m.revision)`,[display.id,cardIds]);
   }
   const hub=await displayHub(display);
+  const familyProfiles=(!display.privacyMode && display.familyLayoutEnabled && display.cards.includes('family_layout') && display.profilePersonIds.length)
+    ?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision
+      FROM persons p JOIN display_setup_people selected ON selected.household_id=p.household_id AND selected.person_id=p.id AND selected.setup_id=$3
+      JOIN display_person_grants profile ON profile.household_id=p.household_id AND profile.person_id=p.id AND profile.display_id=$4 AND profile.profile_allowed
+      LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
+      WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,display.profilePersonIds,display.setupId,display.id])).rows:[];
+  const birthdayPeople=(!display.privacyMode && display.familyLayoutEnabled && display.cards.includes('family_layout') && label.rows[0]?.show_upcoming_birthday && display.birthdayPersonIds.length)
+    ?(await pool.query<{id:string;display_name:string;birth_date:string}>(`SELECT p.id,p.display_name,p.birth_date::text FROM persons p
+      JOIN display_setup_people selected ON selected.household_id=p.household_id AND selected.person_id=p.id AND selected.setup_id=$3
+      JOIN display_person_grants birthday ON birthday.household_id=p.household_id AND birthday.person_id=p.id AND birthday.display_id=$4 AND birthday.birthday_allowed
+      WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.birth_date IS NOT NULL ORDER BY p.display_name,p.id`,[display.householdId,display.birthdayPersonIds,display.setupId,display.id])).rows:[];
+  const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
+  const upcomingBirthdays=label.rows[0]?.show_upcoming_birthday?birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday):[];
   return {
     display: {
       id: display.id, name: label.rows[0]?.display_name, householdName: label.rows[0]?.household_name,
       timezone: label.rows[0]?.timezone, locale: display.locale, theme: display.theme,
-      privacyMode: display.privacyMode, externalItemsEnabled: display.externalItemsEnabled
+      privacyMode: display.privacyMode, externalItemsEnabled: display.externalItemsEnabled,setupId:display.setupId
     },
+    setup:{cards:display.cards,cardOrder:display.cardOrder,familyLayoutEnabled:display.familyLayoutEnabled,personIds:display.privacyMode?[]:display.selectedPersonIds,
+      sourceIds:display.privacyMode?[]:display.sourceIds,calendarSourceIds:display.privacyMode?[]:display.calendarSourceIds,sensorIds:display.privacyMode?[]:display.sensorIds,
+      albumIds:display.albumIds,backgroundId:display.backgroundId},
+    displayGrants:{personIds:display.privacyMode?[]:display.grantedPersonIds,profilePersonIds:display.privacyMode?[]:display.profilePersonIds,birthdayPersonIds:display.privacyMode?[]:display.birthdayPersonIds},
+    familyLayout:{enabled:!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout'),
+      people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:displayPhotoProjection(person.id,person.photo_revision)})),
+      upcomingBirthdays},
     cards,...(hub?{hub}:{}),serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
   };
 }
@@ -948,18 +1122,22 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     if(!['96','512'].includes(variant))throw new DomainError('NOT_FOUND',404);
     const requestedRevision=Number((request.query as Record<string,unknown>).v);
     if(!Number.isSafeInteger(requestedRevision)||requestedRevision<1)throw new DomainError('NOT_FOUND',404);
-    let authorized=false;
-    try{const auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'household.view');authorized=true;}catch(error){if(!(error instanceof DomainError)||error.code!=='UNAUTHENTICATED')throw error;}
-    if(!authorized){
-      const display=await displayAuth(request);if(display.householdId!==householdId||display.privacyMode)throw new DomainError('NOT_FOUND',404);
-      const allowed=await pool.query(`SELECT 1 FROM persons p WHERE p.id=$1 AND p.household_id=$2 AND (
-        EXISTS(SELECT 1 FROM messages msg JOIN memberships am ON am.id=msg.author_membership_id JOIN message_display_targets mt ON mt.message_id=msg.id AND mt.household_id=msg.household_id WHERE am.person_id=p.id AND msg.household_id=p.household_id AND mt.display_id=$3 AND msg.state='published' AND msg.publish_at<=clock_timestamp() AND msg.expires_at>clock_timestamp() AND mt.delivery_state IN ('queued','delivered','displayed'))
-        OR ($4 AND EXISTS(SELECT 1 FROM integration_items item JOIN integration_connections connection ON connection.id=item.connection_id AND connection.household_id=item.household_id AND connection.revoked_at IS NULL JOIN integration_connection_display_grants grant_row ON grant_row.connection_id=connection.id AND grant_row.household_id=connection.household_id AND grant_row.display_id=$3 JOIN integration_item_display_targets idt ON idt.item_id=item.id AND idt.household_id=item.household_id AND idt.display_id=$3 WHERE item.household_id=p.household_id AND item.status='active' AND (item.publish_at IS NULL OR item.publish_at<=clock_timestamp()) AND (item.expires_at IS NULL OR item.expires_at>clock_timestamp()) AND (EXISTS(SELECT 1 FROM integration_item_person_targets ip WHERE ip.item_id=item.id AND ip.person_id=p.id) OR EXISTS(SELECT 1 FROM integration_item_person_subjects subject WHERE subject.item_id=item.id AND subject.person_id=p.id))))
-      )`,[personId,householdId,display.id,display.externalItemsEnabled]);
-      if(!allowed.rowCount)throw new DomainError('NOT_FOUND',404);
-    }
+    const auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'household.view');
     const photo=(await pool.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2`,[personId,householdId])).rows[0];
     if(!photo||photo.revision!==requestedRevision)throw new DomainError('NOT_FOUND',404);const etag=`\"photo-${photo.revision}-${createHash('sha256').update(photo.data).digest('hex').slice(0,16)}-${variant}\"`;
+    reply.header('Cache-Control','private, no-store').header('ETag',etag).header('X-Content-Type-Options','nosniff').type('image/webp');
+    if(request.headers['if-none-match']===etag)return reply.status(304).send();return reply.send(photo.data);
+  });
+
+  app.get('/api/v1/display/people/:personId/photo/:variant',async(request,reply)=>{
+    const display=await displayAuth(request);const personId=params(request).personId!,variant=params(request).variant!;
+    if(!['96','512'].includes(variant))throw new DomainError('NOT_FOUND',404);
+    const requestedRevision=Number((request.query as Record<string,unknown>).v);
+    if(!Number.isSafeInteger(requestedRevision)||requestedRevision<1)throw new DomainError('NOT_FOUND',404);
+    if(!await displayPersonPhotoVisible(display,personId))throw new DomainError('NOT_FOUND',404);
+    const photo=(await pool.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2`,[personId,display.householdId])).rows[0];
+    if(!photo||photo.revision!==requestedRevision)throw new DomainError('NOT_FOUND',404);
+    const etag=`\"photo-${photo.revision}-${createHash('sha256').update(photo.data).digest('hex').slice(0,16)}-${variant}\"`;
     reply.header('Cache-Control','private, no-store').header('ETag',etag).header('X-Content-Type-Options','nosniff').type('image/webp');
     if(request.headers['if-none-match']===etag)return reply.status(304).send();return reply.send(photo.data);
   });
@@ -1473,10 +1651,46 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return updated.rows[0];
   });
 
+  app.get('/api/v1/households/:householdId/display-setups',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');reply.header('Cache-Control','private, no-store');
+    const rows=await pool.query<{id:string}>(`SELECT id FROM display_setups WHERE household_id=$1 ORDER BY created_at,id`,[auth.householdId]);
+    const setups=await Promise.all(rows.rows.map((row)=>displaySetupResponse(pool,auth.householdId,row.id)));
+    return {setups};
+  });
+
+  app.post('/api/v1/households/:householdId/display-setups',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
+    const body=parse(displaySetupCreateSchema,request.body) as DisplaySetupInput;
+    const setup=await transaction(async(client)=>{
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,cards,card_order,family_layout_enabled,album_ids,background_id,locale,theme)
+        VALUES($1,$2,$3::jsonb,$4::jsonb,$5,$6::jsonb,$7,$8,$9) RETURNING id`,[auth.householdId,body.name,JSON.stringify(body.cards),JSON.stringify(body.cardOrder),body.familyLayoutEnabled,JSON.stringify(body.albumIds),body.backgroundId,body.locale,body.theme]);
+      await writeDisplaySetupSelections(client,auth.householdId,inserted.rows[0]!.id,body,false);
+      return displaySetupResponse(client,auth.householdId,inserted.rows[0]!.id);
+    });
+    return reply.status(201).send(setup);
+  });
+
+  app.patch('/api/v1/households/:householdId/display-setups/:setupId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
+    const body=parse(displaySetupUpdateSchema,request.body);const input:DisplaySetupInput=body;
+    return transaction(async(client)=>{
+      const current=(await client.query<{revision:number}>(`SELECT revision FROM display_setups WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).setupId,auth.householdId])).rows[0];
+      if(!current)throw new DomainError('NOT_FOUND',404);
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
+      await writeDisplaySetupSelections(client,auth.householdId,params(request).setupId!,input);
+      return displaySetupResponse(client,auth.householdId,params(request).setupId!);
+    });
+  });
+
   app.get('/api/v1/households/:householdId/displays', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.view');
-    const result = await pool.query(`SELECT id,name,locale,theme,privacy_mode,external_items_enabled,revoked_at,last_seen_at,created_at FROM displays WHERE household_id=$1 ORDER BY created_at`, [auth.householdId]);
+    const result = await pool.query(`SELECT d.id,d.name,d.setup_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,d.privacy_mode,d.external_items_enabled,d.revoked_at,d.last_seen_at,d.created_at,
+      COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM display_person_grants g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.profile_allowed),'[]') AS profile_person_ids,
+      COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM display_person_grants g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.birthday_allowed),'[]') AS birthday_person_ids
+      FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id WHERE d.household_id=$1 ORDER BY d.created_at`, [auth.householdId]);
     return { displays: result.rows };
   });
 
@@ -1485,12 +1699,20 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'display.manage');
     const body = parse(displayUpdateSchema, request.body);
     return transaction(async(client)=>{
-      const result = await client.query(`UPDATE displays SET locale=COALESCE($3,locale),theme=COALESCE($4,theme),privacy_mode=COALESCE($5,privacy_mode),external_items_enabled=COALESCE($6,external_items_enabled),revoked_at=CASE WHEN $7::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $7::boolean IS TRUE THEN NULL ELSE credential_hash END
-        WHERE id=$1 AND household_id=$2 RETURNING id,name,locale,theme,privacy_mode,external_items_enabled,revoked_at`, [params(request).displayId,auth.householdId,body.locale ?? null,body.theme ?? null,body.privacyMode ?? null,body.externalItemsEnabled ?? null,body.revoked ?? null]);
+      const locked=(await client.query('SELECT id FROM displays WHERE id=$1 AND household_id=$2 FOR UPDATE',[params(request).displayId,auth.householdId])).rows[0];
+      if(!locked)throw new DomainError('NOT_FOUND',404);
+      if(body.setupId){const setup=await client.query('SELECT id FROM display_setups WHERE household_id=$1 AND id=$2 FOR SHARE',[auth.householdId,body.setupId]);if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);}
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      const result = await client.query(`UPDATE displays SET setup_id=COALESCE($10::uuid,setup_id),locale=CASE WHEN $3::boolean THEN $4::text ELSE locale END,theme=CASE WHEN $5::boolean THEN $6::text ELSE theme END,
+        privacy_mode=COALESCE($7,privacy_mode),external_items_enabled=COALESCE($8,external_items_enabled),revoked_at=CASE WHEN $9::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $9::boolean IS TRUE THEN NULL ELSE credential_hash END
+        WHERE id=$1 AND household_id=$2 RETURNING id`, [params(request).displayId,auth.householdId,Object.hasOwn(body,'locale'),body.locale??null,Object.hasOwn(body,'theme'),body.theme??null,body.privacyMode ?? null,body.externalItemsEnabled ?? null,body.revoked ?? null,body.setupId??null]);
       if (!result.rowCount) throw new DomainError('NOT_FOUND', 404);
+      if(Object.hasOwn(body,'profilePersonIds')||Object.hasOwn(body,'birthdayPersonIds'))await updateDisplayPersonGrants(client,auth.householdId,params(request).displayId!,body.profilePersonIds,body.birthdayPersonIds);
       if(body.revoked) await client.query(`UPDATE message_display_targets SET delivery_state='failed',failure_code='DISPLAY_REVOKED' WHERE display_id=$1 AND delivery_state='queued'`,[params(request).displayId]);
-      await audit(client,auth,body.revoked === true?'display.revoked':'display.updated','display',params(request).displayId,{privacyMode:body.privacyMode,externalItemsEnabled:body.externalItemsEnabled});
-      return result.rows[0];
+      await audit(client,auth,body.revoked === true?'display.revoked':'display.updated','display',params(request).displayId,{privacyMode:body.privacyMode,externalItemsEnabled:body.externalItemsEnabled,profileGrantCount:body.profilePersonIds?.length,birthdayGrantCount:body.birthdayPersonIds?.length});
+      const display=(await client.query(`SELECT d.id,d.name,d.setup_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,d.privacy_mode,d.external_items_enabled,d.revoked_at
+        FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id WHERE d.id=$1 AND d.household_id=$2`,[params(request).displayId,auth.householdId])).rows[0];
+      return display;
     });
   });
 
@@ -1523,7 +1745,13 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const result = await transaction(async (client) => {
       const pairing = await client.query<{id:string}>(`SELECT id FROM pairing_requests WHERE code_hash=$1 AND expires_at>clock_timestamp() AND approved_at IS NULL AND redeemed_at IS NULL FOR UPDATE`, [tokenHash(body.code)]);
       if (!pairing.rowCount) throw new DomainError('PAIRING_INVALID', 404);
-      const display = await client.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme,privacy_mode,allowed_content) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [auth.householdId,body.name,body.locale,body.theme,body.privacyMode,body.allowedContent]);
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      let setupId=body.setupId;
+      if(setupId){
+        const setup=await client.query('SELECT id FROM display_setups WHERE id=$1 AND household_id=$2 FOR SHARE',[setupId,auth.householdId]);
+        if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);
+      }else setupId=await defaultDisplaySetup(client,auth.householdId);
+      const display = await client.query<{id:string}>(`INSERT INTO displays(household_id,setup_id,name,locale,theme,privacy_mode,allowed_content) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [auth.householdId,setupId,body.name,body.locale??null,body.theme??null,body.privacyMode,body.allowedContent]);
       const approved = await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2 WHERE id=$1 AND approved_at IS NULL RETURNING id`, [pairing.rows[0]!.id,display.rows[0]!.id]);
       if (!approved.rowCount) throw new DomainError('CONFLICT', 409);
       await audit(client,auth,'display.pairing_approved','display',display.rows[0]!.id);
@@ -1542,7 +1770,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if (!row || tokenHash(body.verifier) !== row.verifier_hash || !row.display_id) throw new DomainError('PAIRING_EXPIRED', 410);
       const claimed = await client.query(`UPDATE pairing_requests SET redeemed_at=clock_timestamp() WHERE id=$1 AND redeemed_at IS NULL RETURNING id`, [row.id]);
       if (!claimed.rowCount) throw new DomainError('PAIRING_EXPIRED', 410);
-      const display = await client.query(`UPDATE displays SET credential_hash=$2,credential_expires_at=clock_timestamp()+interval '90 days' WHERE id=$1 AND revoked_at IS NULL RETURNING id,name,locale,theme,privacy_mode`, [row.display_id,tokenHash(credential)]);
+      const display = await client.query(`UPDATE displays d SET credential_hash=$2,credential_expires_at=clock_timestamp()+interval '90 days'
+        FROM display_setups s WHERE d.id=$1 AND d.setup_id=s.id AND d.household_id=s.household_id AND d.revoked_at IS NULL
+        RETURNING d.id,d.name,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,d.privacy_mode,d.external_items_enabled,d.setup_id`, [row.display_id,tokenHash(credential)]);
       if (!display.rowCount) throw new DomainError('PAIRING_EXPIRED', 410);
       return display.rows[0];
     });
@@ -1663,7 +1893,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.post('/api/v1/display/render-ack', async (request, reply) => {
     const display=await displayAuth(request);
-    if(display.privacyMode) throw new DomainError('FORBIDDEN',403);
+    if(display.privacyMode||!display.cards.includes('household_messages')) throw new DomainError('FORBIDDEN',403);
     await durableRateLimit('display_render_ack',display.id,180,60);
     const body=parse(renderAckSchema,request.body);
     const renderedAt=new Date(body.renderedAt);
@@ -1675,8 +1905,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         WHERE t.message_id=$1 AND t.display_id=$2 AND t.household_id=$3
           AND d.revoked_at IS NULL AND d.privacy_mode=false
           AND m.revision=$4 AND m.state='published' AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
+          AND (m.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences restricted WHERE restricted.message_id=m.id)
+            OR EXISTS(SELECT 1 FROM message_person_audiences selected WHERE selected.message_id=m.id AND selected.person_id=ANY($5::uuid[])))
           AND t.delivery_state IN ('delivered','displayed') AND t.delivered_revision=$4
-        FOR UPDATE OF t,d,m`,[body.cardId,display.id,display.householdId,body.revision]);
+        FOR UPDATE OF t,d,m`,[body.cardId,display.id,display.householdId,body.revision,display.selectedPersonIds]);
       if(!valid.rowCount) throw new DomainError('NOT_FOUND',404);
       const inserted=await client.query(`INSERT INTO display_render_acks(display_id,message_id,revision,rendered_at) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING RETURNING id`,[display.id,body.cardId,body.revision,renderedAt]);
       if(inserted.rowCount) await client.query(`UPDATE message_display_targets SET delivery_state='displayed',displayed_at=clock_timestamp() WHERE display_id=$1 AND message_id=$2 AND delivered_revision=$3 AND delivery_state='delivered'`,[display.id,body.cardId,body.revision]);

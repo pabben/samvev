@@ -1016,3 +1016,9 @@ birthday/chronology and explicit school presentation metadata implemented;
 15 focused/regression tests and API typecheck pass. Bounded review findings
 closed. UI, integrated QA, screenshots, release gate and public deployment remain
 open; public source remains 00ddc36. See ROUND_13_STATUS.md for evidence.
+
+Round 13 display backend checkpoint: additive migration 029 and reusable setup
+selection with independent device grants reviewed. Complete local API 4/4 and
+Round 9 5/5 regressions plus API typecheck pass; main inspected logs and critical
+ACL predicates. UI/actions/browser verification and public release still open.
+See docs/design/review/ROUND_13_STATUS.md; this is not a release completion.
