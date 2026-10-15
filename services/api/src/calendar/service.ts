@@ -406,10 +406,10 @@ export class CalendarService{
   }
   async preview(actor:CalendarActor,connectionId:string,sourceId:string,expectedSourceRevision:number){
     const owned=await this.row(actor,connectionId);await this.authorize(actor,owned);
-    await this.assertInteractiveFence(pool,actor,owned,'calendar_preview_superseded','connected');
     const source=(await pool.query<{external_id:string;revision:number}>(`SELECT source.external_id,source.revision FROM calendar_sources source JOIN calendar_connections connection ON connection.id=source.connection_id WHERE source.id=$1 AND source.connection_id=$2 AND source.household_id=$3 AND connection.disconnected_at IS NULL`,[sourceId,connectionId,actor.householdId])).rows[0];
     if(!source)throw new DomainError('NOT_FOUND',404);
     if(source.revision!==expectedSourceRevision)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'calendar_source'});
+    await this.assertInteractiveFence(pool,actor,owned,'calendar_preview_superseded','connected');
     const row=owned,window=windowFor(this.now());
     let events:CalendarEvent[],pageCount=0;
     const aad=calendarAad(row.household_id,row.id,row.owner_account_id);
