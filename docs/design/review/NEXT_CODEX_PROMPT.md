@@ -1,22 +1,63 @@
-# Samvev – sluttføring av runde 11: tre rettinger og testpublisering
+# Samvev – diskutvidelse, kalenderoversikt og fortløpende offentlig testpublisering
 
-Utfør denne mailboxen når eieren starter den. Fortsett eksisterende `/goal` og bevar runde 11. Work har bare skrevet oppfølgingen; server-Codex retter, tester og publiserer. Dette er avgrenset sluttføring av kalender-/Spond-pakken, ikke en ny generell funksjons- eller designrunde.
+Utfør denne mailboxen når eieren starter den. Fortsett eksisterende `/goal` og nyere featurearbeid; ikke start runde 11 på nytt. Work har skrevet bestillingen, ikke utført serverendringer. Server-Codex gjennomfører den autonomt, med bevaring av data og nødvendige verifikasjoner. Omfanget er diskutvidelsen nedenfor, kalender-/Spond-forbedringene og de fortsatt relevante F1–F3-rettingene.
 
-## Baseline og review
+## Ny eierbeskjed 15. oktober 2026 og baseline
+
+Eieren har lagt til 100 GB i Proxmox og ber uttrykkelig om gjesteutvidelse på **codex-dev**. Ferdige, verifiserte Samvev-oppdateringer skal fortløpende publiseres til **https://samvev.pabben.org/**. Dette er den offentlige testadressen; LAN alene er ikke ønsket sluttleveranse. Eieren har også opprettet en **reell HA-kobling for en person** og vil legge til flere Spond-kalendere som skal kunne fordeles på husstandens personer.
 
 - Repo/branch: `pabben/samvev`, `feat/m3-family-hub`.
-- Vurdert R11 source: `585a7204ce89bc7e953f6b79cf871c1845a12f9f`.
-- Vurdert R11 review: `233239773019603b3d40bf12a4b4be51c6e6bc96`.
-- Kandidatimage: `sha256:5f63b1afb11d68aea1fdb8e1bc72cad2c099f1bab4377f7cc8aee6581d6eee12`.
-- Screenshot-runde: `20261014223031-585a7204-59693e69`.
-- Faktisk offentlig R10 source/deploy: `ca7359b0ce511f930aec3df0e11ce94ac4d203e6`, fortsatt uendret.
+- Sist vurdert R11 source: `585a7204ce89bc7e953f6b79cf871c1845a12f9f`; review: `233239773019603b3d40bf12a4b4be51c6e6bc96`.
+- Forrige oppfølgingsinstruks med F1–F3: `b2369629641c17cff0f4bed3e4c61dbbb3eba07f`.
+- Historisk R11-kandidatimage: `sha256:5f63b1afb11d68aea1fdb8e1bc72cad2c099f1bab4377f7cc8aee6581d6eee12`.
+- Sist rapporterte offentlige R10 source/deploy: `ca7359b0ce511f930aec3df0e11ce94ac4d203e6`. Verifiser nåværende status; ikke anta at ingen har arbeidet videre.
 - LAN: http://192.168.0.220:4173/. Offentlig test: https://samvev.pabben.org/.
 
-Les AGENTS, ROUND_11_REPORT, `round-11/checks/`, review-README, gjeldende produktkrav/arkitektur, CALENDAR_CONNECTIONS, HOME_ASSISTANT og ADR 0023. Hent nyere featurearbeid gjennom etablert publishing-checkout; ikke reset eller overskriv arbeid. Følg prosjektets parallelle lesende fagreview, én skriver om gangen, etterreview, samlet QA og release_gate sist.
+Les AGENTS, ROUND_11_REPORT, relevante `round-11/checks/`, review-README, produktkrav/arkitektur, CALENDAR_CONNECTIONS, HOME_ASSISTANT og ADR 0023. Hent nyere featurearbeid gjennom etablert publishing-checkout; ikke reset eller overskriv arbeid. Følg prosjektets parallelle lesende fagreview, én skriver om gangen, etterreview, samlet QA og release_gate sist. Siste uttrykkelige eierbeskjed går foran eldre generelle begrensninger innen det presise omfanget nedenfor.
 
-Work har bekreftet hash og dimensjoner for 37 bilderegistreringer, hvorav 30 fra sluttkilden, og alle 240 source-input-hasher. Et representativt visuelt utvalg er faktisk åpnet; ikke skriv at Work åpnet alle latest-bildene eller omkjørte serverkontroller. Ingen bekreftet materiell visuell regresjon i utvalget. Serverens 351 tester, fem workspace check/build og fullt kanonisk R11-build er dokumentert bestått. R9s gamle overlaybegrensning gjelder ikke dette bygget.
+Historisk R11-bevis: 351 tester, fem workspace check/build og fullt kanonisk build bestod. Work verifiserte hash/dimensjoner for 37 bilderegistreringer og alle 240 source-input-hasher, og åpnet et representativt bildeutvalg. Dette er ikke nye tester eller bevis på den kommende kandidatens drift. Publisert HTTPS-bevis gjaldt R10. F1–F3 er kode-/kontraktfunn, ikke feil fremprovosert i eierens livekontoer. Den nye opplysningen om ekte HA-bruk erstatter den gamle generelle antakelsen om manglende HA-tilkobling.
 
-Publisert HTTPS-bevis gjelder R10. Nye veivisere finnes på LAN, men ingen ekte Google-, Microsoft- eller HA-synk er verifisert. De tre P2-funnene under er bekreftet gjennom kode og relevante primærkontrakter, ikke gjennom eierens livekontoer.
+## 1. Utvid gjesteplassen på codex-dev
+
+Begynn med avgrenset, lesende kontroll av vertsnavn/VM-identitet, faktisk diskstørrelse og ledig plass, partisjoner, eventuell LVM, filsystem og hvilke mounts som brukes av Samvev/Docker. Bruk relevante verktøy som `lsblk`, `findmnt`, `df` og LVM-visning der det faktisk brukes. Bekreft at tillegget finnes på riktig disk. Ikke gjett enhetsnavn eller partisjonsnummer.
+
+Eieren autoriserer nødvendige administrative kommandoer, inkludert sudo ved behov, for å utvide den bekreftede eksisterende partisjon/PV/LV/filsystem-kjeden på **codex-dev** med den tilførte kapasiteten. Dette er et snevert unntak fra AGENTS' generelle forbud mot sudo og vertsendringer. Velg prosedyre etter faktisk oppsett; hvis plass allerede ligger ledig i riktig VG, skal ingen unødvendig partisjonsendring utføres. Bevar data, startsektorer, identiteter og mounts. Bruk støttet online-utvidelse når mulig. Ikke formater, krymp, bytt disk, endre andre VM-er eller utfør generell opprydding.
+
+Dokumenter før/etter for blokkdevice, eventuell LVM og faktisk tilgjengelig filsystemplass, og kontroller app/database/worker etterpå. Hvis tillegget ikke er synlig, identiteten er tvetydig eller nødvendige privilegier mangler: ikke gjett; oppgi konkret blokkering og fortsett tilgjengelig applikasjonsarbeid.
+
+**claude er et separat kontrollpunkt.** Den gamle offentlige deployblokkeringen ble målt der, med rundt 365 MiB ledig. Ekstra 100 GB på codex-dev løser ikke automatisk dette. Kontroller offentlig deploymål og fersk kapasitet separat. Denne autorisasjonen gir ikke lov til å utvide en annen VM eller disk.
+
+## 2. Forsiden viser i dag og i morgen; persondetaljer viser fremover
+
+Dagens `personalPreviewItems` i `apps/web/src/home-presentation.ts` avgrenser ikke dato, og personkort kan derfor vise en fjern fremtidig aktivitet. Listen er heller ikke en konsekvent kronologisk «neste aktivitet»-visning.
+
+- Avgrens kalenderforhåndsvisningen på forsiden/personkortene til **I dag** og **I morgen**, tydelig merket etter husstandens tidssone. Senere aktiviteter skal ikke fylle et tomt felt for disse dagene.
+- Vis en forståelig tomtilstand, for eksempel «Ingen aktiviteter i dag eller i morgen», og en tydelig vei til kommende aktiviteter. Eventuelle «X til»-tall skal telle innen samme datovindu.
+- Bevar klikk på navn/bilde til eksisterende persondetaljer. Vis kommende aktiviteter kronologisk, gruppert etter dato, med klokkeslett eller «Hele dagen», relevant kilde og faktisk intervall ved flerdagshendelser. Senere datoer må være tilgjengelige ved vanlig scrolling; ikke avgrens detaljlisten til to dager. Opplys hvilken periode som er hentet hvis listen har et begrenset synkvindu.
+- Respekter eksisterende leser-/displayrettigheter før visning og opptelling. Personkobling er ikke en rettighetstildeling. Bevar relevante oppdrag, varsler og resultater; ikke bruk kalenderfilteret til å skjule alt annet innhold på kortet.
+- Håndter lokale døgn, midnatt og sommertid, pågående og flerdagshendelser, heldag med eksklusiv sluttdato, kanselleringer og utdatert kilde. Bruk husstandens konfigurerte tidssone; test Europe/Oslo. Datovinduet er presentasjon, ikke forkorting/sletting av providerens hentede fremtidige data.
+- Bruk isolerte, fiktive data: sett dato til 15. oktober og legg en aktivitet 24. oktober. Den skal finnes i kommende-listen, men ikke på dagens/morgendagens kort; på den 23. vises den under I morgen, og den 24. under I dag. Kontroller automatisk døgnskifte uten tvungen full omlasting.
+- Kontroller seks fiktive personer, to voksne og fire barn, på mobil, iPad, kompakt Shelly-panel og desktop, i lys/mørk. Datoer og lange navn skal være lesbare. Bevar en praktisk mobilvisning og eksisterende dagsplan.
+
+## 3. Flere HA/Spond-kalendere og bevaring av den reelle koblingen
+
+Finn først gjennom eksisterende, avgrenset privat tilgang hvilket Samvev-miljø den reelle HA-koblingen ligger i. Bevar tokens/vault, konto, stabile registry-/kildeidentiteter, personkoblinger, leser-/displayvalg, hendelser og synkhistorikk. Ikke behandle ordinær LAN-installasjon som disponibel syntetisk testdata; ingen reseed, reset eller frakobling for QA.
+
+Lever en forståelig flyt på **eksisterende tilkobling**:
+«Oppdater kalenderliste» → velg kalender → «Gjelder hvem?» → separate valg for lesere/skjermer → forhåndsvis daterte aktiviteter → aktiver.
+
+- Oppdag nye Spond-kalendere som eieren legger til i samme godkjente HA, uten å opprette ny kontotilkobling eller kreve ny innlogging hver gang. Kalenderliste-oppdatering og vanlig hendelsessynk skal ha forskjellige, forståelige navn.
+- Støtt flere kalendere til én person, forskjellige kalendere til forskjellige personer og en felles kalender til flere uttrykkelig valgte personer. Ikke koble automatisk etter navn eller opprett husstandsmedlemmer fra HA.
+- Bevar eksisterende valg ved ny discovery, omstart og endret entity-ID med samme stabile registry-ID. Nye kilder er inaktive til uttrykkelig person-/synlighetsvalg, forhåndsvisning og aktivering. Manglende/utilgjengelige kilder varsles uten automatisk sletting eller omkobling.
+- Endret personfordeling skal oppdatere de riktige kortene/detaljlistene og fjerne gammel tilknytning uten å slette kildehistorikk eller duplisere hendelser. Bevar eksisterende kontroll mot samme kilde via flere importveier; ikke slå sammen ulike aktiviteter bare fordi titlene ligner.
+- Test kilde A/person A, kilde B/person B, flere kilder til samme person, delt kilde, omfordeling, ny discovery, rename, midlertidig manglende kilde og lesergrenser.
+- Den eksisterende autoriserte koblingen kan brukes til skånsom, avgrenset verifikasjon av valgte kilder. Ikke fremprovoser feil i ekte HA; feil/recovery testes isolert. Ingen nettverksskanning, HA-reinstallasjon, Spond Tracker-endring eller generell dump av tilstander.
+- Hvis koblingen ligger på LAN, avklar en støttet, kontobundet vei til offentlig test uten tap av eksisterende valg. Ikke kopier vault-hemmeligheter blindt mellom installasjoner. Hvis nytt samtykke faktisk kreves, ferdigstill og publiser funksjonene og gi én konkret GUI-handling for eieren. Ikke be om allerede registrert HA-adresse/tilgang på nytt uten å kontrollere eksisterende privat konfigurasjon.
+- Ingen ekte navn, kalenderinnhold, kildeidentifikatorer, hemmeligheter eller personkoblinger i GitHub, offentlige screenshots eller rapporter. Bruk syntetiske fixtures og valider personvernmasker før publisering.
+
+## Tidligere bestilte rettinger – bevar F1–F3
+
+Kontroller om nyere featurearbeid allerede har løst funnene. Verifiser og behold ferdige rettinger; implementer bare det som mangler.
 
 ## F1. Gjenoppta synk etter reparert klienthemmelighet
 
@@ -62,23 +103,25 @@ Versjonsfestet primærkode:
 
 Dette er referansekontrakter, ikke bevis på eierens installerte versjon.
 
-## Diskplass og allerede autorisert testpublisering
+## 4. Fortløpende offentlig testpublisering
 
-Siste rapporterte måling på claude var 382 885 888 byte ledig (365,15 MiB). Manglende komprimerte imagelag pluss beholdt 300 MiB recoverymargin krevde minst 442 283 862 byte. Underskuddet var 56,65 MiB allerede før Docker-utpakking/metadata. Å frigjøre bare dette underskuddet er derfor ikke tilstrekkelig grunnlag. Rapportens minst 2 GB ekstra er en foreslått arbeidsmargin, ikke et målt eksakt deploykrav.
+Offentlig test er normal leveransekanal fra nå av. Publiser ferdige, sammenhengende og verifiserte endringer til https://samvev.pabben.org/ gjennom etablert Samvev SSH-/Compose-vei, uten å spørre om generell publiseringstillatelse igjen. LAN er et mellomsteg for QA. Ikke meld ferdig med bare LAN dersom offentlig deploy kan gjennomføres.
 
-Gjør ny kapasitetskontroll og beregn behov for den rettede kandidaten. Ikke gjenta tunge forsøk på full disk. Bevar databaser, volumer, backuper, vault og R10-rollback-image. Ingen bred prune, global opprydding, inngrep i andre prosjekter, partisjons-/VM-endring eller ny generell driftsautorisasjon utledet av denne prompten. Identifiser eventuelt entydig gjenoppbyggbare Samvev-artefakter innen eksisterende tillatelser. Hvis større kapasitet krever eier: fullfør rettinger/test/build/dokumentasjon først og oppgi konkret gjenstående tiltak.
+Mål kapasitet på faktisk offentlig mål for den nye kandidaten, med utpakking, database/migrasjon og recoverymargin; en gammel tommelfingerregel om 2 GB er ikke et målt deploykrav. Ikke gjenta tunge forsøk på full disk. Bevar databaser, volumer, vault, backuper og fungerende rollback-image. Ingen bred prune, andre prosjekter eller uautorisert utvidelse av claude. Eventuell opprydding begrenses til entydig gjenoppbyggbare Samvev-artefakter innen eksisterende tillatelser. En faktisk gjenværende claude-blokkering skal beskrives konkret etter at resten er ferdigstilt.
 
-Publisering er allerede autorisert når kapasitet og øvrige driftsvilkår er oppfylt. Bruk etablert Samvev SSH-/Compose-vei, fersk backupkontroll og nødvendig isolert restore for faktisk kandidat/migrasjon. Gjenbruk gyldig R11-recoverybevis der forutsetningene er uendret; dokumenter avgrensningen. Gammel R10-lesekompatibilitet uten HA-/GUI-rader er ikke generell rollbackgodkjenning etter nye brukeroppsett. Følg ADR 0023 og behold data fremfor automatisk restore over nyere skrivinger.
+Kontroller fersk backup og nødvendig isolert restore for faktisk kandidat/migrasjon. Gjenbruk gyldig bevis bare der forutsetningene er uendret. Gammel R10-lesekompatibilitet uten HA-/GUI-rader er ikke generell rollbackgodkjenning etter reelle brukeroppsett. Følg ADR 0023 og bevar nyere data fremfor automatisk restore over nye skrivinger. Ingen unødvendige driftsavbrudd eller endringer i andre tjenester.
 
 ## Verifikasjon, bevaring og leveranse
 
-- Reproduser og rett F1–F3 med meningsfulle isolerte regresjonstester; de nye testene skal avsløre baselinefeilene. Gjennomfør prosjektets nødvendige samlede retest og etterreview. Ingen ekstern konto eller live modellkall er nødvendig for rettingene.
-- Bevar migrasjoner 001–025 og checksummer. Bare nødvendige additive endringer. Bevar de to eksisterende personkoblede oppdragene, godkjenninger, mottakere, subjects, historikk og tidsplaner. Ingen manuell livekjøring, tolking, kopier, betalt fallback eller nye samtykker/importer som QA-verktøy.
-- Bevar reelle data/rettigheter/profilbilder, beskyttet hoved-.git, LANs fem personer og `admin/admin`. Test bare i isolerte testdatabaser. Begge ordinære miljøer skal fortsatt kjøre.
-- Ny applikasjonskilde krever nytt DCO-kildecheckpoint, kanonisk immutable build og kildebundet runtime/capture. Regenerer 14 latest gjennom etablert rutine/personvernmasker, og suppler målrettet de berørte recovery-/registreringsflytene i NB/EN, lys/mørk og mobil/større skjerm. Seks fiktive personer er hovedfixture; ingen ny generell bildematrise.
-- Ett enkelt bildeavvik er observert: `round-11/final-ui/calendar-recovery-nb-light.png` har blank knapp ved Google secondary, mens samme kontroll har riktig tekst i stale-bildet fra samme kilde og i kode. Kontroller denne knappen ved målrettet recapture; rett bare hvis avviket faktisk gjenskapes. Ingen bekreftet funksjonsfeil er utledet av bildet alene.
-- Etter faktisk deploy: kontroller kandidatens image/source/schema, app/worker/database, HTTPS-inn-/utlogging, nye veivisere, tilgangsgrenser og SSE. Skill dette fra syntetisk providersynk og fortsatt manglende ekte kontoautorisering. Offentlig R10-kontroll kan ikke gjenbrukes som kandidatens etterkontroll.
-- Oppgi eksplisitt source/review/deploy-SHA, round ID, endrede filer, tester, F1–F3-resultat, kapasitets-/recovery-/rollbackstatus og direkte lenker i en ny oppfølgingsrapport. Bevar historiske rapporter og bilder med riktig kilde.
-- Samle én kort eierliste: nødvendig plass på claude; eksisterende HA-adresse/tilgangsvei uten hemmeligheter; etter publisering leverandørregistrering/samtykke via offentlig GUI. Ikke gjett HA-adresse fra tidligere planer, skann nettverket eller reinstallér eksisterende Spond Tracker. Ekte hemmeligheter skal ikke legges i syntetisk LAN-demo eller chat. Tidligere ChatGPT-samtykke/import og lokal AI er fortsatt egne restpunkter.
+- Reproduser og rett gjenværende F1–F3 med isolerte regresjonstester som avslører baselinefeilene. Test de nye kalenderflytene målrettet, og gjennomfør prosjektets nødvendige samlede retest og etterreview. Skill syntetisk leverandørtest fra faktisk verifisert HA-synk.
+- Bevar migrasjoner 001–025 og checksummer; bare nødvendige additive endringer. Bevar personkoblede AI-oppdrag, godkjenninger, mottakere, subjects, historikk og tidsplaner. Ingen manuell livekjøring, kopier, betalt fallback eller nye AI-samtykker/importer som QA-verktøy.
+- Bevar reelle data/rettigheter/profilbilder, beskyttet hoved-.git, eksisterende husstandsmedlemmer, LANs `admin/admin` og begge ordinære miljøer. Test skrive-/feilscenarioer i isolerte testdatabaser.
+- Ny applikasjonskilde krever nytt DCO-kildecheckpoint, kanonisk immutable build og kildebundet runtime/capture. Regenerer 14 latest gjennom etablert rutine med kontrollerte personvernmasker. Suppler målrettet hjem/persondetaljer, kildeoppdatering/personfordeling og berørte recovery-/registreringsflyter i NB/EN, lys/mørk og relevante skjermstørrelser. Bruk seks fiktive personer; ingen ny generell bildematrise.
+- Tidligere enkeltbilde `round-11/final-ui/calendar-recovery-nb-light.png` hadde blank Google-secondary-knapp, mens samme kontroll hadde tekst i kode og stale-bildet. Kontroller ved recapture; rett hvis avviket gjenskapes. Ikke rapporter det som allerede bekreftet funksjonsfeil.
+- Etter faktisk deploy: verifiser kandidatens image/source/schema, app/worker/database, HTTPS-inn-/utlogging, kalenderkort/detaljer, veivisere, tilgangsgrenser og SSE. Oppgi separat hva som er prøvd mot ekte HA og hva som fortsatt krever Google-/Microsoft-samtykke. Gamle R10-kontroller er ikke etterkontroll av ny kandidat.
+- Oppdater relevant krav-/driftsdokumentasjon og M1_STATUS. Lever ny oppfølgingsrapport med source/review/deploy-SHA, round ID, endrede filer, tester, F1–F3, kalenderkrav, codex-dev før/etter-kapasitet, separat claude-kapasitet og recovery-/rollbackstatus. Bevar historiske rapporter/bilder med riktig kilde.
+- Samle bare faktisk gjenstående eierhandlinger i én kort liste: eventuell dokumentert kapasitet/tilgang som fortsatt blokkerer, og konkrete GUI-samtykker som ikke kan gjenbrukes. Ikke be om passord, tokens eller nøkkelinnhold i chat. Tidligere ChatGPT-samtykke/import og lokal AI er fortsatt egne restpunkter.
 
-Fortsett autonomt med alle tilgjengelige deler selv om diskplass eller eierens kontoer blokkerer resten. Ikke stopp ved en plan eller første retting; avslutt når omfanget er dokumentert ferdig, budsjettgrensen nås eller gjenværende veier faktisk krever eier. DCO-signert push bare til `feat/m3-family-hub`. Ingen PR, merge, main-/force-push, tag/release eller Actions-dispatch.
+Fortsett autonomt med alle tilgjengelige deler selv om én ekstern avhengighet blokkerer resten. Ikke stopp ved plan, første retting eller LAN-publisering. Avslutt når omfanget er dokumentert ferdig, eksisterende goal-budsjett er brukt opp eller alle gjenværende veier faktisk krever eier. Ikke opprett ny betalt kapasitet eller endre et budsjett på egen hånd.
+
+DCO-signert push bare til `feat/m3-family-hub`. Ingen PR, merge, main-/force-push, tag/release eller Actions-dispatch. De uttrykkelig autoriserte unntakene er gjesteutvidelsen på codex-dev og offentlig Samvev-testpublisering som beskrevet over.
