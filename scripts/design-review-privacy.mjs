@@ -14,6 +14,7 @@ export async function maskReviewPrivacy(page, names) {
       fallbackAvatar: '.family-hub .avatar:not(.avatar-illustrated),.account-button .avatar:not(.avatar-illustrated)',
       protectedPhoto: 'img[src*="/api/v1/households/"][src*="/photo/"]',
       personalActivity: '.hub-person-activity',
+      homeEnvironment: '.family-hub .hub-waste [data-item-id],.family-hub .hub-temperature',
       taskStatus: '.family-hub .person-task-entry span,.family-hub .person-task-inline span',
       provenance: '.family-hub .hub-provenance',
     };

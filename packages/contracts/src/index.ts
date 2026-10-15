@@ -279,18 +279,23 @@ export const calendarConnectionCreateSchema=z.object({
   provider:z.enum(calendarProviders),
   name:nameSchema,
   bridgeKind:z.enum(calendarBridgeKinds).default('direct'),
-  icsUrl:calendarSecretUrlSchema.optional()
+  icsUrl:calendarSecretUrlSchema.optional(),
+  replacesConnectionId:uuidSchema.optional()
 }).strict().superRefine((value,ctx)=>{
   if(value.provider==='ics'&&!value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_required'});
   if(value.provider!=='ics'&&value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_not_allowed'});
   if(value.bridgeKind==='spond_calendar'&&value.provider==='ics')ctx.addIssue({code:'custom',path:['provider'],message:'spond_bridge_requires_google_or_microsoft'});
-  if(value.provider==='home_assistant'&&value.bridgeKind!=='spond_home_assistant')ctx.addIssue({code:'custom',path:['bridgeKind'],message:'home_assistant_requires_spond_bridge'});
+  if(value.provider==='home_assistant'&&!['direct','spond_home_assistant'].includes(value.bridgeKind))ctx.addIssue({code:'custom',path:['bridgeKind'],message:'home_assistant_bridge_invalid'});
   if(value.provider!=='home_assistant'&&value.bridgeKind==='spond_home_assistant')ctx.addIssue({code:'custom',path:['provider'],message:'spond_home_assistant_requires_home_assistant'});
+  if(value.replacesConnectionId&&value.provider!=='microsoft')ctx.addIssue({code:'custom',path:['replacesConnectionId'],message:'replacement_requires_microsoft'});
 });
 export const calendarSourceUpdateSchema=z.object({
   expectedRevision:z.number().int().positive(),
   enabled:z.boolean(),
   bridgeKind:z.enum(calendarBridgeKinds).default('direct'),
+  purpose:z.enum(['calendar','waste']).default('calendar'),
+  displayName:z.string().trim().min(1).max(80).nullable().optional(),
+  syncWindowDays:z.object({past:z.number().int().min(0).max(31),future:z.number().int().min(1).max(366)}).strict().optional(),
   appliesTo:z.object({household:z.boolean().default(false),personIds:z.array(uuidSchema).max(50).default([])}).strict()
     .refine((value)=>value.household||value.personIds.length>0,'calendar_subject_required')
     .refine((value)=>new Set(value.personIds).size===value.personIds.length,'duplicate_person_subject'),
@@ -299,7 +304,22 @@ export const calendarSourceUpdateSchema=z.object({
     personIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_person_reader'),
     displayIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_display_target')
   }).strict().refine((value)=>value.household||value.personIds.length>0||value.displayIds.length>0,'calendar_reader_required')
+}).strict().superRefine((value,ctx)=>{
+  if(value.purpose==='waste'&&(!value.appliesTo.household||value.appliesTo.personIds.length))ctx.addIssue({code:'custom',path:['appliesTo'],message:'waste_requires_household_subject'});
+});
+export const calendarSourceRefreshSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const temperatureSensorDiscoverySchema=z.object({expectedRevision:z.number().int().positive(),search:z.string().trim().max(100).default(''),cursor:z.number().int().min(0).default(0)}).strict();
+export const temperatureSensorSelectSchema=z.object({expectedRevision:z.number().int().positive(),externalId:z.string().min(1).max(500)}).strict();
+export const temperatureSensorUpdateSchema=z.object({
+  expectedRevision:z.number().int().positive(),enabled:z.boolean(),
+  displayName:z.string().trim().min(1).max(80),order:z.number().int().min(0).max(1000),
+  visibility:z.object({
+    household:z.boolean().default(false),
+    personIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_person_reader'),
+    displayIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_display_target')
+  }).strict().refine((value)=>value.household||value.personIds.length>0||value.displayIds.length>0,'temperature_reader_required')
 }).strict();
+export const temperatureSensorRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
 export const calendarConnectionRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
 export const calendarOAuthCompleteSchema=z.object({completionToken:z.string().min(32).max(256)}).strict();
 export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive()}).strict();

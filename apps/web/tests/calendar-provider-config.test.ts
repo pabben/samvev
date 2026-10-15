@@ -42,7 +42,7 @@ const member:Membership={id:'synthetic-membership',household_id:'synthetic-house
 test('ordinary adult calendar surface omits installation settings and manager credential actions',()=>{
  Object.defineProperty(globalThis,'location',{value:new URL('https://samvev.invalid/?tab=integrations'),configurable:true});
  const markup=renderToStaticMarkup(createElement(LocaleProvider,{locale:'en',children:createElement(IntegrationsPanel,{member,displays:[],people:[],installationId:'synthetic-installation',accountId:'synthetic-account'})}));
- assert.ok(markup.includes('Your calendars'));assert.ok(markup.includes('Activities through Home Assistant'));assert.ok(!markup.includes('One-time connection setup'));assert.ok(!markup.includes('Advanced · incoming integrations'));assert.ok(!markup.includes('Client secret'));
+ assert.ok(markup.includes('Your calendars'));assert.ok(markup.includes('Calendars, waste collection and temperature'));assert.ok(!markup.includes('One-time connection setup'));assert.ok(!markup.includes('Advanced · incoming integrations'));assert.ok(!markup.includes('Client secret'));
 });
 test('installation admin surface adds registration setup and manager controls without exposing secrets',()=>{
  const manager={...member,capabilities:['household.view','household.manage','installation.manage']};
@@ -87,7 +87,7 @@ test('connected zero-source accounts offer explicit discovery retry, never an au
  assert.equal(calendarCanDiscoverSources('ics','connected',0),false);
  let calls=0;
  const markup=renderToStaticMarkup(createElement(LocaleProvider,{locale:'en',children:createElement(CalendarSourcesEmpty,{provider:'home_assistant',disabled:true,onRetry:()=>calls++})}));
- assert.equal(calls,0);assert.ok(markup.includes('Account connected, no calendars found'));assert.ok(markup.includes('existing Spond Tracker'));assert.ok(markup.includes('Do not reinstall'));assert.ok(markup.includes('Sign in and find calendars again'));assert.ok(markup.includes('disabled=""'));
+ assert.equal(calls,0);assert.ok(markup.includes('Account connected, no calendars found'));assert.ok(markup.includes('including Spond Tracker'));assert.ok(markup.includes('Do not reinstall'));assert.ok(markup.includes('Refresh calendar list'));assert.ok(markup.includes('disabled=""'));
 });
 
 const {CalendarFreshness}=await import('../src/calendar-freshness');

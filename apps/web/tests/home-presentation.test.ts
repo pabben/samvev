@@ -125,7 +125,7 @@ test('personal disclosure count describes only entries beyond the current previe
  assert.equal(hiddenPersonalCount(0,3),0);
  const summary={...item,id:'summary',kind:'summary' as const};
  const household={...item,id:'household',targets:{household:true,personIds:[]}};
- assert.deepEqual(personalPreviewItems([item,summary,household],'p'),[item]);
+ assert.deepEqual(personalPreviewItems([item,summary,household],'p',now,'Europe/Oslo'),[item]);
 });
 
 test('personal lists and summaries count as current content even without an activity preview',()=>{
@@ -135,7 +135,7 @@ test('personal lists and summaries count as current content even without an acti
  for(const entries of [[list],[summary],[list,summary],[item,list,summary]]){
   const active=currentItems([...entries,unrelated],now);
   const all=personItems(active,'p');
-  const preview=personalPreviewItems(active,'p');
+  const preview=personalPreviewItems(active,'p',now,'Europe/Oslo');
   assert.equal(all.length,entries.length);
   for(const limit of [0,1,3]){
    const visible=preview.slice(0,limit);

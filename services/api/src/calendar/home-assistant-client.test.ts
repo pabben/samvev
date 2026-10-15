@@ -30,6 +30,11 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
   const requests:Array<{method:string;url:string;authorization?:string;body:string}>=[];
   let spondEntityId='calendar.spond_team';
   let calendarStatus=200;
+  let sourceState='off';
+  let temperatureState='-3.5',temperatureUnit='°C';
+  let calendarReturnedEntityId:string|undefined;
+  let temperatureReturnedEntityId:string|undefined;
+  let temperatureReportedAt='2026-10-15T08:00:00Z',temperatureUpdatedAt='2026-10-15T07:59:00Z';
   const server=createServer(async(request,response)=>{
     const requestBody=await body(request);requests.push({method:request.method??'',url:request.url??'',authorization:request.headers.authorization,body:requestBody});
     response.setHeader('content-type','application/json');
@@ -45,6 +50,8 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
     if(request.method==='GET'&&request.url==='/api/calendars'){
       response.end(JSON.stringify([{entity_id:spondEntityId,name:'Spond team'},{entity_id:'calendar.personal',name:'Personal'}]));return;
     }
+    if(request.method==='GET'&&request.url===`/api/states/${spondEntityId}`){response.end(JSON.stringify({entity_id:calendarReturnedEntityId??spondEntityId,state:sourceState,attributes:{}}));return;}
+    if(request.method==='GET'&&request.url==='/api/states/sensor.outdoor_temperature'){response.end(JSON.stringify({entity_id:temperatureReturnedEntityId??'sensor.outdoor_temperature',state:temperatureState,last_reported:temperatureReportedAt,last_updated:temperatureUpdatedAt,attributes:{device_class:'temperature',unit_of_measurement:temperatureUnit}}));return;}
     if(request.method==='GET'&&request.url?.startsWith(`/api/calendars/${spondEntityId}?`)){
       if(calendarStatus!==200){response.statusCode=calendarStatus;response.end(JSON.stringify({message:'bounded synthetic error'}));return;}
       response.end(JSON.stringify([
@@ -63,7 +70,7 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
       else if(message.type==='config/entity_registry/list')socket.write(serverFrame({id:message.id,type:'result',success:true,result:[
         {id:'registry-spond',entity_id:spondEntityId,platform:'spond_tracker',config_entry_id:'config-spond'},
         {id:'registry-other',entity_id:'calendar.personal',platform:'local',config_entry_id:'config-local'},
-        {id:'sensor-spond',entity_id:'sensor.spond_upcoming',platform:'spond_tracker',config_entry_id:'config-spond'}
+        {id:'sensor-temperature',entity_id:'sensor.outdoor_temperature',platform:'synthetic',translation_key:'temperature',original_name:'Outdoor temperature'}
       ]}));
     }});
   });
@@ -77,12 +84,16 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
   const token=await client.exchangeCode(config,{code:'one-time-code',redirectUri:'https://samvev.example/api/v1/calendar/oauth/home_assistant/callback'});
   assert.equal(token.providerSubject,'ha-owner-id');assert.equal(token.accountLabel,'HA owner');assert.deepEqual(token.scopes,['home_assistant_instance_token']);
   const sources=await client.listSources(config,token.accessToken);
-  assert.deepEqual(sources,[{externalId:'registry-spond',name:'Spond team',provenance:{integrationDomain:'spond_tracker',entityId:'calendar.spond_team',platform:'calendar',registryId:'registry-spond',configEntryId:'config-spond',validatedContractVersion:'0.12.2',referenceCommit:'0d8efdd'},sourceWarning:'home_assistant_spond_bounded_cache_status_and_first_name_identity_limitations'}], 'the registry identity, not the mutable entity ID, is the durable source identity');
+  assert.equal(sources.length,2);assert.deepEqual(sources[0],{externalId:'registry-spond',name:'Spond team',provenance:{integrationDomain:'spond_tracker',entityId:'calendar.spond_team',platform:'calendar',identityKind:'registry',registryId:'registry-spond',configEntryId:'config-spond',validatedContractVersion:'0.12.2',referenceCommit:'0d8efdd'},sourceWarning:'home_assistant_spond_bounded_cache_status_and_first_name_identity_limitations'}, 'the registry identity, not the mutable entity ID, is the durable source identity');assert.equal(sources[1]!.provenance.integrationDomain,'home_assistant');assert.equal(sources[1]!.sourceWarning,undefined,'Spond-specific warnings do not leak onto general calendars');
   const events=await client.listEvents(config,token.accessToken,sources[0]!.externalId,{from:'2026-10-01T00:00:00.000Z',to:'2026-12-01T00:00:00.000Z'});
   assert.deepEqual(events,[
-    {uid:'spond-event-1',instanceId:'single',title:'🟡 Practice',start:'2026-10-15T16:00:00+02:00',end:'2026-10-15T17:30:00+02:00',allDay:false,cancelled:false,location:'Sports hall'},
-    {uid:'spond-task-7',instanceId:'single',title:'❌ Driving duty',start:'2026-10-16',end:'2026-10-17',allDay:true,cancelled:true,status:'cancelled',location:undefined}
+    {uid:'spond-event-1',instanceId:'single',identityKind:'provider',title:'🟡 Practice',start:'2026-10-15T16:00:00+02:00',end:'2026-10-15T17:30:00+02:00',allDay:false,cancelled:false,location:'Sports hall'},
+    {uid:'spond-task-7',instanceId:'single',identityKind:'provider',title:'❌ Driving duty',start:'2026-10-16',end:'2026-10-17',allDay:true,cancelled:true,status:'cancelled',location:undefined}
   ]);assert.equal(JSON.stringify(events).includes('participants'),false);assert.equal(JSON.stringify(events).includes('Private'),false);
+  const sensorCandidates=await client.listTemperatureSensors(config,token.accessToken);assert.equal(sensorCandidates.length,1);assert.equal(sensorCandidates[0]!.name,'Outdoor temperature');const temperature=await client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature');assert.deepEqual(temperature,{value:-3.5,unit:'°C',status:'current',lastReportedAt:'2026-10-15T08:00:00Z',lastUpdatedAt:'2026-10-15T07:59:00Z',fetchedAt:temperature.fetchedAt});
+  temperatureUnit='kWh';assert.equal((await client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature')).reason,'invalid_unit');temperatureUnit='°F';temperatureState='-4.5';assert.equal((await client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature')).value,-4.5);temperatureState='';assert.equal((await client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature')).reason,'invalid_value','an empty HA state is never coerced to zero');temperatureState='unknown';assert.equal((await client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature')).reason,'unknown');temperatureState='-3.5';temperatureUnit='°C';
+  temperatureReportedAt='not-a-timestamp';temperatureUpdatedAt='2026-02-31T08:00:00Z';const malformedTimestamps=await client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature');assert.equal(malformedTimestamps.lastReportedAt,null);assert.equal(malformedTimestamps.lastUpdatedAt,null,'malformed HA timestamps cannot be presented as a current measurement');temperatureReportedAt='2026-10-15T08:00:00.123456+00:00';temperatureUpdatedAt='2026-10-15T07:59:00Z';assert.equal((await client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature')).lastReportedAt,temperatureReportedAt);
+  temperatureReturnedEntityId='sensor.other_temperature';await assert.rejects(client.readTemperatureSensor(config,token.accessToken,'sensor.outdoor_temperature'),(error:any)=>error?.details?.reason==='home_assistant_response_invalid','a targeted sensor read cannot accept a different returned entity');temperatureReturnedEntityId=undefined;
   const refreshed=await client.refresh(config,token.refreshToken!);assert.equal(refreshed.accessToken,'access-refreshed');assert.equal(refreshed.refreshToken,'refresh-code');
   assert.equal(await client.revoke(config,token.refreshToken!),'confirmed');
 
@@ -93,10 +104,12 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
   assert.equal(requests.find((request)=>request.url==='/auth/revoke')?.method,'POST');
   spondEntityId='calendar.spond_team_renamed';
   const rediscovered=await client.listSources(config,token.accessToken);
-  assert.deepEqual(rediscovered,[{externalId:'registry-spond',name:'Spond team',provenance:{integrationDomain:'spond_tracker',entityId:'calendar.spond_team_renamed',platform:'calendar',registryId:'registry-spond',configEntryId:'config-spond',validatedContractVersion:'0.12.2',referenceCommit:'0d8efdd'},sourceWarning:'home_assistant_spond_bounded_cache_status_and_first_name_identity_limitations'}], 'a renamed Home Assistant entity keeps the same selected source identity');
+  assert.equal(rediscovered[0]!.externalId,'registry-spond');assert.equal(rediscovered[0]!.provenance.entityId,'calendar.spond_team_renamed','a renamed Home Assistant entity keeps the same selected source identity');
   const afterRename=await client.listEvents(config,token.accessToken,rediscovered[0]!.externalId,{from:'2026-10-01T00:00:00.000Z',to:'2026-12-01T00:00:00.000Z'});
   assert.equal(afterRename[0]!.uid,'spond-event-1');
   assert.ok(requests.some((request)=>request.url.startsWith('/api/calendars/calendar.spond_team_renamed?')),'event retrieval resolves the stable source identity to the current registry entity');
+  sourceState='unavailable';await assert.rejects(client.listEvents(config,token.accessToken,'registry-spond',{from:'2026-10-01T00:00:00.000Z',to:'2026-12-01T00:00:00.000Z'}),(error:any)=>error?.details?.reason==='home_assistant_calendar_source_stale','HTTP 200 cached events cannot freshen an unavailable Spond entity');sourceState='off';
+  calendarReturnedEntityId='calendar.some_other_source';await assert.rejects(client.listEvents(config,token.accessToken,'registry-spond',{from:'2026-10-01T00:00:00.000Z',to:'2026-12-01T00:00:00.000Z'}),(error:any)=>error?.details?.reason==='home_assistant_response_invalid','calendar health is bound to the exact selected entity');calendarReturnedEntityId=undefined;
   await assert.rejects(client.exchangeCode(config,{code:'invalid-grant',redirectUri:'https://samvev.example/api/v1/calendar/oauth/home_assistant/callback'}),(error:any)=>error?.details?.reason==='calendar_reauthorization_required');
   await assert.rejects(client.exchangeCode(config,{code:'inactive-user',redirectUri:'https://samvev.example/api/v1/calendar/oauth/home_assistant/callback'}),(error:any)=>error?.details?.reason==='calendar_reauthorization_required');
   calendarStatus=401;await assert.rejects(client.listEvents(config,token.accessToken,'registry-spond',{from:'2026-10-01T00:00:00.000Z',to:'2026-12-01T00:00:00.000Z'}),(error:any)=>error?.details?.reason==='calendar_reauthorization_required');

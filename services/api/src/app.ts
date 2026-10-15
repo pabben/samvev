@@ -17,7 +17,8 @@ import {
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
   integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
-  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,
+  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,
+  temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
   integrationCapabilities,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
@@ -245,7 +246,8 @@ interface ExternalItemRow {
   ends_at:Date|null; expires_at:Date|null; source:Record<string,unknown>; metadata:Record<string,unknown>;
   status:string; revision:number; updated_at:Date; person_ids:string[]; display_ids:string[];
   subject_person_ids:string[];
-  calendar_connection_state:string|null; calendar_last_sync_succeeded_at:Date|null; calendar_provider_status:string|null; calendar_owner_authorized:boolean;
+  calendar_connection_state:string|null; calendar_source_error_code:string|null; calendar_provider_status:string|null; calendar_owner_authorized:boolean;
+  temperature_sensor_available:boolean|null;
 }
 
 function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean}={}):Record<string,unknown>{
@@ -256,16 +258,19 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
     ? Object.fromEntries(Object.entries(row.metadata).filter(([key])=>key!=='actionUrl'))
     : row.metadata;
   const storedCalendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?metadata.calendar as Record<string,unknown>:undefined;
-  const storedFreshnessReason=['sync_failed','provider_disabled','reauthorization_required'].includes(String(storedCalendar?.freshnessReason))?String(storedCalendar?.freshnessReason):undefined;
-  const calendarIsStale=row.calendar_connection_state?row.calendar_owner_authorized!==true||storedCalendar?.freshness==='stale'||!['connected','syncing'].includes(row.calendar_connection_state):false;
-  const calendarFreshness=row.calendar_connection_state?{
+  const storedFreshnessReason=['sync_failed','provider_disabled','reauthorization_required','source_missing'].includes(String(storedCalendar?.freshnessReason))?String(storedCalendar?.freshnessReason):undefined;
+  const calendarIsStale=storedCalendar&&row.calendar_connection_state?row.calendar_owner_authorized!==true||storedCalendar.freshness==='stale'||!['connected','syncing','error'].includes(row.calendar_connection_state):false;
+  const calendarFreshness=storedCalendar&&row.calendar_connection_state?{
     freshness:calendarIsStale?'stale':'current',
-    lastSuccessfulSyncAt:row.calendar_last_sync_succeeded_at?.toISOString()??null,
-    ...(calendarIsStale?{reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':row.calendar_connection_state==='error'?'sync_failed':storedFreshnessReason??'reauthorization_required'}:{})
+    lastSuccessfulSyncAt:typeof storedCalendar.lastSuccessfulSyncAt==='string'?storedCalendar.lastSuccessfulSyncAt:null,
+    ...(calendarIsStale?{reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':storedFreshnessReason??(row.calendar_source_error_code?'sync_failed':'reauthorization_required')}:{})
   }:undefined;
   const calendarMetadata=calendarFreshness&&metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)
     ?{...Object.fromEntries(Object.entries(metadata.calendar as Record<string,unknown>).filter(([key])=>key!=='freshnessReason')),...calendarFreshness}
     :calendarFreshness;
+  const storedTemperature=metadata.temperature&&typeof metadata.temperature==='object'&&!Array.isArray(metadata.temperature)?metadata.temperature as Record<string,unknown>:undefined;
+  const temperatureAuthorityStale=Boolean(storedTemperature&&row.calendar_connection_state&&(row.calendar_owner_authorized!==true||row.calendar_provider_status==='disabled'||['expired','awaiting_consent','setup'].includes(row.calendar_connection_state)));
+  const temperatureMetadata=storedTemperature?{...storedTemperature,...(temperatureAuthorityStale?{status:'stale',freshness:'stale',reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':'reauthorization_required'}:row.temperature_sensor_available===false?{status:'unavailable',freshness:'stale',reason:'sensor_missing'}:{})}:undefined;
   return {
     id:row.id,
     ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
@@ -275,16 +280,17 @@ function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean
     title:row.title,body:row.body,entries:row.entries,priority:row.priority,
     publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
     endsAt:row.ends_at?.toISOString()??null,expiresAt:row.expires_at?.toISOString()??null,
-    source,metadata:{...metadata,...(calendarMetadata?{calendar:calendarMetadata}:{})},revision:row.revision,updatedAt:row.updated_at.toISOString()
+    source,metadata:{...metadata,...(calendarMetadata?{calendar:calendarMetadata}:{}),...(temperatureMetadata?{temperature:temperatureMetadata}:{})},revision:row.revision,updatedAt:row.updated_at.toISOString()
   };
 }
 
 const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.content_locale,i.target_household,i.title,i.body,i.entries,i.priority,
   i.publish_at,i.starts_at,i.ends_at,i.expires_at,i.source,i.metadata,i.status,i.revision,i.updated_at,
   (SELECT calendar.state FROM calendar_connections calendar WHERE calendar.integration_connection_id=i.connection_id) AS calendar_connection_state,
-  (SELECT calendar.last_sync_succeeded_at FROM calendar_connections calendar WHERE calendar.integration_connection_id=i.connection_id) AS calendar_last_sync_succeeded_at,
+  (SELECT source.last_error_code FROM calendar_occurrences occurrence JOIN calendar_sources source ON source.id=occurrence.source_id WHERE occurrence.integration_item_id=i.id LIMIT 1) AS calendar_source_error_code,
   (SELECT provider.status FROM calendar_connections calendar JOIN households calendar_household ON calendar_household.id=calendar.household_id LEFT JOIN installation_calendar_provider_configs provider ON provider.installation_id=calendar_household.installation_id AND provider.provider=calendar.provider WHERE calendar.integration_connection_id=i.connection_id) AS calendar_provider_status,
   EXISTS(SELECT 1 FROM calendar_connections calendar JOIN memberships calendar_owner ON calendar_owner.account_id=calendar.owner_account_id AND calendar_owner.household_id=calendar.household_id JOIN persons calendar_person ON calendar_person.id=calendar_owner.person_id AND calendar_person.household_id=calendar_owner.household_id AND calendar_person.age_group='adult' JOIN accounts calendar_account ON calendar_account.id=calendar.owner_account_id AND calendar_account.disabled_at IS NULL WHERE calendar.integration_connection_id=i.connection_id AND calendar_owner.capabilities ? 'household.view') AS calendar_owner_authorized,
+  (SELECT sensor.available FROM home_assistant_temperature_sensors sensor WHERE sensor.integration_item_id=i.id LIMIT 1) AS temperature_sensor_available,
   COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_targets t WHERE t.item_id=i.id),'[]') AS person_ids,
   COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_subjects t WHERE t.item_id=i.id),'[]') AS subject_person_ids,
   COALESCE((SELECT json_agg(t.display_id ORDER BY t.display_id) FROM integration_item_display_targets t WHERE t.item_id=i.id),'[]') AS display_ids`;
@@ -1136,6 +1142,24 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   });
   app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');return{connection:await calendars.updateSource(auth,params(request).connectionId!,params(request).sourceId!,parse(calendarSourceUpdateSchema,request.body))};
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/refresh',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_source_discovery',{account:20,household:60,ip:40,windowSeconds:3600});const body=parse(calendarSourceRefreshSchema,request.body);reply.header('Cache-Control','private, no-store');return{connection:await calendars.refreshSources(auth,params(request).connectionId!,body.expectedRevision)};
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/temperature-sensors/discover',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'temperature_sensor_discovery',{account:30,household:90,ip:60,windowSeconds:3600});reply.header('Cache-Control','private, no-store');return calendars.discoverTemperatureSensors(auth,params(request).connectionId!,parse(temperatureSensorDiscoverySchema,request.body));
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/temperature-sensors',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'temperature_sensor_select',{account:30,household:90,ip:60,windowSeconds:3600});reply.header('Cache-Control','private, no-store');return{connection:await calendars.selectTemperatureSensor(auth,params(request).connectionId!,parse(temperatureSensorSelectSchema,request.body))};
+  });
+  app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/temperature-sensors/:sensorId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');return{connection:await calendars.updateTemperatureSensor(auth,params(request).connectionId!,params(request).sensorId!,parse(temperatureSensorUpdateSchema,request.body))};
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/temperature-sensors/:sensorId/preview',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'temperature_sensor_preview',{account:60,household:180,ip:120,windowSeconds:3600});const body=parse(temperatureSensorRevisionSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.previewTemperatureSensor(auth,params(request).connectionId!,params(request).sensorId!,body.expectedRevision);
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/temperature-sensors/:sensorId/sync',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'temperature_sensor_sync',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(temperatureSensorRevisionSchema,request.body);return reply.status(200).send({result:await calendars.syncTemperatureSensor(auth,params(request).connectionId!,params(request).sensorId!,body.expectedRevision),connection:await calendars.get(auth,params(request).connectionId!)});
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId/preview',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_preview',{account:60,household:180,ip:120,windowSeconds:3600});const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body.expectedSourceRevision);

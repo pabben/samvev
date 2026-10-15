@@ -28,11 +28,14 @@ må fungere både for brukerens nettleser og Samvev-serveren.
 
 ## Faktisk kildevalg og import
 
-Oppdagelse kombinerer HAs entity registry (`platform=spond_tracker`) med
-`/api/calendars`. Entitetsnavn alene beviser ikke Spond-proveniens. Kildens
-stabile registry-ID brukes som kildeidentitet; aktuell entity-ID løses på nytt
-ved henting, slik at navneendring ikke lager en ny kilde. Config-entry-ID følger
-proveniensen.
+Oppdagelse kombinerer HAs entity registry med `/api/calendars` og viser alle
+tilgjengelige HA-kalendere. Bare en registry-rad med
+`platform=spond_tracker` merkes som Spond; entitetsnavn alene beviser ikke
+Spond-proveniens. Kildens stabile, rå registry-ID brukes som kildeidentitet og
+aktuell entity-ID løses på nytt ved henting, slik at navneendring ikke lager en
+ny kilde. Config-entry-ID følger proveniensen. Hvis HA ikke har en registry-rad,
+bruker Samvev en navneområdesatt entity-ID og viser at stabilitet ved navneendring
+ikke kan garanteres.
 Samvev knytter ikke personer automatisk etter navn. Vanlige voksne har privat
 kobling til seg selv; riktig husstandsautoritet kan velge andre personer og
 uavhengig leser-/displaydeling.
@@ -43,8 +46,14 @@ ikke som komplett import. Oppgaver som tracker faktisk tilbyr som kalenderposter
 kan leses; de oppretter ingen AI-oppdrag, poengoppgaver eller påmeldinger. Ingen
 chat-/innboks-/vedleggsstøtte eller aksept-/avslagstjenester loves.
 
-Hendelser trenger faktisk kilde-UID; uten UID feiler hele snapshotet og siste
-gyldige innhold beholdes. Ingen tittel-/tid-hash som oppdiktet identitet. Kjente
+En hendelse med leverandør-UID beholder denne identiteten. For generelle
+HA-kalendere som faktisk utelater UID, bruker Samvev en separat lokal
+snapshot-identitet: eksakt kanonisk innholdsdigest og duplikatnummer innen samme
+snapshot. Den flytter aldri metadata mellom en lokal snapshotidentitet og en
+leverandøridentitet, og den slår aldri sammen hendelser på omtrentlig tittel og
+tid. Eksakt like legitime duplikater beholdes. En komplett, avgrenset henting
+kan trekke tilbake manglende forekomster bare innen vinduet den faktisk dekket;
+innhold utenfor vinduet og siste gyldige innhold ved feil beholdes. Kjente
 strukturerte CalendarEvent-statuser bevares når de finnes; manglende status er
 ukjent. Emoji tolkes ikke som autoritativ status. Beskrivelser forkastes siden
 de kan inneholde andre deltakere og oppgavelister. Bare nødvendig tittel, dato,
@@ -53,6 +62,13 @@ eventuell lokasjon og kildeidentitet importeres.
 Full snapshot brukes ved oppstart/periodisk synk og etter avbrudd; ingen
 endringshendelse er nødvendig for gjenoppretting. Gjentatt synk er idempotent.
 Feil er ikke tom kalender: siste gyldige innhold blir stående med utdatert-status.
+Hver valgt HA-kalender har eget komplett vindu, siste vellykkede synk og
+feilstatus. Hvis én kilde feiler, kan en annen komplett kilde oppdateres i samme
+forsøk; den mislykkede kilden beholder innhold og vindu som utdatert. En
+autentiserings-, konfigurasjons-, rettighets- eller total størrelsesfeil avbryter
+hele forsøket. Ved worker-oppstart fremskyndes bare en allerede planlagt,
+tilkoblet og autorisert HA-synk. Feiltilstand, frakobling og manglende plan vekkes
+ikke automatisk.
 Frakobling trekker tilbake importerte visninger, ikke egne Samvev-avtaler.
 Velg uttrykkelig én importkilde hvis samme Spond-data også finnes i Google eller
 Outlook. Ingen fuzzy sammenslåing på tittel/tid.
@@ -86,6 +102,22 @@ Kilder:
 [tracker sensorer](https://github.com/agjendem/ha-spond-tracker/blob/0d8efdd06cf39763807cec0fc114fbdaa6bf87a6/custom_components/spond_tracker/sensor.py).
 
 ## Øvrige HA-flater
+
+Temperatursensorer oppdages som en søkbar, avgrenset side av registry-metadata.
+HA-registryet inneholder ikke nødvendigvis device class eller måleenhet. Samvev
+aktiverer derfor aldri en kandidat fra metadata alene: brukeren velger først en
+kandidat, og en målrettet state-lesing må deretter bekrefte `temperature`, en
+endelig tallverdi og Celsius- eller Fahrenheit-enhet. Samvev henter ikke hele
+`/api/states`. Sensorens navn, rekkefølge og leser-/displayrettigheter er atskilt
+fra kalenderkildene. Hver aktiv sensor har selvstendig pollfrist, lease og
+backoff, og én observasjon. Før første vellykkede måling er verdien tom og markert
+som utdatert; den blir aldri fremstilt som null grader. Senere feil og `unknown`
+beholder siste gyldige verdi med feilstatus. Kildeverdienes `last_reported` og
+`last_updated` valideres og beholdes separat fra Samvevs hentetidspunkt og brukes
+til å vise ferskhet. En oppdatering av navn, rekkefølge eller rettigheter gjelder
+projeksjonen atomisk uten å vente på neste poll. HA-responsen må oppgi nøyaktig
+den valgte entiteten, og et svar forkastes dersom tilkobling, konfigurasjon,
+sesjon eller eierautoritet endres mens lesingen pågår.
 
 De tidligere planene om Samvev-publicering til HA, dashboard-generering og
 allowlistede tjenester er fortsatt fremtidig scope. Denne read-only Spond-pakken

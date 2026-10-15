@@ -1,0 +1,14 @@
+import type {HubItem} from './home-types';
+import {temperatureReading,temperatureIsStale,eventDay} from './home-presentation';
+import {CalendarFreshness} from './calendar-freshness';
+import {Icon,useI18n} from './ui';
+import {formatDate} from './time';
+/** Values and labels use the already authorized projection only. */
+export function HomeEnvironment({waste,temperatures,zone,onWaste,now=Date.now()}:{now?:number;waste:HubItem[];temperatures:HubItem[];zone:string;onWaste:(trigger:HTMLButtonElement)=>void}){
+ const {t,locale}=useI18n();const firstDay=waste[0]?eventDay(waste[0],zone):null;const next=waste.filter(item=>eventDay(item,zone)===firstDay);
+ if(!waste.length&&!temperatures.length)return null;
+ return <section className="hub-environment" aria-label={t('hubHomeReadings')}>
+ {next.length>0&&<section className="hub-panel hub-waste"><div className="hub-panel-title"><h2><Icon name="calendar"/>{t('hubNextWaste')}</h2></div><button className="hub-waste-open" data-hub-detail="waste" data-hub-detail-kind="collection" onClick={event=>onWaste(event.currentTarget)}>{next.map(item=><span key={item.id} data-item-id={item.id}><strong>{item.title}</strong><time dateTime={item.startsAt!}>{formatDate(`${eventDay(item,zone)}T12:00:00Z`,locale,'UTC',{weekday:'long',day:'numeric',month:'long'})}</time><CalendarFreshness item={item}/></span>)}<span className="hub-environment-link">{t('hubUpcomingWaste')} <Icon name="arrow" size={16}/></span></button></section>}
+ {temperatures.length>0&&<section className="hub-panel hub-temperatures"><div className="hub-panel-title"><h2><Icon name="home"/>{t('hubTemperatures')}</h2></div><div className="hub-temperature-grid">{temperatures.map(item=>{const reading=item.metadata.temperature!;const value=temperatureReading(item,locale);const stale=temperatureIsStale(item,now);const reported=reading.lastReportedAt??reading.lastUpdatedAt;return <article className="hub-temperature" key={item.id} data-item-id={item.id} data-temperature-freshness={stale?'stale':'current'}><strong>{reading.displayName}</strong><span className="hub-temperature-value">{value??t('temperatureNoReading')}</span>{stale&&<span className="calendar-stale">{t(reading.status==='unavailable'||reading.status==='error'?'temperatureUnavailable':'temperatureStale')}</span>}{stale&&value&&<span className="field-hint">{t('temperatureLastKnown')}</span>}<details><summary>{t('temperatureFreshness')}</summary><p>{t(reading.lastReportedAt?'temperatureReported':'temperatureUpdated')}: {reported?formatDate(reported,locale,zone):t('temperatureTimeUnknown')}</p><p>{t('temperatureFetched')}: {reading.lastFetchedAt?formatDate(reading.lastFetchedAt,locale,zone):t('calendarNever')}</p>{stale&&reading.lastValidAt&&<p>{t('temperatureLastValid')}: {formatDate(reading.lastValidAt,locale,zone)}</p>}<p>{t('temperatureTimestampHint')}</p></details></article>})}</div></section>}
+ </section>;
+}

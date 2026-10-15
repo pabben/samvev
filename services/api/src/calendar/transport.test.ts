@@ -26,23 +26,32 @@ test('confidential web registrations require both provider credentials and publi
   await assert.rejects(()=>new DefaultCalendarTransport().exchangeCode('google',{code:'code',verifier:'verifier',redirectUri:'https://samvev.test.invalid/api/v1/calendar/oauth/google/callback'}),(error:any)=>error.code==='CONFLICT'&&error.details.reason==='google_calendar_registration_missing');
 });
 
-test('Home Assistant calendar parsing follows official object dates and requires upstream stable UIDs',()=>{
+test('Home Assistant calendar parsing preserves provider UIDs and gives UID-less snapshots exact local identities',()=>{
   const events=parseHomeAssistantCalendarEvents([
     {uid:'stable-event',summary:'🟡 Synthetic practice',start:{dateTime:'2026-10-25T10:00:00+01:00'},end:{dateTime:'2026-10-25T11:00:00+01:00'},description:'must be discarded',location:'Synthetic hall'},
     {uid:'stable-task',recurrence_id:'task-instance',summary:'🔧 Synthetic driving duty',start:{date:'2026-10-26'},end:{date:'2026-10-27'},status:'cancelled'},
     {uid:'stable-tentative',summary:'Synthetic tentative',start:{dateTime:'2026-10-27T10:00:00Z'},end:{dateTime:'2026-10-27T11:00:00Z'},status:'tentative'},
-    {uid:'stable-confirmed',summary:'Synthetic confirmed',start:{dateTime:'2026-10-28T10:00:00Z'},end:{dateTime:'2026-10-28T11:00:00Z'},status:'confirmed'}
+    {uid:'stable-confirmed',summary:'Synthetic confirmed',start:{dateTime:'2026-10-28T10:00:00Z'},end:{dateTime:'2026-10-28T11:00:00Z'},status:'confirmed'},
+    {uid:'stable-declined',summary:'Synthetic declined',start:{dateTime:'2026-10-29T10:00:00Z'},end:{dateTime:'2026-10-29T11:00:00Z'},status:'declined'},
+    {uid:'stable-unanswered',summary:'Synthetic unanswered',start:{dateTime:'2026-10-30T10:00:00Z'},end:{dateTime:'2026-10-30T11:00:00Z'},status:'unanswered'}
   ],'calendar.synthetic_spond');
   assert.deepEqual(events,[
-    {uid:'stable-event',instanceId:'single',title:'🟡 Synthetic practice',start:'2026-10-25T10:00:00+01:00',end:'2026-10-25T11:00:00+01:00',allDay:false,cancelled:false,location:'Synthetic hall'},
-    {uid:'stable-task',instanceId:'task-instance',title:'🔧 Synthetic driving duty',start:'2026-10-26',end:'2026-10-27',allDay:true,cancelled:true,status:'cancelled',location:undefined},
-    {uid:'stable-tentative',instanceId:'single',title:'Synthetic tentative',start:'2026-10-27T10:00:00Z',end:'2026-10-27T11:00:00Z',allDay:false,cancelled:false,status:'tentative',location:undefined},
-    {uid:'stable-confirmed',instanceId:'single',title:'Synthetic confirmed',start:'2026-10-28T10:00:00Z',end:'2026-10-28T11:00:00Z',allDay:false,cancelled:false,status:'confirmed',location:undefined}
+    {uid:'stable-event',instanceId:'single',identityKind:'provider',title:'🟡 Synthetic practice',start:'2026-10-25T10:00:00+01:00',end:'2026-10-25T11:00:00+01:00',allDay:false,cancelled:false,location:'Synthetic hall'},
+    {uid:'stable-task',instanceId:'task-instance',identityKind:'provider',title:'🔧 Synthetic driving duty',start:'2026-10-26',end:'2026-10-27',allDay:true,cancelled:true,status:'cancelled',location:undefined},
+    {uid:'stable-tentative',instanceId:'single',identityKind:'provider',title:'Synthetic tentative',start:'2026-10-27T10:00:00Z',end:'2026-10-27T11:00:00Z',allDay:false,cancelled:false,status:'tentative',location:undefined},
+    {uid:'stable-confirmed',instanceId:'single',identityKind:'provider',title:'Synthetic confirmed',start:'2026-10-28T10:00:00Z',end:'2026-10-28T11:00:00Z',allDay:false,cancelled:false,status:'confirmed',location:undefined},
+    {uid:'stable-declined',instanceId:'single',identityKind:'provider',title:'Synthetic declined',start:'2026-10-29T10:00:00Z',end:'2026-10-29T11:00:00Z',allDay:false,cancelled:false,status:'declined',location:undefined},
+    {uid:'stable-unanswered',instanceId:'single',identityKind:'provider',title:'Synthetic unanswered',start:'2026-10-30T10:00:00Z',end:'2026-10-30T11:00:00Z',allDay:false,cancelled:false,status:'unanswered',location:undefined}
   ]);
   const rescheduled=parseHomeAssistantCalendarEvents([{uid:'stable-event',summary:'🟡 Synthetic practice',start:{dateTime:'2026-10-25T12:00:00+01:00'},end:{dateTime:'2026-10-25T13:00:00+01:00'}}],'calendar.synthetic_spond');
   assert.equal(rescheduled[0]!.instanceId,'single');assert.equal(rescheduled[0]!.uid,events[0]!.uid);
   assert.equal('description' in events[0]!,false);
-  assert.throws(()=>parseHomeAssistantCalendarEvents([{summary:'No identity',start:{dateTime:'2026-10-25T10:00:00Z'}}],'calendar.synthetic_spond'),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE'&&error.details.reason==='home_assistant_calendar_identity_missing');
+  const withoutUid=parseHomeAssistantCalendarEvents([{summary:'No provider identity',start:{dateTime:'2026-10-25T10:00:00Z'}},{summary:'No provider identity',start:{dateTime:'2026-10-25T10:00:00Z'}}],'calendar.synthetic_general');assert.equal(withoutUid[0]!.identityKind,'local_snapshot');assert.notEqual(withoutUid[0]!.uid,withoutUid[1]!.uid,'legitimate exact duplicates retain distinct deterministic ordinals');assert.deepEqual(parseHomeAssistantCalendarEvents([{summary:'No provider identity',start:{dateTime:'2026-10-25T10:00:00Z'}},{summary:'No provider identity',start:{dateTime:'2026-10-25T10:00:00Z'}}],'calendar.synthetic_general').map((item)=>item.uid),withoutUid.map((item)=>item.uid),'an identical snapshot is idempotent');
+  assert.deepEqual(parseHomeAssistantCalendarEvents([{summary:'No provider identity',start:{dateTime:'2026-10-25T10:00:00Z'}},{summary:'No provider identity',start:{dateTime:'2026-10-25T10:00:00Z'}}],'calendar.renamed_general').map((item)=>item.uid),withoutUid.map((item)=>item.uid),'registry-backed entity renames do not alter UID-less local snapshot identities');
+  assert.throws(()=>parseHomeAssistantCalendarEvents([{summary:'Impossible',start:{date:'2026-02-31'}}],'calendar.synthetic_general'),(error:any)=>error?.details?.reason==='home_assistant_calendar_event_invalid');
+  assert.throws(()=>parseHomeAssistantCalendarEvents([{summary:'Mixed',start:{date:'2028-02-29'},end:{dateTime:'2028-03-01T10:00:00Z'}}],'calendar.synthetic_general'),(error:any)=>error?.details?.reason==='home_assistant_calendar_event_invalid');
+  assert.throws(()=>parseHomeAssistantCalendarEvents([{summary:'Non-exclusive',start:{date:'2028-02-29'},end:{date:'2028-02-29'}}],'calendar.synthetic_general'),(error:any)=>error?.details?.reason==='home_assistant_calendar_event_invalid');
+  assert.equal(parseHomeAssistantCalendarEvents([{summary:'Leap',start:{date:'2028-02-29'},end:{date:'2028-03-01'}}],'calendar.synthetic_general')[0]!.allDay,true);
   assert.equal(normalizeHomeAssistantOrigin('http://192.168.1.20:8123'),'http://192.168.1.20:8123');
   assert.throws(()=>normalizeHomeAssistantOrigin('http://user:secret@192.168.1.20:8123/path'),(error:any)=>error.code==='VALIDATION_FAILED');
 });

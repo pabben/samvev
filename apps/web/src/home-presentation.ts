@@ -7,14 +7,39 @@ export function dayKey(now:number, zone:string, offset=0) {
   const day=wallInput(now,zone).slice(0,10);
   return new Date(Date.parse(`${day}T12:00:00Z`)+offset*86400000).toISOString().slice(0,10);
 }
-export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
-  const day=dayKey(now,zone,offset);
-  return items.filter(i=>i.kind==='event'&&i.startsAt&&(i.metadata.calendar&&i.metadata.allDay?i.startsAt.slice(0,10)<=day&&(i.endsAt&&i.endsAt.slice(0,10)>i.startsAt.slice(0,10)?day<i.endsAt.slice(0,10):day===i.startsAt.slice(0,10)):wallInput(i.startsAt,zone).slice(0,10)===day))
-    .sort((a,b)=>Number(Boolean(b.metadata.allDay))-Number(Boolean(a.metadata.allDay)) || Date.parse(a.startsAt!)-Date.parse(b.startsAt!));
+/** Calendar all-day dates are civil; timed events overlap a local day at either end. */
+export function eventDay(item:HubItem,zone:string) {return item.startsAt?(item.metadata.calendar&&item.metadata.allDay?item.startsAt.slice(0,10):wallInput(item.startsAt,zone).slice(0,10)):'';}
+export function overlapsDay(item:HubItem,day:string,zone:string){
+ if(item.kind!=='event'||!item.startsAt||['cancelled','canceled','declined'].includes(item.metadata.calendar?.status??''))return false;
+ const start=eventDay(item,zone);
+ if(item.metadata.calendar&&item.metadata.allDay){const end=item.endsAt?.slice(0,10);return start<=day&&(end&&end>start?day<end:day===start);}
+ // Subtract one millisecond before deriving the end day: midnight is exclusive.
+ const end=item.endsAt&&Date.parse(item.endsAt)>Date.parse(item.startsAt)?wallInput(Date.parse(item.endsAt)-1,zone).slice(0,10):start;
+ return start<=day&&end>=day;
 }
+export function chronologicalEvents(items:HubItem[],zone:string){return [...items].sort((a,b)=>eventDay(a,zone).localeCompare(eventDay(b,zone))||Number(Boolean(b.metadata.allDay))-Number(Boolean(a.metadata.allDay))||Date.parse(a.startsAt!)-Date.parse(b.startsAt!)||a.id.localeCompare(b.id));}
+export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
+ return chronologicalEvents(items.filter(item=>overlapsDay(item,dayKey(now,zone,offset),zone)),zone);
+}
+export function upcomingEvents(items:HubItem[],now:number,zone:string){
+ const today=dayKey(now,zone);
+ return chronologicalEvents(items.filter(item=>item.kind==='event'&&item.startsAt&&!['cancelled','canceled','declined'].includes(item.metadata.calendar?.status??'')&&(item.metadata.calendar&&item.metadata.allDay?(eventDay(item,zone)>=today||overlapsDay(item,today,zone)):Date.parse(item.endsAt??item.startsAt)>now)),zone);
+}
+export function eventDateGroups(items:HubItem[],zone:string){
+ const groups=new Map<string,HubItem[]>();for(const item of chronologicalEvents(items,zone)){const day=eventDay(item,zone);groups.set(day,[...(groups.get(day)??[]),item]);}return [...groups].map(([day,items])=>({day,items}));
+}
+export function personalWindowItems(active:HubItem[],personId:string,now:number,zone:string){
+ const today=dayKey(now,zone),tomorrow=dayKey(now,zone,1);
+ return personItems(active,personId).filter(item=>!item.metadata.temperature&&!(item.metadata.calendar&&itemHousehold(item))&&(item.kind!=='event'||overlapsDay(item,today,zone)||overlapsDay(item,tomorrow,zone)));
+}
+export function wasteEvents(items:HubItem[],now:number,zone:string){return upcomingEvents(items.filter(item=>item.metadata.calendar?.purpose==='waste'),now,zone);}
+export function temperatureItems(items:HubItem[]){return items.filter(item=>item.metadata.temperature).sort((a,b)=>(a.metadata.temperature?.order??0)-(b.metadata.temperature?.order??0)||a.title.localeCompare(b.title));}
+/** Aging uses HA's timestamp, never Samvev's successful HTTP fetch time. */
+export function temperatureIsStale(item:HubItem,now:number){const reading=item.metadata.temperature;if(!reading||reading.freshness!=='current')return true;const timestamp=reading.lastReportedAt??reading.lastUpdatedAt;const age=timestamp?now-Date.parse(timestamp):NaN;return !Number.isFinite(age)||age<0||age>30*60_000;}
+export function temperatureReading(item:HubItem,locale:string){const reading=item.metadata.temperature;const value=reading?.value,unit=reading?.unit;return typeof value==='number'&&Number.isFinite(value)&&['°C','°F'].includes(unit??'')?`${new Intl.NumberFormat(locale,{maximumFractionDigits:2}).format(value)} ${unit}`:null;}
 export function itemSubjectIds(item:HubItem) { return item.metadata.calendar ? item.subjects?.personIds??[] : item.targets.personIds; }
 export function itemHousehold(item:HubItem) { return item.metadata.calendar?.subjectHousehold??item.targets.household; }
-export function personItems(items:HubItem[],personId:string) { return items.filter(i=>itemSubjectIds(i).includes(personId)); }
+export function personItems(items:HubItem[],personId:string) { return items.filter(i=>!i.metadata.temperature&&i.metadata.calendar?.purpose!=='waste'&&itemSubjectIds(i).includes(personId)); }
 export function importantItems(items:HubItem[]) { return items.filter(i=>i.kind==='alert'||i.kind==='reminder'||['high','urgent'].includes(i.priority)); }
 
 // Preserve a single focus on compact/low light surfaces. A wide dark board has
@@ -55,11 +80,12 @@ export function splitBriefs(items:HubItem[], stackAgenda=false) {
   return {agendaCompanion,companion,remaining:items.filter(item=>item.id!==companion?.id&&item.id!==agendaCompanion?.id)};
 }
 
-export type HubCollection='important'|'briefs'|'today'|'tomorrow'|'messages';
+export type HubCollection='important'|'briefs'|'today'|'tomorrow'|'messages'|'waste';
 export type HubDetailSelection={kind:'item'|'person'|'message';id:string}|{kind:'collection';id:HubCollection};
 export function collectionItems(id:HubCollection,active:HubItem[],now:number,zone:string):HubItem[] {
+ if(id==='waste')return wasteEvents(active,now,zone);
  if(id==='important')return importantItems(active);
- if(id==='briefs')return active.filter(item=>['summary','list','observation'].includes(item.kind)&&!importantItems(active).includes(item));
+ if(id==='briefs')return active.filter(item=>['summary','list','observation'].includes(item.kind)&&!item.metadata.temperature&&!importantItems(active).includes(item));
  if(id==='today'||id==='tomorrow')return dayEvents(active,now,zone,id==='tomorrow'?1:0);
  return [];
 }
@@ -76,8 +102,9 @@ export function resolveHubDetail(selection:HubDetailSelection|null, people:HubPe
   const person=people.find(person=>person.id===selection.id);
   return person?{kind:'person' as const,person,items:personItems(active,person.id)}:undefined;
 }
-export function personalPreviewItems(active:HubItem[],personId:string) {
-  return personItems(active,personId).filter(item=>item.kind!=='summary'&&item.kind!=='list');
+export function personalPreviewItems(active:HubItem[],personId:string,now=Date.now(),zone='UTC') {
+  const items=personalWindowItems(active,personId,now,zone).filter(item=>item.kind!=='summary'&&item.kind!=='list');
+  return [...chronologicalEvents(items.filter(item=>item.kind==='event'),zone),...items.filter(item=>item.kind!=='event')];
 }
 export function hiddenPersonalCount(itemCount:number,previewLimit:number) {return Math.max(0,itemCount-previewLimit);}
 

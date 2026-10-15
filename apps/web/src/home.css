@@ -297,3 +297,26 @@ body{font-family:var(--font-sans)}
  .hub-larger-family .hub-identities .avatar{width:32px;height:32px;flex-shrink:0;font-size:16px}
  .hub-larger-family .hub-identities strong{font-size:12px;min-width:0;overflow-wrap:anywhere}
 }
+
+/* Day windows stay visible even where compact cards hide secondary times. */
+.hub-person-day{display:block;font-size:12px;font-weight:650;color:var(--teal);line-height:1.5}
+.hub-person-activity .hub-person-day{display:inline}
+.hub-upcoming-link{display:flex;align-items:center;justify-content:space-between;gap:6px;min-height:44px;padding:5px 12px;color:var(--teal);background:none;text-align:left;font-size:12px}
+.hub-upcoming-hint{display:block;color:var(--teal);font-size:11px;line-height:1.4}
+.hub-date-group{margin-top:18px}.hub-date-group>h4{font-size:15px;text-transform:capitalize;color:var(--muted);margin:0 0 8px}
+.hub-upcoming>.field-hint{overflow-wrap:anywhere;font-size:12px}
+.hub-environment{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--hub-gap,14px);margin-top:var(--hub-gap,14px)}
+.hub-environment>.hub-panel:only-child{grid-column:1/-1}
+.hub-waste-open{display:flex;flex-direction:column;align-items:stretch;gap:8px;width:100%;background:none;color:inherit;text-align:left;min-height:44px;padding:0}
+.hub-waste-open>[data-item-id]{display:grid;grid-template-columns:1fr auto;align-items:baseline;gap:4px 12px;min-width:0}
+.hub-waste-open strong{font-size:16px;overflow-wrap:anywhere}.hub-waste-open time{font-size:14px;color:var(--muted)}
+.hub-environment-link{display:flex;align-items:center;gap:6px;min-height:44px;color:var(--teal);font-size:13px}
+.hub-temperature-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.hub-temperature{display:flex;flex-direction:column;min-width:0;gap:3px}.hub-temperature>strong{font-size:15px;overflow-wrap:anywhere}
+.hub-temperature-value{font-size:24px;font-weight:650;font-variant-numeric:tabular-nums}
+.hub-temperature details{font-size:12px;color:var(--muted)}.hub-temperature summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--teal)}
+.hub-temperature details p{margin:5px 0;line-height:1.5}.hub-temperature .field-hint{margin:0}
+.hub-dark .hub-temperature-value{color:#e5f6f7}.hub-person .hub-person-clear{font-size:13px;line-height:1.4}
+@media(max-width:640px){.hub-environment{grid-template-columns:1fr;gap:10px}.hub-waste-open>[data-item-id]{grid-template-columns:1fr}.hub-temperature-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:340px){.hub-temperature-grid{grid-template-columns:1fr}}
+.calendar-source-health{display:flex;flex-direction:column;gap:2px}.calendar-source-health[data-source-freshness="stale"]>small:first-child{color:var(--muted)}

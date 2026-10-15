@@ -72,7 +72,7 @@ try{
   });
   await group(`six people ${name} ${theme}: actual fifth details and focus`,async()=>{
    const trigger=page.locator(`button[data-hub-detail-kind=person][data-person-id="${fifth.id}"]`);
-   await expect(trigger).toHaveAccessibleName(`Åpne alle ${fifthItems.length} punkter for ${fifth.displayName}`);
+   await expect(trigger).toHaveAccessibleName(`Åpne aktiviteter for ${fifth.displayName}`);
    if(width>640){const card=page.locator(`.hub-person[data-person-id="${fifth.id}"]`);await expect(card).not.toContainText('Ingenting ekstra å huske');await expect(card.locator('.hub-person-name>span')).toContainText(String(fifthItems.length));await expect(card.locator('.hub-person-name>span')).toBeVisible();}
    await trigger.click();const dialog=page.getByRole('dialog');
    await expect(dialog).toHaveAccessibleName(fifth.displayName);
