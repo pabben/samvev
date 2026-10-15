@@ -1,0 +1,14 @@
+{
+  "helperSha256": "18171c2cd54810ec4393eb14bc33688e1c45ed067b4edc0db4615acf4d103764",
+  "archiveSha256": "9ca76ab16db2590ea140fd81223d3a506da1a548be58c8de372372bc97b837b7",
+  "capacity": "available=19294638080 required=2629250193 image=214258444 archive=213450425 database=13514419 reserve=2147483648",
+  "currentPublicImageId": "sha256:8fa9329df7a59773d1f294e030d045605cd14ad94ba6e8d557588a247f37a341",
+  "currentPublicSource": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "publicHealthy": true,
+  "sourceSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "candidateImageId": "sha256:baa1c70f781ae887a791e52c120a674384f1b9737a6093aee2d1785aa0806a02",
+  "checkedAt": "2026-10-15T12:05:17.301301+00:00",
+  "nonQuiescingPreflightExit": 0,
+  "effectiveRuntimeConfigurationComparison": true,
+  "publicQuiesced": false
+}

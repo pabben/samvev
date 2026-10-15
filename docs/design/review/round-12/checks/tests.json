@@ -1,0 +1,32 @@
+{
+  "sourceSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "fullSuite": {
+    "exitCode": 0,
+    "web": 98,
+    "contracts": 5,
+    "core": 3,
+    "api": 268,
+    "worker": 0,
+    "total": 374,
+    "failures": 0,
+    "skips": 0
+  },
+  "workspaceChecks": 5,
+  "workspaceBuilds": 5,
+  "reviewHostTests": 16,
+  "privacyBrowserTests": 1,
+  "runner": "Node 24 application/browser containers; Git-dependent review helper tests on host Node 22.22.1",
+  "priorFailures": "Earlier full suite failed: exact migration expectation and revoked-preview 404 compatibility corrected in a665. Database cascades were not reproducible in isolated focused/order reruns. Private browser selector/fixture corrections did not change or weaken product tests.",
+  "finalRecoveryUi": {
+    "screenshots": 4,
+    "allPass": true,
+    "invalidClientSourceStale": true,
+    "retryPendingSourceStale": true,
+    "currentOnlyAfterSuccessfulFetch": true
+  },
+  "syntheticBrowser": {
+    "screenshots": 19,
+    "allPass": true,
+    "sixFictionalPeople": true
+  }
+}

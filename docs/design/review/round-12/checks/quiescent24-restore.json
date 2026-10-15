@@ -1,0 +1,32 @@
+{
+  "kind": "public",
+  "sourceSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "candidateImage": "samvev-m1/runtime:00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "candidateImageId": "sha256:baa1c70f781ae887a791e52c120a674384f1b9737a6093aee2d1785aa0806a02",
+  "backupMigrationCount": 24,
+  "backupSha256": "61321992f25a70dcf6c9878acc851f753ab6bd156e02e6ff79a1234532a2c7cb",
+  "backupTocParsed": true,
+  "cloneOnly": true,
+  "internalNetworkOnly": true,
+  "noWorker": true,
+  "noVaultOrProviderMount": true,
+  "noHostPorts": true,
+  "backupRestored": true,
+  "candidateLedgerExact": true,
+  "migration026Present": true,
+  "migration026Applied": true,
+  "migrationSecondRunNoop": true,
+  "allPreexistingPublicColumnsAndValuesEqual": true,
+  "preexistingConstraintsPreserved": true,
+  "schemaIntegrityPreserved": true,
+  "amcheck": true,
+  "safeAuthenticatedRead": {
+    "authenticatedRead": true,
+    "peopleRead": true,
+    "calendarConnectionsRead": true
+  },
+  "candidateAssets": {
+    "assetsExact": true,
+    "assetCount": 10
+  }
+}

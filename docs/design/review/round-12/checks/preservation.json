@@ -1,0 +1,11 @@
+{
+  "sourceSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "protectedMainGitFilesUnchanged": 229,
+  "migrations001Through025ChecksumsUnchanged": true,
+  "qaDatabasePreserved": true,
+  "lanAdminAdminUiVerified": true,
+  "publicCutoverPending": false,
+  "checkedAt": "2026-10-15T12:04:25.096867+00:00",
+  "publicDatabaseVolumeAndRuntimeSettingsPreserved": true,
+  "publicPreexistingValuesPreservedAtMigration": true
+}

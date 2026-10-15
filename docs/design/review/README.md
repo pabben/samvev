@@ -8,7 +8,15 @@ bash scripts/design-review-build.sh
 bash scripts/design-review.sh
 ```
 
-Round 9 privacy policy: ordinary `latest/` captures verify the real retained LAN
+Round 12 clarification: the retained LAN database now contains an authorized
+real Home Assistant connection. Its historical demo marker and `admin/admin`
+login do **not** make all stored data synthetic. Never reseed, reset or disconnect
+this database for a review. Use isolated fictional fixtures for write, failure
+and recovery scenarios. Ordinary captures also mask waste titles and temperature
+names, values and timestamps; detailed unmasked Round 12 evidence comes only
+from the separate six-person fictional fixture.
+
+Privacy policy: ordinary `latest/` captures verify the real retained LAN
 Home and all person controls, then apply explicit screenshot masks to person
 names/initials, protected profile images, authored text and dynamic calendar,
 reminder, schedule, location, provenance and task content. They do
@@ -63,7 +71,7 @@ archive and replace `latest/`. Any failure removes the stage and leaves the
 previous `latest/` intact.
 
 The commands only use the running, isolated `samvev-m1` `qa-db`, `qa-worker`,
-`qa-app`, and a one-shot `qa-browser`. It captures the real synthetic member
+`qa-app`, and a one-shot `qa-browser`. It captures the retained member
 Home using the existing `qa-app` `SAMVEV_PUBLIC_ORIGIN`; the runtime proof
 requires the trusted `http://192.168.0.220:4173` origin and matching host port
 binding. They do not recreate services, add fixtures, change product

@@ -1,0 +1,325 @@
+{
+  "sourceSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "candidateImageId": "sha256:baa1c70f781ae887a791e52c120a674384f1b9737a6093aee2d1785aa0806a02",
+  "actualUi": true,
+  "syntheticOnly": true,
+  "isolatedDatabase": "samvev_ha12_a665_fixture@test-db",
+  "providerTransport": "injected synthetic only",
+  "liveProviderVerification": false,
+  "servedAssetsExact": true,
+  "assetHashes": {
+    "assets/avatar-01-D7jqfrwr.webp": "64603ebdee174f66871902614c46965e9bbe846f22ca77dbf7391c483131a02b",
+    "assets/avatar-02-DdgMOJAz.webp": "257f114120c3be2922d7d7a11e62e02dc369e393ebaed6ceb4ae61860192a9c0",
+    "assets/avatar-03-DA7Jq2DZ.webp": "eb58083435f2bc71a311ccb841f4be800b7dceec0f526b8b573c6a9a4b6724a5",
+    "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
+    "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
+    "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
+    "assets/index-CdEa8zU6.css": "4795c171f70477fdb914a88f29c79b7101828f3314567f8ba3a702fe7cf5217e",
+    "assets/index-qCNkGW2v.js": "d99ccb47dd6748ce6072d071d146e58742428476229e84a233d425cd0ef95738",
+    "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
+    "index.html": "e04ed4a19ef4549c88c889f638c2b059ffafd04ec7e010535b83121363fa5e19"
+  },
+  "blockedExternalRequests": 0,
+  "screenshots": [
+    {
+      "filename": "home-1920-nb-light-person-upcoming.png",
+      "sha256": "b838aefe7bedf297fbbf3972681f1d216cda63f70aed2d537ee1471be215950e",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": true,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-1920-nb-dark.png",
+      "sha256": "cccad5e63722966bc6f6b80f5c21bf959789d31a5dcc902415f0cec209b775de",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "locale": "nb",
+      "theme": "dark",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-mobile-en-light.png",
+      "sha256": "c8e8b1dbb92ebb0ec8740ce23c43ca175268f57fc5fb38e8db553d611270d6ff",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "locale": "en",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-mobile-en-dark.png",
+      "sha256": "a78b60026fefdb712d2a432c6d46fc1b89708378ec89ae17625afb68fff93a37",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "locale": "en",
+      "theme": "dark",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-ipad-nb-light.png",
+      "sha256": "8c3d30c1693c64f125c88cfc34e6667a327ff81865bb978b2849a1dde7ee7412",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-ipad-nb-dark.png",
+      "sha256": "2e0e034dfecf6e4e82e49508cb29e8aec33ad768d1ff8645e9e25856ebb6a863",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "locale": "nb",
+      "theme": "dark",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-ipad-landscape-en-light.png",
+      "sha256": "3d43466a4affda1cb89ccdb40f28e7388f88878b0a27991538e903f9de04a091",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "locale": "en",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-ipad-landscape-en-dark.png",
+      "sha256": "966ba9991f825b5c398d039ae057803d50b30d185867e13917e4b993fe310dbd",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "locale": "en",
+      "theme": "dark",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-shelly-nb-light.png",
+      "sha256": "02a8583536155b328698e01ea7d1e479602a9003bd8f84c49408a691a87a990a",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-shelly-nb-dark.png",
+      "sha256": "2ab1801ab8d2d9db191e03de2427837b5ca528e9930ff4623dae6062ee4e43bd",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "locale": "nb",
+      "theme": "dark",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-oct23-nb-light.png",
+      "sha256": "1294ebd0d68a39f832299adaa592a4baea5b60319dce8f1cf85ad2706869e924",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-23T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-oct24-nb-light.png",
+      "sha256": "b44cd99e6fc2b922a09184fff902fc97af193570c46ea0265646383634ddff3b",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-24T23:59:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "integrations-source-acl-nb-light.png",
+      "sha256": "5f1297d11a0ee32450f0c346458228dde24b49c3734bcccb124f1c55982def89",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "integrations",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "integrations-temperature-unavailable-nb-light.png",
+      "sha256": "9f7128988b59b13970e959b9ac9cc80e1923233bbeafbf53b471f8769afb0437",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "integrations",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "integrations-temperature-current-nb-light.png",
+      "sha256": "df03d2c637e0857ce04be3e4c1e58d0d7504c67142883d9874859e310d792c3f",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "integrations",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "person-upcoming-oct24-nb-light.png",
+      "sha256": "155ea56c620de245e26b84817793d17826b72d105349a7a707f4fc7926c2ea2a",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-24T10:15:00+02:00",
+      "person": true,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "integrations-google-registration-nb-light.png",
+      "sha256": "cc09a571219c1767bd67ff24d834e39bebacb76972862532764c6e59baa221bb",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "integrations",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-mobile-temperature-freshness-nb-light.png",
+      "sha256": "7f459d485423f247360e9b6b51fbd0b0a01d20a274a1324c711ba93adc0a6d80",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    },
+    {
+      "filename": "home-shelly-waste-detail-nb-light.png",
+      "sha256": "abc051720171a4563b707255d114faf630a417440a04441a710d49953f2cbe30",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "locale": "nb",
+      "theme": "light",
+      "clock": "2026-10-15T10:15:00+02:00",
+      "person": false,
+      "tab": "home",
+      "blockedExternalRequests": 0,
+      "pageErrors": 0
+    }
+  ],
+  "checks": [
+    "six fictional people (two adults, four children)",
+    "Today/Tomorrow at fixed Oslo dates 15, 23 and 24 October",
+    "same-page Oslo midnight rollover",
+    "household waste",
+    "temperature current and no-reading",
+    "person upcoming detail",
+    "integration source person/read ACL editor",
+    "temperature unavailable state",
+    "axe",
+    "served asset provenance",
+    "external request abort",
+    "privacy manifest scan"
+  ],
+  "allPass": true
+}

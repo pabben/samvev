@@ -1,5 +1,20 @@
 # M1 implementation status
 
+## HA / calendar round 12 — publicly test-published and verified
+
+Mailbox 1acfd46; DCO source 00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a.
+Today/Tomorrow, chronological person details, general HA calendars, household
+waste, selected temperatures and F1–F3 are implemented. Complete suite 374/374,
+five workspace checks/builds, exact canonical 246 inputs/10 assets, QA/public
+schema-026 isolated restore gates pass. Both guest disk expansions are complete.
+LAN admin/admin passes on this candidate. The preserved real Spond source sync
+was separately verified on the preceding a665 source checkpoint.
+All 37 current-source captures pass visual/privacy review, including 23 isolated
+six-person/recovery supplements. Public HTTPS login/logout, navigation, ACL, SSE and ten asset checks pass.
+Exact quiescent24 and fresh postdeploy26 backups passed isolated restore.
+See [Round 12 report](../design/review/ROUND_12_REPORT.md). Public test source is 00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a;
+owner provider consent and explicit source/sensor choices remain separately listed.
+
 ## M3 round 10 — public test verified, 2026-10-14
 
 Mailbox `48221157acd74aed2ab4ab218a81e870d2219f21`; signed source/deploy
