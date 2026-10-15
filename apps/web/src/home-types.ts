@@ -1,4 +1,5 @@
 import type { Locale, UpcomingBirthday } from './types';
+export type SafeHomeUpcomingBirthday = Omit<UpcomingBirthday,'ageTurning'>;
 export interface HubPerson { photoRevision?:number; photo?:import("./types").PersonPhoto|null; avatarKey?: string|null; id: string; displayName: string; ageGroup?: string }
 export interface HubItem {
   contentLocale: 'en'|'nb'|null;
@@ -11,6 +12,6 @@ export interface HubItem {
   metadata: {calendar?:{provider:string;sourceId:string;bridgeKind:string;subjectHousehold:boolean;purpose?:'calendar'|'waste';displayName?:string|null;status?:string;identityKind?:'provider'|'local_snapshot';lastCompleteWindow?:{from:string;to:string}|null;freshness?:'current'|'stale';lastSuccessfulSyncAt?:string|null;reason?:'sync_failed'|'provider_disabled'|'reauthorization_required'};temperature?:{sensorId:string;displayName:string;order?:number;value:number|null;unit:string|null;status:string;freshness:string;reason?:string;lastReportedAt:string|null;lastUpdatedAt:string|null;lastFetchedAt:string|null;measuredAt:null;lastValidValue:number|null;lastValidUnit:string|null;lastValidAt:string|null};category?:string;icon?:string;location?:string;allDay?:boolean;actionUrl?:string}; revision:number; updatedAt:string;
 }
 export interface HubMessage { authorPhoto?:import("./types").PersonPhoto|null; authorAvatarKey?: string|null; authorPersonId?: string|null; id:string;body:string;importance:'normal'|'attention';authorName:string;publishAt:string;expiresAt:string;revision:number;targets?:{household:boolean;personIds:string[]} }
-export interface HomeProjection { household:{id:string;name:string;timezone:string;locale:Locale};viewer:{personId:string;membershipId:string};people:HubPerson[];items:HubItem[];messages:HubMessage[];upcomingBirthday:UpcomingBirthday|null;serverNow:string }
+export interface HomeProjection { household:{id:string;name:string;timezone:string;locale:Locale;localDate?:string};viewer:{personId:string;membershipId:string};people:HubPerson[];items:HubItem[];messages:HubMessage[];upcomingBirthday:SafeHomeUpcomingBirthday|null;upcomingBirthdays?:Array<{personId:string;displayName:string;due:'today'|'tomorrow'}>;schoolActivities?:Array<Record<string,unknown>>;serverNow:string }
 export interface IntegrationCredential {id:string;name:string;capabilities:string[];lastUsedAt:string|null;revokedAt:string|null;createdAt:string;revision:number}
 export interface IntegrationConnection {id:string;name:string;displayIds:string[];revokedAt:string|null;revision:number;credentials:IntegrationCredential[]}

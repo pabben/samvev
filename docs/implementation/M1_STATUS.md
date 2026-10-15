@@ -993,3 +993,26 @@ tag/release or Actions dispatch has occurred.
 
 See [ROUND_11_REPORT.md](../design/review/ROUND_11_REPORT.md) for source/deploy/review
 boundaries, changed files, evidence, migration/rollback and the GUI owner checklist.
+
+
+## Round 13 active checkpoint — 2026-10-15
+
+The current public test baseline supersedes historical R11 state above:
+source/deploy `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. The main agent confirmed the
+public app and worker image and healthy services. Existing public HA connection
+is present and must be preserved; no new disk work is in scope.
+
+The full 13-area owner request is active. Temperature T1–T3 implementation is
+in the root worktree, with additive migration 027, 7 new and 16 existing targeted
+tests passing locally and API typecheck passing. Main reviewed evidence and
+old migration identity. No R13 public deployment has occurred. Remaining scope,
+model choices, review corrections and owner dependencies are recorded in
+[ROUND_13_STATUS.md](../design/review/ROUND_13_STATUS.md) and
+[ROUND_13_REQUIREMENTS.md](../design/review/ROUND_13_REQUIREMENTS.md).
+
+Round 13 local Home backend checkpoint (2026-10-15): additive migration 028,
+birthday/chronology and explicit school presentation metadata implemented;
+15 focused/regression tests and API typecheck pass. Bounded review findings
+closed. UI, integrated QA, screenshots, release gate and public deployment remain
+open; public source remains 00ddc36. See ROUND_13_STATUS.md for evidence.

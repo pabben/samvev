@@ -255,6 +255,7 @@ export function monitorTaskDto(row:Record<string,unknown>,targetAuthorized=true)
   return {id:row.id,name:row.name,instruction:row.instruction,sourceUrl,state:row.state,
     checkIntervalMinutes:row.check_interval_minutes,targets:{personIds:row.person_ids,displayIds:row.display_ids},noticeDaysBefore:row.notice_days_before,noticeLocalTime:time,
     subjects:{personIds:row.subject_person_ids,revision:row.subjects_revision},
+    presentation:{kind:row.presentation_kind??null,schoolEndLocalTime:(row.school_end_local_time as string|undefined)?.slice(0,5)??null,revision:Number(row.presentation_revision??1)},
     sourceKinds,usesSmarterAi:row.model_tier==='strong',interpretedRule:publicRule,revision:row.revision,approvedRevision:row.approved_revision,
     lastCheckedAt:(row.last_checked_at as Date|null)?.toISOString()??null,nextCheckAt:(row.next_check_at as Date|null)?.toISOString()??null,lastResult:row.last_result,
     lastChangedAt:(row.last_changed_at as Date|null)?.toISOString()??null,errorCode:row.error_code,
