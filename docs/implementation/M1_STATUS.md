@@ -2,68 +2,50 @@
 
 ## Round 13 current status — 2026-10-16
 
-All 13 owner-request areas remain active. Backend packages for T1–T3, Home,
-display policy/authorship, native boards, media, selected HA controls and guides
-are implemented. HA source `5b39d4375ff8373657f5bfd3492fa52e842326ea` and display
-layout source `d91436addb4a55f7b27ae27df549b173fa276fe7` are DCO-signed and
-feature-pushed; Home source-catalog/API `bb7255ccc023ef1f474f1c2632fb05e3718f93c1`
-and frontend `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are also pushed. Use the
-publishing checkout for source identity; protected root Git metadata is
-deliberately stale.
+All 13 owner-request areas remain active. Current source is
+`7c61557b92333408c628911784aff267411479ba`. Immutable full QA at base
+`fb08236` passed 485/485 (web 141, contracts 5, core 3, API 336, worker 0)
+and all five workspace checks. The source delta contains only three capture
+helper files; two actual browser cases and eight helper tests pass. The
+predeploy release gate and public restore for current source passed.
 
-Historical backend checkpoints include the 31-test media run, the HA-focused
-migration/API/contracts plus 3-test suite, Display 036's five workspace checks
-and 15/15 display/media/image tests, and combined Display 036 42/42 and guides037
-52/52 runs. Their detailed logs remain recorded in Round 13 status. They are
-superseded by the current full-QA snapshot summarized below and do not establish
-backup/restore, release gate or public deployment.
+Canonical14 round `20261016061136-7c61557b-3a479144` passed: root reviewed and
+hash-verified all 14 images; `ux13_final` reviewed the visuals; root and `release13` verified 305 inputs,
+12 assets and 229 Git checks. The earlier host rejection of hyphenated privacy
+labels was corrected before the accepted round. The LAN runtime has schema 037
+and the current candidate with admin verification. Public cutover later completed
+successfully: fresh schema-026 restore/forward-037/no-op and fresh schema-037
+postdeploy restore/no-op passed; existing data, runtime, env, vault and database
+volume were preserved. The seven-check HTTPS smoke passed, including all three
+anonymous page reloads, privacy boundary, 12 asset hashes, retained account
+identity, Home/Displays navigation, Your settings dialog open without mutation and logout. The
+earlier safe preflight refusal while the monitor held a schema-026 lease is
+historical. No schedule or model changes were made.
 
-Guides 037's historical web checkpoint passed 100 tests/build, five initial
-workspace checks and five provider checks; its independent combined backend
-checkpoint passed 52/52, zero failures/skips/cancellations, isolated runner,
-101.5 seconds, actual exit 0
-(`.local/m3/round13/backend-guides-checkpoint.log`). Candidate anonymous-page
-routes and Google/Microsoft guides are present, but private contact values are
-not initialized publicly. Public runtime remains R12. The full synthetic QA
-snapshot and candidate browser checks are recorded below; public verification,
-backup/restore and release gate remain open.
+The requested birthday registration, opt-in and household-local date were
+independently verified privately; no birth year was read or inferred and no
+household data changed. Display address screenshot is accepted. Existing saved
+school tasks still need safe classification/activation from actual source and
+subject under an authorized `household.manage` session. This owner-session
+action does not block otherwise feasible delivery, but the overall goal remains
+incomplete until resolved. Preserve the task's history, approval and schedule;
+never impersonate, copy tasks, or call AI. Contact values are confirmed
+privately and initialized through private runtime config; the final contact API
+and page/reload check passed. Values stay out of Git. Google/Microsoft live
+consent remains owner-controlled.
 
-Home source-catalog/API checkpoint `bb7255ccc023ef1f474f1c2632fb05e3718f93c1`
-and frontend checkpoint `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are pushed.
-The all-day backend is implemented and focused-tested: 23/23 focused
-tests (five all-day, eight catalog, five display, five Home), API/contracts pass,
-and the former query fails four red counterfactuals
-(`.local/m3/round13/all-day-strong-final.log`).
-Candidate frontend spans 14 files and has 117 web tests/check/tmpbuild, synthetic
-life 503/empty 200/clear 403 browser cases, and seven reviewed source-built
-viewport/theme layouts. Bounds pass and no CSS injection was found; the built
-snapshot matches commit 943bd63 across 256 runtime files. Previously open
-person-future presentation, school-provenance disclosure and C2 metadata/font
-follow-ups are complete. Existing saved-school activation still needs an
-authorized `household.manage` session and safe classification from task origin/
-subject, without impersonation, copies, AI calls or schedule/approval changes.
-Public and LAN runtimes remain R12.
-
-The public deployment remains Round 12 source
-`00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
-`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. The frozen full-QA snapshot passed
-468 tests (web 141, contracts 5, core 3, API 319) with zero failures and all
-workspace TypeScript checks; source proof has 308 inputs, worker tests
-discovered zero. Display header/address changed afterward and has targeted web
-TypeScript and browser checks; root reviewed and accepted the final desktop
-address screenshot.
-Backup/restore, canonical14, release gate, public contact/provider verification
-and public deployment remain open. Physical HA
-actions have not been tested and must never run automatically in acceptance.
-The first isolated restore attempt failed safely before migration on the
-deliberately pre-existing `NOT VALID` constraint
-`ai_rate_snapshots_nonnegative_rates`; cleanup was verified (128 foreign keys,
-one canonical unvalidated check constraint, 0 invalid indexes). Do not report
-restore as passing.
-Owner contact is confirmed privately for runtime configuration; keep its values
-out of Git. Preserve existing HA/Google connections and data. No new disk work.
+HA controls remain synthetic-only; no physical HA commands or manual model calls
+were made. Economical implementation used `gpt-6-luna/high`; bounded security
+and operations review used `gpt-6.1-sol/high`. Coordinator model and costs are
+unknown and not estimated. Protected root Git metadata is intentionally stale;
+use publisher identity. Preserve existing user data, vault, calendars, HA and
+Google connections, schedules, LAN admin and runtime. No disk work is needed.
 
 ## Local candidate UI checkpoints — 2026-10-16
+
+The dated notes below are historical evidence snapshots; the current public
+deployment and verification state is summarized above and in
+ROUND_13_STATUS.md.
 
 Historical candidate snapshot; current implementation and evidence are
 summarized above and in ROUND_13_STATUS.md.
@@ -90,8 +72,9 @@ assets from the immutable R12 image, byte-checked them against canonical proof
 `00ddc36`, and verified existing LAN admin authentication, health and FamilyHub.
 No application data changed. A later C2 build repeated the mistake and was
 again restored/hash-checked; evidence is summarized in ROUND_13_STATUS.md. Direct
-all intermediate builds to `/tmp`; do not write to LAN-bound `dist`. Public and
-LAN runtime remain R12.
+all intermediate builds to `/tmp`; do not write to LAN-bound `dist`. This
+historical checkpoint predates the current LAN schema-037 candidate; public
+runtime remains R12.
 
 See [Round 13 status](../design/review/ROUND_13_STATUS.md) and
 [requirements/evidence matrix](../design/review/ROUND_13_REQUIREMENTS.md).
@@ -1091,7 +1074,10 @@ See [ROUND_11_REPORT.md](../design/review/ROUND_11_REPORT.md) for source/deploy/
 boundaries, changed files, evidence, migration/rollback and the GUI owner checklist.
 
 
-## Round 13 active checkpoint — 2026-10-15
+## Historical Round 13 checkpoint — 2026-10-15
+
+This section records the state at the 2026-10-15 checkpoint; it is superseded
+by the current deployment and verification summary above.
 
 The current public test baseline supersedes historical R11 state above:
 source/deploy `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review

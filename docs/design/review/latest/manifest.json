@@ -1,15 +1,15 @@
 {
-  "roundId": "20261015115219-00ddc36f-d69a86e7",
-  "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "roundId": "20261016061136-7c61557b-3a479144",
+  "commitSha": "7c61557b92333408c628911784aff267411479ba",
   "workingTreeDirty": true,
-  "capturedAt": "2026-10-15T11:52:19.401Z",
+  "capturedAt": "2026-10-16T06:11:36.564Z",
   "provenance": {
-    "sourceSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-    "inputFingerprint": "a088506d02f21d0a94cccca502531764d3be10050b37d6e7e35938c5574c0837",
-    "rootSourceFingerprint": "a088506d02f21d0a94cccca502531764d3be10050b37d6e7e35938c5574c0837",
-    "cloneSourceFingerprint": "a088506d02f21d0a94cccca502531764d3be10050b37d6e7e35938c5574c0837",
-    "runtimeFingerprint": "ebb1b2290149b0a86ddc944d8d16446e39d99ef721afd8ca3e82ef3a2ba52db7",
-    "migrationFingerprint": "5540925851f0a472eddb95ef766956a877eedcb34ac0151fe664d778a9384cef",
+    "sourceSha": "7c61557b92333408c628911784aff267411479ba",
+    "inputFingerprint": "9243e9100c683d4c9389b4c8383297d53afb808f14f9789edad53ae92d1c2e22",
+    "rootSourceFingerprint": "9243e9100c683d4c9389b4c8383297d53afb808f14f9789edad53ae92d1c2e22",
+    "cloneSourceFingerprint": "9243e9100c683d4c9389b4c8383297d53afb808f14f9789edad53ae92d1c2e22",
+    "runtimeFingerprint": "e1fc320954a3d11cdc1a76b6bd57a320159d492f4f15581db718bcd0170a7330",
+    "migrationFingerprint": "ca83d3c4e76f7e81e0eb61373f3e751def2dc4990a063641e208622da0061022",
     "inputFileHashes": {
       ".dockerignore": "fd1afa885cfd4c592d2df90f60284b2ee8f63cee14965f31b3da43cb11b53cd6",
       ".env.example": "83c995d2b89bdd6bd6d03f2dc1220ddf8b9510dd330ba35ffb3be00df23fa462",
@@ -17,6 +17,8 @@
       "Dockerfile": "ae61a6de34e698e30e6260adb8acbade60841a34f7178eb2b39339cb11bfcd9b",
       "apps/web/index.html": "9d7a5945ccf49d6d43ee928caabac011ffe4d92da7200641748dfd94f8c40e64",
       "apps/web/package.json": "b7a0e3db6fc678d672aed6a378d7c71750ee0153cbee5d7cebd6b3935b8354a4",
+      "apps/web/public/fonts/Kalam-OFL.txt": "f62ef357d3a1c3d27edd35a6e1ba350e8a8d13499797964eeadefbf0b3b15d1f",
+      "apps/web/public/fonts/Kalam-Regular.ttf": "57cecb63d4608019371954274ae1d8c397764debd5b19d4a33c1efa4dc923c0b",
       "apps/web/src/ai-presentation.ts": "756a5303c78aab8050b68ac8bc6bd6708c06ceed18fe5077aa7bd626710b2f01",
       "apps/web/src/ai-settings.tsx": "1fc0d715be81087cd1b62b8cdf43bc6f881bd5ba55b58ff04dc6bee689dad25f",
       "apps/web/src/api.ts": "fb64939149e1203a3a7aa27090aa9ebb40dc59d8a86f497e2cb04a73702e1a00",
@@ -31,35 +33,51 @@
       "apps/web/src/assets/nordic-dusk-v2.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
       "apps/web/src/assets/nordic-dusk-v2.provenance.md": "1ce2fbd485eee9b146e9c225f050818972b5ba901da65bcbee5909c29f7915f7",
       "apps/web/src/avatars.ts": "f43eb0e4a1849d898a223f4841681cbf50584c7b50279442daf2ea9673553ed2",
+      "apps/web/src/calendar-branding.ts": "860ceddb786eb16e7f258ecb37dba45464693fbbbf59b5bc501c4c4f445d5a16",
       "apps/web/src/calendar-connection-types.ts": "eb95e291afab0bb9fab1d5545596fe97b1c2c899739cb48e7b45ada80e097ac7",
-      "apps/web/src/calendar-connections.tsx": "86a6d6b028931dc4f69a06717d3fa00e07807d96547e4b0c43e0e430759f01ad",
+      "apps/web/src/calendar-connections.tsx": "eba79bfbb34332338fd4ee5be408be51affd2bf640047e8cb5055df661678c26",
       "apps/web/src/calendar-freshness.tsx": "085d020972d6eacfa96962aab6cb6a86d58a17574157c26ea922ac087f6c908d",
       "apps/web/src/calendar-presentation.ts": "fa92243fe07887f41a719a499adb48897d020819914182d86f53640649b0af22",
       "apps/web/src/calendar-preview.ts": "4f69d347b344cd16802be1d1da300c32f9aabd451836686c1eb1d0a1d8cd57aa",
-      "apps/web/src/calendar-provider-admin.tsx": "8010c4c03dfc382a90ff7da6529ce5c5806e6b4de4c368c6fdf3484c70da7091",
-      "apps/web/src/calendar-provider-config.ts": "afa5bf3b1a46f9e606eb22903af26c4d83a20c09f5896061e99de2d3fdf691f9",
+      "apps/web/src/calendar-provider-admin.tsx": "b3abf8d95600e8f11d13d9c5d335f4ca2f45b8257075a6512c9f274e8a254e37",
+      "apps/web/src/calendar-provider-config.ts": "9d0c76f22edbe2f2db127eb6de645f3fa8c774d2f2fd657b14c617e0b2c7b149",
       "apps/web/src/chatgpt-guide-presentation.ts": "469a2cb8dbe7650c275b0619e197f3bd4e71f30695b77c0e33ec7b0aa40e3ed9",
       "apps/web/src/chatgpt-guide.tsx": "60b0215ae045ea4b603712179dbef2b697a6c31ef0606d8100b32a5d0be0dd6b",
       "apps/web/src/demo-login.ts": "874822f9d88156f9b75787e207258041402263270a0f55c144fd8dee7a33abbc",
       "apps/web/src/display-cache.ts": "ee3a00085c965d37ec2e8e94d45ef79b19c026661e46cfaadf49ed958e2d16df",
-      "apps/web/src/display.tsx": "a2ad7db0d29939ea2d6852e345daac8fe6b695dbc54a3ed1d36775cbb4da1a0e",
-      "apps/web/src/displays-admin.tsx": "b9c82a6e91c4acdca3eaef0aa37789a98609660832f8fbc47085905c0185d22e",
-      "apps/web/src/family-hub.tsx": "fff22c29db0ea229ac8c0fbbf132430e903b3830126dc0c6fa06f82e3e74d357",
+      "apps/web/src/display-lifecycle.ts": "57f40c7ee9dfcf2b5dd281daaf44b7822d3796dd0cf540c094873997302a52ce",
+      "apps/web/src/display-setups-admin.tsx": "9af8965366106a2dfd78b0dcbb192ddddebbbf93c59d8b80d5fff847f77e3d9f",
+      "apps/web/src/display.tsx": "0cec1d55051846d6aac9eb041c89edcbdd49a63edb61908a6e93d8f691637a53",
+      "apps/web/src/displays-admin.tsx": "65d1f2de7410eca56fcd4484500495142d884d0732094b276e729f2a18fcc2fe",
+      "apps/web/src/family-hub.tsx": "51c9943a5bb8e8e17e9e8df89ec83d8fdaf6cb20ead01852de5ccacdc789b41f",
+      "apps/web/src/home-activities.tsx": "998539d602b15e011ee5b995d3b4ffb77b0dc639f094f95acbb6bace4e59d24a",
+      "apps/web/src/home-activity-presentation.ts": "df3a54e2c298204836d2c3749c9378e37e4d8468f77a486870ce594f361a7934",
+      "apps/web/src/home-assistant-control-presentation.ts": "430a89bff87ed951cc5c5d11faa402f77b60838d3381b128537bf8c027bb254a",
+      "apps/web/src/home-assistant-control-types.ts": "fd9966129fb1f79ae1c36931f46def212f1cfcbdcdf3c4e586490f6521c89810",
+      "apps/web/src/home-assistant-controls-api.ts": "01742594ce18c05bfd0ed3b8c849cf3ba8fd6c0986fe2f66ec7ce82317e19f1c",
+      "apps/web/src/home-assistant-controls.css": "d12468d2d76870629c5e885f0e6739281aad8bad5a5d5951d7e1de84fd4eab4c",
+      "apps/web/src/home-assistant-controls.tsx": "cf47ca07cda0b49517ae2a76008e4778dfeeb5edb34ca1c0a83263d43f86ce9c",
       "apps/web/src/home-environment.tsx": "8bea7d9865ab737425aff981570e3959333412b98f102f780a8dc821a427d486",
       "apps/web/src/home-presentation.ts": "1a99b1e4e3f098213200e6c3b97e34c49ac5c3284412f6d89e4c2760d4b0fe26",
-      "apps/web/src/home-types.ts": "8543ecb923a7774f6caf45ec5b594d3498ef5346fcac719c06b85ee673fcd967",
-      "apps/web/src/home.css": "8ef9373b59e5223cf370a4b024f570a957371fca42c2ccfc9b8b8518ad22b03a",
-      "apps/web/src/home.tsx": "3e9c8468ae3edc4a15aa1f978c35466765f661490207d1791b3b5820bdbeefa1",
-      "apps/web/src/integrations.tsx": "0319e3ad921d93d78a91350d64416ef6abfb47176d0b992eda9fa83fa9cd76bc",
-      "apps/web/src/locales/en.ts": "8d8cd149c674cfdf21f78da947d94b97946411d8a14c18e079ceed969fba9f79",
-      "apps/web/src/locales/nb.ts": "7fbec2b012d1e91f312be955eda26cf2d2b211ae5f21e3f77adece68b03df8f0",
-      "apps/web/src/main.tsx": "633c1dac2a31db3e102351d038fc71f96b969be467511a98d6eb434cc6f32cde",
+      "apps/web/src/home-types.ts": "4961d7ad9b52606d54edcf906288817b5e096bb6889b26f32c1d79ee508c5345",
+      "apps/web/src/home.css": "c0b1816b38e55848681962eb4b6aa459d4fa0fdbef7625d0544c9bff3833dee2",
+      "apps/web/src/home.tsx": "34b133c9ccee600a96bb0bc7da2e1528dc948410e580f3d8b6d67620cd6ea599",
+      "apps/web/src/household-board-adapters.ts": "4cff210a607b62baddd2819b853e97e99cc000984e33a776393c506e914c953f",
+      "apps/web/src/household-board-state.ts": "190a550c6786d75dd7ccf59fb353e9e37f0bd5f66df1d90e5d8c159a67023dac",
+      "apps/web/src/household-boards.tsx": "b1d2c48fcb99d481786894a5afa2f460062a6995a5351cd9498b1c5eacfdaece",
+      "apps/web/src/installation-public-contact.tsx": "9064adb3a455632ace839577fa5e00a436f349aa484e47b27a5a54a438b1c1ea",
+      "apps/web/src/integrations.tsx": "0925f35af02b1936eb1e80c7c1cb60a8e7883b0a7a71860139dd2b25ff557265",
+      "apps/web/src/locales/en.ts": "59b5362a5a96cfacdb3153c5d94a69be950dec5488c95dce4186f23291393364",
+      "apps/web/src/locales/nb.ts": "f05da8ae3d515c47a2b3a2881129c5e34435ec888b330a028eb8d9efa37b1752",
+      "apps/web/src/main.tsx": "29f4a2ada70e78e0cf4b274a04334f400a41b43c057447b9496fa076fc2b908f",
+      "apps/web/src/media-adapters.ts": "5731413554e82aadf0308bc7825ef053eefb0c628e38640722025dc535411fca",
+      "apps/web/src/media-library.tsx": "c6da66c94f48ca9a6f5615dc0e53b0633ed1ae60e6c8d0e7d6aededd88fa4203",
       "apps/web/src/member-navigation.ts": "9f6ebb67b57ba7c46eeca72c6009363fa0105b15f21757f64d394eb66ab7403f",
-      "apps/web/src/member-shell.css": "a32f16e3db36b2d060150f06b49d69c670845c3065faf97b18e38ab62baac12f",
-      "apps/web/src/member.tsx": "fa620142a4cbbf8a70121d2bc1911bb5103b31d625a9a4b3125b8473818fb58b",
+      "apps/web/src/member-shell.css": "52d23cca0c2f5b640123ebb287bb2e6438151a04837affa8d1d043cbe05aaaee",
+      "apps/web/src/member.tsx": "6f0c35e0bfd4d0254a1e3428cf7f1358c43a29bca5cadcf1bc4fbee82b8892c2",
       "apps/web/src/messages.tsx": "88e883bf1cdb57774bb0228e6e7cf2c7bb7c752dc23e5ec0e0c7439e48e26533",
-      "apps/web/src/monitor-presentation.ts": "ad663d54ddb0f5f4fec91e28f6fa6b0cb1b9f1015dbbf361e68c35564216b82b",
-      "apps/web/src/monitors.tsx": "b6e5d561f51ab25d5415160094f84084027622c3efa2df4c50571b63c01493d8",
+      "apps/web/src/monitor-presentation.ts": "017172f719672859cc33cec39587a1ee808903c23d6322b7a0cb866390cfe398",
+      "apps/web/src/monitors.tsx": "0915a273217614567bbccdddbb1fea5791835389abf08799b6569e407694d5e5",
       "apps/web/src/password-policy.ts": "49df577ef78de96c7b9a4a41f85f1f22e1cbe55c46d0a0774aa823b86d93fc94",
       "apps/web/src/people.tsx": "308e5022a2abe5bf0c46c18e9b90a3d7fad6c23c88b944a001176ef86a87b8d6",
       "apps/web/src/person-identity.ts": "42e3d1350b5cdef303c079bb7b5e6d3ae2d641c5981e43e7972a520aef8dc358",
@@ -68,34 +86,43 @@
       "apps/web/src/person-tasks.tsx": "28a2a149272a2794d43eb0f17e514372a55e79d35d3071cd9d2e791ccdfac7fd",
       "apps/web/src/photo-presentation.ts": "7fdf8e4d7129abd0b5f26cd4c31d176c672c3dc1feec41eeb8fcfee9e69c1c09",
       "apps/web/src/profile-photo.tsx": "b4afb57ef7d95642b8c6fcc5bb76b33172fc251a10e066773176599348b468eb",
+      "apps/web/src/public-information.tsx": "58e48ba7eb68ded5ca86acbe8f6c1e1781fc472a510a3352c1dc6b0515ded8de",
       "apps/web/src/round9.css": "f44d0f96da7e7409b2dfa68736a029dd4c1945ed595816550cf64dc6b3802f3d",
+      "apps/web/src/secure-uuid.ts": "4ca52f96d898b5eb1b4b1aeb67886d969e0e6c2e1e36458236172752d7c5d5f9",
       "apps/web/src/stream-health.ts": "27d929f46e642f4aeb496d5990ccd728d937b5a923a55e44bc2dc2fceec13cfe",
-      "apps/web/src/style.css": "761c48e93bdcd9249605f4dcc0349402216adc7b5900e7229e3a8da481830ca2",
+      "apps/web/src/style.css": "ec4b1a4167d57db24809564c09960413e73b4767b71cfa8666349ffd345883c8",
       "apps/web/src/temperature-settings.tsx": "d6faeeea3faf24fecc983f029de81609813db26bd2ebe78063b98d4fe2da21f8",
       "apps/web/src/time.ts": "23e23f0eaed30ceeaf1a95596c455bcb72122042133ec4f27da5bbb4555ed092",
-      "apps/web/src/types.ts": "02b28c0cfdb32c3d0904d84f106df22ffeba8e4f390882b80909d30bb5edc0d8",
+      "apps/web/src/types.ts": "ae009ae5a411cb42e2118bce0ac073bafcd4ea86f97392a6074a74291c61eff5",
       "apps/web/src/ui.tsx": "44872ad0c0afec432444cf09dc7192a30968f243a5912d0030f20ec39f33c8d9",
       "apps/web/src/workbench.tsx": "3697ec7fe45fc1997918700b7f3a79f8a794ac84f959df96a3ea43fa3376f6f6",
       "apps/web/tests/ai-presentation.test.ts": "b25f841dcffdc93cbade2de49d2485096ca7591fde2705b1a7a111a656d4f1bb",
       "apps/web/tests/ai-reasoning-smoke.mjs": "7997a47ae05d60105845c786520a0507aa401accde08054da1f7abb62c1d875d",
       "apps/web/tests/ai-settings-smoke.mjs": "5c78013ba31b0bb9360859748496d71f32a5e4c2897bed8da598eb94d2fc79ea",
+      "apps/web/tests/calendar-branding.test.ts": "cfa9ebf6b4cb507b4f4157fd6cae923528daa6bf410b7e2ac98698a35b7fa370",
       "apps/web/tests/calendar-preview.test.ts": "81ac4e2141c38745e2f1408668c28411435774e228557ce5dbf27c7f3cd18088",
-      "apps/web/tests/calendar-provider-config.test.ts": "ff490919283938d1d4f5c86e4c37d66f9ae8a5823d743efc240817cb85917cf3",
+      "apps/web/tests/calendar-provider-config.test.ts": "976743189028f1a8830c19941992d739146fd54caec91e4fd6097dca9373c36f",
       "apps/web/tests/chatgpt-guide.test.ts": "7167fed151f49e965bdb4c57043c58693782d3ca4eac964dc4f9fadbbf07ae49",
       "apps/web/tests/cold-load-smoke.mjs": "f8891439716ccecade95fc6ec236a0cfda8d830a56ff25467f9e69f64ca76621",
       "apps/web/tests/demo-login.test.ts": "29d16fc326e333fa5dee68625ba71a837fffd23405e90e2ea4831bf8fb975ed0",
       "apps/web/tests/display-cache.test.ts": "da81021c2062cc29f76c8f6cc30c4005dc865ec1f07ebc1dd52363e26fa79c97",
+      "apps/web/tests/display-lifecycle.test.ts": "ac8ad6b703e5dae7c82e19021688571c55f7f090a741598b432e888940c45cbd",
+      "apps/web/tests/home-activity-presentation.test.ts": "16354d1d2088c25f378336015ee81d79a819407f7538272ace85723332a53158",
+      "apps/web/tests/home-assistant-control-presentation.test.ts": "247c86e7dd4b56c41e446693fe1f29e00463e06b284955a56ed02505190b466c",
+      "apps/web/tests/home-assistant-controls-api.test.ts": "aaaf12548a9e72c76e1d7d3a5d8ee90fc5b7b76b8b7e0929cd26a8b481b3e069",
       "apps/web/tests/home-presentation.test.ts": "1fdcfe0bc578b1bf3a047e1ced3dbbfdd195e00d7ea608181bf1d84317330cc0",
+      "apps/web/tests/household-boards.test.ts": "6b2c57396e635b3d7c0616758e31574d83009a28423aeb9b7d4ebc2830f8b520",
       "apps/web/tests/m3-family-hub.mjs": "39410dc1b7f47acb8a4971e364b053b51f2c9e805959915d0a78ee3804c5e44c",
+      "apps/web/tests/media-adapters.test.ts": "8082702dcc382c24de50470ed8daa01a5abf553f3766150cba0fd0085936728e",
       "apps/web/tests/member-presentation.test.ts": "cb69f808181aa2ea275f325bed2c7b1e11a5b27ad4ab5c663af01b120e230f13",
-      "apps/web/tests/monitor-presentation.test.ts": "f64b18ef65f3205126a83201ff7d7cdaaa246922d60deb2ea183ceeb792047c3",
+      "apps/web/tests/monitor-presentation.test.ts": "8fc44a1083235f13daac2a9dcb7a355e7ce2a41b658fc9de57578736741834bf",
       "apps/web/tests/monitor-smoke.mjs": "b329d4a074edaff07d4a749adfc0dd970e34b41c880ca527e09dfa2bb6317b32",
       "apps/web/tests/password-policy.test.ts": "9d5b6794575b98f8916a46c751323dc59329097db620977c2fdd43d18d81d632",
       "apps/web/tests/people-account-smoke.mjs": "8ce9f45af1dc5d4d18255baadb0f6dd9feb601057538681d5ffd857b0eab565c",
       "apps/web/tests/person-policy.test.ts": "07807aeb522cc10ba0b4e895b9b396732b16622c21172d8c93c3870b2b3b3878",
       "apps/web/tests/review-regressions.mjs": "69a6586b2719f1c195e27a508077b681c83720817c5080e688b5e6f652397670",
       "apps/web/tests/round10-presentation.test.ts": "40982952c9de64abfb8bb8dcecccc51117479c8adc46f8295e55352ebcdcb8d9",
-      "apps/web/tests/round12-presentation.test.ts": "caf413a33a1a7f2a91222a569038799bc0663a7735f394a7f3e5685de23fbe34",
+      "apps/web/tests/round12-presentation.test.ts": "1e7b96999e72109682333f571407f1e51c7723c105636f826d0f782794903fc4",
       "apps/web/tests/round5-design.mjs": "8761741ab8cb360d7b42ed4aff52ce422f262e8d5e49719011bca3fbadb647e0",
       "apps/web/tests/round6-design.mjs": "6fed8ae0d12beded248aa7a5fc81930b2bb3ad2b4a641fffeffc3b75492ba133",
       "apps/web/tests/round7-design.mjs": "3484094c0ebc3001f8ba260ec2da69fb062abf10baf758bcffcb02c31ea1f5cd",
@@ -113,7 +140,7 @@
       "package.json": "4639ca20b1008767b9f9d5d1612a599228a82b0e94d50147e6652c42cebdec05",
       "packages/contracts/package.json": "f0517326dc46a607dbc9903267663570ef98cc76025bff2b2c776460e2799c7c",
       "packages/contracts/src/external-intelligence.test.ts": "34493e0fb6cbfcb85cc0fdb15621fcbb8ec0dd242a64518d406a449f0cec3339",
-      "packages/contracts/src/index.ts": "848039e5eac94f01069873dcb56d0b2672a17cb626e22ac7b5d30bd9868f08e1",
+      "packages/contracts/src/index.ts": "2ccdd01e35bc7e585291313338b89565ed738376a6d63c7f915716b859420df9",
       "packages/contracts/src/password-policy.test.ts": "08461d43ac2ee9b22c1cc1740273442010f86a7722475479a001072f3a7d438f",
       "packages/contracts/tsconfig.json": "c4ef5588f4e0e442aa72db545d02653e9ac2144621d081a486ee64879a5f5dcd",
       "packages/core/package.json": "d23f3e8bcef542003b10b18db5b8a98f04dc2c7084cf54d3f268e006ec07765a",
@@ -129,14 +156,14 @@
       "scripts/design-review-assets.mjs": "b0b4e151005ee249e77d61fe086017ed09c6e4276833bcfc63f9ce2dd63f664b",
       "scripts/design-review-assets.test.mjs": "2cc310f62df4e485bc4fc3eb4b3301cec1affe109c0a98a3e0c6dfdb50579a73",
       "scripts/design-review-build.sh": "9349216250da584188555142bde6ceb426d73e978d5b1eccf8e2d2cb7620c8bc",
-      "scripts/design-review-privacy.mjs": "e5d9fbe63280a700e216a29bfe9039ca73ee27019ef8c9a175eaf3f97af60da0",
-      "scripts/design-review-privacy.test.mjs": "3f4ef90f2f38e9d17e0a97031ce6883918b2076cd2925f26c43e30af896a05c0",
+      "scripts/design-review-privacy.mjs": "96f20e7253ee4f0861fa1aec5c9d8db9666cb03de13c5db1527112e28b746d6e",
+      "scripts/design-review-privacy.test.mjs": "96b7efcc50d1ab51cd01cf1f406287f91d58eb985e52b0fc419f4ebe0e313be4",
       "scripts/design-review-provenance.mjs": "0c0e45616206f447aed6b6b8fdb9b7ee7b9d332e090905a7942ebf6bb8a5ce13",
       "scripts/design-review-provenance.test.mjs": "20bf131b0e732e051bd4e853b8a5dca5b6cfae85e4e84bf2fce7d9b726509915",
-      "scripts/design-review-publication.mjs": "bed375089612e4e91c06e6246e1077fcff63fc5c5e0dedc19a86863e9734fb1e",
-      "scripts/design-review-publication.test.mjs": "67cd87ffd764cf06005f9bdfe3ddf4e68cba8b24e0b058e48306d279e0cfc3db",
+      "scripts/design-review-publication.mjs": "080fd3f0f6650381c54704edf922b5edea90f2626916f2b81c0ca2fed9f8d651",
+      "scripts/design-review-publication.test.mjs": "2d3f8e09f7831b5d055048c4933d2300117988451642a46554bd3af1abee64c4",
       "scripts/design-review-runtime.sh": "a53b3635e3474544b046900c2c178ee9a900c7749627b9205e67fb85d009c371",
-      "scripts/design-review.mjs": "a2edbcaa3dff944f3118d270ca4542ff3cf984e4575e810a788448171a27c6ef",
+      "scripts/design-review.mjs": "02ca9430eb5d576ebd68a8dfedada125c53079ffafd51b3cef8319c14adda90d",
       "scripts/design-review.sh": "e179be2c14c8d43a453aca9c7e829cbcddc28fadc500698b2d2683f97f3c32ed",
       "scripts/dev/start-codex-m1.sh": "9bb43e6c318fed2e4bd52c918c0dcc946add38a9c3a97c6e371ea9e2f9e22975",
       "scripts/dev/tmux-attach.sh": "10c386098840b4248aecc13867df0be3be8bf85c4dffc4376cacebb64e242759",
@@ -176,7 +203,18 @@
       "services/api/migrations/024_round10_calendar_and_monitor_repairs.sql": "aafca689a5380868341fdec3eec47f68dd4db5d2616b8511adb013c1cf2bbc5b",
       "services/api/migrations/025_calendar_provider_gui_and_home_assistant.sql": "9478df9ce301d31f690a5e348f5b9ae06d4908dba498db391226f20fa8a1e40f",
       "services/api/migrations/026_home_assistant_calendars_and_temperature.sql": "b242884ff61ae7224f9ef48fa75a10f64b3b696fc3de05b9b7b664a13f2020e2",
-      "services/api/package.json": "c2e82cf64579bee0c1d32159d7238b948604e7661b02560eb1b78de6c4fea2e5",
+      "services/api/migrations/027_home_assistant_origin_binding.sql": "bdfe7945406024f6722ced1c462ba8cf43322ddd306f515161e32056b20ce7b8",
+      "services/api/migrations/028_home_school_activities.sql": "afa858ccbe6a6ac222878ac5773959363697dca3c6134cd014b21f088f9aac1a",
+      "services/api/migrations/029_reusable_display_setups.sql": "02ea910afc1b90c4e263bcaa62aca248d6b132d9f254a456eac7b5f91b425651",
+      "services/api/migrations/030_display_message_actions.sql": "60ebc4c88ce557462669ba24f8afa43d806836c0421191f49f1c06763a7fbff2",
+      "services/api/migrations/031_native_household_boards.sql": "41498c57448993f314ea8ba30d7e03a4d3d58c5dd9389370f83841fc30ddd560",
+      "services/api/migrations/032_private_media_albums.sql": "0f738873851d9abc6a1323e3fcb78319a2bf9b48a617c5a452713e1007a292a0",
+      "services/api/migrations/033_home_assistant_controls.sql": "633d0df19273340e550114b8edd78bb603a7d5789bf5f02edb43e5c4979a801e",
+      "services/api/migrations/034_home_assistant_dispatch_deadline.sql": "496b18f039d3d097a2a2a36112147f34a1217d79474327b2e052575878412736",
+      "services/api/migrations/035_home_assistant_control_origin_binding.sql": "9f8b3f1f8b3039e8109ec72bc38153c1cca62972d35d094c39a7dcca1e1dee13",
+      "services/api/migrations/036_display_action_preview_activities.sql": "661697388abcb3e37a495a18ca746caf199e72f9fe7abd124e00f8a31b4a9a28",
+      "services/api/migrations/037_installation_public_contact.sql": "b8d8dfe04090779586afc226a63be952005cc345f6d251d9654cdf89ef64f3fa",
+      "services/api/package.json": "02362881ae04ec85dbf8501786c2e6b2dd47251d8c8979c7952b64bb1ee58f9e",
       "services/api/src/ai.integration.test.ts": "a64987672c0edbd1a520cc7466c8da6f287816f9901bb95495830cd299f2ce49",
       "services/api/src/ai/admin-service.ts": "d44176cb43f2ebc50904528eb5d719e0017f783a9b96d728a807ee3c84e81f61",
       "services/api/src/ai/chatgpt-companion.test.ts": "8aeb2305582fa35eb883c4f8de31e912e1b8252a4c6aa05664eb44a315f1f6e7",
@@ -193,40 +231,48 @@
       "services/api/src/ai/openai-provider.ts": "2ed1fbddc1359a7b0c3630a062ba17454cc14d861e0541117eaaa03694b31abc",
       "services/api/src/ai/provider.test.ts": "746c9590188db36cff8fb49f001e2c7ca4d1ff1d6605af718ee0f7610a45b217",
       "services/api/src/ai/provider.ts": "a650363070bcb3db0a7c970459e995bf3e46808f99f4ee6952a267e60b32d6e1",
-      "services/api/src/api.integration.test.ts": "ce67a1e33f00ed938d31c2bffed2da3085fa2e0931a8fea7fb4d10ba042f76e1",
-      "services/api/src/app.ts": "59fbdf9a184465162f196d204b900c91a0518fce953d94c39d8461e5c273b316",
+      "services/api/src/api.integration.test.ts": "7262f12eac62bfe1bfcc3c3d737f6bed633173c44b880ca5337e4ccff0f2770c",
+      "services/api/src/app.ts": "52559bd08172e09ee1d538984860f1de99b56eb9ea9ab58e54fdbb97e0357892",
       "services/api/src/browser-security.test.ts": "bd8e5464bb591337dd317e6f688b363e4e509b170048d1722314ff4ba2667f8a",
       "services/api/src/browser-security.ts": "03e3cf0ac8b3a7ba5b20abc3364a17dec8c53fcd2651235eb10ed6820dfa2675",
       "services/api/src/calendar-provider.integration.test.ts": "4c839be0b9a68b37fb5f4a640bbce72dd3043171341a9d79a1ed35ea7ae8f2be",
       "services/api/src/calendar/home-assistant-client.test.ts": "5bad3310a04a187a12cb22fe92898081f4b5aa783a7a61d70c1f2fc483b449e6",
-      "services/api/src/calendar/home-assistant-client.ts": "3d5103aef7d21c08b8429c37cab82c8e24e8dab95df7ab016e3c09ccf9c9e085",
-      "services/api/src/calendar/provider-config.ts": "0976a6a93fdd402830a89f9f0baea2b9c1f789aaa3383316016238251f30a47d",
-      "services/api/src/calendar/service.ts": "d6103d502f639ef3edaa427a7dca6af1df5b908c72da41ae109b2dad8d9477d0",
+      "services/api/src/calendar/home-assistant-client.ts": "32cdec617d82595c7c84ea1a5356a3a8824193fdadbc569fce8e943d9844b307",
+      "services/api/src/calendar/provider-config.ts": "6610dc9fa5e9e998281a8d87a950559a6d5e1e6757cef0a352d36d61cbe2c6e3",
+      "services/api/src/calendar/service.ts": "c7afa243c56658dbdcff350c62fed4ec20ab3feed20e0f7cae37eeef7482bc38",
       "services/api/src/calendar/transport.test.ts": "b309628e2ab5cac3d7be89a66015480168cfcab6812f5d6cb980c626334ede94",
       "services/api/src/db.ts": "566999d65bf772e57c5e944c8d73595cb118ed2e67c37d9039769819b0e71120",
       "services/api/src/db/migrate.ts": "a99377bb2227b768909c7f182856e13286ce02faac8596a2a9b41ce79ae06bb4",
       "services/api/src/e2e.integration.test.ts": "e83018147784bae9ec2dccd26ab6b5fac4ca9259ab314e752428b4f5e6a68e9e",
       "services/api/src/e2e/live-e2e-cli.ts": "57c2c00289d6c11ac7b775b77960e4c9f22feee850b125fce5de6000a687966b",
       "services/api/src/e2e/live-e2e.ts": "08055075448ec73003aa5a29d9103b775a4ad0fe60720cf45b93af7c66ec6a03",
-      "services/api/src/external-intelligence.integration.test.ts": "7bd1e4ca82703b11a01b0ad490b2ef09c1e6bc0cef8562d3d25f2763191abd46",
+      "services/api/src/external-intelligence.integration.test.ts": "e04f101484406badb6e67d2efc8c88b394b2387d037c0af67cd175cff2350318",
       "services/api/src/gate-e.integration.test.ts": "161f5ab6dc29d0830f291047a7d0c8fc57f1bbd573c349e8d75afc4d77a21676",
+      "services/api/src/home-assistant/control-client.test.ts": "8c11f291f9a87e322969bbdcd49d13b8bd0549edd9f49d8b7558bf5c790056d1",
+      "services/api/src/home-assistant/control-client.ts": "068d24c3c2faf3b825e7897e6f2f7e8438532e98ae5e3b78a2f8363303a72800",
+      "services/api/src/home-assistant/control-service.ts": "b6749cc258e0b2361b3aa2a9b4fa42587a16a92956e3c9c68e480648b64526d9",
+      "services/api/src/household-board/service.ts": "e715fe4eb92de5f9013822d72cd4b026ffaa5df8b607009746dd29b21dfb1ca1",
       "services/api/src/lifecycle.ts": "be8fc74a5dbc718abf08c5b71d48f922e339d9b721020e1951ace15f4d9d0c3a",
       "services/api/src/local-bootstrap-cli.ts": "43c7e6d46c9d18f9935ff2b483a277d446036d2f99d3d56f35438128eb6ca1de",
-      "services/api/src/monitor.integration.test.ts": "1de9a6d1744ec69faf63d96cdb3a49237027bb8cdca1df6daccfc50e97c82491",
+      "services/api/src/media/image.test.ts": "0c554b59972b9d01bbdedc4530f2bd192ed9d6218103a7b039a205a5e00dd909",
+      "services/api/src/media/image.ts": "3556cc88f6baf27d0a41ab49775a83a6dca8217a5b21cdad817bf5330cfe6189",
+      "services/api/src/media/service.ts": "3445f804b5af1c3b9cac27b2483f7d820bd692faab2d8df5648ab717205cc67d",
+      "services/api/src/monitor.integration.test.ts": "2a24bf4fc3eeb42b3945e75c68acdece8f01400a8f19d6b51fc47621f2f88b8f",
       "services/api/src/monitor/agent-runner.test.ts": "c999cfb3fe71354540317053be70cb917f59664ecbba0ed21fcd9ec4537ff1c3",
       "services/api/src/monitor/agent-runner.ts": "45004fe0a13cbd730c70c0793e8d91f7232b23314f05d5a5abddf145b3f09e9e",
       "services/api/src/monitor/domain.test.ts": "6f1b4ed876aea159ffbcf2b563ad8a0b4af39520ecee2733cf31c6e3f66e0dab",
-      "services/api/src/monitor/engine.ts": "e2d46bf44833b5d0d7d89c6d86ab858f4b1f4f3ce0e6678b4a531535220a4a26",
+      "services/api/src/monitor/engine.ts": "85b59caf37587b15db16ffb0603f3155c25acd2756d68bf1cd28bf8127e9a3ff",
       "services/api/src/monitor/event-identity.ts": "8dc0b30a6950550b4d832958b634eb9f489eba08c079f610c97704717ca44f54",
       "services/api/src/monitor/execution-policy.test.ts": "520a307f8e1554b39214e0f3f9ddce5005be79c0b1a32a7e9703e9ae198a017c",
       "services/api/src/monitor/execution-policy.ts": "7b387304b2295c3b3512ab7ff2481ec64e3407dd2dfebf2c6c0610bfd4b6100e",
-      "services/api/src/monitor/execution.integration.test.ts": "937d97f884dc0c99922d7f465bfc5a38e60be7b35cc50721a58ff3139f06a811",
+      "services/api/src/monitor/execution.integration.test.ts": "5382293391be1cf830fd8900fbe94b4e4b16a8d63e45e6d55f816c7a0ddf39b6",
       "services/api/src/monitor/execution.ts": "40b0167867209c44ca5afbc9fd9a9f3127424e39f00e803a18a7d3e2bd7955c3",
+      "services/api/src/monitor/presentation.ts": "f235cfb26d6d373e685682b1693f9f09c3ecf9f823990d292f065afeb8073dd6",
       "services/api/src/monitor/quality-router.test.ts": "c77aff98d4e944e431ee780454b198899d12bd3e5cbf1df049716ed9d17d6cb0",
       "services/api/src/monitor/quality-router.ts": "86f68710eb5a4a64c8c05f33df3a06f23562dda27ce10571c4df1f95d0fb4e53",
       "services/api/src/monitor/response-schemas.ts": "c365bdae16c08c52cf570a0a5866ccfc987459363d22e12167d166e9fccec052",
       "services/api/src/monitor/schedule.ts": "66fdf9d719dcafd9b01c64d2dbf29378f4beb9b288168e84675556723bf48339",
-      "services/api/src/monitor/service.ts": "d72b5f7cf8381e1805faa11d4c2d0c6f62e8d0721d9f5cb3afc4d3a9b7205e24",
+      "services/api/src/monitor/service.ts": "406133d5c5132d88290d654b545f2062e54d8967477f91601537c5525cd39bad",
       "services/api/src/monitor/source-fetcher.test.ts": "b5f99445a5628438ade54cc8429721fa977d7a741e9590e270992d0ac7541d21",
       "services/api/src/monitor/source-fetcher.ts": "40283e9a9d3283ad693c1acf1ada730e51748d6f846bf7c65ec1e38cb29e5cb1",
       "services/api/src/monitor/subject-link-cli.ts": "c09bd742f9ae056aa31730e827d58cf6fdc6410d94123864d71a01c28fe05cbd",
@@ -237,17 +283,30 @@
       "services/api/src/monitor/weather.test.ts": "1f5d7a7a377008c83f7186779751656ff433aa137dad8cbe8a4cdbb24bc329b1",
       "services/api/src/monitor/weather.ts": "f7b86468f35444f32190b09fbd52d539676108b0a1391f3b0b1aeebaa4171664",
       "services/api/src/people.integration.test.ts": "d1c43af1149c32945154c6b0d7d7d23576d772e796f97a13e1446402a43afa73",
-      "services/api/src/people/domain.test.ts": "b9c793aa06696b6aa774ec90fd8fe16264aee4ab1b1d68b2019bd27cd1578bbe",
-      "services/api/src/people/domain.ts": "31f5471438d555a7acb721e4e4eea4c1d90ff8b827d708dfc92c3a941b5e0640",
+      "services/api/src/people/domain.test.ts": "dd1276efec34128db38aa63b3ed4d0a5d41f5ac5cd86164d372d5232c292b5f0",
+      "services/api/src/people/domain.ts": "288d71dfdef67e0400d794a2aa53cef104089682bdaa9656a92a0d4384cf23d7",
       "services/api/src/people/local-bootstrap.ts": "f060be21fe00389dcf40adff83ac31d3067577b77d3dbaa80c039de008ee294d",
       "services/api/src/people/photo.ts": "b09ff50d79b2266a24f1faec1191f44a8cf8b7844ace992551d6bcde74082f28",
       "services/api/src/pinned-lookup.test.ts": "a135e1a362645870460916d5ac7821b1652d73dec0235ec9adecc8f89104aa3f",
       "services/api/src/pinned-lookup.ts": "a0a7ea6ace60af0ee1785ddbc7a08fca19c0d5c1495e8b8ee779868ba350015d",
       "services/api/src/projection-events.ts": "9381baf56d08fea8cbfdfc1342808d05ec9db854a1dd219f49b9103d70c61a53",
       "services/api/src/proxy.integration.test.ts": "0d419efaf120171a223c2b9d83294f846c0c6cdcdaaa6a85de921d3c37e2e3f6",
+      "services/api/src/public-contact-import-cli.ts": "32df7e903d6513a161855428610b6ad09a8238874ec13ab9f63de7694b7ea856",
+      "services/api/src/public-contact.integration.test.ts": "a875dbac45bd001dda85629c7c589271f6d0e45b57f3450569799b51cf892866",
+      "services/api/src/public-contact.ts": "783e3e9bb387f416465b824ccbca388241161a89b703e9ea4697392df9d79107",
       "services/api/src/round10-backend.integration.test.ts": "70777e0cf1a919d5733ce40dcd85f2bdf4b88487cdcbcad224d770412014189b",
       "services/api/src/round12-calendar.integration.test.ts": "4e765ecad48599c6b5fe4d972356f93a878c7b6262f8e177fc5ff064b217efad",
-      "services/api/src/round9-backend.integration.test.ts": "b91fcfd2a27c788d047eabb60cf3ac6796ded4b4a4d931159e0e91b30ba3dedb",
+      "services/api/src/round13-activity-source-catalog.integration.test.ts": "14de53d52fb7deb9f6a9691fc0d865fa19b1eb3714ea6fbf2cd02ebe3a50664e",
+      "services/api/src/round13-all-day-activities.integration.test.ts": "47b2a383361e615a0c9f7b4f6eb2526e6aad52a3cf1f05314eb3f0a8f4ec6faa",
+      "services/api/src/round13-display-backend.integration.test.ts": "8b1287907ebe86c39a9cdafa27eae9aada145b50222040d02d122e2699c7a809",
+      "services/api/src/round13-display-messages.integration.test.ts": "005ddc34b42a3ee50dc3437cbc4a5c33253785948b03a9a3a715600aeed112c8",
+      "services/api/src/round13-home-assistant-control.integration.test.ts": "e168baa7f6faf5e9fbb3763d841860eefaec9b7713d5d197ebfd85b36bbc5f43",
+      "services/api/src/round13-home.integration.test.ts": "743bd7fceb6698cd1a1a4a888d145d6ecaece8b5be448fa10fe96cda5a57e9cc",
+      "services/api/src/round13-household-board.integration.test.ts": "9deb438564333ffb1e8b007ae5d2fea703e5764b14b447b1e31d6fd0bf9a9d45",
+      "services/api/src/round13-media.integration.test.ts": "b321d783c22634c47a9378c085e55e6bec039b656b9a5941c43043f1c4329137",
+      "services/api/src/round13-profile-photo-authorization.integration.test.ts": "1568828ebed7bf348b2240653b40993fbc3c8570186c8aba4c52d643a0dc1050",
+      "services/api/src/round13-temperature.integration.test.ts": "9f01a01d2aaa61463fea20b716126f0829d533dccd19f7a8931a5562603523c3",
+      "services/api/src/round9-backend.integration.test.ts": "7fe28f9613ebf1253b1d7afdefbfa4642ef75be9ce84857f4a341686a0c5b883",
       "services/api/src/runtime-config.test.ts": "ab4ff17d6768842909de615fe2e5e12ca929c976b0931e25a798effc89e6fd83",
       "services/api/src/runtime-config.ts": "c85d4e3eef7f47d61b3af7a309201755dab9c9ff9b655fe3d6f5c1b7de0eb238",
       "services/api/src/server.ts": "43937578867a6fd8d6204d137e05090db8fa4b558d889f12627b868d7c32d25a",
@@ -265,12 +324,14 @@
       "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
       "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
-      "assets/index-CdEa8zU6.css": "4795c171f70477fdb914a88f29c79b7101828f3314567f8ba3a702fe7cf5217e",
-      "assets/index-qCNkGW2v.js": "d99ccb47dd6748ce6072d071d146e58742428476229e84a233d425cd0ef95738",
+      "assets/index-5dunFTE5.js": "18589d8854a9ce5ddf3b934488ead6af77d7537cf488e3ec83dfa88965d148de",
+      "assets/index-CvLMLA0k.css": "368f16d8e55ad1760d8b2bc4a3856564ea5959d12dcd0e0b1f01ed440f6c3497",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
-      "index.html": "e04ed4a19ef4549c88c889f638c2b059ffafd04ec7e010535b83121363fa5e19"
+      "fonts/Kalam-OFL.txt": "f62ef357d3a1c3d27edd35a6e1ba350e8a8d13499797964eeadefbf0b3b15d1f",
+      "fonts/Kalam-Regular.ttf": "57cecb63d4608019371954274ae1d8c397764debd5b19d4a33c1efa4dc923c0b",
+      "index.html": "268be80a992f8775fd36ccbdac9cc100a79ede7e8790747cff67961707b2e64f"
     },
-    "builtAt": "2026-10-15T11:51:41.873Z",
+    "builtAt": "2026-10-16T06:11:27.678Z",
     "containerId": "13b86f7ac1962e2d89ec7ea10a6966a1b872d27557f8eb586c4b5f12c6e02fe1",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
@@ -280,8 +341,8 @@
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-05-BkiEJE6s.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-CdEa8zU6.css",
-      "/assets/index-qCNkGW2v.js",
+      "/assets/index-5dunFTE5.js",
+      "/assets/index-CvLMLA0k.css",
       "/assets/nordic-dusk-v2-JZmjLCmU.png"
     ],
     "loadedAssetsVerified": [
@@ -289,8 +350,8 @@
       "/assets/avatar-02-DdgMOJAz.webp",
       "/assets/avatar-03-DA7Jq2DZ.webp",
       "/assets/avatar-04-Bl-4M4Ux.webp",
-      "/assets/index-CdEa8zU6.css",
-      "/assets/index-qCNkGW2v.js"
+      "/assets/index-5dunFTE5.js",
+      "/assets/index-CvLMLA0k.css"
     ],
     "authorizedDynamicImages": [
       {
@@ -309,8 +370,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:21.654Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:39.181Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -328,15 +389,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "29e26b7816671ad5a996815b2440cfbad27a79608165fef1164a92f6699b592a"
+      "sha256": "2aefed064f69322747a037dd96ff0c60704c5529bd5f3b43fde797ae8cd41246"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:21.810Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:39.370Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -354,15 +419,18 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "173e26445b136e5a3c95fd143ecb47ae2d89bd144f3ac25fb3f8954561cd22e8"
+      "sha256": "ba4a437bebb8517f4511f3af2eb2c524f1e20a2ba0e110a2a37ab0aea03f9f6f"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:22.157Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:39.654Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -380,15 +448,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "46be6412883ab0a827f7b4c5fea2f1f3852d45d3fe06b300514e53e59a861547"
+      "sha256": "4a9286cbf6a37846bf1075e70f8ae983a2ce20b409000ef25a1e98e74bbfa91d"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:22.530Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:39.926Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -406,15 +478,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "c8284cf8983087bfb8f5d6b14a2c0ab6262dcb871a3f0ce786f765f559862988"
+      "sha256": "d7a5a8386385e02ee95ac0a21c6222b56700e697c87a7152571548732587abce"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:22.816Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:40.149Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -432,15 +508,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "2a10f795b68a00f7ce62a5a649f683a92fb9d8d438b17dd842b339396216ea4c"
+      "sha256": "2e75041a596211e77a8f452dcaf4d880e628a30d71568ded802852d1f9112543"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:22.995Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:40.369Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -458,15 +538,18 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "173e26445b136e5a3c95fd143ecb47ae2d89bd144f3ac25fb3f8954561cd22e8"
+      "sha256": "ffed56c8f39f8961ac9d74a9683e182e0794da415f16759a8569d5b33442cebd"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:23.563Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:40.796Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -484,15 +567,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "afca3ad3d5c975e1cde84fca98c6b8f79fdb719d8ec07cd4fa259b2677c9eb3c"
+      "sha256": "2aefed064f69322747a037dd96ff0c60704c5529bd5f3b43fde797ae8cd41246"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:24.746Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:42.315Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -510,15 +597,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "d970419eecd94142f64b4c0f8ae924abd24473e40ee821e7d050bac74e20dc07"
+      "sha256": "61d404aad0b9a562524adfe2d41bed138bd49575258f1fe7074b2e84bf4cf19b"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:25.015Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:42.573Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -536,15 +627,18 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "34f00b339a7d2500f17e79458696d451e94a073b64ff3228b09115468b4262a3"
+      "sha256": "957c8957596926b3b1671afb0533e7642ad1d1a668f596bb6970001a1edfa1fa"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:25.586Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:43.083Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -562,15 +656,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "125272c8130778702ad715632fbfe90b419558bc98cbc7df0fa20064c67e9516"
+      "sha256": "2dd967a0c8f017549c1c263934ca3dc7583255cf5eabd2b9e57df8c076390b01"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:26.099Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:43.623Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -588,16 +686,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
-        "personalActivity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "1c3b323cb79d340d9d5ec6cfc0a75bf003ddb1e72c427b95f34a232e9c0f05ac"
+      "sha256": "8274add80a6c7072de570aa6f44363fafd928c323e11223af7c539f454759b78"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:26.571Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:44.298Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -615,16 +716,19 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
-        "personalActivity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "029fd533bca16ff90a3cd9ee106e32ea6e15041daaf816141ad4a8ceb724b81f"
+      "sha256": "c290d16b473d0cd7a555e0d0a0eb952c8b87be3ca57ea9d0fe5a56344d6e6d9e"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:26.798Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:44.625Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -642,15 +746,18 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "34f00b339a7d2500f17e79458696d451e94a073b64ff3228b09115468b4262a3"
+      "sha256": "be3bef6fe620cddd05e9f68a7ab697108d9cef6d87ba1104c748c426ed87140f"
     },
     {
-      "commitSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
-      "capturedAt": "2026-10-15T11:52:27.717Z",
+      "commitSha": "7c61557b92333408c628911784aff267411479ba",
+      "capturedAt": "2026-10-16T06:11:45.792Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -668,11 +775,15 @@
         "itemIdsHash": "ffa13818230b0cfa9ec8e6c58cf191c26aaae82c6761211a4c4512e6a2ac906b"
       },
       "privacyRedactions": [
+        "media-new-album",
+        "person-card",
         "personIdentity",
         "protectedPhoto",
-        "runtimeIdentity"
+        "runtimeIdentity",
+        "week-person-filter",
+        "week-source-filter"
       ],
-      "sha256": "d970419eecd94142f64b4c0f8ae924abd24473e40ee821e7d050bac74e20dc07"
+      "sha256": "2303b648fb863d623d14796bf22e9c69be301fdb666729607063f2567a29ed71"
     }
   ]
 }
