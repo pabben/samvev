@@ -115,6 +115,11 @@ try {
   const visibleProtectedPhotoKeys = new Set();
   const visibleProtectedPhotos = new Map();
   const protectedPhotoChecks = [];
+  let protectedPhotoFailure;
+  const awaitProtectedPhotoChecks = async () => {
+    await Promise.all(protectedPhotoChecks.splice(0));
+    if (protectedPhotoFailure) throw protectedPhotoFailure;
+  };
   page.on('request', request => {
     const url = new URL(request.url());
     if (url.origin === baseURL && url.pathname.startsWith('/assets/')) loadedAssets.add(url.pathname);
@@ -123,16 +128,21 @@ try {
     let image;
     try { image = classifyVisibleImage(response.url(), baseURL); } catch { return; }
     if (image.kind !== 'protected-photo') return;
-    protectedPhotoChecks.push((async () => {
+    const check = (async () => {
       const evidence = protectedPhotoEvidence({ image, status: response.status(), contentType: response.headers()['content-type'], bytes: await response.body() });
       visibleProtectedPhotos.set(image.key, evidence);
-    })());
+    })();
+    // Attach rejection handling immediately: a later navigation must never leave
+    // a response.body() promise unobserved or silently discard failed evidence.
+    protectedPhotoChecks.push(check.catch(error => { protectedPhotoFailure ??= error; }));
   });
   page.on('pageerror', error => errors.push(error.message));
+  await awaitProtectedPhotoChecks();
   await page.goto('/');
   await assertFamilyHub(page, personIds, 'light');
   for (const theme of ['light', 'dark']) {
     await api('/me/preferences', 'PATCH', { locale: 'nb', theme }, { 'X-CSRF-Token': original.csrf });
+    await awaitProtectedPhotoChecks();
     await page.reload();
     for (const [surface, width, height] of views) {
       await page.setViewportSize({ width, height });
@@ -164,7 +174,7 @@ try {
       screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: true, uiVerification: { ...verification, personIdsHash: sha256(renderedPersonIds.join('\n')) }, privacyRedactions });
     }
   }
-  await Promise.all(protectedPhotoChecks);
+  await awaitProtectedPhotoChecks();
   for (const key of visibleProtectedPhotoKeys) expect(visibleProtectedPhotos.has(key), `authorized protected photo response: ${key}`).toBe(true);
   const privatePhotoEvidence=[...visibleProtectedPhotoKeys].map(key=>visibleProtectedPhotos.get(key));
   await writeFile(resolve(localRoot, `protected-image-validation-${roundId}.json`), `${JSON.stringify({sourceSha,roundId,images:privatePhotoEvidence},null,2)}\n`, {mode:0o600});
