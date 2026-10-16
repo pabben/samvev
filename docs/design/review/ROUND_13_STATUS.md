@@ -45,7 +45,7 @@ and public verification remain open. All 13 areas remain active.
 | R13-05 | Waste consolidation | Import/day-plan baseline only; remove separate Next Waste surface remains open | No new evidence | R12 only | No |
 | R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, server-filtered projections and authority rechecks implemented; UI/browser/config preview remain open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4 and Round 9 5/5; bounded review closed | R12 ACL baseline only | No |
 | R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Combined backend suite 20/20; bounded findings closed | No R13 public evidence | No |
-| R13-08 | Messages, private background and shared album | Display-authored message backend is implemented; handwritten/emoji UI, backgrounds and album/media lifecycle remain open | Covered in 20/20 combined backend suite only where noted | No R13 public evidence | No |
+| R13-08 | Messages, private background and shared album | Display authors and private album/background backend implemented; message typography, album playback/UI and restore/public acceptance remain open | Media focused 10/10 plus API 4/4; four review findings corrected with deterministic regressions | No R13 public evidence | No |
 | R13-09 | Durable groceries and dated dinners | Native backend, revisions/tombstones, snapshots and independent display grants implemented; UI remains open | Focused integration and API/contracts checks pass; lock-expiry review findings closed | No R13 public evidence | No |
 | R13-10 | Home Assistant controls and T1–T3 | T1–T3 backend implemented; HA light/garage actions remain open | Temperature: 7 new +16 existing focused regressions; included in 20/20 backend suite; checks pass | R12 read-only baseline; preserve the existing public HA connection | No for isolated work; live consent is separate |
 | R13-11 | Anonymous public information pages | Contact values confirmed privately; runtime config and pages pending | No new evidence | Test origin only; no R13 page verification | No for content preparation; private values must not enter Git |
@@ -280,3 +280,38 @@ Evidence: `.local/m3/round13/backend-board-checkpoint.log` (actual exit 0).
 This includes native boards plus existing API, Round 9, display-message, Home
 and temperature regressions. Frontend/media/HA controls/pages/release remain open;
 public deployment is still R12.
+
+## Private media backend checkpoint — 2026-10-16
+
+Additive migration 032 stores oriented, EXIF-free, aspect-preserving WebP master
+and preview variants in PostgreSQL. No original upload is retained. Private
+albums have explicit member/household grants; per-device grants are additional
+to setup selection and upload action policy. Background selection does not share
+its source album. Default limits are 250 assets/500 MiB per household, input
+10 MiB/40 MP/12,000 px edge, master 2,560 px and preview 720 px. Unsupported
+decoders return localized photo errors. Album playback interval/pause remains
+frontend work, not a persisted feature of this backend checkpoint.
+
+The economical writer implemented the package. Main early review corrected
+credential binding, album sharing authority, quota accounting/cascades and
+projection completeness. A bounded `gpt-6.1-sol` high review/repair then corrected
+replacement preflight, final member-image expiry and two lock-order cycles.
+Regression barriers use actual PostgreSQL waits, distinct actors, concurrent
+last-slot quota competition and device credential rotation during normalization.
+The old lock ordering reproduced failures before the fixed source was restored.
+Local evidence: `media-strong-final-regressions.log` **14/14**, API/contracts
+typechecks pass, and `media-strong-lock-order-counterfactual-red.log`, all under
+`.local/m3/round13/`. No real images or credentials were used.
+
+Public deployment still requires the final source-bound build, isolated restore
+and a second candidate dump/restore proving normalized media bytes and ACLs.
+Keep the migrated database and use a compatible/forward image recovery; do not
+drop new media or restore an old database over subsequent uploads automatically.
+Frontend integration, visual controls and public verification remain open.
+
+Main media integration checkpoint (2026-10-16): **31/31** serial tests pass,
+actual exit 0, no failures/skips/cancellations, isolated local Compose runner.
+Evidence `.local/m3/round13/backend-media-checkpoint.log`. Migrations 001–031
+remain unchanged. All 229 baseline protected root Git hashes are unchanged.
+This is a backend checkpoint; UI/HA controls/pages/restore/release and public
+acceptance remain open. Public runtime is still R12.

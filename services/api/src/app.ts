@@ -20,6 +20,7 @@ import {
   calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,
   temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
   groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,dinnerOptionCreateSchema,dinnerOptionUpdateSchema,dinnerAssignmentSchema,displayBoardReadGrantSchema,
+  mediaAlbumCreateSchema,mediaAlbumUpdateSchema,mediaAlbumGrantSchema,mediaDisplayGrantSchema,mediaAssetUploadSchema,mediaAssetUpdateSchema,mediaAssetReplaceSchema,mediaAssetDeleteSchema,mediaBackgroundUpdateSchema,
   integrationCapabilities,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
@@ -46,6 +47,8 @@ import { applyBrowserSecurityHeaders, browserSecurityHeaders } from './browser-s
 import { CalendarService,type CalendarTransport } from './calendar/service.ts';
 import { AiCredentialVault } from './ai/credential-vault.ts';
 import { HouseholdBoardService, type BoardActor, type BoardKind } from './household-board/service.ts';
+import {MediaService,mediaService,validateDisplaySetupMediaSelection,type MediaMemberActor} from './media/service.ts';
+import {normalizeMediaImage} from './media/image.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -67,6 +70,7 @@ interface AuthContext {
 
 interface DisplayContext {
   id: string;
+  credentialHash:string;
   name: string;
   householdId: string;
   locale: 'en' | 'nb';
@@ -210,7 +214,7 @@ async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
     pool.query<{sensor_id:string}>('SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id',[row.household_id,row.setup_id])
   ]);
   return {
-    id: row.id,name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
+    id: row.id,credentialHash:tokenHash(token),name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
     privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled,
     setupId:row.setup_id,cards:row.cards,cardOrder:row.card_order,familyLayoutEnabled:row.family_layout_enabled,
     allSources:row.all_sources,allSensors:row.all_sensors,selectedPersonIds:people.rows.map((item)=>item.person_id),grantedPersonIds:grants.rows.map((item)=>item.person_id),
@@ -575,6 +579,8 @@ async function integrationConnectionResponse(connectionId:string,householdId:str
 
 function params(request: FastifyRequest): Record<string, string> { return request.params as Record<string, string>; }
 
+function mediaActor(auth:AuthContext):MediaMemberActor{return{accountId:auth.accountId,sessionId:auth.sessionId,householdId:auth.householdId,membershipId:auth.membershipId,personId:auth.personId};}
+
 function photoProjection(householdId:string,personId:string,revision:number|null):Record<string,unknown>|null{
   return revision?{revision,url96:`/api/v1/households/${householdId}/people/${personId}/photo/96?v=${revision}`,url512:`/api/v1/households/${householdId}/people/${personId}/photo/512?v=${revision}`}:null;
 }
@@ -604,8 +610,8 @@ async function displaySetupResponse(client:DisplaySetupQuery,householdId:string,
     locale:setup.locale,theme:setup.theme,isDefault:setup.is_default};
 }
 
-async function writeDisplaySetupSelections(client:DbClient,householdId:string,setupId:string,input:DisplaySetupInput,bumpRevision=true):Promise<void>{
-  if(input.albumIds.length || input.backgroundId)throw new DomainError('VALIDATION_FAILED',400,{reason:'display_media_not_available'});
+async function writeDisplaySetupSelections(client:DbClient,householdId:string,setupId:string,input:DisplaySetupInput,membershipId:string,bumpRevision=true):Promise<void>{
+  await validateDisplaySetupMediaSelection(client,householdId,membershipId,input.albumIds,input.backgroundId);
   const checks=await Promise.all([
     client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.personIds]),
     client.query('SELECT id FROM integration_connections WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.sourceIds]),
@@ -754,7 +760,7 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; photoNormalizer?:typeof normalizeProfilePhoto; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; photoNormalizer?:typeof normalizeProfilePhoto; mediaImageNormalizer?:typeof normalizeMediaImage; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const logger=process.env.NODE_ENV==='test'&&!options.logStream?false:{
     level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
@@ -767,6 +773,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
   const calendars=new CalendarService(options.calendarTransport,new AiCredentialVault(options.aiKeyFile));
   const normalizePhoto=options.photoNormalizer??normalizeProfilePhoto;
+  const media=options.mediaImageNormalizer?new MediaService({normalizer:options.mediaImageNormalizer}):mediaService;
   await app.register(cookie);
   app.addHook('onSend',async(_request,reply,payload)=>{
     applyBrowserSecurityHeaders(reply,responseSecurityHeaders);
@@ -1201,6 +1208,61 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const etag=`\"photo-${photo.revision}-${createHash('sha256').update(photo.data).digest('hex').slice(0,16)}-${variant}\"`;
     reply.header('Cache-Control','private, no-store').header('ETag',etag).header('X-Content-Type-Options','nosniff').type('image/webp');
     if(request.headers['if-none-match']===etag)return reply.status(304).send();return reply.send(photo.data);
+  });
+
+  app.get('/api/v1/households/:householdId/media/albums',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.listAlbums(mediaActor(auth));
+  });
+  app.post('/api/v1/households/:householdId/media/albums',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'media_album_create',{account:30,household:100,ip:60,windowSeconds:3600});const body=parse(mediaAlbumCreateSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send(await media.createAlbum(mediaActor(auth),body));
+  });
+  app.patch('/api/v1/households/:householdId/media/albums/:albumId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.updateAlbum(mediaActor(auth),params(request).albumId!,parse(mediaAlbumUpdateSchema,request.body));
+  });
+  app.delete('/api/v1/households/:householdId/media/albums/:albumId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const body=parse(mediaAssetDeleteSchema,request.body);reply.header('Cache-Control','private, no-store');return media.deleteAlbum(mediaActor(auth),params(request).albumId!,body.expectedRevision);
+  });
+  app.get('/api/v1/households/:householdId/media/albums/:albumId/grants',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.albumGrants(mediaActor(auth),params(request).albumId!);
+  });
+  app.put('/api/v1/households/:householdId/media/albums/:albumId/grants',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.setGrant(mediaActor(auth),params(request).albumId!,parse(mediaAlbumGrantSchema,request.body));
+  });
+  app.put('/api/v1/households/:householdId/media/albums/:albumId/displays/:displayId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');requireCapability(auth.capabilities,'display.manage');reply.header('Cache-Control','private, no-store');return media.setDisplayGrant(mediaActor(auth),params(request).albumId!,params(request).displayId!,parse(mediaDisplayGrantSchema,request.body));
+  });
+  app.get('/api/v1/households/:householdId/media/albums/:albumId/assets',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.listAssets(mediaActor(auth),params(request).albumId!);
+  });
+  app.post('/api/v1/households/:householdId/media/albums/:albumId/assets',{bodyLimit:14_500_000},async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'media_asset_upload',{account:30,household:150,ip:60,windowSeconds:3600});const body=parse(mediaAssetUploadSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send(await media.uploadMemberAsset(mediaActor(auth),params(request).albumId!,body));
+  });
+  app.patch('/api/v1/households/:householdId/media/assets/:assetId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.updateAsset(mediaActor(auth),params(request).assetId!,parse(mediaAssetUpdateSchema,request.body));
+  });
+  app.put('/api/v1/households/:householdId/media/assets/:assetId',{bodyLimit:14_500_000},async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'media_asset_replace',{account:30,household:150,ip:60,windowSeconds:3600});const body=parse(mediaAssetReplaceSchema,request.body);const result=await media.replaceMemberAsset(mediaActor(auth),params(request).assetId!,body);reply.header('Cache-Control','private, no-store');return result;
+  });
+  app.delete('/api/v1/households/:householdId/media/assets/:assetId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.deleteAsset(mediaActor(auth),params(request).assetId!,parse(mediaAssetDeleteSchema,request.body));
+  });
+  app.get('/api/v1/households/:householdId/media/assets/:assetId/:variant',async(request,reply)=>{
+    const householdId=params(request).householdId!,assetId=params(request).assetId!,variant=params(request).variant!;if(variant!=='master'&&variant!=='preview')throw new DomainError('NOT_FOUND',404);const revision=Number((request.query as Record<string,unknown>).v);if(!Number.isSafeInteger(revision)||revision<1)throw new DomainError('NOT_FOUND',404);const auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'household.view');const result=await media.assetBytesMember(mediaActor(auth),assetId,variant,revision,request.headers['if-none-match']);reply.header('Cache-Control','private, no-store').header('ETag',result.etag).header('X-Content-Type-Options','nosniff').type(result.contentType);if(result.notModified)return reply.status(304).send();return reply.send(result.bytes);
+  });
+  app.get('/api/v1/households/:householdId/media/background',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.householdBackground(mediaActor(auth));
+  });
+  app.put('/api/v1/households/:householdId/media/background',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.setHouseholdBackground(mediaActor(auth),parse(mediaBackgroundUpdateSchema,request.body));
+  });
+  app.get('/api/v1/display/media',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');return media.displayProjection({id:display.id,householdId:display.householdId,setupId:display.setupId,privacyMode:display.privacyMode,credentialHash:display.credentialHash});
+  });
+  app.post('/api/v1/display/media/albums/:albumId/assets',{bodyLimit:14_500_000},async(request,reply)=>{
+    const display=await displayAuth(request);await durableRateLimit('media_display_upload_display',display.id,30,3600);await durableRateLimit('media_display_upload_ip',request.ip,60,3600);const body=parse(mediaAssetUploadSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send(await media.uploadDisplayAsset({id:display.id,householdId:display.householdId,setupId:display.setupId,privacyMode:display.privacyMode,credentialHash:display.credentialHash},params(request).albumId!,body));
+  });
+  app.get('/api/v1/display/media/assets/:assetId/:variant',async(request,reply)=>{
+    const display=await displayAuth(request);const assetId=params(request).assetId!,variant=params(request).variant!;if(variant!=='master'&&variant!=='preview')throw new DomainError('NOT_FOUND',404);const revision=Number((request.query as Record<string,unknown>).v);if(!Number.isSafeInteger(revision)||revision<1)throw new DomainError('NOT_FOUND',404);const result=await media.assetBytesDisplay({id:display.id,householdId:display.householdId,setupId:display.setupId,privacyMode:display.privacyMode,credentialHash:display.credentialHash},assetId,variant,revision,request.headers['if-none-match']);reply.header('Cache-Control','private, no-store').header('ETag',result.etag).header('X-Content-Type-Options','nosniff').type(result.contentType);if(result.notModified)return reply.status(304).send();return reply.send(result.bytes);
   });
 
   app.post('/api/v1/households/:householdId/people', async (request, reply) => {
@@ -1816,7 +1878,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       await recheckHouseholdAuth(client,request,auth,'display.manage');
       const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,cards,card_order,family_layout_enabled,album_ids,background_id,locale,theme)
         VALUES($1,$2,$3::jsonb,$4::jsonb,$5,$6::jsonb,$7,$8,$9) RETURNING id`,[auth.householdId,body.name,JSON.stringify(body.cards),JSON.stringify(body.cardOrder),body.familyLayoutEnabled,JSON.stringify(body.albumIds),body.backgroundId,body.locale,body.theme]);
-      await writeDisplaySetupSelections(client,auth.householdId,inserted.rows[0]!.id,body,false);
+      await writeDisplaySetupSelections(client,auth.householdId,inserted.rows[0]!.id,body,auth.membershipId,false);
       return displaySetupResponse(client,auth.householdId,inserted.rows[0]!.id);
     });
     return reply.status(201).send(setup);
@@ -1830,7 +1892,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if(!current)throw new DomainError('NOT_FOUND',404);
       await recheckHouseholdAuth(client,request,auth,'display.manage');
       if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
-      await writeDisplaySetupSelections(client,auth.householdId,params(request).setupId!,input);
+      await writeDisplaySetupSelections(client,auth.householdId,params(request).setupId!,input,auth.membershipId);
       return displaySetupResponse(client,auth.householdId,params(request).setupId!);
     });
   });

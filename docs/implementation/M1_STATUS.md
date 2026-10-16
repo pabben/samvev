@@ -1060,3 +1060,10 @@ Evidence: `.local/m3/round13/backend-board-checkpoint.log` (actual exit 0).
 This includes native boards plus existing API, Round 9, display-message, Home
 and temperature regressions. Frontend/media/HA controls/pages/release remain open;
 public deployment is still R12.
+
+Main media integration checkpoint (2026-10-16): **31/31** serial tests pass,
+actual exit 0, no failures/skips/cancellations, isolated local Compose runner.
+Evidence `.local/m3/round13/backend-media-checkpoint.log`. Migrations 001–031
+remain unchanged. All 229 baseline protected root Git hashes are unchanged.
+This is a backend checkpoint; UI/HA controls/pages/restore/release and public
+acceptance remain open. Public runtime is still R12.

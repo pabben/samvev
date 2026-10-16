@@ -229,6 +229,25 @@ function refineDisplaySetup(value: z.infer<typeof displaySetupFieldsSchema>, con
 }
 export const displaySetupCreateSchema = displaySetupFieldsSchema.superRefine(refineDisplaySetup);
 export const displaySetupUpdateSchema = displaySetupFieldsSchema.extend({ expectedRevision: z.number().int().positive() }).strict().superRefine(refineDisplaySetup);
+
+export const mediaAlbumCreateSchema=z.object({name:nameSchema,kind:z.enum(['photos','backgrounds']).default('photos')}).strict();
+export const mediaAlbumUpdateSchema=z.object({expectedRevision:z.number().int().positive(),name:nameSchema}).strict();
+export const mediaAlbumGrantSchema=z.object({expectedRevision:z.number().int().positive(),membershipId:uuidSchema.nullable(),householdWide:z.boolean(),canRead:z.boolean(),canUpload:z.boolean(),canManage:z.boolean(),revoke:z.boolean().default(false)}).strict().refine(value=>value.revoke||value.canRead||value.canUpload||value.canManage,{path:['canRead'],message:'media_grant_requires_permission'}).refine(value=>(value.householdWide&&value.membershipId===null)||(!value.householdWide&&value.membershipId!==null),{path:['membershipId'],message:'invalid_media_grant_target'});
+export const mediaDisplayGrantSchema=z.object({expectedRevision:z.number().int().positive().nullable(),canRead:z.boolean(),canUpload:z.boolean(),revoke:z.boolean().default(false)}).strict().refine(value=>value.revoke||value.canRead||value.canUpload,{path:['canRead'],message:'media_grant_requires_permission'});
+export const mediaAssetUploadSchema=z.object({title:nameSchema.max(120),description:z.string().max(500).default(''),imageBase64:z.string().min(4).max(14_000_000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)}).strict();
+export const mediaAssetUpdateSchema=z.object({expectedRevision:z.number().int().positive(),title:nameSchema.max(120),description:z.string().max(500)}).strict();
+export const mediaAssetReplaceSchema=mediaAssetUpdateSchema.extend({imageBase64:z.string().min(4).max(14_000_000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)}).strict();
+export const mediaAssetDeleteSchema=mediaAssetUpdateSchema.pick({expectedRevision:true}).strict();
+export const mediaBackgroundUpdateSchema=z.object({expectedRevision:z.number().int().positive(),assetId:uuidSchema.nullable()}).strict();
+export type MediaAlbumCreate=z.infer<typeof mediaAlbumCreateSchema>;
+export type MediaAlbumUpdate=z.infer<typeof mediaAlbumUpdateSchema>;
+export type MediaAlbumGrant=z.infer<typeof mediaAlbumGrantSchema>;
+export type MediaDisplayGrant=z.infer<typeof mediaDisplayGrantSchema>;
+export type MediaAssetUpload=z.infer<typeof mediaAssetUploadSchema>;
+export type MediaAssetUpdate=z.infer<typeof mediaAssetUpdateSchema>;
+export type MediaAssetReplace=z.infer<typeof mediaAssetReplaceSchema>;
+export type MediaAssetDelete=z.infer<typeof mediaAssetDeleteSchema>;
+export type MediaBackgroundUpdate=z.infer<typeof mediaBackgroundUpdateSchema>;
 export const renderAckSchema = z.object({ cardId: uuidSchema, revision: z.number().int().positive(), renderedAt: isoInstant }).strict();
 
 export const integrationItemKinds = ['reminder', 'alert', 'event', 'summary', 'list', 'observation'] as const;
