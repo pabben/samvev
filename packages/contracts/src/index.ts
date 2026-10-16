@@ -252,6 +252,14 @@ export type MediaAssetDelete=z.infer<typeof mediaAssetDeleteSchema>;
 export type MediaBackgroundUpdate=z.infer<typeof mediaBackgroundUpdateSchema>;
 export const renderAckSchema = z.object({ cardId: uuidSchema, revision: z.number().int().positive(), renderedAt: isoInstant }).strict();
 
+export const installationPublicContactUpdateSchema = z.object({
+  expectedRevision: z.number().int().nonnegative(),
+  operatorName: z.string().trim().min(2).max(160),
+  postalAddress: z.string().trim().min(5).max(500),
+  contactEmail: z.string().trim().email().max(254)
+}).strict();
+export type InstallationPublicContactUpdate = z.infer<typeof installationPublicContactUpdateSchema>;
+
 export const integrationItemKinds = ['reminder', 'alert', 'event', 'summary', 'list', 'observation'] as const;
 export const integrationItemPriorities = ['low', 'normal', 'high', 'urgent'] as const;
 export const integrationCapabilities = ['integration.items.write', 'integration.items.delete', 'integration.items.read'] as const;

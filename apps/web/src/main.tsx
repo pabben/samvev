@@ -22,6 +22,7 @@ import {
 import { MemberApp } from "./member";
 import { DisplayApp } from "./display";
 import { Workbench } from "./workbench";
+import { PublicInformation } from "./public-information";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 import {
   allowsSyntheticAdminAlias,
@@ -424,6 +425,11 @@ function SignIn({
         )}
         <Submit busy={busy} label={t("signIn")} />
       </form>
+      <nav className="public-resource-links" aria-label={t("publicHelp")}>
+        <a href="/om">{t("publicNavAbout")}</a>
+        <a href="/personvern">{t("publicNavPrivacy")}</a>
+        <a href="/vilkar">{t("publicNavTerms")}</a>
+      </nav>
     </main>
   );
 }
@@ -432,6 +438,8 @@ createRoot(document.getElementById("root")!).render(
     <DisplayApp />
   ) : location.pathname === "/workbench" ? (
     <Workbench />
+  ) : ["/om","/personvern","/vilkar"].includes(location.pathname) ? (
+    <PublicInformation />
   ) : (
     <App />
   )}</AppErrorBoundary>,

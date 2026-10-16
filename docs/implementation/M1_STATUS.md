@@ -5,7 +5,8 @@
 All 13 owner-request areas remain active. Backend checkpoints now include
 T1–T3, Home birthdays/week/school, display setup and authorship, durable native
 household boards, private albums/backgrounds, and selected HA light/cover
-controls (migrations 027–035), followed by Display 036 policy/projection backend.
+controls (migrations 027–035), followed by Display 036 policy/projection and
+guides 037 backend/documentation checkpoints.
 The pushed HA checkpoint is `670f0b3`; Display 036 is the next local checkpoint.
 Root Git metadata is protected and deliberately stale; use the publishing
 checkout for source identity.
@@ -16,12 +17,22 @@ the HA-focused migration/API/contracts plus 3-test suite passed. Display 036's
 final verification passes API/contracts typechecks and 15/15 display/media/image
 tests. Review repaired expiry, photo-grant, draft-filter and lock-order findings;
 the former lock order fails its counterfactual. Main's earlier combined 41/41
-run is historical. The final combined backend checkpoint passed 42/42 with zero
+run is historical. The Display 036 combined backend checkpoint passed 42/42 with zero
 failures, skips or cancellations on the isolated local runner in 81.8 seconds
 (actual process exit 0); evidence is
 `.local/m3/round13/backend-display-accepted-checkpoint.log`. This is backend-only
 evidence; display UI, visual capture, full QA, backup/restore, release gate and
-public verification remain open. See Round 13 status for details.
+public verification remain open. It is superseded as the latest combined run by
+the 52/52 guides037 checkpoint below. See Round 13 status for details.
+
+Guides 037 also has a web checkpoint of 100 tests and build exit 0, five initial
+workspace checks and five provider checks; the independent combined backend
+checkpoint passed 52/52, zero failures/skips/cancellations, isolated runner,
+101.5 seconds, actual exit 0
+(`.local/m3/round13/backend-guides-checkpoint.log`). Candidate anonymous-page
+routes and Google/Microsoft guides are present, but private contact values are
+not initialized publicly. Public runtime remains R12; browser/public visual
+acceptance, shared UI, full QA, backup/restore and release gate remain open.
 
 The public deployment remains Round 12 source
 `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review

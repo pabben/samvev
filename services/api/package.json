@@ -9,7 +9,8 @@
     "test": "node --import tsx --test --test-concurrency=1 src/*.test.ts src/ai/*.test.ts src/calendar/*.test.ts src/home-assistant/*.test.ts src/media/*.test.ts src/monitor/*.test.ts src/people/*.test.ts",
     "bootstrap:local": "tsx src/local-bootstrap-cli.ts",
     "e2e:provision": "tsx src/e2e/live-e2e-cli.ts",
-    "monitor:link-subjects": "tsx src/monitor/subject-link-cli.ts"
+    "monitor:link-subjects": "tsx src/monitor/subject-link-cli.ts",
+    "public-contact:initialize": "tsx src/public-contact-import-cli.ts"
   },
   "dependencies": {
     "@fastify/cookie": "11.0.2",

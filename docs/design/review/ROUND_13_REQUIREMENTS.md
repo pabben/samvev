@@ -28,8 +28,8 @@ without inventing them.
 | R13-08 Messages and media | Message author/avatar is clear; handwritten body remains readable; emoji render; match reference `23_52`; keep Samvev identity and no family footer. Private background upload/reset works. Shared album has slow loop, pause/interval controls, mobile orientation behavior, resized uploads, quotas, GPS metadata removal, backup/restore, deletion and current-ACL checks. | Persisted display authors and private media/background backend implemented; typography/playback/UI, second restore and public acceptance remain open. | Media 10 focused tests plus API 4 pass; deterministic authorization/quota/lock regressions and typechecks pass. | No R13 public evidence. | No. |
 | R13-09 Grocery and dinner | Concurrent durable grocery add/check/undo/delete works for authorized household members. Dated dinner entries support emoji and prevent duplicates. Display can write only with explicit display grant. | Native grocery/dinner backend with revisions, tombstones and independent device grants implemented; UI open. | Main combined backend checkpoint 21/21 includes native concurrency, revocation and clear/reassign tests. | No R13 public evidence. | No. |
 | R13-10 Home Assistant and T1–T3 | Only selected temperature/light/garage commands run through backend allowlists. Grants are person/display-specific; state freshness/errors are visible; garage requires confirmation. Do not auto-test physical commands or queue offline commands. Shelly communicates through HA. Additionally satisfy T1–T3 below. | T1–T3 and selected, explicit-grant HA light/garage backend implemented; UI and physical owner verification remain open. | HA focused migration/API/contracts and 3 synthetic tests; Display 036 expiry/filter regressions; final combined backend checkpoint 42/42 pass, zero failures/skips/cancellations, isolated runner actual exit 0 in 81.8 seconds. | R12 read-only baseline. Current public state has one existing HA connection; preserve it and do not ask for a generic reconnect. | Live consent is separate; no secret is needed for isolated fixes. |
-| R13-11 Public information pages | Anonymous `/om`, `/personvern`, `/vilkar`; content accurately describes data flows/privacy and verified operator/contact; discreet login/help, no family footer. Google Pages authoring remains a separate backlog task. | Owner contact values confirmed privately; runtime config/pages pending. Keep actual values out of Git. | No new evidence. | Test origin only; no R13 page verification. | No. |
-| R13-12 Google and Microsoft setup | Google guide has five steps covering API/client/callback/Branding/Audience/connection; uses current official docs; states scope of testing vs publishing vs verification; includes exact Branding table and missing owner fields. Microsoft distinguishes installation-owner directory/app registration from calendar-account authorization; supports personal and work accounts; does not guess account-lock cause; cites current free eligibility; never creates an organization. | Guides/wizards remain open. | No new evidence. | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not characterize it as revoked. No live provider verification. | Owner registration/consent may be required for live validation, but guide/code work is not blocked. |
+| R13-11 Public information pages | Anonymous `/om`, `/personvern`, `/vilkar`; content accurately describes data flows/privacy and verified operator/contact; discreet login/help, no family footer. Google Pages authoring remains a separate backlog task. | Candidate includes anonymous DTO, safe runtime config path, page routing/content and copy/login/help links. Private contact values are not initialized publicly. Keep actual values out of Git. | guides037 web checks: 100 tests and build exit 0; five workspace checks pass. | Public runtime remains R12; no R13 browser/visual verification. | No; content work is not blocked, private values stay out of Git. |
+| R13-12 Google and Microsoft setup | Google guide has five steps covering API/client/callback/Branding/Audience/connection; uses current official docs; states scope of testing vs publishing vs verification; includes exact Branding table and missing owner fields. Microsoft distinguishes installation-owner directory/app registration from calendar-account authorization; supports personal and work accounts; does not guess account-lock cause; cites current free eligibility; never creates an organization. | Google and Microsoft guides implemented; interactive setup wizards and live provider verification remain open. | guides037 web checks: 100 tests/build exit 0; five provider-focused checks pass. | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not characterize it as revoked. No live provider verification. | Owner registration/consent may be required for live validation, but guide work is not blocked. |
 | R13-13 Traceability, QA and release | Keep this implemented/synthetic/public/owner-blocked matrix current. Use fictional people/data and local runner. Run meaningful full-target tests, backup/restore and review. Release gate runs last. Public test deployment is authorized. DCO-sign feature-only delivery. No PR, merge, main/force push, tag/release or Actions dispatch. Report files, tests, risks, migration/rollback, screenshots and data/secret hygiene. | Current status and checkpoint evidence are registered; complete target QA, backup/restore, release gate and deployment remain open. | Temperature/Home/display suites are checkpoint evidence only; full retest remains open. | R12 evidence is historical; no R13 deployment. | No, except explicit live provider consent. |
 
 ## First implementation package: temperature T1–T3
@@ -85,14 +85,23 @@ sensor/calendar choices and AI schedules.
 
 Publisher/origin checkpoint `a887028a4344ebb33b828d44e6a4fa3b44ec90da` contains
 T1–T3, Home and display setup/messages packages A+B. Display package B is DCO
-signed/pushed. Main's final combined backend checkpoint passed 42/42 with zero
-failures/skips/cancellations; see
-`.local/m3/round13/backend-display-accepted-checkpoint.log` (isolated runner,
-actual exit 0, 81.8 seconds). Earlier narrower 20/20 evidence remains historical.
-This is not integrated frontend, full QA, release-gate or public evidence. Round
-12 remains the deployed public source. HA physical controls, UI/media, groceries/
-dinners, public pages, provider wizards, browser/screenshots, full QA and public
-verification remain open. See the current status table in `ROUND_13_STATUS.md`.
+signed/pushed. The latest independent combined backend checkpoint passed 52/52
+with zero failures/skips/cancellations; see
+`.local/m3/round13/backend-guides-checkpoint.log` (isolated runner, actual exit
+0, 101.5 seconds). Earlier narrower checkpoints remain historical. This is not
+full QA, release-gate or public evidence. Round 12 remains the deployed public
+source. HA physical controls, shared UI, browser/screenshots, full QA, restore
+and public verification remain open. See the current status table in
+`ROUND_13_STATUS.md`.
+
+The guides037 workspace includes candidate anonymous-page and provider-guide
+behavior. Contact values remain private and are not initialized publicly;
+public runtime remains R12 pending browser/public verification.
+`.local/m3/round13/guides-web-final.log` records 100 web tests and build exit 0;
+initial five workspace checks and five provider-focused checks passed. The
+independent combined backend run is 52/52 with actual exit 0 and zero
+failures/skips/cancellations. These checks do not complete shared UI, full
+visual QA, backup/restore or release acceptance.
 
 ### Home backend evidence checkpoint
 

@@ -1,5 +1,6 @@
 import {calendarMemberAccess} from './calendar-provider-config';
 import { CalendarConnections } from './calendar-connections';
+import {InstallationPublicContact} from './installation-public-contact';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from './api';
 import type { Display, Membership, Person } from './types';
@@ -8,7 +9,7 @@ import { Check, Dialog, Empty, ErrorNotice, Field, Icon, Loading, Submit, useAct
 import { formatDate } from './time';
 export function IntegrationsPanel({member,displays,people,installationId,accountId}:{member:Membership;displays:Display[];people:Person[];installationId:string;accountId:string}) {
  const {t}=useI18n();const calendars=calendarMemberAccess(member);
- return <><section className="section-heading"><div><p className="eyebrow">{t('integrations')}</p><h1>{t('integrationTitle')}</h1><p>{t(calendars?'calendarIntro':'integrationBody')}</p></div></section>{calendars&&<CalendarConnections member={member} displays={displays} people={people} installationId={installationId} accountId={accountId}/ >}{member.capabilities.includes('household.manage')&&<AdvancedIntegrations member={member} displays={displays}/>}</>;
+ return <><section className="section-heading"><div><p className="eyebrow">{t('integrations')}</p><h1>{t('integrationTitle')}</h1><p>{t(calendars?'calendarIntro':'integrationBody')}</p></div></section><nav className="public-resource-links integration-help-links" aria-label={t('publicHelp')}><a href="/om">{t('publicNavAbout')}</a><a href="/personvern">{t('publicNavPrivacy')}</a><a href="/vilkar">{t('publicNavTerms')}</a></nav>{calendars&&<CalendarConnections member={member} displays={displays} people={people} installationId={installationId} accountId={accountId}/ >}{member.capabilities.includes('installation.manage')&&<InstallationPublicContact installationId={installationId}/ >}{member.capabilities.includes('household.manage')&&<AdvancedIntegrations member={member} displays={displays}/>}</>;
 }
 function AdvancedIntegrations({member,displays}:{member:Membership;displays:Display[]}) {
  const {t,locale}=useI18n(); const base=`/households/${member.household_id}/integrations`;

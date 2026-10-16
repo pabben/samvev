@@ -4,9 +4,10 @@ Updated: 2026-10-16
 Goal: complete all 13 owner-request areas recorded in
 `ROUND_13_REQUIREMENTS.md` and `REQUEST_LEDGER.md`.
 Phase: temperature, Home, display setup/messages, native boards, media,
-HA-controls and Display 036 backend checkpoints are implemented/reviewed.
-All new UI, pages/wizards, full visual/QA/release and public verification remain
-open. All 13 areas remain active.
+HA-controls, Display 036 and guides 037 backend/documentation checkpoints are
+implemented/reviewed. Shared UI, public contact initialization, provider
+wizards, full visual/QA/release and public verification remain open. All 13
+areas remain active.
 
 ## Baseline snapshot and preservation warning
 
@@ -48,8 +49,8 @@ open. All 13 areas remain active.
 | R13-08 | Messages, private background and shared album | Display authors and private album/background backend implemented; message typography, album playback/UI and restore/public acceptance remain open | Media focused 10/10 plus API 4/4; four review findings corrected with deterministic regressions | No R13 public evidence | No |
 | R13-09 | Durable groceries and dated dinners | Native backend, revisions/tombstones, snapshots and independent display grants implemented; UI remains open | Focused integration and API/contracts checks pass; lock-expiry review findings closed | No R13 public evidence | No |
 | R13-10 | Home Assistant controls and T1–T3 | T1–T3 and selected HA controls backend implemented; device integration/display projection checked. Physical owner verification and UI remain open | HA focused controls 3/3; Display 036 focused expiry/filter suite evidence; final combined backend checkpoint 42/42 pass | R12 read-only baseline; preserve the existing public HA connection | No for isolated work; live consent is separate |
-| R13-11 | Anonymous public information pages | Contact values confirmed privately; runtime config and pages pending | No new evidence | Test origin only; no R13 page verification | No for content preparation; private values must not enter Git |
-| R13-12 | Google/Microsoft setup | Guides/wizards remain open | No new evidence | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not call it revoked. No live provider verification. | Registration/consent may be needed for live verification; guide work is not blocked |
+| R13-11 | Anonymous public information pages | `/om`, `/personvern`, `/vilkar` routing/content, anonymous DTO and safe runtime configuration path implemented in candidate; private contact values are not initialized publicly. Browser/public verification remains open. | guides037 web check: 100 tests and build exit 0; initial five workspace checks pass | Public deployment remains R12; no R13 browser/public visual verification | No; values are privately confirmed but must stay out of Git |
+| R13-12 | Google/Microsoft setup | Google and Microsoft guides implemented; interactive setup wizards and live provider verification remain open | guides037 web check: 100 tests/build exit 0; provider-focused 5 checks pass | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not call it revoked. No live provider verification. | Registration/consent may be needed for live verification; guide work is not blocked |
 | R13-13 | Matrix, QA, backup/restore and feature delivery | Status is updated; full-target QA, recovery, release gate and public rollout remain open | Checkpoints documented; full retest not yet complete | Round 12 remains deployed; R13 public verification absent | No, except explicitly noted live provider consent |
 
 Full acceptance criteria and evidence distinctions are in
@@ -57,6 +58,31 @@ Full acceptance criteria and evidence distinctions are in
 directly reports; it does not satisfy newly requested additions. Local backend
 checkpoint status is reflected in the table above; it does not imply UI or
 public completion.
+
+## Guides 037 backend and documentation checkpoint — 2026-10-16
+
+The guides package adds runtime-backed anonymous public-page content and a
+safe three-field contact DTO, bootstrap CLI, early `/om`, `/personvern` and
+`/vilkar` routing, and actual copy plus discreet login/help links. It includes
+the five-step Google guide for configured origin, exact domain, Branding vs
+Audience, and testing/publishing/verification scope; Microsoft guide content
+distinguishes app-registration owner from calendar-account authorization.
+Contact values remain private and are not initialized on the public deployment.
+
+Writer checkpoint: `.local/m3/round13/guides-web-final.log` records web checks
+(100 tests) and build with exit 0; initial five workspace checks and five
+provider-focused checks passed. Bounded strong review repaired school expiry
+after waits and a contact/photo FK deadlock; three counterfactual regressions
+reproduced the defects, final verification is 8/8, and exact source restoration
+is recorded in `.local/m3/round13/contact-presentation-strong-final-verification.log`
+and adjacent restoration evidence. Root independently matched the source hash.
+The independent backend checkpoint `.local/m3/round13/backend-guides-checkpoint.log`
+passed 52/52 with no failures, skips or cancellations, isolated local runner,
+101.5 seconds, actual process exit 0.
+
+This checkpoint does not establish public deployment, browser or visual
+acceptance, contact initialization, full shared-card/Home/display UI, backup/
+restore, or release-gate completion. Public runtime remains R12.
 
 Current owner/public-state observations are aggregate only: a saved birthday
 matches the owner's reported month/day and the household birthday setting is

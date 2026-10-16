@@ -21,6 +21,7 @@ import {
   temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
   homeAssistantControlDiscoverySchema,homeAssistantControlSelectSchema,homeAssistantControlGrantSchema,homeAssistantControlRevisionSchema,homeAssistantControlDispatchSchema,
   groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,dinnerOptionCreateSchema,dinnerOptionUpdateSchema,dinnerAssignmentSchema,displayBoardReadGrantSchema,
+  installationPublicContactUpdateSchema,
   mediaAlbumCreateSchema,mediaAlbumUpdateSchema,mediaAlbumGrantSchema,mediaDisplayGrantSchema,mediaAssetUploadSchema,mediaAssetUpdateSchema,mediaAssetReplaceSchema,mediaAssetDeleteSchema,mediaBackgroundUpdateSchema,
   integrationCapabilities,
   type Capability, type ErrorCode
@@ -52,6 +53,7 @@ import {MediaService,mediaService,validateDisplaySetupMediaSelection,type MediaM
 import {normalizeMediaImage} from './media/image.ts';
 import {HomeAssistantControlService,type HomeAssistantControlActor} from './home-assistant/control-service.ts';
 import {HomeAssistantControlClient,type HomeAssistantControlTransport} from './home-assistant/control-client.ts';
+import {readAnonymousPublicContact,readPublicContact,updatePublicContact} from './public-contact.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -908,6 +910,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const result = await pool.query<{ claimed_at: Date|null; setup_step: string; default_locale: string; demo_mode:boolean }>('SELECT claimed_at,setup_step,default_locale,demo_mode FROM installations WHERE singleton=true');
     const row = result.rows[0];
     return { claimed: Boolean(row?.claimed_at), setupStep: row?.setup_step ?? 'welcome', locale: row?.default_locale ?? 'nb', demo: row?.demo_mode ?? false, demoAvailable: process.env.SAMVEV_DEMO_MODE === 'true' };
+  });
+
+  app.get('/api/v1/public/contact',async(_request,reply)=>{
+    reply.header('Cache-Control','no-store');
+    return{contact:await readAnonymousPublicContact()};
   });
 
   app.post('/api/v1/setup/begin', async (request) => {
@@ -1916,6 +1923,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.get('/api/v1/installations/:installationId/calendar-providers',async(request,reply)=>{const auth=await authForInstallation(request,params(request).installationId!);reply.header('Cache-Control','private, no-store');return{installationId:auth.installationId,canAdmin:true,providers:await calendars.readiness(auth,runtime.publicOrigin)};});
   app.put('/api/v1/installations/:installationId/calendar-providers/:provider',{bodyLimit:16*1024},async(request,reply)=>{const auth=await authForInstallation(request,params(request).installationId!),provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft'&&provider!=='home_assistant')throw new DomainError('NOT_FOUND',404);await operationRateLimit(request,auth,'calendar_provider_configuration',{account:20,household:40,ip:30,windowSeconds:3600});const body=parse(calendarProviderConfigurationSchema,request.body);reply.header('Cache-Control','private, no-store');return{installationId:auth.installationId,canAdmin:true,providers:await calendars.updateProvider(auth,provider,body,runtime.publicOrigin)};});
+  app.get('/api/v1/installations/:installationId/public-contact',async(request,reply)=>{
+    const auth=await authForInstallation(request,params(request).installationId!);reply.header('Cache-Control','private, no-store');
+    return{installationId:auth.installationId,contact:await readPublicContact(auth.installationId)};
+  });
+  app.put('/api/v1/installations/:installationId/public-contact',{bodyLimit:4*1024},async(request,reply)=>{
+    const auth=await authForInstallation(request,params(request).installationId!);
+    await operationRateLimit(request,auth,'installation_public_contact',{account:20,household:40,ip:30,windowSeconds:3600});
+    const body=parse(installationPublicContactUpdateSchema,request.body);const contact=await updatePublicContact(auth,body);
+    reply.header('Cache-Control','private, no-store');return{contact};
+  });
 
   app.post('/api/v1/integrations/items',async(request,reply)=>{
     const integration=await integrationAuth(request);requireIntegrationCapability(integration.capabilities,'integration.items.write');

@@ -42,27 +42,82 @@ Direkte innganger (krever innlogging):
 - Microsoft: `/?tab=integrations&setup=microsoft`
 - Spond/Home Assistant: `/?tab=integrations&setup=spond`
 
-**Google:** Følg lenken i veiviseren til Google Auth Platform. Aktiver Calendar
-API og registrer en Web application med den eksakte returadressen som veiviseren
-viser. Last ned web-klientens JSON og importer den i skjemaet, eller legg inn
-klient-ID og hemmelighet manuelt. Samvev validerer webtype, felter og returadresse;
-importerte endepunkter brukes aldri til å styre nettverkskall. Både dokumenterte
-eldre og aktuelle Google-filformater støttes. Ikke bruk service-account- eller
-installed-client-filer.
+**Google:** Følg de fem trinnene i veiviseren i denne rekkefølgen. (1) Aktiver
+Google Calendar API i Cloud-prosjektet operatøren eier. (2) Opprett en OAuth Web
+client og legg inn den nøyaktige returadressen veiviseren viser. (3) Fyll ut
+Google Auth Platform → Branding med appnavnet, denne installasjonens offentlige
+hjemmeside `/om`, personvern `/personvern`, vilkår `/vilkar`, domenet og
+kontaktopplysningene som vises i tabellen. Google må la operatøren velge en
+kvalifisert supportkonto eller -gruppe; en e-postadresse i appen velger ikke
+den for operatøren. Logo er valgfritt; Google anbefaler et kvadratisk bilde på
+120 × 120 piksler for best visning, og filen kan være maks. 1 MB. Under Branding åpner du **View issues**,
+retter eventuelle mangler og bruker **Ready to publish → Publish branding**.
+Googles godkjente Branding-resultat er gyldig i sju dager. Dette er separat fra
+OAuth-appens Audience-publisering. (4) Velg Audience: Internal bare for en
+administrert Workspace-app for organisasjonen, ellers External. Testing krever
+oppførte testbrukere (maks. 100) og refresh-token for kalender utløper normalt
+etter sju dager. Når du er klar, bruk **Publish app** for å sette External-appen
+til **In production**. Dette endrer appens tilgjengelighetsstatus for hele Google
+Cloud-prosjektet. Hvis knappen er deaktivert, fullfør påkrevde Branding-felt og
+eventuelle kontroller av domeneeierskap. Branding-verifisering av appidentitet
+og domene er separat fra OAuth-verifisering av sensitive/begrensede scopes;
+publisering betyr ikke at scope-ene er verifisert. Personlig bruk med færre enn
+100 brukere kan kvalifisere for scope-verifiseringsunntak, men fjerner ikke OAuth-
+regler, advarsler eller samtykkekrav. (5) Lagre klientregistreringen i Samvev,
+koble til kalenderkontoen, velg kilder, forhåndsvis og aktiver. Innbyrdes
+avhengigheter kan kreve at et felt gjøres klart i et tidligere trinn, men følg
+veiviserens rekkefølge for konsolloppsettet.
+
+Importer web-klientens JSON i skjemaet, eller legg inn klient-ID og hemmelighet
+manuelt. Samvev validerer webtype, felter og returadresse; importerte endepunkter
+brukes aldri til å styre nettverkskall. Både dokumenterte eldre og aktuelle
+Google-filformater støttes. Ikke bruk service-account- eller installed-client-
+filer. Google scopes er `calendar.calendarlist.readonly`,
+`calendar.events.readonly`, `openid` og `email`.
 
 Leserettighetene er `calendar.calendarlist.readonly`, `calendar.events.readonly`,
 `openid` og `email`. En External-app i Testing krever normalt testbrukerliste
-(maks. 100) og kalender-refresh-token utløper normalt etter sju dager. Publisert
-bruk med sensitive scopes kan kreve brand-/scopeverifisering. Workspace-regler
+(maks. 100) og kalender-refresh-token utløper normalt etter sju dager. En bruker
+kan måtte fullføre Branding/domain-kontroll og separat OAuth-scope-verifisering;
+publisering beviser ikke at noen av disse kontrollene er godkjent. Workspace-regler
 kan overstyre tilgang; GUI-et gjennomfører ikke ekstern verifisering.
 
-**Microsoft:** Følg veiviserens inngang til Entra App registrations. Registrer
-Web-returadressen, opprett en klienthemmelighet og legg inn Application (client)
-ID og hemmelighetens **verdi** i det sikre skjemaet. Velg registrering som tillater
-organisasjons- og personkontoer hvis begge trengs, og `common` i Samvev. Andre
-valg er `organizations`, `consumers` eller eksakt tenant UUID. Organisasjonens
-samtykke-/administratorregler gjelder fortsatt. Delegerte rettigheter er
-`Calendars.ReadBasic`, `openid`, `email` og `offline_access`; ingen kalenderwrites.
+**Microsoft:** Administratoren som eier appregistreringen må kunne opprette og
+administrere appen i riktig Entra-katalog. Dette er en annen rolle enn den enkelte
+kalendereierens private Microsoft-konto eller jobb-/skolekonto som senere logger
+inn i Samvev. I App registrations velger administratoren om appen skal støtte
+bare organisasjonskontoer, personkontoer eller begge. Legg inn Web-returadressen
+veiviseren viser, kopier Application (client) ID og klienthemmelighetens **verdi**
+til Samvevs sikre skjema, og bruk bare katalogautoriteten som samsvarer med
+registreringen. `common` støtter registreringer for begge kontotypene;
+`organizations`, `consumers` og en konkret tenant begrenser valget. Samvev viser
+de faktiske delegerte scope-ene: `Calendars.ReadBasic`, `openid`, `email` og
+`offline_access`; ingen kalenderwrites. Organisasjonens samtykke-/administrator-
+regler gjelder fortsatt. Hvis den aktuelle katalogen tilhører arbeidsgiver eller
+skole, be katalogeieren opprette eller godkjenne registreringen. Hvis du mangler
+tilgang, vurder bare en katalog du selv kontrollerer dersom husstandens kontotyper
+kan bruke den; dette gir ikke registreringseieren eierskap til medlemmenes
+kalendere, og organisasjonsregler kan fortsatt blokkere samtykke. En
+innloggingsfeil beviser ikke at en bruker er låst ute
+av en bestemt årsak; kontroller kontotype, katalog, registrering og eventuelle
+organisasjonsregler, og få leverandøren eller katalogadministratoren til å
+bekrefte en kontospesifikk begrensning.
+
+Microsoft opplyser at Entra-adminsenterets flyt for å legge til en ekstra Workforce-
+tenant er for betalende kunder. Microsoft dokumenterer egne veier for kontoer med
+gratislisens eller prøveperiode, men de er ikke et universelt løfte om at en konto
+kan opprette en ny tenant. Ikke opprett en organisasjon bare for å koble til en
+kalender.
+
+Anonyme installasjonssider finnes på `/om`, `/personvern` og `/vilkar`. De bruker
+samme installasjonsspesifikke kontaktkonfigurasjon; en administrator med
+`installation.manage` kan oppdatere den under **Integrasjoner → Kalenderoppsett**.
+Den offentlige DTO-en inneholder bare operatørnavn, postadresse og kontaktadresse.
+Branding-tabellens sideadresser utledes fra installasjonens serverkonfigurerte
+returadresse, ikke fra nettleserens tilfeldige LAN-/proxy-vertsnavn. For den
+kjente installasjonen `samvev.pabben.org` vises `pabben.org` som autorisert domene.
+Andre vertsnavn får ingen automatisk utledning; bekreft domenet med installasjonseier.
+Innlogging er `/`, og innstillingslenken går til `/?tab=integrations`.
 
 Appregistrering mangler, app konfigurert, konto tilkoblet og vellykket synk er
 fire forskjellige tilstander. Lagret skjema betyr ikke at noen konto eller
@@ -88,8 +143,13 @@ eldre backup uten en eksplisitt gjenopprettingsbeslutning.
 Kilder kontrollert 14. oktober 2026:
 [Google OAuth/tokenutløp](https://developers.google.com/identity/protocols/oauth2),
 [Google app states](https://developers.google.com/identity/protocols/oauth2/production-readiness/overview),
+[Google Branding](https://support.google.com/cloud/answer/15549049),
+[Google Testing](https://support.google.com/cloud/answer/15549945),
+[Google personal-use verification exception](https://support.google.com/cloud/answer/13464323),
 [Google web JSON](https://github.com/googleapis/google-api-python-client/blob/main/docs/client-secrets.md),
 [Microsoft registrering](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app),
+[Microsoft account types](https://learn.microsoft.com/en-us/entra/identity-platform/v2-supported-account-types),
+[Microsoft tenant eligibility](https://learn.microsoft.com/en-us/entra/fundamentals/create-new-tenant),
 [Microsoft calendarView](https://learn.microsoft.com/en-us/graph/api/calendar-list-calendarview?view=graph-rest-1.0).
 
 ## Sikkerhet og bevis

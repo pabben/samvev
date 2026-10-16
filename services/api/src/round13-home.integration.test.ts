@@ -3,7 +3,8 @@ import test,{after,before} from 'node:test';
 import type {FastifyInstance,LightMyRequestResponse} from 'fastify';
 import {createHash} from 'node:crypto';
 import {roleCapabilityPresets} from '@samvev/contracts';
-import {hashPassword} from '@samvev/core';
+import {hashPassword,opaqueToken,tokenHash} from '@samvev/core';
+import pg from 'pg';
 import {buildApp} from './app.ts';
 import {pool} from './db.ts';
 import {migrate} from './db/migrate.ts';
@@ -137,3 +138,32 @@ test('school classification controls card placement, message ACL controls readin
   const unchangedHistory=(await pool.query<{id:string;result:any}>('SELECT id,result FROM monitor_runs WHERE task_id=$1 AND id=$2',[task.id,run.id])).rows[0]!;assert.equal(unchangedHistory.id,run.id);assert.equal(unchangedHistory.result.events[0].date,eventDate);
   const changedByNonManager=await app.inject({method:'PUT',url:`/api/v1/households/${householdId}/monitors/${task.id}/presentation`,headers:headers(viewer),payload:{expectedPresentationRevision:3,presentationKind:null,schoolEndLocalTime:null}});assert.equal(changedByNonManager.statusCode,403);
 });
+
+
+for(const barrier of ['task','event'] as const){
+  test(`presentation rejects session expiry after ${barrier} lock waits and rolls back task, event and audit writes`,async()=>{
+    const task=(await pool.query<{id:string}>(`INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,state,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier,revision,approved_revision,last_result)
+      VALUES($1,$2,$3,'Synthetic immutable instruction','https://school.test.invalid/expiry','active',60,0,'08:00','default','routine',3,3,'Synthetic immutable result') RETURNING id`,[householdId,owner.membershipId,`Synthetic ${barrier} expiry task`])).rows[0]!;
+    const event=(await pool.query<{id:string}>(`INSERT INTO monitor_events(household_id,task_id,event_key,event_date,event_type,description,actions,applies_to,evidence,confidence,source_fingerprint)
+      VALUES($1,$2,$3,CURRENT_DATE+1,'preparation','Synthetic expiry event','["Bring synthetic item"]','[]','{"quote":"Synthetic unchanged evidence"}',0.9,'synthetic-expiry-fingerprint') RETURNING id`,[householdId,task.id,`synthetic-${barrier}-expiry`])).rows[0]!;
+    const snapshot=async()=>({task:(await pool.query<{row:unknown}>('SELECT to_jsonb(task) AS row FROM monitor_tasks task WHERE id=$1',[task.id])).rows[0]!.row,event:(await pool.query<{row:unknown}>('SELECT to_jsonb(event) AS row FROM monitor_events event WHERE id=$1',[event.id])).rows[0]!.row,audits:(await pool.query(`SELECT action,subject_id,metadata FROM audit_events WHERE action='monitor.presentation_updated' AND subject_id=$1 ORDER BY id`,[task.id])).rows});
+    const before=await snapshot();const token=opaqueToken(),csrf=opaqueToken();
+    const blocker=new pg.Client({connectionString:process.env.DATABASE_URL,statement_timeout:8_000});await blocker.connect();let locked=false;let pending:Promise<LightMyRequestResponse>|undefined;
+    try{
+      await blocker.query('BEGIN');locked=true;
+      await blocker.query(barrier==='task'?'SELECT id FROM monitor_tasks WHERE id=$1 FOR UPDATE':'SELECT id FROM monitor_events WHERE id=$1 FOR UPDATE',[barrier==='task'?task.id:event.id]);
+      const session=(await pool.query<{id:string}>(`INSERT INTO sessions(account_id,token_hash,csrf_hash,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1500 milliseconds') RETURNING id`,[owner.accountId,tokenHash(token),tokenHash(csrf)])).rows[0]!;
+      pending=app.inject({method:'PUT',url:`/api/v1/households/${householdId}/monitors/${task.id}/presentation`,headers:headers({...owner,cookie:`samvev_session=${token}`,csrf}),payload:{expectedPresentationRevision:1,presentationKind:'school',schoolEndLocalTime:'14:45'}}).then(response=>response);
+      const fragment=barrier==='task'?'SELECT presentation_revision FROM monitor_tasks':'UPDATE monitor_events event SET school_expires_at';
+      const deadline=Date.now()+4_000;let waiting=false;
+      do{waiting=Boolean((await pool.query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE $1`,[`%${fragment}%`])).rowCount);if(!waiting)await new Promise(resolve=>setTimeout(resolve,20));}while(!waiting&&Date.now()<deadline);
+      assert.equal(waiting,true,`presentation must reach the ${barrier} lock barrier`);
+      let expired=false;
+      do{expired=(await pool.query<{expired:boolean}>('SELECT expires_at<=clock_timestamp() AS expired FROM sessions WHERE id=$1',[session.id])).rows[0]!.expired;if(!expired)await new Promise(resolve=>setTimeout(resolve,20));}while(!expired&&Date.now()<deadline);
+      assert.equal(expired,true,'the initiating session must expire while the mutation is blocked');
+      await blocker.query('ROLLBACK');locked=false;
+    }finally{if(locked)await blocker.query('ROLLBACK');await blocker.end();}
+    assert.ok(pending);const result=await pending;assert.equal(result.statusCode,403,result.body);
+    assert.deepEqual(await snapshot(),before,'all task fields, saved event expiry/evidence and audit rows must roll back');
+  });
+}

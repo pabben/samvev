@@ -43,6 +43,15 @@ export async function updateMonitorPresentation(actor:MonitorPresentationActor,t
     }
     await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata)
       VALUES($1,$2,'account',$3,'monitor.presentation_updated','monitor_task',$4,$5)`,[actor.installationId,actor.householdId,actor.accountId,taskId,JSON.stringify({presentationKind:input.presentationKind,schoolEndLocalTime:input.schoolEndLocalTime,presentationRevision:next})]);
+    // Initial SHARE locks keep session/account/membership authority stable, but
+    // wall-clock expiry can pass during task, event or audit waits. This final
+    // read adds no lock-order inversion and rolls back every write on expiry.
+    const finalAuthority=await client.query(`SELECT session.id
+      FROM sessions session JOIN accounts account ON account.id=session.account_id
+      JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$3
+      WHERE session.id=$1 AND session.account_id=$2 AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp()
+        AND account.disabled_at IS NULL AND membership.id=$4 AND membership.capabilities ? 'household.manage'`,[actor.sessionId,actor.accountId,actor.householdId,actor.membershipId]);
+    if(!finalAuthority.rowCount)throw new DomainError('FORBIDDEN',403);
     return{taskId,presentationKind:updated.rows[0]!.presentation_kind,schoolEndLocalTime:updated.rows[0]!.school_end_local_time?.slice(0,5)??null,presentationRevision:updated.rows[0]!.presentation_revision};
   });
 }
