@@ -101,6 +101,7 @@ export interface MonitorExecution {
 }
 export interface MonitorTask {
   subjects:{personIds:string[];revision:number};
+  presentation:{kind:'school'|null;schoolEndLocalTime:string|null;revision:number};
   lifecycle: MonitorTaskLifecycle;
   id:string;name:string;instruction:string;sourceUrl:string|null;state:'draft'|'active'|'paused';
   checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;sourceKinds?:Array<'web'|'weather'>;usesSmarterAi:boolean;

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/api.ts';
-import { isWeatherSource, locationCandidates, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
+import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
 import { en } from '../src/locales/en.ts';
 import { nb } from '../src/locales/nb.ts';
 
@@ -82,4 +82,21 @@ test('daily conditional preview describes strict forecast mean wind and the no-a
   assert.equal(nb.monitorConditionOr,'ELLER'); assert.equal(en.monitorConditionOr,'OR');
   assert.match(nb.monitorWeatherNoAlert,/Ingen beskjed/);
   assert.match(en.monitorWeatherNoAlert,/No notification/);
+});
+
+test('school presentation editor sends only metadata with revision and strict local time', () => {
+  assert.deepEqual(monitorPresentationUpdateBody('school', '13:45', 4), {
+    expectedPresentationRevision: 4, presentationKind: 'school', schoolEndLocalTime: '13:45',
+  });
+  assert.deepEqual(monitorPresentationUpdateBody(null, 'not used', 2), {
+    expectedPresentationRevision: 2, presentationKind: null, schoolEndLocalTime: null,
+  });
+  for (const time of ['24:00', '13:60', '9:30', 'noon']) assert.throws(() => monitorPresentationUpdateBody('school', time, 1));
+  assert.throws(() => monitorPresentationUpdateBody('school', '13:00', 0));
+  for (const messages of [en, nb]) {
+    assert.match(messages.monitorPresentationHint, /instructions|instruksjoner/i);
+    assert.match(messages.monitorPresentationExpiryHint, /expiry|utløpstidene/i);
+    assert.ok(messages.monitorPresentationConflict && messages.monitorPresentationReload);
+    assert.ok(messages.monitorPresentationSession && messages.monitorPresentationSaved);
+  }
 });

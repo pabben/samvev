@@ -5,7 +5,7 @@ import type { Display, MonitorExecution, MonitorRunResult, MonitorSource, Monito
 import type { TranslationKey } from "./locales/en";
 import { Field, Icon, Loading, useI18n } from "./ui";
 import { formatDate } from "./time";
-import { isWeatherSource, locationCandidates, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
+import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
 
 interface Draft {
   name: string; instruction: string; sourceUrl: string;
@@ -13,6 +13,10 @@ interface Draft {
   personIds: string[]; displayIds: string[]; subjectIds:string[];
 }
 type Action = 'interpret' | 'approve' | 'pause' | 'resume' | 'test' | 'run' | 'smarter' | 'quality';
+type PresentationKind = 'school' | null;
+type MonitorPresentation = { kind: PresentationKind; schoolEndLocalTime: string | null; revision: number };
+type PresentationDraft = { taskId: string; kind: PresentationKind; schoolEndLocalTime: string; revision: number; conflict: boolean };
+const presentationPath = (householdId: string, taskId: string) => `/households/${householdId}/monitors/${taskId}/presentation`;
 
 const empty = (displays: Display[]): Draft => ({ name: '', instruction: '', sourceUrl: '', checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: '18:00', subjectIds:[], personIds: [], displayIds: displays[0] ? [displays[0].id] : [] });
 const fromTask = (task: MonitorTask): Draft => ({ name: task.name, instruction: task.instruction, sourceUrl: task.sourceUrl ?? '', checkIntervalMinutes: task.checkIntervalMinutes, noticeDaysBefore: task.noticeDaysBefore, noticeLocalTime: task.noticeLocalTime, ...task.targets, subjectIds:task.subjects.personIds });
@@ -24,6 +28,10 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
   const [tasks, setTasks] = useState<MonitorTask[]>();
   const [editing, setEditing] = useState<MonitorTask | null | undefined>(initialPersonId?null:undefined);
   const [subjectTask,setSubjectTask]=useState<MonitorTask>();
+  const [presentationDraft, setPresentationDraft] = useState<PresentationDraft>();
+  const [presentationBusy, setPresentationBusy] = useState(false);
+  const [presentationError, setPresentationError] = useState<'invalid' | 'conflict' | 'session' | 'generic'>();
+  const presentationRequestId = useRef(0);
   const [draft, setDraft] = useState<Draft>(() => ({...empty(displays),subjectIds:initialPersonId?[initialPersonId]:[]}));
   const [error, setError] = useState<{ taskId?: string; value: unknown }>();
   const [formBusy, setFormBusy] = useState(false);
@@ -38,6 +46,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
   const [now, setNow] = useState(Date.now);
   const observedExecutions = useRef(new Map<string, string>());
   const [deleting, setDeleting] = useState<string>();
+  useEffect(() => () => { presentationRequestId.current += 1; }, []);
   const load = useCallback(async () => {
     const version = ++loadVersion.current;
     const response = await api<{ tasks: MonitorTask[] }>(base);
@@ -141,6 +150,56 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
     } finally { markBusy(task.id, false); }
   };
   const toggle = (key: 'personIds' | 'displayIds', id: string) => setDraft((value) => ({ ...value, [key]: value[key].includes(id) ? value[key].filter((item) => item !== id) : [...value[key], id] }));
+  const openPresentation = (task: MonitorTask) => {
+    if (presentationBusy) return;
+    presentationRequestId.current += 1;
+    const presentation = task.presentation;
+    setPresentationDraft({ taskId: task.id, kind: presentation?.kind ?? null, schoolEndLocalTime: presentation?.schoolEndLocalTime ?? '13:00', revision: presentation?.revision ?? 1, conflict: false });
+    setPresentationError(undefined);
+  };
+  const reloadPresentation = async () => {
+    if (!presentationDraft || presentationBusy) return;
+    const requestId = ++presentationRequestId.current;
+    setPresentationBusy(true); setPresentationError(undefined);
+    try {
+      const current = await api<{ taskId: string; presentationKind: PresentationKind; schoolEndLocalTime: string | null; presentationRevision: number }>(presentationPath(householdId, presentationDraft.taskId));
+      if (requestId !== presentationRequestId.current) return;
+      setPresentationDraft({ taskId: current.taskId, kind: current.presentationKind, schoolEndLocalTime: current.schoolEndLocalTime ?? '13:00', revision: current.presentationRevision, conflict: false });
+      setTasks((items) => items?.map((task) => task.id === current.taskId ? { ...task, presentation: { kind: current.presentationKind, schoolEndLocalTime: current.schoolEndLocalTime, revision: current.presentationRevision } } : task));
+    } catch (value) {
+      if (requestId === presentationRequestId.current) {
+        const denied = value instanceof ApiError && (value.status === 401 || value.status === 403 || ['FORBIDDEN', 'UNAUTHORIZED', 'UNAUTHENTICATED'].includes(value.code));
+        setPresentationDraft((current) => current ? { ...current, conflict: true } : current);
+        setPresentationError(denied ? 'session' : 'generic');
+      }
+    } finally { if (requestId === presentationRequestId.current) setPresentationBusy(false); }
+  };
+  const savePresentation = async () => {
+    if (!presentationDraft || presentationBusy) return;
+    let body: ReturnType<typeof monitorPresentationUpdateBody>;
+    try { body = monitorPresentationUpdateBody(presentationDraft.kind, presentationDraft.schoolEndLocalTime, presentationDraft.revision); }
+    catch { setPresentationError('invalid'); return; }
+    const requestId = ++presentationRequestId.current;
+    setPresentationBusy(true); setPresentationError(undefined);
+    try {
+      const saved = await api<{ taskId: string; presentationKind: PresentationKind; schoolEndLocalTime: string | null; presentationRevision: number }>(presentationPath(householdId, presentationDraft.taskId), 'PUT', body);
+      if (requestId !== presentationRequestId.current) return;
+      setTasks((items) => items?.map((task) => task.id === saved.taskId ? { ...task, presentation: { kind: saved.presentationKind, schoolEndLocalTime: saved.schoolEndLocalTime, revision: saved.presentationRevision } } : task));
+      setPresentationDraft(undefined); setAnnouncement(t('monitorPresentationSaved'));
+    } catch (value) {
+      if (requestId !== presentationRequestId.current) return;
+      if (value instanceof ApiError && (value.status === 409 || value.code === 'REVISION_CONFLICT')) {
+        await load().catch(() => undefined);
+        if (requestId !== presentationRequestId.current) return;
+        setPresentationDraft((current) => current ? { ...current, conflict: true } : current);
+        setPresentationError('conflict');
+      } else if (value instanceof ApiError && (value.status === 401 || value.status === 403 || ['FORBIDDEN', 'UNAUTHORIZED', 'UNAUTHENTICATED'].includes(value.code))) {
+        setPresentationDraft((current) => current ? { ...current, conflict: true } : current);
+        setPresentationError('session');
+      }
+      else setPresentationError('generic');
+    } finally { if (requestId === presentationRequestId.current) setPresentationBusy(false); }
+  };
   const names = (task: MonitorTask) => [...people.filter((p) => task.targets.personIds.includes(p.id)).map((p) => p.display_name), ...displays.filter((d) => task.targets.displayIds.includes(d.id)).map((d) => d.name)].join(', ') || t('monitorRuleNone');
   const list = (values: string[]) => values.join(', ') || t('monitorRuleNone');
   const errorNotice = (taskId?: string) => {
@@ -214,6 +273,15 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
       return <article className="surface-card monitor-card" key={task.id} id={`monitor-card-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-name-${task.id}`}>
         <div className="card-top"><h2 id={`monitor-name-${task.id}`}>{task.name}</h2><span className={`monitor-state ${task.state}`}>{t(statusKey)}</span></div>
         <p>{task.instruction}</p><div className="monitor-subjects"><p>{t("subjectsTitle")}: {people.filter(person=>task.subjects.personIds.includes(person.id)).map(person=>person.display_name).join(" · ")||t("subjectsHousehold")}</p><button className="button" onClick={()=>setSubjectTask(task)}>{t("subjectsEdit")}</button></div>
+        <div className="monitor-presentation-row"><p>{t('monitorPresentationLabel')}: {task.presentation.kind === 'school' ? t('monitorPresentationSchoolUntil', { time: task.presentation.schoolEndLocalTime ?? '13:00' }) : t('monitorPresentationOff')}</p><button className="button" type="button" disabled={presentationBusy} onClick={() => openPresentation(task)}>{t('monitorPresentationEdit')}</button></div>
+        {presentationDraft?.taskId === task.id && <form className="monitor-presentation-editor" onSubmit={(event) => { event.preventDefault(); void savePresentation(); }} aria-busy={presentationBusy}>
+          <h3>{t('monitorPresentationTitle')}</h3><p className="field-hint">{t('monitorPresentationHint')}</p>
+          <label className="check"><input type="checkbox" checked={presentationDraft.kind === 'school'} disabled={presentationBusy} onChange={(event) => { setPresentationDraft((current) => current ? { ...current, kind: event.target.checked ? 'school' : null } : current); if (!presentationDraft.conflict) setPresentationError(undefined); }} />{t('monitorPresentationEnable')}</label>
+          {presentationDraft.kind === 'school' && <div className="field"><label htmlFor={`monitor-school-time-${task.id}`}>{t('monitorPresentationEndTime')}</label><input id={`monitor-school-time-${task.id}`} type="time" required value={presentationDraft.schoolEndLocalTime} disabled={presentationBusy} onChange={(event) => { setPresentationDraft((current) => current ? { ...current, schoolEndLocalTime: event.target.value } : current); if (!presentationDraft.conflict) setPresentationError(undefined); }} /></div>}
+          <p className="field-hint">{t('monitorPresentationExpiryHint')}</p>
+          {presentationError && <div className="notice error" role="alert"><p>{t(presentationError === 'invalid' ? 'monitorPresentationInvalidTime' : presentationError === 'conflict' ? 'monitorPresentationConflict' : presentationError === 'session' ? 'monitorPresentationSession' : 'monitorPresentationError')}</p>{(presentationError === 'conflict' || presentationError === 'session') && <button type="button" disabled={presentationBusy} onClick={() => void reloadPresentation()}>{t('monitorPresentationReload')}</button>}</div>}
+          <div className="card-actions"><button className="button primary" disabled={presentationBusy || presentationDraft.conflict}>{presentationBusy ? t('monitorWorking') : t('save')}</button><button className="button" type="button" disabled={presentationBusy} onClick={() => { presentationRequestId.current += 1; setPresentationDraft(undefined); setPresentationError(undefined); }}>{t('cancel')}</button></div>
+        </form>}
         {task.usesSmarterAi && <p className="monitor-quality-preference">{t('monitorUsesSmarterAi')}</p>}
         <div className="monitor-source-list">
           {task.sourceUrl && <a className="monitor-source" href={task.sourceUrl} target="_blank" rel="noreferrer">{weatherTask ? `${t('monitorWebSource')}: ${new URL(task.sourceUrl).hostname}` : task.sourceUrl}</a>}

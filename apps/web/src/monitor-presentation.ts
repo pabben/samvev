@@ -2,6 +2,19 @@ import { ApiError } from "./api";
 import type { TranslationKey } from "./locales/en";
 import type { MonitorSource } from "./types";
 
+export type SchoolPresentationKind = 'school' | null;
+export interface MonitorPresentationUpdateBody {
+  expectedPresentationRevision: number;
+  presentationKind: SchoolPresentationKind;
+  schoolEndLocalTime: string | null;
+}
+
+export function monitorPresentationUpdateBody(kind: SchoolPresentationKind, schoolEndLocalTime: string, revision: number): MonitorPresentationUpdateBody {
+  if (!Number.isInteger(revision) || revision < 1) throw new Error('Invalid presentation revision');
+  if (kind === 'school' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(schoolEndLocalTime)) throw new Error('Invalid school end time');
+  return { expectedPresentationRevision: revision, presentationKind: kind, schoolEndLocalTime: kind === 'school' ? schoolEndLocalTime : null };
+}
+
 export const taskErrorKey = (error: unknown): TranslationKey => {
   const code = error instanceof ApiError ? error.code : typeof error === 'string' ? error : '';
   if (code === 'MONITOR_LOCATION_REQUIRED') return 'monitorErrorLocationRequired';

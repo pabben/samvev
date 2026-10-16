@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Kalam";
+  src: url("/fonts/Kalam-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -904,6 +912,7 @@ details[open] > summary:before {
   color: var(--danger);
 }
 .message-text {
+  font-family: "Kalam", ui-rounded, "Segoe UI", sans-serif;
   font-size: 23px;
   line-height: 1.45;
   letter-spacing: -0.5px;
@@ -1071,6 +1080,7 @@ details[open] > summary:before {
   align-self: center;
 }
 .monitor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}.monitor-form{margin-bottom:28px;max-width:850px}.monitor-form fieldset{border:0;padding:0}.monitor-form legend{font-size:12px;font-weight:700;margin-bottom:10px}.monitor-targets{display:flex;flex-wrap:wrap;gap:10px 18px}.monitor-targets label{display:flex;align-items:center;gap:7px;font-size:13px}.monitor-card{display:flex;flex-direction:column;gap:16px}.monitor-card h2{font-size:22px}.monitor-card small{display:block;color:var(--muted);max-width:380px;overflow:hidden;text-overflow:ellipsis}.monitor-state{font-size:11px;font-weight:700;padding:6px 10px;border-radius:999px;background:var(--canvas)}.monitor-state.active{color:var(--teal);background:var(--soft-teal)}.monitor-meta{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.monitor-meta dt,.monitor-rule dt{font-size:10px;text-transform:uppercase;color:var(--muted)}.monitor-meta dd,.monitor-rule dd{font-size:12px;margin:5px 0 0;overflow-wrap:anywhere}.monitor-rule{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0 0}.monitor-stats{font-size:12px;color:var(--muted)}.monitor-card .preview-panel{position:static;margin:0}.monitor-card .preview-panel:focus{outline:3px solid var(--focus);outline-offset:3px}.monitor-card .card-actions{margin-top:auto;display:flex;flex-wrap:wrap;gap:8px}.monitor-findings>div{border-top:1px solid var(--line);padding:12px 0}.monitor-findings blockquote{font-size:12px;margin:8px 0;color:var(--muted)}.monitor-findings a{font-size:12px;color:var(--teal)}
+.monitor-presentation-row{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:space-between;gap:12px}.monitor-presentation-row p{font-size:14px;overflow-wrap:anywhere}.monitor-presentation-row .button{white-space:normal;flex-shrink:0;min-height:44px}.monitor-presentation-editor{display:grid;gap:12px;border:1px solid var(--line);border-radius:14px;padding:16px;background:var(--canvas)}.monitor-presentation-editor h3,.monitor-presentation-editor p{margin:0}.monitor-presentation-editor .field{max-width:18rem}
 @media(max-width:800px){.monitor-grid{grid-template-columns:1fr}.monitor-meta{grid-template-columns:1fr 1fr}}
 .person-grid {
   display: grid;
@@ -1578,10 +1588,11 @@ details[open] > summary:before {
   height: 23px;
 }
 .display-card-body {
+  font-family: "Kalam", ui-rounded, "Segoe UI", sans-serif;
   font-size: var(--display-text);
   line-height: 1.35;
-  font-weight: 500;
-  letter-spacing: -0.7px;
+  font-weight: 400;
+  letter-spacing: 0;
   margin: 32px 0 36px;
   white-space: pre-wrap;
   display: -webkit-box;
@@ -2658,7 +2669,7 @@ details[open] > summary:before {
 .monitor-result small{margin-top:10px}.monitor-answer{white-space:pre-wrap}.monitor-finding{padding:12px 0;border-bottom:1px solid var(--line)}
 .monitor-delete{display:block}.monitor-delete p{margin-top:0}.monitor-card .card-actions button{min-height:44px;white-space:normal;text-align:left}.monitor-form .card-actions{display:flex;flex-wrap:wrap;gap:10px}
 .monitor-card .monitor-meta{grid-template-columns:repeat(2,minmax(0,1fr))}.monitor-card[aria-busy=true]{opacity:.8}
-@media(max-width:600px){.monitor-rule{grid-template-columns:1fr}.monitor-form .card-actions .primary{width:100%}.monitor-page .section-heading{gap:14px}.monitor-card{padding:20px}.monitor-result{padding:14px}}
+@media(max-width:600px){.monitor-rule{grid-template-columns:1fr}.monitor-form .card-actions .primary{width:100%}.monitor-page .section-heading{gap:14px}.monitor-card{padding:20px}.monitor-result{padding:14px}.monitor-presentation-row{align-items:flex-start;flex-direction:column}.monitor-presentation-row .button{width:100%}.monitor-presentation-editor .card-actions{flex-direction:column}.monitor-presentation-editor .card-actions button{width:100%}}
 
 .monitor-card .preview-panel{align-self:stretch;overflow-wrap:anywhere}
 
