@@ -499,21 +499,28 @@ async function schoolActivitiesForHome(householdId:string,viewer:{personId:strin
 
 async function personActivities(input:{householdId:string;personIds:string[]|null;viewer:{personId:string;membershipId:string};canViewAll:boolean;from:string;to:string;limit:number;sourceIds?:string[];cursor?:ActivityCursor;maxDays:number;upcomingOnly?:boolean;display?:DisplayContext}):Promise<{activities:Record<string,unknown>[];nextCursor:string|null}>{
   const {householdId,personIds,viewer,canViewAll,from,to,limit,sourceIds,cursor}=input;
-  const calendarCursor=`AND ($9::timestamptz IS NULL OR i.starts_at>$9::timestamptz OR (i.starts_at=$9::timestamptz AND $10=0 AND i.id::text>$11))`;
+  const calendarCursor=`AND ($9::timestamptz IS NULL OR activity.starts_at>$9::timestamptz OR (activity.starts_at=$9::timestamptz AND $10=0 AND i.id::text>$11))`;
   const display=input.display;
   const displayCalendarSource=`(EXISTS(SELECT 1 FROM calendar_occurrences selected_occurrence WHERE selected_occurrence.integration_item_id=i.id)
       AND ($15::boolean OR EXISTS(SELECT 1 FROM calendar_occurrences selected_occurrence WHERE selected_occurrence.integration_item_id=i.id AND selected_occurrence.source_id=ANY($17::uuid[]))))`;
   const displayGenericSource=`(NOT EXISTS(SELECT 1 FROM calendar_occurrences generic_occurrence WHERE generic_occurrence.integration_item_id=i.id)
       AND ($15::boolean OR connection.id=ANY($16::uuid[])))`;
-  const calendar=await pool.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},i.starts_at AS activity_at,
+  const calendar=await pool.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},activity.starts_at AS activity_at,
       (SELECT min(subject.person_id::text)::uuid FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))) AS activity_person_id,
       COALESCE((SELECT array_agg(subject.person_id ORDER BY subject.person_id) FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),ARRAY[]::uuid[]) AS activity_person_ids
     FROM integration_items i JOIN integration_connections connection ON connection.id=i.connection_id AND connection.household_id=i.household_id AND connection.revoked_at IS NULL
     JOIN households household ON household.id=i.household_id
+    -- Calendar all-day timestamps encode civil dates, not UTC instants. Keep
+    -- their stored/returned values, but compare local-midnight boundaries.
+    CROSS JOIN LATERAL (SELECT
+      CASE WHEN i.metadata->'calendar' IS NOT NULL AND i.metadata->'allDay'='true'::jsonb
+        THEN (i.starts_at AT TIME ZONE 'UTC')::date::timestamp AT TIME ZONE household.timezone ELSE i.starts_at END AS starts_at,
+      CASE WHEN i.metadata->'calendar' IS NOT NULL AND i.metadata->'allDay'='true'::jsonb
+        THEN COALESCE((i.ends_at AT TIME ZONE 'UTC')::date,(i.starts_at AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE household.timezone ELSE i.ends_at END AS ends_at) activity
     WHERE i.household_id=$1 AND i.kind IN ('event','reminder') AND i.status='active'
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
-      AND (i.ends_at IS NULL AND i.starts_at >= ($3::date::timestamp AT TIME ZONE household.timezone) OR i.ends_at > ($3::date::timestamp AT TIME ZONE household.timezone))
-      AND i.starts_at < (($4::date+1)::timestamp AT TIME ZONE household.timezone)
+      AND (activity.ends_at IS NULL AND activity.starts_at >= ($3::date::timestamp AT TIME ZONE household.timezone) OR activity.ends_at > ($3::date::timestamp AT TIME ZONE household.timezone))
+      AND activity.starts_at < (($4::date+1)::timestamp AT TIME ZONE household.timezone)
       AND ((i.kind='event' AND i.metadata->'calendar' IS NOT NULL AND (COALESCE((i.metadata#>>'{calendar,subjectHousehold}')::boolean,false) OR EXISTS(SELECT 1 FROM integration_item_person_subjects placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2)))))
         OR (i.kind IN ('event','reminder') AND i.metadata->'calendar' IS NULL AND (i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2))))))
       AND (($12::uuid IS NULL AND ($5 OR i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets readable WHERE readable.item_id=i.id AND readable.person_id=$6)))
@@ -521,11 +528,11 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
           AND EXISTS(SELECT 1 FROM integration_connection_display_grants cg WHERE cg.household_id=i.household_id AND cg.connection_id=i.connection_id AND cg.display_id=$12)
           AND EXISTS(SELECT 1 FROM integration_item_display_targets dt WHERE dt.household_id=i.household_id AND dt.item_id=i.id AND dt.display_id=$12)
           AND (${displayCalendarSource} OR ${displayGenericSource})))
-      ${input.upcomingOnly?'AND (i.ends_at IS NULL AND i.starts_at>clock_timestamp() OR i.ends_at>clock_timestamp())':''}
+      AND ($18::timestamptz IS NULL OR (activity.ends_at IS NULL AND activity.starts_at>$18::timestamptz OR activity.ends_at>$18::timestamptz))
       AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8)))
       AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
       ${calendarCursor}
-    ORDER BY i.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[]]);
+    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null]);
   const schoolCursor=`AND ($10::timestamptz IS NULL OR ((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)>$10::timestamptz OR (((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)=$10::timestamptz AND ($11<1 OR ($11=1 AND event.id::text>$12))))`;
   const schoolReader=display
     ?`($5::boolean IS NOT NULL AND $6::uuid IS NOT NULL AND $7::uuid IS NOT NULL)

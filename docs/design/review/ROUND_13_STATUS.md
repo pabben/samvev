@@ -5,11 +5,12 @@ Goal: complete all 13 owner-request areas recorded in
 `ROUND_13_REQUIREMENTS.md` and `REQUEST_LEDGER.md`.
 Phase: temperature, Home, display setup/messages, native boards, media,
 HA-controls, Display 036 and guides 037 backend/documentation checkpoints are
-implemented/reviewed. Local grocery/dinner UI, anonymous-page screenshots and
-media frontend checks now have bounded candidate evidence; shared Home/display
-UI, media browser acceptance, public contact initialization, provider wizards,
-full visual/QA/release and public verification remain open. All 13 areas remain
-active.
+implemented/reviewed. Home day/source-catalog backend and candidate birthday,
+day/week/next/school UI now have focused evidence; local grocery/dinner UI,
+anonymous-page screenshots and media frontend checks also have bounded
+candidate evidence. Home UI follow-ups, HA/display UI, media browser acceptance,
+public contact initialization, provider verification, full visual/QA/release
+and public verification remain open. All 13 areas remain active.
 
 ## Baseline snapshot and preservation warning
 
@@ -43,8 +44,8 @@ active.
 |---|---|---|---|---|---|
 | R13-01 | Agent economy and durable status | Active status/checkpoint practice recorded; no cost estimates | N/A | N/A | No |
 | R13-02 | Data/environment preservation | Checkpoint preserved baseline; 229 protected root Git hashes independently unchanged at display-message checkpoint | Isolated synthetic runs only | Public R12 runtime remains unchanged | No |
-| R13-03 | Day overview and birthdays | Birthday/day DTO backend locally implemented; UI celebration/reduced motion and complete display acceptance remain open | 15 focused Home tests and API check pass | R12 only | No |
-| R13-04 | People, week and school cards | Bounded Home chronology, school metadata, and display week/next/person/saved-school ACL chronology backend implemented; full card/week/school UI remains open | Home 15 focused tests/API; Display 036 focused review evidence below | R12 preview/details only | No |
+| R13-03 | Day overview and birthdays | Birthday/day DTO plus local-day boundary backend implemented and focused-tested; Home UI is integrated in the feature candidate with follow-up review still open | Home/all-day focused suite 23/23 (five all-day, eight catalog, five display, five Home) plus API/contracts; `.local/m3/round13/all-day-strong-final.log`; older query fails four red counterfactuals | R12 only; no R13 public deployment | No |
+| R13-04 | People, week and school cards | Bounded Home chronology, school metadata, display week/next/person/saved-school ACL chronology backend implemented; candidate birthday/day/week/next/school UI has browser and seven-layout evidence. Local-date person-future behavior and school-provenance disclosure need small follow-up; C2 presentation metadata/font and full acceptance remain open | Home 23/23 suite/API/contracts; frontend commit 943bd63 has 117 web tests/check/tmpbuild; synthetic life 503, empty 200 and clear 403 browser cases; seven reviewed viewport/theme layouts | R12 preview/details only; no public R13 UI | No |
 | R13-05 | Waste consolidation | Import/day-plan baseline only; remove separate Next Waste surface remains open | No new evidence | R12 only | No |
 | R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, policy GET, read-only real-device-grant preview and server-filtered projections implemented; local board read/write projection is focused-tested. Full display setup/preview UI remains open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4, Round 9 5/5, Display 036 15/15 and all five workspace checks; display-board policy 6/6; final backend checkpoint 52/52; bounded reviews closed | R12 ACL baseline only; no public R13 display UI | No |
 | R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Final combined backend checkpoint 52/52 pass, zero failures/skips/cancellations; bounded findings closed | No R13 public evidence | No |
@@ -91,6 +92,30 @@ the LAN-bound `dist`.
 None of these candidate checkpoints updates public or LAN deployments: both
 remain R12. Shared Home/display UI, media browser review, public contact
 initialization, full target QA, backup/restore and release gate remain open.
+
+## Home day, source-catalog and candidate UI checkpoint — 2026-10-16
+
+Backend source-catalog/API checkpoint `bb7255ccc023ef1f474f1c2632fb05e3718f93c1`
+and frontend checkpoint `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are pushed.
+The frontend spans 14 files for birthdays, day/week/next, school and source
+catalog. Home/all-day backend evidence is 23/23: five all-day tests, eight
+catalog, five display and five Home, with API/contracts checks passing.
+`.local/m3/round13/all-day-strong-final.log` records the run; the older all-day query fails four
+red counterfactuals. The backend change is frozen pending root review.
+
+Frontend web validation reports 117 tests/check/tmpbuild. Root browser checks
+cover life 503, empty 200 and clear 403 behavior. Seven source-built viewport/
+theme layouts were reviewed; the bounds log passes and no CSS injection was
+found. Earlier layout defects were corrected after CSS-specificity review.
+Root verified the built snapshot is equivalent to frontend commit 943bd63
+across 256 runtime files. This remains candidate evidence, not full visual or
+integrated acceptance.
+
+Small follow-ups remain for local-date person-future presentation and school
+provenance disclosure; C2 presentation metadata/font, HA/display UI, integrated
+reviews, canonical14, restore, release gate and public deployment remain open.
+Public and LAN runtimes remain R12. No live Google/Microsoft verification or
+new HA action is claimed.
 
 ## Guides 037 backend and documentation checkpoint — 2026-10-16
 

@@ -34,11 +34,25 @@ routes and Google/Microsoft guides are present, but private contact values are
 not initialized publicly. Public runtime remains R12; browser/public visual
 acceptance, shared UI, full QA, backup/restore and release gate remain open.
 
+Home source-catalog/API checkpoint `bb7255ccc023ef1f474f1c2632fb05e3718f93c1`
+and frontend checkpoint `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are pushed.
+The all-day backend is implemented and frozen pending root review: 23/23 focused
+tests (five all-day, eight catalog, five display, five Home), API/contracts pass,
+and the former query fails four red counterfactuals
+(`.local/m3/round13/all-day-strong-final.log`).
+Candidate frontend spans 14 files and has 117 web tests/check/tmpbuild, synthetic
+life 503/empty 200/clear 403 browser cases, and seven reviewed source-built
+viewport/theme layouts. Bounds pass and no CSS injection was found; the built
+snapshot matches commit 943bd63 across 256 runtime files. Local-date person-future
+presentation and school-provenance disclosure still need small follow-ups. C2
+metadata/font, HA/display UI, integrated review, canonical14, restore, release
+gate and public deployment remain open. Public and LAN runtimes remain R12.
+
 The public deployment remains Round 12 source
 `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
-`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Full frontend integration, display
-and shared Home UI, complete visual QA, public contact initialization/provider
-wizards, full QA, release
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Complete Home UI acceptance,
+display/HA UI, complete visual QA, public contact initialization/provider
+verification, full QA, release
 gate, candidate backup/restore and public verification remain open. Physical HA
 actions have not been tested and must never run automatically in acceptance.
 Owner contact is confirmed privately for runtime configuration; keep its values
