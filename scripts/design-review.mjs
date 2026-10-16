@@ -71,6 +71,15 @@ async function assertFamilyHub(page, personIds, theme) {
   return renderedIds;
 }
 
+async function waitForVisibleImages(page) {
+  const images = page.locator('img:visible');
+  await expect.poll(
+    () => images.evaluateAll(nodes => nodes.every(image => image.complete && image.naturalWidth > 0)),
+    { timeout: 12_000, message: 'visible images finish loading after viewport change' },
+  ).toBe(true);
+  return images.evaluateAll(nodes => nodes.map(image => ({ src: image.currentSrc || image.src, complete: image.complete, width: image.naturalWidth })));
+}
+
 await mkdir(localRoot, { recursive: true });
 if (existsSync(stage)) throw new Error('Design-review staging directory already exists.');
 let browser;
@@ -149,7 +158,7 @@ try {
       await page.evaluate(() => scrollTo(0, 0));
       const filename = `${surface}-${theme}.png`;
       const renderedPersonIds = await assertFamilyHub(page, personIds, theme);
-      for (const value of await page.locator('img:visible').evaluateAll(images => images.map(image => ({ src: image.currentSrc || image.src, complete: image.complete, width: image.naturalWidth })))) {
+      for (const value of await waitForVisibleImages(page)) {
         expect(value.complete && value.width > 0, `visible image loaded: ${value.src}`).toBe(true);
         const image = classifyVisibleImage(value.src, baseURL);
         if (image.kind === 'static') visibleStaticImages.add(image.path);
@@ -163,7 +172,7 @@ try {
       const filename = `${surface}-${theme}-full.png`;
       await page.setViewportSize({ width, height });
       const renderedPersonIds = await assertFamilyHub(page, personIds, theme);
-      for (const value of await page.locator('img:visible').evaluateAll(images => images.map(image => ({ src: image.currentSrc || image.src, complete: image.complete, width: image.naturalWidth })))) {
+      for (const value of await waitForVisibleImages(page)) {
         expect(value.complete && value.width > 0, `visible image loaded: ${value.src}`).toBe(true);
         const image = classifyVisibleImage(value.src, baseURL);
         if (image.kind === 'static') visibleStaticImages.add(image.path);
@@ -197,9 +206,11 @@ try {
   await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort(), authorizedDynamicImages: privatePhotoEvidence.map(publicProtectedPhotoEvidence).sort((a,b) => a.route.localeCompare(b.route) || a.version - b.version) }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
   completed = true;
   console.log(`Staged ${screenshots.length} verified screenshots for host publication (round ${roundId}).`);
-} catch {
+} catch (error) {
   const receipt=resolve(localRoot, `capture-failure-${Date.now()}-${randomUUID()}.json`);
-  await writeFile(receipt, `${JSON.stringify({ capturedAt:new Date().toISOString(), sourceSha, stage:basename(stage), status:'failed' })}\n`, { mode:0o600 });
+  const errorName = error instanceof Error ? error.name : 'UnknownError';
+  const errorStack = error instanceof Error ? error.stack : String(error);
+  await writeFile(receipt, `${JSON.stringify({ capturedAt:new Date().toISOString(), sourceSha, stage:basename(stage), status:'failed', errorName, errorStack })}\n`, { mode:0o600 });
   throw new Error('Design review capture failed; private receipt recorded.');
 } finally {
   if (sessionActive && context) {
