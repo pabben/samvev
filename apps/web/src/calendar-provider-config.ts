@@ -9,7 +9,7 @@ export interface CalendarProviderRegistration {
 }
 export const calendarProviderKey=(provider:CalendarProvider):TranslationKey=>provider==='google'?'calendarGoogle':provider==='microsoft'?'calendarMicrosoft':provider==='home_assistant'?'calendarHomeAssistant':'calendarIcs';
 export const registrationStateKey=(state:string):TranslationKey=>state==='configured'?'calendarAppConfigured':state==='disabled'?'calendarAppDisabled':'calendarMissingRegistration';
-export const calendarParticipationKey=(status?:string):TranslationKey=>({confirmed:'calendarParticipationConfirmed',tentative:'calendarParticipationTentative',declined:'calendarParticipationDeclined',unanswered:'calendarParticipationUnanswered'} as Record<string,TranslationKey>)[status??'']??'calendarParticipationUnknown';
+export const calendarParticipationKey=(status?:string):TranslationKey=>({confirmed:'calendarParticipationConfirmed',tentative:'calendarParticipationTentative',declined:'calendarParticipationDeclined',unanswered:'calendarParticipationUnanswered',cancelled:'calendarParticipationCancelled'} as Record<string,TranslationKey>)[status??'']??'calendarParticipationUnknown';
 export const GOOGLE_CONFIGURATION_MAX_BYTES=48*1024;
 /** Local validation never includes the uploaded content in an error. The server revalidates every field. */
 export function parseGoogleOAuthConfiguration(text:string,redirectUri:string):{web:Record<string,unknown>}{

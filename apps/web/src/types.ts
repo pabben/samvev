@@ -137,6 +137,8 @@ export interface Card {
   revision: number;
 }
 export interface Projection {
+  householdBoards?: { readable?: { groceries?: boolean; dinners?: boolean } };
+  familyLayout?: { upcomingBirthdays?: import("./home-types").HomeBirthday[] };
   hub?: {people: import("./home-types").HubPerson[];items:import("./home-types").HubItem[]};
   display: {
     id: string;

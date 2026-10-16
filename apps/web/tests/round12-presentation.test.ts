@@ -53,7 +53,7 @@ test('temperature stale/unavailable output distinguishes source time, fetching a
 });
 test('actual six-person Home hides remote calendar previews/counts while keeping the upcoming entrance and reminders',()=>{
  const people=Array.from({length:6},(_,i)=>({id:i===0?'p':`p${i}`,displayName:`Synthetic ${i}`,ageGroup:i<2?'adult':'child'}));const remote=event('remote24','2026-10-24T08:00:00Z');const reminder=event('remember','2026-10-30T08:00:00Z',null,{kind:'reminder'});
- for(const [width,height,dark] of [[1920,1080,false],[1280,752,true],[820,1180,false],[390,844,true]] as const){setup(dark,width,height);const html=render(createElement(FamilyHub,{people,items:[remote,reminder],messages:[],zone,householdName:'Synthetic',now}));assert.ok(!html.includes('Synthetic remote24'));assert.ok(html.includes('Synthetic remember'));assert.ok(!html.includes('2 activities'));if(width>640)assert.ok(html.includes('Upcoming activities'));}
+ for(const [width,height,dark] of [[1920,1080,false],[1280,752,true],[820,1180,false],[390,844,true]] as const){setup(dark,width,height);const html=render(createElement(FamilyHub,{people,items:[remote,reminder],messages:[],zone,householdName:'Synthetic',now}));assert.ok(!html.includes('Synthetic remote24'));assert.ok(html.includes('Synthetic remember'));assert.ok(!html.includes('2 activities'));assert.ok(html.includes('This week'));}
 });
 
 test('a repeated fetch cannot refresh an old HA value and a current unchanged reading is valid',()=>{

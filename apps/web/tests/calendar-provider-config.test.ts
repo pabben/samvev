@@ -116,7 +116,7 @@ test('actual Family Hub member/display timelines and compact person summaries re
    const markup=renderToStaticMarkup(createElement(LocaleProvider,{locale:'en',children:createElement(FamilyHub,{people,items:[staleItem],messages:[],zone:'Europe/Oslo',householdName:'Synthetic',now:Date.parse('2030-01-02T10:00:00Z'),display})}));
    assert.ok(markup.includes('data-calendar-freshness="stale"'),`${width}x${height} ${dark} ${display}`);
    assert.match(markup,/data-hub-detail="synthetic-event"[^>]*><strong>Synthetic practice<span class="calendar-stale/);
-   if(dark&&width===1920&&height===752)assert.match(markup,/hub-person-overview[\s\S]*?Synthetic practice<\/span><span class="calendar-stale/);
+   if(dark&&width===1920&&height===752)assert.match(markup,/hub-person-activity[\s\S]*?Synthetic practice<span class="calendar-stale/);
   }
  }
 });

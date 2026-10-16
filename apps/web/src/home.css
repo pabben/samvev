@@ -336,3 +336,51 @@ body{font-family:var(--font-sans)}
 .media-interval-label{display:flex;align-items:center;gap:5px;font-size:12px}.media-interval-label select{min-height:38px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--text);padding:5px}
 @media(min-width:641px){.board-option-add-row{display:grid;grid-template-columns:64px minmax(0,1fr) auto}}
 @media(max-width:640px){.board-day-picker{grid-template-columns:repeat(4,minmax(0,1fr))}.board-day-picker button{font-size:12px;overflow-wrap:normal;word-break:normal;min-height:50px}.board-option-add-row{display:grid;grid-template-columns:60px minmax(0,1fr);gap:7px}.board-option-add-row #board-option-emoji{grid-column:1;grid-row:1}.board-option-add-row #board-option-add{grid-column:1/-1;grid-row:2}.board-option-add-row>.button{grid-column:2;grid-row:1;justify-self:end;min-width:84px}}
+
+/* Household chronology, birthday cues and saved school notices. */
+.hub-birthday-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 10px;margin:4px 0 8px;border-radius:14px;background:color-mix(in srgb,var(--soft-teal) 58%,var(--card));color:var(--text)}
+.hub-balloons{font-size:20px;animation:hub-balloon-float 2.6s ease-in-out 2 alternate}.hub-birthday-people{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.hub-birthday-person{display:inline-flex;align-items:center;gap:5px;min-height:40px;padding:3px 8px;border:1px solid var(--line);border-radius:999px;background:var(--card);color:var(--teal);font:inherit;font-weight:650}.hub-birthday-person .avatar{width:30px;height:30px;flex:0 0 30px;font-size:14px}
+.hub-person-birthday{display:block;margin-top:3px;color:var(--teal);font-size:12px}
+@media(max-width:640px){.hub-identities .hub-person-birthday{font-size:10px;line-height:1.2;text-align:center;overflow-wrap:anywhere}}
+.hub-week{margin:var(--hub-gap,14px) auto 0;max-width:1440px;padding:clamp(12px,2vw,24px)}.hub-week-heading,.hub-person-future-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}.hub-week-heading h2,.hub-person-future-heading h3{display:flex;align-items:center;gap:8px;margin:0;font-size:20px}.hub-week-heading p{margin:3px 0 0;color:var(--muted);text-transform:capitalize}.hub-week-nav{display:flex;gap:5px}.hub-week-nav .hub-icon-button{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:11px;background:var(--card);color:var(--teal)}.hub-week-nav button:disabled{opacity:.5}.hub-week-person-filter{display:grid;grid-template-columns:auto minmax(180px,300px);align-items:center;gap:8px;margin:12px 0;color:var(--muted);font-size:14px}.hub-week-person-filter select{min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;padding:6px 10px}.hub-week-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:10px}.hub-week-day{min-width:0;padding:10px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--card) 84%,transparent)}.hub-week-day h3{margin:0 0 8px;text-transform:capitalize;font-size:15px;color:var(--muted)}.hub-week-entry{display:grid;grid-template-columns:64px 24px minmax(0,1fr);align-items:start;gap:7px;padding:8px 0;border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent);min-width:0}.hub-week-entry>time{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:3px}.hub-week-icon{color:var(--teal)}.hub-week-calendar>div{display:grid;gap:3px;min-width:0}.hub-week-entry strong{overflow-wrap:anywhere}.hub-week-entry small{display:block;color:var(--muted);overflow-wrap:anywhere}.hub-week-dinner{grid-template-columns:64px 28px minmax(0,1fr);align-items:center}.hub-week-error{color:var(--danger,#a33)}.hub-week-more,.hub-next-toggle{display:inline-flex;align-items:center;gap:6px;min-height:44px;border:0;background:none;color:var(--teal);font:inherit;font-weight:650}.hub-next-activity{margin-top:10px;padding-top:8px;border-top:1px solid var(--line)}.hub-next-activity .hub-week-entry{max-width:680px}.hub-school-activity{min-width:0}.hub-school-heading{display:flex;align-items:flex-start;gap:7px}.hub-school-heading>div{display:grid;min-width:0}.hub-school-heading strong{overflow-wrap:anywhere}.hub-school-meta{font-size:12px;color:var(--muted);overflow-wrap:anywhere}.hub-school-actions{margin:6px 0;padding-left:20px}.hub-school-actions li{padding:2px 0;overflow-wrap:anywhere}.hub-school-activity .field-hint{margin:3px 0;font-size:12px}.hub-school-activity>a{display:inline-flex;align-items:center;gap:4px;min-height:40px;color:var(--teal)}.hub-day-school{align-items:start}.hub-day-school .hub-school-heading{font-size:14px}.hub-person-future{margin:10px 0 18px;padding:12px;border:1px solid var(--line);border-radius:14px;background:color-mix(in srgb,var(--card) 88%,transparent)}.hub-person-future-heading h3{font-size:17px}.hub-person-future-list{display:grid;gap:2px}.hub-person-future .hub-week-entry{grid-template-columns:66px 24px minmax(0,1fr)}
+@keyframes hub-balloon-float{from{transform:translateY(0)}to{transform:translateY(-4px)}}
+@media(prefers-reduced-motion:reduce){.hub-balloons{animation:none}}
+@media(max-width:640px){.hub-week{padding:12px 10px}.hub-week-person-filter{grid-template-columns:1fr;gap:3px}.hub-week-days{grid-template-columns:1fr}.hub-week-day{padding:8px}.hub-birthday-row{gap:6px}.hub-birthday-people{width:100%}.hub-week-entry{grid-template-columns:54px 22px minmax(0,1fr);gap:5px}.hub-person-future{padding:9px}.hub-school-meta{font-size:11px}}
+[data-theme="dark"] .hub-week-day,[data-theme="dark"] .hub-person-future{background:color-mix(in srgb,var(--card) 82%,transparent)}
+.hub-week-source-filter{display:grid;grid-template-columns:auto minmax(180px,300px);align-items:center;gap:8px;margin:12px 0;color:var(--muted);font-size:14px}.hub-week-source-filter select{min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;padding:6px 10px}.hub-week-range,.hub-week-status{font-size:11px;color:var(--muted)}.hub-next-date{margin:8px 0 0;text-transform:capitalize;font-weight:650;color:var(--muted)}.hub-school-evidence{margin:4px 0;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+@media(max-width:640px){.hub-week-source-filter{grid-template-columns:1fr;gap:3px}}
+
+/* Home C1 visual corrections: content-sized empty cards, legible compact
+   identities and aligned school rows across mobile, desktop and Shelly XL. */
+.hub-person{align-self:start}
+.hub-person-grid{align-items:start;grid-auto-rows:min-content}
+.hub-light.hub-wide .hub-person-grid{height:auto}
+.hub-light.hub-wide .hub-person,.hub-light.hub-wide .hub-person.hub-person-empty{min-height:0;height:auto}
+.hub-dark.hub-wide .hub-person.hub-person-empty{min-height:0}
+.hub-dark.hub-wide .hub-person header div>span.hub-person-birthday{display:inline-block;color:var(--teal);font-size:12px;line-height:1.3}
+.hub-dark.hub-wide .hub-person-name>.hub-person-birthday{display:block!important;visibility:visible!important;}
+.family-hub.hub-wide .hub-person .hub-person-name>span.hub-person-birthday{display:block;color:var(--teal);font-size:12px;line-height:1.3}
+.hub-dark.hub-wide .hub-grid>.hub-day,.hub-dark.hub-wide .hub-person-section,.hub-dark.hub-wide .hub-important{min-height:0;align-self:start}
+/* Outrank the compact Today/Tomorrow flex shorthands: both sections contribute
+   their full content height to the wrapper instead of collapsing Tomorrow. */
+.hub-day-plan>.hub-day,.hub-light.hub-wide .hub-day-plan>.hub-day{flex:0 0 auto;min-height:0;height:auto}
+.hub-day-school{display:grid!important;grid-template-columns:54px 22px minmax(0,1fr);align-items:start;gap:5px;padding-left:14px}
+.hub-day-school>time{min-width:0!important;padding-top:4px!important;font-size:13px!important;line-height:1.35!important}
+.hub-day-school>span{padding-top:5px;color:var(--teal)}
+.hub-day-school>.hub-school-activity{grid-column:3;min-width:0}
+.hub-day-school .hub-school-heading{font-size:14px}
+.hub-day-school .hub-school-actions.is-compact{margin:2px 0 0;padding-left:17px;font-size:13px}
+.hub-timeline .hub-school-actions{list-style:disc}
+.hub-timeline .hub-school-actions li{display:list-item;position:static;margin:0;padding:2px 0;border:0}
+.hub-timeline .hub-school-actions li:before{content:none;display:none}
+.hub-person .hub-school-activity{padding-inline:8px}
+.hub-week-entry>.hub-school-activity{grid-column:3;min-width:0}
+.hub-identities .hub-person-birthday{display:block;grid-column:1/-1;grid-row:2;min-width:0;text-align:center;white-space:normal;overflow-wrap:normal;word-break:normal}
+@media(max-width:640px){
+ .hub-larger-family .hub-identities{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .hub-larger-family .hub-identities button{display:grid;grid-template-columns:38px minmax(0,1fr);grid-template-rows:auto auto;justify-content:initial;align-items:center;gap:2px 7px;min-height:54px;text-align:left;padding:4px}
+ .hub-larger-family .hub-identities button>.avatar{grid-column:1;grid-row:1/span 2;width:36px;height:36px}
+ .hub-larger-family .hub-identities button>strong{grid-column:2;grid-row:1;text-align:left;font-size:13px;line-height:1.2}
+ .hub-larger-family .hub-identities button>.hub-person-birthday{grid-column:2;grid-row:2;text-align:left;font-size:11px;line-height:1.2}
+ .hub-day-school{grid-template-columns:50px 20px minmax(0,1fr);gap:4px}
+}
