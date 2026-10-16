@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {allowedHomeAssistantActions,homeAssistantActionsForObservation,homeAssistantConfigurationForConnection,homeAssistantGrantReplacement,homeAssistantStateKey,newHomeAssistantIdempotencyKey} from '../src/home-assistant-control-presentation';
+import {allowedHomeAssistantActions,homeAssistantActionsForObservation,homeAssistantConfigurationForConnection,homeAssistantGrantReplacement,homeAssistantStateKey,mapHomeAssistantReadsSequentially,newHomeAssistantIdempotencyKey} from '../src/home-assistant-control-presentation';
 import type {HomeAssistantEntity,ManagedHomeAssistantEntity} from '../src/home-assistant-control-types';
 
 test('control actions stay within the discovered entity domain and server allowlist',()=>{
@@ -43,4 +43,14 @@ test('read response actions narrow currently granted actions and stale states ca
   assert.deepEqual(homeAssistantActionsForObservation(entity,{supportedActions:['light.turn_off'],stateStatus:'current'}),['light.turn_off']);
   assert.deepEqual(homeAssistantActionsForObservation(entity,{supportedActions:['light.turn_off'],stateStatus:'unknown'}),[]);
   assert.deepEqual(homeAssistantActionsForObservation(entity,{supportedActions:['light.turn_off'],stateStatus:'current'},true),[]);
+});
+
+test('state reads never overlap and generation change prevents starting another read',async()=>{
+  let releaseFirst!:()=>void;const firstGate=new Promise<void>(resolve=>{releaseFirst=resolve});let active=0,maxActive=0;const started:string[]=[];
+  const reads=mapHomeAssistantReadsSequentially(['first','second'],async item=>{started.push(item);active++;maxActive=Math.max(maxActive,active);if(item==='first')await firstGate;active--;return item});
+  assert.deepEqual(started,['first']);releaseFirst();assert.deepEqual(await reads,['first','second']);assert.equal(maxActive,1);
+
+  let releaseBlocked!:()=>void;const blocked=new Promise<void>(resolve=>{releaseBlocked=resolve});let current=true;const cancelledStarted:string[]=[];
+  const cancelled=mapHomeAssistantReadsSequentially(['held','must-not-start'],async item=>{cancelledStarted.push(item);if(item==='held')await blocked;return item},()=>current);
+  assert.deepEqual(cancelledStarted,['held']);current=false;releaseBlocked();assert.deepEqual(await cancelled,['held']);assert.deepEqual(cancelledStarted,['held']);
 });

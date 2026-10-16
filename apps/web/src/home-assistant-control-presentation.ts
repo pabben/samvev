@@ -9,6 +9,15 @@ export function homeAssistantConfigurationForConnection(entities:ManagedHomeAssi
   return entities.filter(entity=>entity.connectionId===connectionId);
 }
 
+export async function mapHomeAssistantReadsSequentially<T,R>(items:T[],read:(item:T,index:number)=>Promise<R>,isCurrent:()=>boolean=()=>true):Promise<R[]>{
+  const values:R[]=[];
+  for(let index=0;index<items.length;index++){
+    if(!isCurrent())break;
+    values.push(await read(items[index]!,index));
+  }
+  return values;
+}
+
 export function homeAssistantActionsForObservation(entity:Pick<HomeAssistantEntity,'domain'|'supportedActions'>,observation:Pick<HomeAssistantObservation,'supportedActions'|'stateStatus'>|undefined,stale=false){
   if(!observation||observation.stateStatus!=='current'||stale)return[];
   return allowedHomeAssistantActions({...entity,supportedActions:entity.supportedActions.filter(action=>observation.supportedActions.includes(action))});

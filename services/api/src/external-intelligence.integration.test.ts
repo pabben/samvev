@@ -135,7 +135,7 @@ test('scoped integrations provide idempotent CAS items, isolated projections, re
     {id:childPersonId,displayName:'Synthetic Child',avatarKey:'avatar-05',photo:null}
   ]);
   assert.equal(projection.json().cards.length,1);assert.deepEqual(projection.json().cards[0],{
-    id:message.json().id,kind:'household_message',body:'Synthetic message-only author',importance:'normal',author:'Synthetic Owner',
+    id:message.json().id,kind:'household_message',body:'Synthetic message-only author',importance:'normal',author:'Synthetic Owner',authorType:'member',authorDisplayId:null,
     authorPersonId:ownerPersonId,authorAvatarKey:'avatar-02',authorPhoto:null,publishAt:projection.json().cards[0].publishAt,
     expiresAt:projection.json().cards[0].expiresAt,revision:1
   });

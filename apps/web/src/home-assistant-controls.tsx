@@ -3,7 +3,7 @@ import {homeAssistantControlsApi as controlsApi} from './home-assistant-controls
 import {ApiError} from './api';
 import type {CalendarConnection} from './calendar-connection-types';
 import type {Display,Membership,Person} from './types';
-import {homeAssistantActionsForObservation,homeAssistantConfigurationForConnection,homeAssistantGrantReplacement,homeAssistantStateKey,newHomeAssistantIdempotencyKey} from './home-assistant-control-presentation';
+import {homeAssistantActionsForObservation,homeAssistantConfigurationForConnection,homeAssistantGrantReplacement,homeAssistantStateKey,mapHomeAssistantReadsSequentially,newHomeAssistantIdempotencyKey} from './home-assistant-control-presentation';
 import type {HomeAssistantAction,HomeAssistantConfirmation,HomeAssistantEntity,HomeAssistantObservation,HomeAssistantReceipt,ManagedHomeAssistantEntity,ReadableHomeAssistantEntity} from './home-assistant-control-types';
 import {Check,Dialog,ErrorNotice,Field,Loading,useAction,useI18n} from './ui';
 import {formatDate} from './time';
@@ -77,8 +77,8 @@ function HomeAssistantControlDevice({actor,compact=false}:{actor:Actor;compact?:
  const clearScope=()=>{generation.current++;setEntities(undefined);setObservations({});setReceipts({});setConfirmation(undefined);keys.current.clear()};
  const refresh=async()=>{if(refreshing.current||actionInFlight.current)return;refreshing.current=true;const request=++generation.current;setConfirmation(undefined);try{
   try{const result=await controlsApi.list(apiActor);if(request!==generation.current)return;setEntities(result.entities);
-   const previous=observations;const failures:unknown[]=[],rows:Array<readonly[string,DeviceObservation]>=[];
-   for(let offset=0;offset<result.entities.length;offset+=10){const batch=await Promise.all(result.entities.slice(offset,offset+10).map(async entity=>{try{return[entity.id,await controlsApi.read(apiActor,entity.id)] as const}catch(readError){if(isAuthorizationFailure(readError))throw readError;failures.push(readError);const old=previous[entity.id];return[entity.id,old?{...old,stateStatus:'unknown' as const,stale:true,errorCode:'home_assistant_control_state_unknown'}:{...entity,state:null,stateStatus:'unknown' as const,lastChangedAt:null,readAt:null,stateAuthority:'home_assistant' as const,physicalConfirmation:'not_available' as const,errorCode:'home_assistant_control_state_unknown'}] as const}}));rows.push(...batch);if(request!==generation.current)return}
+   const previous=observations;const failures:unknown[]=[];
+   const rows=await mapHomeAssistantReadsSequentially(result.entities,async entity=>{try{return[entity.id,await controlsApi.read(apiActor,entity.id)] as const}catch(readError){if(isAuthorizationFailure(readError))throw readError;failures.push(readError);const old=previous[entity.id];return[entity.id,old?{...old,stateStatus:'unknown' as const,stale:true,errorCode:'home_assistant_control_state_unknown'}:{...entity,state:null,stateStatus:'unknown' as const,lastChangedAt:null,readAt:null,stateAuthority:'home_assistant' as const,physicalConfirmation:'not_available' as const,errorCode:'home_assistant_control_state_unknown'}] as const}},()=>request===generation.current);
    if(request!==generation.current)return;setObservations(Object.fromEntries(rows));if(failures.length)throw failures[0];
   }catch(readError){if(request!==generation.current)return;if(isAuthorizationFailure(readError)){clearScope();}else if(entities?.length){setObservations(previous=>Object.fromEntries(Object.entries(previous).map(([id,observation])=>[id,{...observation,stateStatus:'unknown' as const,stale:true,errorCode:'home_assistant_control_state_unknown'}])))}throw readError}
  }finally{refreshing.current=false}};
