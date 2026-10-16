@@ -31,6 +31,7 @@ import {
 import "../../../packages/design-tokens/tokens.css";
 import "./style.css";
 import "./home.css";
+import "./home-assistant-controls.css";
 import "./member-shell.css";
 import "./round9.css";
 function App() {

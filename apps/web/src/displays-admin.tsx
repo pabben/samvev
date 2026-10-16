@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "./api";
-import type { Display, Membership } from "./types";
+import type { Display, Membership, Person } from "./types";
 import {
   Check,
   Dialog,
@@ -13,20 +13,26 @@ import {
   useI18n,
 } from "./ui";
 import { formatDate } from "./time";
+import { DisplaySetupsAdmin } from "./display-setups-admin";
+type SetupChoice={id:string;name:string};
 export function DisplaysPanel({
   displays,
   member,
+  people,
   refresh,
 }: {
   displays: Display[];
   member: Membership;
+  people:Person[];
   refresh: () => Promise<void>;
 }) {
   const { t, locale } = useI18n();
   const [pair, setPair] = useState(false);
+  const [setups,setSetups]=useState<SetupChoice[]>([]);
   const [revoke, setRevoke] = useState<Display | null>(null);
   const { error, busy, run } = useAction();
   const manage = member.capabilities.includes("display.manage");
+  useEffect(()=>{if(!manage)return;void api<{setups:SetupChoice[]}>(`/households/${member.household_id}/display-setups`).then(result=>setSetups(result.setups)).catch(()=>setSetups([]))},[manage,member.household_id]);
   const update = async (d: Display, change: object) => {
     await api(
       `/households/${member.household_id}/displays/${d.id}`,
@@ -35,6 +41,7 @@ export function DisplaysPanel({
     );
     await refresh();
   };
+  const reloadSetups=async()=>{await refresh();const result=await api<{setups:SetupChoice[]}>(`/households/${member.household_id}/display-setups`);setSetups(result.setups)};
   return (
     <>
       <section className="section-heading">
@@ -49,6 +56,20 @@ export function DisplaysPanel({
             {t("pairDisplay")}
           </button>
         )}
+      </section>
+      <section className="display-setup-card" aria-label={t("displayAddress")}>
+        <div>
+          <strong>{t("displayAddress")}</strong>
+          <p className="field-hint">{t("displaySetupsBody")}</p>
+        </div>
+        <div className="display-address-actions">
+          <a className="button" href="/display" target="_blank" rel="noreferrer">
+            <Icon name="display" />{t("openDisplay")}
+          </a>
+          <button className="button subtle" type="button" onClick={() => void run(() => navigator.clipboard.writeText(`${window.location.origin}/display`))}>
+            {t("copyDisplayAddress")}
+          </button>
+        </div>
       </section>
       <ErrorNotice error={error} />
       <div className="display-grid">
@@ -84,6 +105,7 @@ export function DisplaysPanel({
                       <option value="en">{t("en")}</option>
                       <option value="nb">{t("nb")}</option>
                     </select>
+                    <button className="text-button" type="button" onClick={()=>void run(()=>update(d,{locale:null}))}>{t("inheritSetupLocale")}</button>
                   </Field>
                   <Field label={t("displayTheme")}>
                     <select
@@ -98,9 +120,13 @@ export function DisplaysPanel({
                         </option>
                       ))}
                     </select>
+                    <button className="text-button" type="button" onClick={()=>void run(()=>update(d,{theme:null}))}>{t("inheritSetupTheme")}</button>
                   </Field>
                 </div>
                 <Check label={t("integrationExternalDisplay")} checked={Boolean(d.external_items_enabled)} onChange={(v) => void run(() => update(d, {externalItemsEnabled:v}))} />
+                <Field label={t("displaySetup")}><select value={d.setup_id??""} onChange={e=>void run(()=>update(d,{setupId:e.target.value}))}><option value={d.setup_id??""}>{setups.find(setup=>setup.id===d.setup_id)?.name??t("defaultDisplaySetup")}</option>{setups.filter(setup=>setup.id!==d.setup_id).map(setup=><option key={setup.id} value={setup.id}>{setup.name}</option>)}</select></Field>
+                <fieldset><legend>{t("displaySetupPeople")}</legend>{people.map(person=><Check key={`profile:${person.id}`} label={t("displayProfileGrant",{name:person.display_name})} checked={Boolean(d.profile_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{profilePersonIds:checked?[...new Set([...(d.profile_person_ids??[]),person.id])]:((d.profile_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
+                <fieldset><legend>{t("displayBirthdayGrants")}</legend>{people.map(person=><Check key={`birthday:${person.id}`} label={t("displayBirthdayGrant",{name:person.display_name})} checked={Boolean(d.birthday_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{birthdayPersonIds:checked?[...new Set([...(d.birthday_person_ids??[]),person.id])]:((d.birthday_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
                 <Check
                   label={t("displayPrivacy")}
                   checked={d.privacy_mode}
@@ -119,6 +145,7 @@ export function DisplaysPanel({
           </article>
         ))}
       </div>
+      {manage&&<DisplaySetupsAdmin householdId={member.household_id} member={member} people={people} displays={displays} onChanged={reloadSetups}/>}
       {!displays.length && (
         <Empty title={t("noDisplays")} body={t("noDisplaysBody")}>
           {manage && (
@@ -131,6 +158,7 @@ export function DisplaysPanel({
       {pair && (
         <PairDialog
           member={member}
+          setups={setups}
           onClose={() => setPair(false)}
           onSaved={async () => {
             setPair(false);
@@ -166,10 +194,12 @@ export function DisplaysPanel({
 }
 function PairDialog({
   member,
+  setups,
   onClose,
   onSaved,
 }: {
   member: Membership;
+  setups:SetupChoice[];
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
@@ -179,10 +209,7 @@ function PairDialog({
   return (
     <Dialog title={t("pairDisplay")} onClose={onClose}>
       <p>{t("pairingInstructions")}</p>
-      <a className="button" href="/display" target="_blank" rel="noreferrer">
-        <Icon name="display" />
-        {t("openDisplay")}
-      </a>
+      <div className="display-address-actions"><a className="button" href="/display" target="_blank" rel="noreferrer"><Icon name="display" />{t("openDisplay")}</a><button className="button subtle" type="button" onClick={()=>void run(()=>navigator.clipboard.writeText(`${window.location.origin}/display`))}>{t("copyDisplayAddress")}</button></div>
       <form
         className="form-stack pairing-form"
         onSubmit={(event) => {
@@ -195,8 +222,9 @@ function PairDialog({
               {
                 code: data.get("code"),
                 name: data.get("name"),
-                locale: data.get("locale"),
-                theme: data.get("theme"),
+                ...(data.get("locale")!=="inherit"?{locale:data.get("locale")}:{ }),
+                ...(data.get("theme")!=="inherit"?{theme:data.get("theme")}:{ }),
+                ...(data.get("setupId")?{setupId:data.get("setupId")}:{ }),
                 privacyMode: privacy,
                 allowedContent: "household_messages",
               },
@@ -221,14 +249,17 @@ function PairDialog({
           <input name="name" maxLength={80} required />
         </Field>
         <div className="form-grid">
+          {setups.length>0&&<Field label={t("displaySetup") }><select name="setupId" defaultValue=""><option value="">{t("defaultDisplaySetup")}</option>{setups.map(setup=><option key={setup.id} value={setup.id}>{setup.name}</option>)}</select></Field>}
           <Field label={t("displayLocale")}>
-            <select name="locale" defaultValue={locale}>
+            <select name="locale" defaultValue="inherit">
+              <option value="inherit">{t("inheritSetupLocale")}</option>
               <option value="en">{t("en")}</option>
               <option value="nb">{t("nb")}</option>
             </select>
           </Field>
           <Field label={t("displayTheme")}>
-            <select name="theme" defaultValue="system">
+            <select name="theme" defaultValue="inherit">
+              <option value="inherit">{t("inheritSetupTheme")}</option>
               {(["light", "dark", "system"] as const).map((v) => (
                 <option key={v} value={v}>
                   {t(v)}

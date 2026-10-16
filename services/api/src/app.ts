@@ -809,7 +809,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   const upcomingBirthdays=label.rows[0]?.show_upcoming_birthday?birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday):[];
   const [boardGrant,boardActions]=await Promise.all([
     pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id]),
-    pool.query<{grocery_write:boolean;dinner_write:boolean}>(`SELECT grocery_write,dinner_write FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])
+    pool.query<{grocery_write:boolean;dinner_write:boolean;home_assistant_control:boolean}>(`SELECT grocery_write,dinner_write,home_assistant_control FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])
   ]).then(([grants,actions])=>[grants.rows[0],actions.rows[0]] as const);
   const boardReadable={
     groceries:!display.privacyMode&&display.cards.includes('groceries')&&boardGrant?.grocery_read===true,
@@ -843,7 +843,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
       people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:options.preview?previewPhotoProjection(display.householdId,display.id,person.id,person.photo_revision,options.previewTag??''):displayPhotoProjection(person.id,person.photo_revision)})),
       upcomingBirthdays},
     cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd,readable:boardReadable,writable:boardWritable},...(hub?{hub:options.preview?{...hub,people:(hub.people as Array<Record<string,unknown>>).map((person)=>{const photo=person.photo as {revision?:number}|null;return{...person,photo:previewPhotoProjection(display.householdId,display.id,String(person.id),photo?.revision??null,options.previewTag??'')};})}:hub}:{}),
-    actionAvailability:{newMessage:await displayCanComposeMessage(display)},serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
+    actionAvailability:{newMessage:await displayCanComposeMessage(display),homeAssistantControl:!options.preview&&!display.privacyMode&&display.cards.includes('home_assistant')&&boardActions?.home_assistant_control===true},serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
   };
 }
 
@@ -2124,11 +2124,12 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const tag=previewContextTag(preview);const mediaActorDevice={id:preview.id,householdId,setupId:preview.setupId,privacyMode:preview.privacyMode,credentialHash:preview.credentialHash};
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone),weekTo=dateOffset(weekStart(today),6);
-    const [projection,previewMedia,week,next]=await Promise.all([
+    const [projection,previewMedia,week,next,day]=await Promise.all([
       projectionFor(preview,{markDelivered:false,preview:true,previewTag:tag}),
       media.previewProjection(mediaActor(auth),mediaActorDevice,{cards:preview.cards,albumIds:preview.albumIds,backgroundId:preview.backgroundId},tag),
       !preview.privacyMode&&preview.cards.includes('week')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:weekTo,limit:50,maxDays:7,display:preview}):Promise.resolve(null),
-      !preview.privacyMode&&preview.cards.includes('next')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,365),limit:1,maxDays:366,upcomingOnly:true,display:preview}):Promise.resolve(null)
+      !preview.privacyMode&&preview.cards.includes('next')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,365),limit:1,maxDays:366,upcomingOnly:true,display:preview}):Promise.resolve(null),
+      !preview.privacyMode&&preview.cards.some((card)=>card==='today'||card==='tomorrow')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,1),limit:100,maxDays:2,display:preview}):Promise.resolve(null)
     ]);
     await transaction(async(client)=>{
       await recheckHouseholdAuth(client,request,auth,'display.manage');
@@ -2140,7 +2141,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
           AND device.privacy_mode=$7 AND device.external_items_enabled=$8`,[auth.sessionId,householdId,displayId,auth.accountId,auth.membershipId,device.credentialHash,device.privacyMode,device.externalItemsEnabled])).rows[0];
       if(!final)throw new DomainError('NOT_FOUND',404);
     });
-    return{...projection,preview:true,media:previewMedia,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{})};
+    return{...projection,preview:true,media:previewMedia,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})};
   });
 
   app.post('/api/v1/households/:householdId/display-setups',async(request,reply)=>{

@@ -307,6 +307,7 @@ export function MemberApp({
             <DisplaysPanel
               displays={displays}
               member={member}
+              people={people}
               refresh={refresh}
             />
           ) : (

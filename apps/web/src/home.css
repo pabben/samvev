@@ -350,6 +350,10 @@ body{font-family:var(--font-sans)}
 .hub-week-source-filter{display:grid;grid-template-columns:auto minmax(180px,300px);align-items:center;gap:8px;margin:12px 0;color:var(--muted);font-size:14px}.hub-week-source-filter select{min-height:44px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font:inherit;padding:6px 10px}.hub-week-range,.hub-week-status{font-size:11px;color:var(--muted)}.hub-next-date{margin:8px 0 0;text-transform:capitalize;font-weight:650;color:var(--muted)}.hub-school-evidence{margin:4px 0;font-size:13px;line-height:1.45;overflow-wrap:anywhere}
 @media(max-width:640px){.hub-week-source-filter{grid-template-columns:1fr;gap:3px}}
 
+/* A selected display People card is an identity list, not a Home activity
+   preview. Keep its single empty identity content-sized at every breakpoint. */
+.display-page.family-display-page .family-hub.hub-display-compact-people .hub-person{min-height:0;height:auto}
+
 /* Home C1 visual corrections: content-sized empty cards, legible compact
    identities and aligned school rows across mobile, desktop and Shelly XL. */
 .hub-person{align-self:start}

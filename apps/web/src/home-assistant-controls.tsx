@@ -8,7 +8,6 @@ import type {HomeAssistantAction,HomeAssistantConfirmation,HomeAssistantEntity,H
 import {Check,Dialog,ErrorNotice,Field,Loading,useAction,useI18n} from './ui';
 import {formatDate} from './time';
 import {en,type TranslationKey} from './locales/en';
-import './home-assistant-controls.css';
 
 type DraftGrant={targetId:string;canRead:boolean;actions:HomeAssistantAction[]};
 type GrantDraft={personGrants:DraftGrant[];displayGrants:DraftGrant[]};

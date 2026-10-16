@@ -54,7 +54,7 @@ export function SchoolActivityCard({ activity, people, compact = false, dateLabe
   </article>;
 }
 
-export function HouseholdActivityWeek({ householdId, localDate, zone, people, display = false, now = Date.now(), householdBoardsReadableDinners = true, onCurrentWeekDinners }: { householdId?: string; localDate: string; zone: string; people: HubPerson[]; display?: boolean; now?: number; householdBoardsReadableDinners?: boolean; onCurrentWeekDinners?: (dinners: DinnerAssignment[] | undefined, stale?: boolean) => void }) {
+export function HouseholdActivityWeek({ householdId, localDate, zone, people, display = false, now = Date.now(), householdBoardsReadableDinners = true, showWeekCard = true, showNextActivity = true, onCurrentWeekDinners }: { householdId?: string; localDate: string; zone: string; people: HubPerson[]; display?: boolean; now?: number; householdBoardsReadableDinners?: boolean; showWeekCard?: boolean; showNextActivity?: boolean; onCurrentWeekDinners?: (dinners: DinnerAssignment[] | undefined, stale?: boolean) => void }) {
   const { t, locale } = useI18n();
   const adapter = useMemo(() => householdId ? memberHouseholdBoardAdapter(householdId) : null, [householdId]);
   const currentWeek = homeWeekStart(localDate);
@@ -113,7 +113,8 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
     const dinnersRequest = !canReadDinners ? Promise.resolve({assignments: [] as DinnerAssignment[]}) : display
       ? api<{assignments:DinnerAssignment[]}>(`/display/dinners?from=${encodeURIComponent(weekStart)}&to=${encodeURIComponent(to)}`)
       : adapter ? adapter.listDinners(sevenDayWindow(weekStart)) : Promise.reject(new Error("Household scope is unavailable."));
-    void Promise.allSettled([activityQuery(householdId, weekStart, to, personId || undefined, undefined, display, sourceId || undefined), dinnersRequest]).then(([activityResult, dinnerResult]) => {
+    const weekRequest=showWeekCard?activityQuery(householdId, weekStart, to, personId || undefined, undefined, display, sourceId || undefined):Promise.resolve({activities:[] as HouseholdTimelineActivity[],nextCursor:null});
+    void Promise.allSettled([weekRequest, dinnersRequest]).then(([activityResult, dinnerResult]) => {
       if (!active || request !== generation.current) return;
       if (activityResult.status === "fulfilled") { setActivities(dedupeTimelineActivities(activityResult.value.activities)); setCursor(activityResult.value.nextCursor); }
       if (dinnerResult.status === "fulfilled") {
@@ -126,7 +127,7 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
       if (activityResult.status === "fulfilled" || dinnerResult.status === "fulfilled") setLoaded(true);
     }).finally(() => { if (active && request === generation.current) setLoading(false); });
     return () => { active = false; generation.current++; };
-  }, [householdId, adapter, weekStart, to, personId, sourceId, currentWeek, display, localDate, householdBoardsReadableDinners, onCurrentWeekDinners, refreshTick]);
+  }, [householdId, adapter, weekStart, to, personId, sourceId, currentWeek, display, localDate, householdBoardsReadableDinners, showWeekCard, onCurrentWeekDinners, refreshTick]);
 
   // The two-day Home agenda is independent of the selected week and filters.
   // Keep its last successful data through transient network errors.
@@ -166,11 +167,13 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
   };
   useEffect(() => {
     nextGeneration.current++; setNextError(false); setNextLoading(false);
+    if (!showNextActivity) { setShowNext(false); setNextActivity(null); return () => { nextGeneration.current++; }; }
     if (showNext) void loadNext();
     return () => { nextGeneration.current++; };
-  }, [householdId, personId, sourceId, weekStart, localDate, display, showNext, refreshTick]);
+  }, [householdId, personId, sourceId, weekStart, localDate, display, showNext, showNextActivity, refreshTick]);
   const entries = mergeTimelineEntries(activities, dinners, zone, weekStart, to);
   const currentWeekTitle = `${shortDate(weekStart, locale)} – ${shortDate(to, locale)}`;
+  if(!showWeekCard)return null;
   return <section className="hub-week hub-panel" aria-label={t("hubWeekTitle")} data-testid="home-activity-week">
     <header className="hub-week-heading"><div><h2><Icon name="calendar"/>{t(homeWeekTitleKey(weekStart,currentWeek))}</h2><p>{currentWeekTitle}</p></div><div className="hub-week-nav"><button className="hub-icon-button" type="button" aria-label={t("hubPreviousWeek")} disabled={weekStart <= minWeek || loading} onClick={() => setWeekStart(value => dateOffset(value, -7))}><Icon name="back" size={16}/></button><button className="hub-icon-button" type="button" aria-label={t("hubNextWeek")} disabled={loading} onClick={() => setWeekStart(value => dateOffset(value, 7))}><Icon name="arrow" size={16}/></button></div></header>
     <label className="hub-week-person-filter">{t("hubWeekPersonFilter")}<select data-review-private="week-person-filter" value={personId} onChange={event => setPersonId(event.target.value)}><option value="">{t("hubWeekEveryone")}</option>{people.map(person => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>
@@ -179,9 +182,9 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
     {error && <p className="hub-week-error" role="status">{t("hubWeekLoadError")}</p>}
     {loading && !loaded ? <p className="field-hint">{t("loading")}</p> : entries.length ? <div className="hub-week-days">{groupTimelineEntries(entries).map(group => <section className="hub-week-day" key={group.date}><h3><time dateTime={group.date}>{dateHeading(group.date, locale)}</time></h3>{group.rows.map(row => <TimelineRow key={`${row.kind}:${row.id}`} row={row} people={people} family={t("hubFamily")} zone={zone} locale={locale}/>)}</section>)}</div> : loaded && !error && <p className="field-hint">{t("hubWeekEmpty")}</p>}
     {cursor && <button className="hub-week-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? t("loading") : t("hubWeekMore")}</button>}
-    <div className="hub-next-activity"><button type="button" className="hub-next-toggle" aria-expanded={showNext} onClick={() => { setShowNext(value => !value); if (!showNext && nextActivity === null) void loadNext(); }}><Icon name="arrow" size={16}/>{t("hubShowNext")}</button>
+    {showNextActivity&&<div className="hub-next-activity"><button type="button" className="hub-next-toggle" aria-expanded={showNext} onClick={() => { setShowNext(value => !value); if (!showNext && nextActivity === null) void loadNext(); }}><Icon name="arrow" size={16}/>{t("hubShowNext")}</button>
       {showNext && (nextLoading ? <p className="field-hint">{t("loading")}</p> : nextError ? <p role="status" className="hub-week-error">{t("hubWeekLoadError")} <button type="button" onClick={() => void loadNext()}>{t("retry")}</button></p> : nextActivity ? <><p className="hub-next-date" data-review-private="next-activity-date">{isTimelineActivityOngoing(nextActivity, localDate, now) ? `${t("hubOngoing")} · ` : ""}{dateHeading(nextActivity.type === "school" ? nextActivity.date : nextActivity.metadata.allDay ? nextActivity.startsAt?.slice(0,10) ?? "" : nextActivity.startsAt ? wallInput(nextActivity.startsAt, zone).slice(0,10) : "", locale)}</p><TimelineRow row={mergeTimelineEntries([nextActivity], [], zone)[0]!} people={people} family={t("hubFamily")} zone={zone} locale={locale}/></> : <p className="field-hint">{t("hubNextEmpty")}</p>)}
-    </div>
+    </div>}
   </section>;
 }
 

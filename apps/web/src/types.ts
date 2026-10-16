@@ -53,6 +53,9 @@ export interface UpcomingBirthday {
 export interface HouseholdDashboard { upcomingBirthday: UpcomingBirthday | null }
 export interface HouseholdSettings { show_upcoming_birthday: boolean; revision: number }
 export interface Display {
+  setup_id?:string;
+  profile_person_ids?:string[];
+  birthday_person_ids?:string[];
   external_items_enabled?: boolean;
   id: string;
   name: string;
@@ -138,8 +141,14 @@ export interface Card {
   revision: number;
 }
 export interface Projection {
-  householdBoards?: { readable?: { groceries?: boolean; dinners?: boolean } };
-  familyLayout?: { upcomingBirthdays?: import("./home-types").HomeBirthday[] };
+  setup?: { id?:string; name?:string; cards:string[]; cardOrder:string[]; familyLayoutEnabled:boolean; personIds:string[]; sourceIds:string[]; calendarSourceIds:string[]; sensorIds:string[]; albumIds:string[]; backgroundId:string|null };
+  householdBoards?: { groceries?:Array<{id:string;label:string;checked:boolean;revision?:number}>; dinners?:Array<{id:string;localDate:string;title:string|null;emoji?:string|null;revision?:number;cleared?:boolean}>; from?:string; to?:string; readable?: { groceries?: boolean; dinners?: boolean }; writable?: { groceries?: boolean; dinners?: boolean } };
+  actionAvailability?: { newMessage?:boolean; homeAssistantControl?:boolean };
+  weekActivities?: unknown;
+  nextActivity?: unknown;
+  media?: import("./media-adapters").DisplayMediaProjection;
+  preview?: boolean;
+  familyLayout?: { people?: import("./home-types").HubPerson[]; upcomingBirthdays?: import("./home-types").HomeBirthday[] };
   hub?: {people: import("./home-types").HubPerson[];items:import("./home-types").HubItem[]};
   display: {
     id: string;
