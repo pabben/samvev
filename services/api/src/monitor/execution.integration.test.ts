@@ -5,6 +5,7 @@ import test, {after,before} from 'node:test';
 import {roleCapabilityPresets} from '@samvev/contracts';
 import {DomainError,tokenHash} from '@samvev/core';
 import type {FastifyInstance} from 'fastify';
+import type {PoolClient} from 'pg';
 import {buildApp} from '../app.ts';
 import {pool} from '../db.ts';
 import {migrate} from '../db/migrate.ts';
@@ -62,14 +63,30 @@ test('durable enqueue returns one stable run, survives request completion and ke
 
 test('real interpretation service and agent runner accept a provider result after four synthetic minutes',async(t)=>{
   await fixture();await pool.query(`UPDATE monitor_tasks SET instruction='Read the approved synthetic page.',tool_plan='["web.open"]'::jsonb,model_tier='strong' WHERE id=$1`,[taskId]);
-  t.mock.timers.enable({apis:['Date','setTimeout'],now:Date.parse('2026-09-13T12:00:00Z')});
-  let turn=0;let providerSignal:AbortSignal|undefined;let slowTurnStarted!:()=>void;const slowTurn=new Promise<void>((resolve)=>{slowTurnStarted=resolve;});
-  const rule={version:1,resultKind:'answer',summary:'Read the approved synthetic page.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
-  const ai={createTaskSession:async(_household:string,_task:unknown,_policy:unknown,_tools:unknown,_signal:AbortSignal)=>{providerSignal=_signal;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{turn++;if(turn===1)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:'https://example.test/plan'}}],generatedAt:new Date().toISOString()};slowTurnStarted();return new Promise((resolve,reject)=>{const abort=()=>reject(new DomainError('AI_TIMEOUT',504));if(_signal.aborted)return abort();_signal.addEventListener('abort',abort,{once:true});setTimeout(()=>{_signal.removeEventListener('abort',abort);resolve({output:JSON.stringify(rule),toolCalls:[],generatedAt:new Date().toISOString()});},240_000);});}};}};
-  const document:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',title:'Synthetic page',headings:['Synthetic heading'],text:'Synthetic heading',fingerprint:'synthetic-v1',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:17,links:[]};
-  const fetcher={fetch:async()=>document} as unknown as MonitorSourceFetcher;const service=new MonitorService(ai as any,fetcher);const queue=new MonitorExecutionQueue(service,{runManual:async()=>{throw new Error('unused');},runScheduled:async()=>{throw new Error('unused');}} as any,profile,()=>Date.now());
-  const run=await queue.enqueue(actor,taskId,1,'interpretation');const completion=queue.runOne();await slowTurn;t.mock.timers.tick(240_000);assert.equal(providerSignal?.aborted,false);assert.equal(await completion,'succeeded');
-  const stored=await queue.get(actor,taskId,run.id);assert.equal(stored.status,'succeeded');assert.equal(stored.timing?.totalMs,240_000);assert.equal(turn,2);assert.equal((await pool.query<{revision:number;interpreted_rule:unknown}>('SELECT revision,interpreted_rule FROM monitor_tasks WHERE id=$1',[taskId])).rows[0]!.revision,2);
+  // A pg idle timeout created before MockTimers is real; mocked clearTimeout
+  // cannot cancel it when that client is checked out. It can later terminate a
+  // different test's live lock-holder. Drain those timers with the real clock,
+  // and keep idle reaping off only while this test exercises fake deadlines.
+  const idleTimeoutMillis=pool.options.idleTimeoutMillis;
+  const drained:PoolClient[]=[];
+  try{
+    for(let remaining=pool.totalCount;remaining>0;remaining--)drained.push(await pool.connect());
+    pool.options.idleTimeoutMillis=0;
+  }finally{for(const client of drained)client.release();}
+  try{
+    t.mock.timers.enable({apis:['Date','setTimeout'],now:Date.parse('2026-09-13T12:00:00Z')});
+    let turn=0;let providerSignal:AbortSignal|undefined;let slowTurnStarted!:()=>void;const slowTurn=new Promise<void>((resolve)=>{slowTurnStarted=resolve;});
+    const rule={version:1,resultKind:'answer',summary:'Read the approved synthetic page.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+    const ai={createTaskSession:async(_household:string,_task:unknown,_policy:unknown,_tools:unknown,_signal:AbortSignal)=>{providerSignal=_signal;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{turn++;if(turn===1)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:'https://example.test/plan'}}],generatedAt:new Date().toISOString()};slowTurnStarted();return new Promise((resolve,reject)=>{const abort=()=>reject(new DomainError('AI_TIMEOUT',504));if(_signal.aborted)return abort();_signal.addEventListener('abort',abort,{once:true});setTimeout(()=>{_signal.removeEventListener('abort',abort);resolve({output:JSON.stringify(rule),toolCalls:[],generatedAt:new Date().toISOString()});},240_000);});}};}};
+    const document:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',title:'Synthetic page',headings:['Synthetic heading'],text:'Synthetic heading',fingerprint:'synthetic-v1',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:17,links:[]};
+    const fetcher={fetch:async()=>document} as unknown as MonitorSourceFetcher;const service=new MonitorService(ai as any,fetcher);const queue=new MonitorExecutionQueue(service,{runManual:async()=>{throw new Error('unused');},runScheduled:async()=>{throw new Error('unused');}} as any,profile,()=>Date.now());
+    const run=await queue.enqueue(actor,taskId,1,'interpretation');const completion=queue.runOne();await slowTurn;t.mock.timers.tick(240_000);assert.equal(providerSignal?.aborted,false);assert.equal(await completion,'succeeded');
+    const stored=await queue.get(actor,taskId,run.id);assert.equal(stored.status,'succeeded');assert.equal(stored.timing?.totalMs,240_000);assert.equal(turn,2);assert.equal((await pool.query<{revision:number;interpreted_rule:unknown}>('SELECT revision,interpreted_rule FROM monitor_tasks WHERE id=$1',[taskId])).rows[0]!.revision,2);
+  }finally{
+    // Restore real timer operations before any new pg idle timer is created.
+    t.mock.timers.reset();
+    pool.options.idleTimeoutMillis=idleTimeoutMillis;
+  }
 });
 
 test('interpretation publication is fenced when the AI route changes after the final provider response',async()=>{
