@@ -19,6 +19,7 @@ import {
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
   calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,
   temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
+  homeAssistantControlDiscoverySchema,homeAssistantControlSelectSchema,homeAssistantControlGrantSchema,homeAssistantControlRevisionSchema,homeAssistantControlDispatchSchema,
   groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,dinnerOptionCreateSchema,dinnerOptionUpdateSchema,dinnerAssignmentSchema,displayBoardReadGrantSchema,
   mediaAlbumCreateSchema,mediaAlbumUpdateSchema,mediaAlbumGrantSchema,mediaDisplayGrantSchema,mediaAssetUploadSchema,mediaAssetUpdateSchema,mediaAssetReplaceSchema,mediaAssetDeleteSchema,mediaBackgroundUpdateSchema,
   integrationCapabilities,
@@ -49,6 +50,8 @@ import { AiCredentialVault } from './ai/credential-vault.ts';
 import { HouseholdBoardService, type BoardActor, type BoardKind } from './household-board/service.ts';
 import {MediaService,mediaService,validateDisplaySetupMediaSelection,type MediaMemberActor} from './media/service.ts';
 import {normalizeMediaImage} from './media/image.ts';
+import {HomeAssistantControlService,type HomeAssistantControlActor} from './home-assistant/control-service.ts';
+import {HomeAssistantControlClient,type HomeAssistantControlTransport} from './home-assistant/control-client.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -760,7 +763,7 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; photoNormalizer?:typeof normalizeProfilePhoto; mediaImageNormalizer?:typeof normalizeMediaImage; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; homeAssistantControlTransport?:HomeAssistantControlTransport; photoNormalizer?:typeof normalizeProfilePhoto; mediaImageNormalizer?:typeof normalizeMediaImage; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const logger=process.env.NODE_ENV==='test'&&!options.logStream?false:{
     level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
@@ -772,6 +775,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
   const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
   const calendars=new CalendarService(options.calendarTransport,new AiCredentialVault(options.aiKeyFile));
+  const homeAssistantControls=new HomeAssistantControlService(calendars,options.homeAssistantControlTransport??new HomeAssistantControlClient());
   const normalizePhoto=options.photoNormalizer??normalizeProfilePhoto;
   const media=options.mediaImageNormalizer?new MediaService({normalizer:options.mediaImageNormalizer}):mediaService;
   await app.register(cookie);
@@ -1716,6 +1720,42 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {connection:await integrationConnectionResponse(connectionId,auth.householdId)};
   });
 
+  const homeAssistantMemberActor=(auth:AuthContext):Extract<HomeAssistantControlActor,{kind:'member'}>=>({kind:'member',id:auth.accountId,accountId:auth.accountId,sessionId:auth.sessionId,membershipId:auth.membershipId,personId:auth.personId,householdId:auth.householdId});
+  const homeAssistantDisplayActor=(request:FastifyRequest,display:DisplayContext):Extract<HomeAssistantControlActor,{kind:'display'}>=>{
+    const token=request.cookies[DISPLAY_COOKIE];if(!token)throw new DomainError('UNAUTHENTICATED',401);
+    return{kind:'display',id:display.id,credentialHash:tokenHash(token),householdId:display.householdId,privacyMode:display.privacyMode,cards:display.cards};
+  };
+  app.get('/api/v1/households/:householdId/home-assistant/controls/configuration',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store');return homeAssistantControls.configuration(homeAssistantMemberActor(auth));
+  });
+  app.get('/api/v1/households/:householdId/home-assistant/controls',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return homeAssistantControls.list(homeAssistantMemberActor(auth));
+  });
+  app.get('/api/v1/households/:householdId/home-assistant/controls/:entityId/state',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return homeAssistantControls.read(homeAssistantMemberActor(auth),params(request).entityId!);
+  });
+  app.post('/api/v1/households/:householdId/home-assistant/controls/:entityId/confirm-open',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'ha_control_confirmation',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(homeAssistantControlRevisionSchema,request.body);reply.header('Cache-Control','no-store');return homeAssistantControls.confirmOpen(homeAssistantMemberActor(auth),params(request).entityId!,body.expectedRevision);
+  });
+  app.post('/api/v1/households/:householdId/home-assistant/controls/:entityId/actions',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'ha_control_action',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(homeAssistantControlDispatchSchema,request.body);reply.header('Cache-Control','no-store');return homeAssistantControls.dispatch(homeAssistantMemberActor(auth),params(request).entityId!,body);
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/home-assistant/controls/discover',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'ha_control_discovery',{account:20,household:60,ip:40,windowSeconds:3600});const body=parse(homeAssistantControlDiscoverySchema,request.body);reply.header('Cache-Control','private, no-store');return homeAssistantControls.discover(homeAssistantMemberActor(auth),params(request).connectionId!,body.expectedConnectionRevision);
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/home-assistant/controls',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'ha_control_select',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(homeAssistantControlSelectSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send({entity:await homeAssistantControls.select(homeAssistantMemberActor(auth),params(request).connectionId!,body)});
+  });
+  app.put('/api/v1/households/:householdId/home-assistant/controls/:entityId/grants',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(homeAssistantControlGrantSchema,request.body);reply.header('Cache-Control','private, no-store');return homeAssistantControls.configureGrants(homeAssistantMemberActor(auth),params(request).entityId!,body);
+  });
+  app.post('/api/v1/households/:householdId/home-assistant/controls/:entityId/deselect',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');const body=parse(homeAssistantControlRevisionSchema,request.body);reply.header('Cache-Control','private, no-store');return homeAssistantControls.deselect(homeAssistantMemberActor(auth),params(request).entityId!,body.expectedRevision);
+  });
+  app.get('/api/v1/display/home-assistant/controls',async(request,reply)=>{const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');return homeAssistantControls.list(homeAssistantDisplayActor(request,display));});
+  app.get('/api/v1/display/home-assistant/controls/:entityId/state',async(request,reply)=>{const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');return homeAssistantControls.read(homeAssistantDisplayActor(request,display),params(request).entityId!);});
+  app.post('/api/v1/display/home-assistant/controls/:entityId/confirm-open',async(request,reply)=>{const display=await displayAuth(request);await durableRateLimit('ha_control_confirmation_display',display.id,30,3600);const body=parse(homeAssistantControlRevisionSchema,request.body);reply.header('Cache-Control','no-store');return homeAssistantControls.confirmOpen(homeAssistantDisplayActor(request,display),params(request).entityId!,body.expectedRevision);});
+  app.post('/api/v1/display/home-assistant/controls/:entityId/actions',async(request,reply)=>{const display=await displayAuth(request);await durableRateLimit('ha_control_action_display',display.id,30,3600);const body=parse(homeAssistantControlDispatchSchema,request.body);reply.header('Cache-Control','no-store');return homeAssistantControls.dispatch(homeAssistantDisplayActor(request,display),params(request).entityId!,body);});
   app.get('/api/v1/households/:householdId/calendar-connections',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return{connections:await calendars.list(auth)};
   });

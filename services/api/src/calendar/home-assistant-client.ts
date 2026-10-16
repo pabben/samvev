@@ -1,4 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
+import { performance } from 'node:perf_hooks';
 import { lookup } from 'node:dns/promises';
 import { request as httpRequest, type RequestOptions } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -26,7 +27,7 @@ async function pinned(origin:string,addressLookup:AddressLookup=defaultAddressLo
 
 function allowedRequest(method:'GET'|'POST',path:string):boolean{
   if(method==='POST')return path==='/auth/token'||path==='/auth/revoke';
-  return path==='/api/calendars'||/^\/api\/calendars\/[a-z0-9_.-]+(?:\?.*)?$/.test(path)||/^\/api\/states\/(?:calendar|sensor)\.[a-z0-9_]+$/.test(path);
+  return path==='/api/calendars'||/^\/api\/calendars\/[a-z0-9_.-]+(?:\?.*)?$/.test(path)||/^\/api\/states\/(?:calendar|sensor|light|cover)\.[a-z0-9_]+$/.test(path);
 }
 
 async function request(origin:string,path:string,input:{method:'GET'|'POST';token?:string;form?:URLSearchParams;json?:unknown;maxBytes?:number},timeoutMs=TIMEOUT_MS,addressLookup:AddressLookup=defaultAddressLookup):Promise<{status:number;body:Buffer;contentType:string}>{
@@ -67,9 +68,9 @@ function websocketFrame(payload:string|Buffer,opcode=0x1):Buffer{
 
 class WebSocketReader{
   private buffer=Buffer.alloc(0);private waiters:Array<()=>void>=[];private error:unknown;
-  constructor(private readonly socket:Socket|TLSSocket,private readonly deadlineAt:number){socket.on('data',(chunk:Buffer)=>{if(this.buffer.length+chunk.length>MAX_RESPONSE_BYTES+16){this.error=new Error('buffer');socket.destroy();}else this.buffer=Buffer.concat([this.buffer,chunk]);this.wake();});socket.on('error',(error)=>{this.error=error;this.wake();});socket.on('close',()=>{this.error??=new Error('closed');this.wake();});}
+  constructor(private readonly socket:Socket|TLSSocket,private readonly deadline:{epochMs:number;monotonicMs:number},private readonly control:boolean){socket.on('data',(chunk:Buffer)=>{if(this.buffer.length+chunk.length>MAX_RESPONSE_BYTES+16){this.error=new Error('buffer');socket.destroy();}else this.buffer=Buffer.concat([this.buffer,chunk]);this.wake();});socket.on('error',(error)=>{this.error=error;this.wake();});socket.on('close',()=>{this.error??=new Error('closed');this.wake();});}
   private wake(){for(const waiter of this.waiters.splice(0))waiter();}
-  private async need(bytes:number):Promise<void>{while(this.buffer.length<bytes){if(this.error)throw this.error;const remaining=this.deadlineAt-Date.now();if(remaining<=0){this.socket.destroy();throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_unavailable'});}await new Promise<void>((resolve,reject)=>{const waiter=()=>{clearTimeout(timeout);resolve();};const timeout=setTimeout(()=>{const index=this.waiters.indexOf(waiter);if(index>=0)this.waiters.splice(index,1);this.socket.destroy();reject(new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_unavailable'}));},remaining);this.waiters.push(waiter);});}}
+  private async need(bytes:number):Promise<void>{while(this.buffer.length<bytes){if(this.error)throw this.error;const remaining=Math.min(this.deadline.epochMs-Date.now(),this.deadline.monotonicMs-performance.now());if(remaining<=0){this.socket.destroy();throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:this.control?'home_assistant_control_dispatch_expired':'home_assistant_unavailable'});}await new Promise<void>((resolve,reject)=>{const waiter=()=>{clearTimeout(timeout);resolve();};const timeout=setTimeout(()=>{const index=this.waiters.indexOf(waiter);if(index>=0)this.waiters.splice(index,1);this.socket.destroy();reject(new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:this.control?'home_assistant_control_dispatch_expired':'home_assistant_unavailable'}));},remaining);this.waiters.push(waiter);});}}
   async bytes(count:number):Promise<Buffer>{await this.need(count);const value=this.buffer.subarray(0,count);this.buffer=this.buffer.subarray(count);return value;}
   async message():Promise<JsonObject>{
     const first=await this.bytes(2),opcode=first[0]!&0x0f,masked=Boolean(first[1]!&0x80),final=Boolean(first[0]!&0x80);let length=first[1]!&0x7f;
@@ -83,24 +84,24 @@ class WebSocketReader{
   }
 }
 
-async function websocketCommands(origin:string,accessToken:string,commands:Array<{id:number;type:string}>,timeoutMs=TIMEOUT_MS,addressLookup:AddressLookup=defaultAddressLookup):Promise<JsonObject[]>{
-  const deadlineAt=Date.now()+timeoutMs;
+async function websocketCommands(origin:string,accessToken:string,commands:Array<{id:number;type:string;[key:string]:unknown}>,timeoutMs=TIMEOUT_MS,addressLookup:AddressLookup=defaultAddressLookup,absoluteDeadline?:HomeAssistantControlDeadline):Promise<JsonObject[]>{
+  const deadline=absoluteDeadline??{epochMs:Date.now()+timeoutMs,monotonicMs:performance.now()+timeoutMs},remainingMs=()=>Math.min(deadline.epochMs-Date.now(),deadline.monotonicMs-performance.now());
   const url=new URL(normalizeHomeAssistantOrigin(origin));
-  const target=await new Promise<PinnedAddress>((resolve,reject)=>{const remaining=deadlineAt-Date.now();if(remaining<=0)return reject(new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_unavailable'}));const timer=setTimeout(()=>reject(new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_unavailable'})),remaining);pinned(url.origin,addressLookup).then((value)=>{clearTimeout(timer);resolve(value);},(error)=>{clearTimeout(timer);reject(error);});});
+  const target=await new Promise<PinnedAddress>((resolve,reject)=>{const remaining=remainingMs();if(remaining<=0)return reject(new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:absoluteDeadline?'home_assistant_control_dispatch_expired':'home_assistant_unavailable'}));const timer=setTimeout(()=>reject(new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:absoluteDeadline?'home_assistant_control_dispatch_expired':'home_assistant_unavailable'})),remaining);pinned(url.origin,addressLookup).then((value)=>{clearTimeout(timer);resolve(value);},(error)=>{clearTimeout(timer);reject(error);});});
   const port=Number(url.port||((url.protocol==='https:')?443:80));
-  const socket:Socket|TLSSocket=await new Promise((resolve,reject)=>{let candidate:Socket|TLSSocket;const timer=setTimeout(()=>candidate.destroy(new Error('timeout')),Math.max(1,deadlineAt-Date.now()));if(url.protocol==='https:'){candidate=tlsConnect({host:target.address,port,servername:isIP(url.hostname)?undefined:url.hostname,rejectUnauthorized:true});candidate.once('secureConnect',()=>{clearTimeout(timer);resolve(candidate);});}else{candidate=netConnect({host:target.address,port});candidate.once('connect',()=>{clearTimeout(timer);resolve(candidate);});}candidate.once('error',(error)=>{clearTimeout(timer);reject(error);});});
-  const deadlineTimer=setTimeout(()=>socket.destroy(new Error('timeout')),Math.max(1,deadlineAt-Date.now()));
+  const socket:Socket|TLSSocket=await new Promise((resolve,reject)=>{let candidate:Socket|TLSSocket;const timer=setTimeout(()=>candidate.destroy(new Error('timeout')),Math.max(1,remainingMs()));if(url.protocol==='https:'){candidate=tlsConnect({host:target.address,port,servername:isIP(url.hostname)?undefined:url.hostname,rejectUnauthorized:true});candidate.once('secureConnect',()=>{clearTimeout(timer);resolve(candidate);});}else{candidate=netConnect({host:target.address,port});candidate.once('connect',()=>{clearTimeout(timer);resolve(candidate);});}candidate.once('error',(error)=>{clearTimeout(timer);reject(error);});});
+  const deadlineTimer=setTimeout(()=>socket.destroy(new Error('timeout')),Math.max(1,remainingMs()));
   try{
     const key=randomBytes(16).toString('base64'),host=url.port?`${url.hostname}:${url.port}`:url.hostname;
     socket.write(`GET /api/websocket HTTP/1.1\r\nHost: ${host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: ${key}\r\nSec-WebSocket-Version: 13\r\n\r\n`);
-    let head=Buffer.alloc(0);while(!head.includes('\r\n\r\n')){if(Date.now()>=deadlineAt)throw new Error('timeout');head=Buffer.concat([head,await new Promise<Buffer>((resolve,reject)=>{socket.once('data',resolve);socket.once('error',reject);})]);if(head.length>16_384)throw new Error('headers');}
+    let head=Buffer.alloc(0);while(!head.includes('\r\n\r\n')){if(remainingMs()<=0)throw new Error('timeout');head=Buffer.concat([head,await new Promise<Buffer>((resolve,reject)=>{socket.once('data',resolve);socket.once('error',reject);})]);if(head.length>16_384)throw new Error('headers');}
     const marker=head.indexOf('\r\n\r\n'),headers=head.subarray(0,marker).toString('latin1'),rest=head.subarray(marker+4);
     const accept=createHash('sha1').update(`${key}258EAFA5-E914-47DA-95CA-C5AB0DC85B11`).digest('base64');
     if(!/^HTTP\/1\.1 101 /i.test(headers)||!new RegExp(`^Sec-WebSocket-Accept: ${accept.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}$`,'mi').test(headers))throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_websocket_invalid'});
-    const reader=new WebSocketReader(socket,deadlineAt);if(rest.length)socket.unshift(rest);
+    const reader=new WebSocketReader(socket,deadline,Boolean(absoluteDeadline));if(rest.length)socket.unshift(rest);
     const required=await reader.message();if(required.type!=='auth_required')throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_websocket_invalid'});
     socket.write(websocketFrame(JSON.stringify({type:'auth',access_token:accessToken})));const auth=await reader.message();if(auth.type==='auth_invalid')throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});if(auth.type!=='auth_ok')throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_websocket_invalid'});
-    const results:JsonObject[]=[];for(const command of commands){socket.write(websocketFrame(JSON.stringify(command)));const response=await reader.message();if(response.id!==command.id||response.type!=='result'||response.success!==true)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_command_failed'});results.push(response.result as JsonObject);}
+    const results:JsonObject[]=[];for(const command of commands){if(remainingMs()<=0)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:absoluteDeadline?'home_assistant_control_dispatch_expired':'home_assistant_unavailable'});socket.write(websocketFrame(JSON.stringify(command)));const response=await reader.message();if(response.id!==command.id||response.type!=='result'||response.success!==true)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_command_failed'});results.push(response.result as JsonObject);}
     return results;
   }finally{clearTimeout(deadlineTimer);socket.destroy();}
 }
@@ -108,6 +109,16 @@ async function websocketCommands(origin:string,accessToken:string,commands:Array
 export interface HomeAssistantSource{externalId:string;name:string;provenance:Record<string,unknown>;sourceWarning?:string;}
 export interface HomeAssistantTemperatureCandidate{externalId:string;entityId:string;identityKind:'registry'|'entity';name:string;nativeUnit?:string;provenance:Record<string,unknown>;}
 export interface HomeAssistantTemperatureObservation{value:number|null;unit:string|null;status:'current'|'unavailable';lastReportedAt:string|null;lastUpdatedAt:string|null;fetchedAt:string;reason?:'unavailable'|'unknown'|'invalid_value'|'invalid_unit'|'invalid_type';}
+export type HomeAssistantControlAction='light.turn_on'|'light.turn_off'|'cover.open_cover';
+export type HomeAssistantControlDeadline={epochMs:number;monotonicMs:number};
+export interface HomeAssistantControlEntity{registryId:string;entityId:string;deviceRegistryId:string|null;domain:'light'|'cover';name:string;supportedActions:HomeAssistantControlAction[];state:string|null;stateStatus:'current'|'unknown'|'unavailable';lastChangedAt:string|null;}
+export interface HomeAssistantControlState{state:string|null;stateStatus:'current'|'unknown'|'unavailable';lastChangedAt:string|null;supportedActions:HomeAssistantControlAction[];}
+
+function controlState(value:unknown):{state:string|null;stateStatus:'current'|'unknown'|'unavailable';lastChangedAt:string|null}{
+  if(!value||typeof value!=='object'||Array.isArray(value))return{state:null,stateStatus:'unknown',lastChangedAt:null};
+  const row=value as JsonObject,state=typeof row.state==='string'&&row.state.length<=64?row.state:null;
+  return{state,stateStatus:state==='unknown'?'unknown':state==='unavailable'||state===null?'unavailable':'current',lastChangedAt:validHomeAssistantInstant(row.last_changed)};
+}
 
 function validRfc3339Instant(value:string):boolean{
   const match=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,9})?(?:Z|([+-])(\d{2}):(\d{2}))$/.exec(value);if(!match)return false;
@@ -171,4 +182,40 @@ export class HomeAssistantClient{
     if(state.state==='unavailable'||state.state==='unknown')return{value:null,unit:null,status:'unavailable',lastReportedAt,lastUpdatedAt,fetchedAt,reason:state.state};if(state.attributes?.device_class!=='temperature')return{value:null,unit:null,status:'unavailable',lastReportedAt,lastUpdatedAt,fetchedAt,reason:'invalid_type'};
     const rawUnit=typeof state.attributes?.unit_of_measurement==='string'?state.attributes.unit_of_measurement:'';const unit=rawUnit==='C'||rawUnit==='°C'?'°C':rawUnit==='F'||rawUnit==='°F'?'°F':null;if(!unit)return{value:null,unit:null,status:'unavailable',lastReportedAt,lastUpdatedAt,fetchedAt,reason:'invalid_unit'};const rawValue=state.state,value=typeof rawValue==='number'?rawValue:typeof rawValue==='string'&&rawValue.trim().length?Number(rawValue):Number.NaN;const valid=Number.isFinite(value)&&(unit==='°C'?value>=-150&&value<=300:value>=-238&&value<=572);if(!valid)return{value:null,unit,status:'unavailable',lastReportedAt,lastUpdatedAt,fetchedAt,reason:'invalid_value'};return{value,unit,status:'current',lastReportedAt,lastUpdatedAt,fetchedAt};
   }
+}
+
+// Narrow wire helpers are shared with the separate control client. Calendar
+// synchronization itself has no service-call method and remains read-only.
+export async function listHomeAssistantControlRegistry(config:ProviderRuntimeConfig,accessToken:string):Promise<HomeAssistantControlEntity[]>{
+  const [registry]=await websocketCommands(config.origin!,accessToken,[{id:1,type:'config/entity_registry/list'}]);
+  if(!Array.isArray(registry)||registry.length>20_000)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_registry_invalid'});
+  const result:HomeAssistantControlEntity[]=[];
+  for(const entry of registry){
+    if(!entry||typeof entry!=='object'||entry.disabled_by||typeof entry.id!=='string'||entry.id.length<1||entry.id.length>512||typeof entry.entity_id!=='string')continue;
+    const match=/^(light|cover)\.[a-z0-9_]+$/.exec(entry.entity_id);if(!match)continue;
+    const domain=match[1] as 'light'|'cover',deviceRegistryId=typeof entry.device_id==='string'&&entry.device_id.length<=512?entry.device_id:null;
+    const name=typeof entry.name==='string'&&entry.name?entry.name:typeof entry.original_name==='string'&&entry.original_name?entry.original_name:entry.entity_id;
+    result.push({registryId:entry.id,entityId:entry.entity_id,deviceRegistryId,domain,name:name.slice(0,200),supportedActions:[],state:null,stateStatus:'unknown',lastChangedAt:null});
+    if(result.length>1000)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'home_assistant_control_registry_too_large'});
+  }
+  return result;
+}
+
+export async function readHomeAssistantControlState(config:ProviderRuntimeConfig,accessToken:string,entityId:string):Promise<HomeAssistantControlState>{
+  if(!/^(light|cover)\.[a-z0-9_]+$/.test(entityId))throw new DomainError('VALIDATION_FAILED',400,{reason:'home_assistant_control_entity_invalid'});
+  const state=json(await request(config.origin!,`/api/states/${entityId}`,{method:'GET',token:accessToken}),'resource') as JsonObject;
+  if(state.entity_id!==entityId)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'home_assistant_response_invalid'});
+  const snapshot=controlState(state),attrs=state.attributes&&typeof state.attributes==='object'&&!Array.isArray(state.attributes)?state.attributes as JsonObject:{};
+  const supportedActions:HomeAssistantControlAction[]=snapshot.stateStatus!=='current'?[]:entityId.startsWith('light.')?['light.turn_on','light.turn_off']:(Number(attrs.supported_features)&1)===1?['cover.open_cover']:[];
+  return{...snapshot,supportedActions};
+}
+
+export async function issueHomeAssistantControlService(config:ProviderRuntimeConfig,accessToken:string,entityId:string,action:HomeAssistantControlAction,deadline:HomeAssistantControlDeadline):Promise<void>{
+  if(!/^(light|cover)\.[a-z0-9_]+$/.test(entityId))throw new DomainError('VALIDATION_FAILED',400,{reason:'home_assistant_control_entity_invalid'});
+  const mapping:Record<HomeAssistantControlAction,{domain:'light'|'cover';service:'turn_on'|'turn_off'|'open_cover'}>={
+    'light.turn_on':{domain:'light',service:'turn_on'},'light.turn_off':{domain:'light',service:'turn_off'},'cover.open_cover':{domain:'cover',service:'open_cover'}
+  };
+  const spec=mapping[action];if(!spec||(entityId.startsWith('light.')&&spec.domain!=='light')||(entityId.startsWith('cover.')&&spec.domain!=='cover'))throw new DomainError('VALIDATION_FAILED',400,{reason:'home_assistant_control_action_invalid'});
+  // Service responses and changed_states are deliberately discarded.
+  await websocketCommands(config.origin!,accessToken,[{id:1,type:'call_service',domain:spec.domain,service:spec.service,service_data:{entity_id:entityId}}],TIMEOUT_MS,defaultAddressLookup,deadline);
 }

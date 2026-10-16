@@ -2,26 +2,32 @@
 
 ## Round 13 current status — 2026-10-16
 
-All 13 owner-request areas remain active. Current feature publisher/origin
-checkpoint is `a887028a4344ebb33b828d44e6a4fa3b44ec90da`; it includes the
-temperature fixes, Home birthday/week/school backend, reusable display setup
-and read projection (migration 029), and display-authored messages/action policy
-(migration 030). Main's isolated combined backend checkpoint passed **20/20**;
-focused temperature tests passed **7/7 new + 16/16 existing**, and Home passed
-15 focused tests with API typecheck. Display setup API 4/4 and Round 9 5/5 suites
-passed. Bounded review findings for these backend checkpoints are closed.
+All 13 owner-request areas remain active. Backend checkpoints now include
+T1–T3, Home birthdays/week/school, display setup and authorship, durable native
+household boards, private albums/backgrounds, and selected HA light/cover
+controls (additive migrations 027–035). Native/media checkpoint source is
+`f7383975c0b85d7af17bdd91fd11d4d118dc68c5`; the subsequent HA checkpoint is
+identified by the commit containing this update. Root Git metadata is protected
+and deliberately stale; use the publishing checkout for source identity.
 
-These are backend/local checkpoints. The public deployment remains Round 12
-source `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
-`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Frontend integration, visual
-captures, private photo/background/album flows, grocery/dinner, physical HA
-controls, public pages/provider wizards, full QA, release gate, backup/restore
-for the candidate and public verification remain open. Owner contact values are
-confirmed privately; do not put them in Git. One existing HA connection must be
-preserved. The existing Google connection is not currently connected, but its
-`disconnected_at` value is null, so do not call it revoked. Both guest disk
-expansions are complete; no disk work remains. See
-[Round 13 status](../design/review/ROUND_13_STATUS.md) and
+These are local backend checkpoints. Main independently passed 31 combined
+regressions before HA integration. HA review repaired final expiry checks,
+absolute wire deadlines, grant lock ordering, selected-origin binding and a
+confirmed ambiguous SQL column on provider-origin changes. The focused final
+HA runner passed migration, API/contracts checks and 3 tests; the prior lock
+ordering demonstrably failed the deadlock regression. See the Round 13 status
+for the subsequent combined run and exact evidence.
+
+The public deployment remains Round 12 source
+`00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Frontend integration, display backend
+completion, visual captures, public pages/provider wizards, full QA, release
+gate, candidate backup/restore and public verification remain open. Physical HA
+actions have not been tested and must never run automatically in acceptance.
+Owner contact is confirmed privately for runtime configuration; keep its values
+out of Git. Preserve existing HA/Google connections and data. No new disk work.
+
+See [Round 13 status](../design/review/ROUND_13_STATUS.md) and
 [requirements/evidence matrix](../design/review/ROUND_13_REQUIREMENTS.md).
 
 ## HA / calendar round 12 — publicly test-published and verified

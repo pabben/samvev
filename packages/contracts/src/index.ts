@@ -404,6 +404,29 @@ export const temperatureSensorUpdateSchema=z.object({
   }).strict().refine((value)=>value.household||value.personIds.length>0||value.displayIds.length>0,'temperature_reader_required')
 }).strict();
 export const temperatureSensorRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const homeAssistantControlActions=['light.turn_on','light.turn_off','cover.open_cover'] as const;
+export const homeAssistantControlDiscoverySchema=z.object({expectedConnectionRevision:z.number().int().positive()}).strict();
+export const homeAssistantControlSelectSchema=z.object({
+  expectedConnectionRevision:z.number().int().positive(),registryId:z.string().trim().min(1).max(512),
+  displayName:z.string().trim().min(1).max(80).nullable().optional()
+}).strict();
+export const homeAssistantControlGrantSchema=z.object({
+  expectedRevision:z.number().int().positive(),
+  personGrants:z.array(z.object({personId:uuidSchema,canRead:z.boolean(),actions:z.array(z.enum(homeAssistantControlActions)).max(3)}).strict()).max(50),
+  displayGrants:z.array(z.object({displayId:uuidSchema,canRead:z.boolean(),actions:z.array(z.enum(homeAssistantControlActions)).max(3)}).strict()).max(50)
+}).strict().refine((value)=>new Set(value.personGrants.map((row)=>row.personId)).size===value.personGrants.length,'duplicate_person_grant')
+  .refine((value)=>new Set(value.displayGrants.map((row)=>row.displayId)).size===value.displayGrants.length,'duplicate_display_grant')
+  .superRefine((value,ctx)=>{
+    for(const [index,grant] of value.personGrants.entries()){if(!grant.canRead&&grant.actions.length)ctx.addIssue({code:'custom',path:['personGrants',index,'actions'],message:'control_action_requires_read'});if(!grant.canRead&&!grant.actions.length)ctx.addIssue({code:'custom',path:['personGrants',index],message:'omit_empty_control_grant'});}
+    for(const [index,grant] of value.displayGrants.entries()){if(!grant.canRead&&grant.actions.length)ctx.addIssue({code:'custom',path:['displayGrants',index,'actions'],message:'control_action_requires_read'});if(!grant.canRead&&!grant.actions.length)ctx.addIssue({code:'custom',path:['displayGrants',index],message:'omit_empty_control_grant'});}
+  });
+export const homeAssistantControlRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const homeAssistantControlDispatchSchema=z.object({
+  expectedRevision:z.number().int().positive(),action:z.enum(homeAssistantControlActions),idempotencyKey:z.string().min(16).max(128),
+  confirmationToken:z.string().min(32).max(256).optional()
+}).strict().superRefine((value,ctx)=>{
+  if(value.action!=='cover.open_cover'&&value.confirmationToken)ctx.addIssue({code:'custom',path:['confirmationToken'],message:'confirmation_not_allowed'});
+});
 export const calendarConnectionRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
 export const calendarOAuthCompleteSchema=z.object({completionToken:z.string().min(32).max(256)}).strict();
 export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive()}).strict();

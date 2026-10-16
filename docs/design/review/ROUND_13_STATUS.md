@@ -3,16 +3,16 @@
 Updated: 2026-10-16
 Goal: complete all 13 owner-request areas recorded in
 `ROUND_13_REQUIREMENTS.md` and `REQUEST_LEDGER.md`.
-Phase: temperature, Home, display setup and display-message backend checkpoints
-are implemented and locally tested/reviewed; frontend integration, media,
-Home Assistant controls, public pages/provider wizards, full visual/QA/release
-and public verification remain open. All 13 areas remain active.
+Phase: temperature, Home, display setup/messages, native boards, media and
+HA-control backend checkpoints are locally implemented. Display backend
+completion, all new UI, pages/wizards, full visual/QA/release and public
+verification remain open. All 13 areas remain active.
 
 ## Baseline snapshot and preservation warning
 
-- Current publisher/origin checkpoint is
-  `a887028a4344ebb33b828d44e6a4fa3b44ec90da`, containing temperature, Home and
-  display packages A+B. Root Git HEAD `390f6a6` is intentionally stale metadata;
+- Pre-HA publisher/origin checkpoint is
+  `f7383975c0b85d7af17bdd91fd11d4d118dc68c5`, including native boards and media.
+  The subsequent HA checkpoint is the commit containing this update. Root Git HEAD `390f6a6` is intentionally stale metadata;
   do not mistake it for a source conflict, recreate checkpointed work, or ask
   every agent to rediscover a false worktree conflict. The earlier `df04e82` /
   deployed R12 source was superseded by this R13 feature checkpoint.
@@ -315,3 +315,46 @@ Evidence `.local/m3/round13/backend-media-checkpoint.log`. Migrations 001–031
 remain unchanged. All 229 baseline protected root Git hashes are unchanged.
 This is a backend checkpoint; UI/HA controls/pages/restore/release and public
 acceptance remain open. Public runtime is still R12.
+
+## HA controls backend checkpoint — 2026-10-16
+
+Migrations 033–035 add explicit selected registry/device/origin identities,
+per-person/device read and fixed-action grants, single-use garage confirmation,
+and durable non-retrying dispatch receipts with absolute deadlines. Manager
+configuration/reselect/pause APIs preserve saved grants; selection does not
+grant access. Changed origins require explicit reselection. Browser clients
+never receive the HA credential or a generic service-call endpoint.
+
+`gpt-6-luna` high implemented the package. Bounded `gpt-6.1-sol` high review
+identified final authorization/deadline waits, late WebSocket send, grant lock
+inversion and cross-origin consent gaps. These were repaired and reviewed.
+Stronger bounded test repair then fixed fixture defects and the confirmed
+PG42702 ambiguous sensor revision in the existing provider-origin-change path.
+The prior grant lock order fails a real database deadlock-counter assertion;
+the corrected control service was restored byte-identically afterward.
+
+Local isolated evidence under `.local/m3/round13/`:
+- `ha-control-strong-final-verification.log`: actual exit 0, migrations,
+  API/contracts typechecks, 2 real synthetic WebSocket tests and 1 comprehensive
+  control integration test pass (3/3).
+- `ha-control-strong-grant-counterfactual-red.log`: former lock ordering fails.
+- `ha-control-strong-counterfactual-restoration.log`: source restoration proof.
+
+No real lights/garage commands were sent. HA-reported state is not physical
+confirmation. An external HA administrator can change the registry after the
+last check; Samvev cannot make its database and HA administration atomic.
+No offline queue or restart resend is implemented. Keep migrated data and use
+compatible forward recovery; do not delete receipts/grants on image recovery.
+All 229 protected root Git files and published migrations 001–032 were checked
+unchanged. Public runtime remains R12. HA UI/physical owner verification and
+complete release acceptance remain open.
+
+Do not run `scripts/m1.sh qa-test` unchanged: it resets the retained LAN QA
+volume. Final browser acceptance must use separately isolated synthetic data
+and preserve the existing QA database and admin/admin.
+
+Main independently reran the integrated backend checkpoint: **37/37 pass**,
+actual exit 0, no failures/skips/cancellations, local isolated Compose runner.
+Evidence: `.local/m3/round13/backend-ha-checkpoint.log`. This includes existing
+HA wire, API/Round 9, display messages, Home, temperature, native boards and
+media regressions plus new controls. This is not final frontend/public proof.
