@@ -77,6 +77,9 @@ repository files.
 
 ## Remaining gates and owner actions
 
+The precise Norwegian UI sequence and provider/owner boundary are recorded in
+the [Round 13 owner checklist](ROUND_13_OWNER_ACTIONS.md).
+
 1. Complete external Google/Microsoft consent and live provider verification
    when the relevant owners are available.
 2. Activate existing saved-school tasks through a real authorized
