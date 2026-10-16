@@ -2,63 +2,71 @@
 
 ## Round 13 current status — 2026-10-16
 
-All 13 owner-request areas remain active. Backend checkpoints now include
-T1–T3, Home birthdays/week/school, display setup and authorship, durable native
-household boards, private albums/backgrounds, and selected HA light/cover
-controls (migrations 027–035), followed by Display 036 policy/projection and
-guides 037 backend/documentation checkpoints.
-The pushed HA checkpoint is `670f0b3`; Display 036 is the next local checkpoint.
-Root Git metadata is protected and deliberately stale; use the publishing
-checkout for source identity.
+All 13 owner-request areas remain active. Backend packages for T1–T3, Home,
+display policy/authorship, native boards, media, selected HA controls and guides
+are implemented. HA source `5b39d4375ff8373657f5bfd3492fa52e842326ea` and display
+layout source `d91436addb4a55f7b27ae27df549b173fa276fe7` are DCO-signed and
+feature-pushed; Home source-catalog/API `bb7255ccc023ef1f474f1c2632fb05e3718f93c1`
+and frontend `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are also pushed. Use the
+publishing checkout for source identity; protected root Git metadata is
+deliberately stale.
 
-These are local backend checkpoints. The combined 31-test backend/media run and
-the HA-focused migration/API/contracts plus 3-test suite passed. Display 036's
-`display-expiry-check.log` reports all five workspace checks exit 0; its strong
-final verification passes API/contracts typechecks and 15/15 display/media/image
-tests. Review repaired expiry, photo-grant, draft-filter and lock-order findings;
-the former lock order fails its counterfactual. Main's earlier combined 41/41
-run is historical. The Display 036 combined backend checkpoint passed 42/42 with zero
-failures, skips or cancellations on the isolated local runner in 81.8 seconds
-(actual process exit 0); evidence is
-`.local/m3/round13/backend-display-accepted-checkpoint.log`. This is backend-only
-evidence; display UI, visual capture, full QA, backup/restore, release gate and
-public verification remain open. It is superseded as the latest combined run by
-the 52/52 guides037 checkpoint below. See Round 13 status for details.
+Historical backend checkpoints include the 31-test media run, the HA-focused
+migration/API/contracts plus 3-test suite, Display 036's five workspace checks
+and 15/15 display/media/image tests, and combined Display 036 42/42 and guides037
+52/52 runs. Their detailed logs remain recorded in Round 13 status. They are
+superseded by the current full-QA snapshot summarized below and do not establish
+backup/restore, release gate or public deployment.
 
-Guides 037 also has a web checkpoint of 100 tests and build exit 0, five initial
-workspace checks and five provider checks; the independent combined backend
+Guides 037's historical web checkpoint passed 100 tests/build, five initial
+workspace checks and five provider checks; its independent combined backend
 checkpoint passed 52/52, zero failures/skips/cancellations, isolated runner,
 101.5 seconds, actual exit 0
 (`.local/m3/round13/backend-guides-checkpoint.log`). Candidate anonymous-page
 routes and Google/Microsoft guides are present, but private contact values are
-not initialized publicly. Public runtime remains R12; browser/public visual
-acceptance, shared UI, full QA, backup/restore and release gate remain open.
+not initialized publicly. Public runtime remains R12. The full synthetic QA
+snapshot and candidate browser checks are recorded below; public verification,
+backup/restore and release gate remain open.
 
 Home source-catalog/API checkpoint `bb7255ccc023ef1f474f1c2632fb05e3718f93c1`
 and frontend checkpoint `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are pushed.
-The all-day backend is implemented and frozen pending root review: 23/23 focused
+The all-day backend is implemented and focused-tested: 23/23 focused
 tests (five all-day, eight catalog, five display, five Home), API/contracts pass,
 and the former query fails four red counterfactuals
 (`.local/m3/round13/all-day-strong-final.log`).
 Candidate frontend spans 14 files and has 117 web tests/check/tmpbuild, synthetic
 life 503/empty 200/clear 403 browser cases, and seven reviewed source-built
 viewport/theme layouts. Bounds pass and no CSS injection was found; the built
-snapshot matches commit 943bd63 across 256 runtime files. Local-date person-future
-presentation and school-provenance disclosure still need small follow-ups. C2
-metadata/font, HA/display UI, integrated review, canonical14, restore, release
-gate and public deployment remain open. Public and LAN runtimes remain R12.
+snapshot matches commit 943bd63 across 256 runtime files. Previously open
+person-future presentation, school-provenance disclosure and C2 metadata/font
+follow-ups are complete. Existing saved-school activation still needs an
+authorized `household.manage` session and safe classification from task origin/
+subject, without impersonation, copies, AI calls or schedule/approval changes.
+Public and LAN runtimes remain R12.
 
 The public deployment remains Round 12 source
 `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
-`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Complete Home UI acceptance,
-display/HA UI, complete visual QA, public contact initialization/provider
-verification, full QA, release
-gate, candidate backup/restore and public verification remain open. Physical HA
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. The frozen full-QA snapshot passed
+468 tests (web 141, contracts 5, core 3, API 319) with zero failures and all
+workspace TypeScript checks; source proof has 308 inputs, worker tests
+discovered zero. Display header/address changed afterward and has targeted web
+TypeScript and browser checks; root reviewed and accepted the final desktop
+address screenshot.
+Backup/restore, canonical14, release gate, public contact/provider verification
+and public deployment remain open. Physical HA
 actions have not been tested and must never run automatically in acceptance.
+The first isolated restore attempt failed safely before migration on the
+deliberately pre-existing `NOT VALID` constraint
+`ai_rate_snapshots_nonnegative_rates`; cleanup was verified (128 foreign keys,
+one canonical unvalidated check constraint, 0 invalid indexes). Do not report
+restore as passing.
 Owner contact is confirmed privately for runtime configuration; keep its values
 out of Git. Preserve existing HA/Google connections and data. No new disk work.
 
 ## Local candidate UI checkpoints — 2026-10-16
+
+Historical candidate snapshot; current implementation and evidence are
+summarized above and in ROUND_13_STATUS.md.
 
 Native boards A has isolated real-browser evidence in
 `.local/m3/round13/boards-browser/`: grocery add/check/uncheck, two-page sync,
@@ -71,15 +79,19 @@ behavior. This remains bounded candidate evidence, not full UI acceptance.
 Guides037 has six actual local browser captures under
 `.local/m3/round13/public-pages-browser/` (three pages in mobile-light and
 desktop-dark) reviewed locally; no public HTTPS claim. Media frontend 109
-tests/check/build pass, but browser authorization and playback review remains
-underway. Candidate work is an uncommitted overlay on `8e3440a`, not canonical
-or public source.
+tests/check/build pass, and browser authorization/playback review later passed
+on the synthetic fixture. The early `8e3440a` overlay is historical and not the
+current feature source. Display layout source is DCO-pushed at
+`d91436addb4a55f7b27ae27df549b173fa276fe7`; latest targeted address and web
+TypeScript checks pass, and root reviewed and accepted the desktop screenshot.
 
 An intermediate Vite build touched LAN-bound `dist`. Root restored all ten R12
 assets from the immutable R12 image, byte-checked them against canonical proof
 `00ddc36`, and verified existing LAN admin authentication, health and FamilyHub.
-No application data changed. Direct all intermediate builds to `/tmp`; do not
-write to LAN-bound `dist`. Public and LAN runtime remain R12.
+No application data changed. A later C2 build repeated the mistake and was
+again restored/hash-checked; evidence is summarized in ROUND_13_STATUS.md. Direct
+all intermediate builds to `/tmp`; do not write to LAN-bound `dist`. Public and
+LAN runtime remain R12.
 
 See [Round 13 status](../design/review/ROUND_13_STATUS.md) and
 [requirements/evidence matrix](../design/review/ROUND_13_REQUIREMENTS.md).

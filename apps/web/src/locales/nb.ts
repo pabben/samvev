@@ -758,7 +758,8 @@ export const nb: Record<TranslationKey, string> = {
   integrationNever: "Ikke brukt ennå",
   integrationGrants: "Endre skjermtilgang",
   integrationEmpty: "Gjør plass til nyttig informasjon",
-  integrationExternalDisplay: "Vis ekstern informasjon som er delt med denne skjermen",
+  integrationExternalDisplay: "Vis kalendere, renovasjon og temperaturer på denne skjermen",
+  integrationExternalDisplayHint: "Bare valgte kilder og innhold som er delt direkte med skjermen, vises. Familievisning kan brukes uavhengig av dette.",
   integrationTokenRevocation: "Trekke tilbake nøkkelen? Den eksterne tjenesten mister tilgangen umiddelbart.",
 
   pageLoadFailedTitle: "Samvev kunne ikke vise siden",
@@ -1521,6 +1522,7 @@ export const nb: Record<TranslationKey, string> = {
   displaySetup: "Skjermoppsett",
   copyDisplayAddress: "Kopier skjermadressen",
   displayAddress: "Skjermadresse",
+  displayAddressCopyFallback: "Marker adressen ovenfor og kopier den manuelt.",
   active: "Aktiv",
   displayProfileGrant: "Tillat profilbilde for {name}",
   displayBirthdayGrant: "Tillat bursdag for {name}",

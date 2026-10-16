@@ -757,7 +757,8 @@ export const en = {
   integrationNever: "Not used yet",
   integrationGrants: "Edit display access",
   integrationEmpty: "Make room for helpful information",
-  integrationExternalDisplay: "Show explicitly shared external information",
+  integrationExternalDisplay: "Show calendars, waste collection, and temperatures on this display",
+  integrationExternalDisplayHint: "Only selected sources and items explicitly shared with this display appear. Family layout can be shown independently.",
   integrationTokenRevocation: "Revoke this token? The external service will lose access immediately.",
 
   pageLoadFailedTitle: "Samvev could not display this page",
@@ -1520,6 +1521,7 @@ export const en = {
   displaySetup: "Display setup",
   copyDisplayAddress: "Copy display address",
   displayAddress: "Display address",
+  displayAddressCopyFallback: "Select the address above and copy it manually.",
   active: "Active",
   displayProfileGrant: "Allow profile photo for {name}",
   displayBirthdayGrant: "Allow birthday for {name}",

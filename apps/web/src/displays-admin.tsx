@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Display, Membership, Person } from "./types";
 import {
@@ -62,14 +62,7 @@ export function DisplaysPanel({
           <strong>{t("displayAddress")}</strong>
           <p className="field-hint">{t("displaySetupsBody")}</p>
         </div>
-        <div className="display-address-actions">
-          <a className="button" href="/display" target="_blank" rel="noreferrer">
-            <Icon name="display" />{t("openDisplay")}
-          </a>
-          <button className="button subtle" type="button" onClick={() => void run(() => navigator.clipboard.writeText(`${window.location.origin}/display`))}>
-            {t("copyDisplayAddress")}
-          </button>
-        </div>
+        <DisplayAddressActions />
       </section>
       <ErrorNotice error={error} />
       <div className="display-grid">
@@ -123,7 +116,10 @@ export function DisplaysPanel({
                     <button className="text-button" type="button" onClick={()=>void run(()=>update(d,{theme:null}))}>{t("inheritSetupTheme")}</button>
                   </Field>
                 </div>
-                <Check label={t("integrationExternalDisplay")} checked={Boolean(d.external_items_enabled)} onChange={(v) => void run(() => update(d, {externalItemsEnabled:v}))} />
+                <div>
+                  <Check label={t("integrationExternalDisplay")} checked={Boolean(d.external_items_enabled)} onChange={(v) => void run(() => update(d, {externalItemsEnabled:v}))} />
+                  <p className="field-hint">{t("integrationExternalDisplayHint")}</p>
+                </div>
                 <Field label={t("displaySetup")}><select value={d.setup_id??""} onChange={e=>void run(()=>update(d,{setupId:e.target.value}))}><option value={d.setup_id??""}>{setups.find(setup=>setup.id===d.setup_id)?.name??t("defaultDisplaySetup")}</option>{setups.filter(setup=>setup.id!==d.setup_id).map(setup=><option key={setup.id} value={setup.id}>{setup.name}</option>)}</select></Field>
                 <fieldset><legend>{t("displaySetupPeople")}</legend>{people.map(person=><Check key={`profile:${person.id}`} label={t("displayProfileGrant",{name:person.display_name})} checked={Boolean(d.profile_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{profilePersonIds:checked?[...new Set([...(d.profile_person_ids??[]),person.id])]:((d.profile_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
                 <fieldset><legend>{t("displayBirthdayGrants")}</legend>{people.map(person=><Check key={`birthday:${person.id}`} label={t("displayBirthdayGrant",{name:person.display_name})} checked={Boolean(d.birthday_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{birthdayPersonIds:checked?[...new Set([...(d.birthday_person_ids??[]),person.id])]:((d.birthday_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
@@ -209,7 +205,7 @@ function PairDialog({
   return (
     <Dialog title={t("pairDisplay")} onClose={onClose}>
       <p>{t("pairingInstructions")}</p>
-      <div className="display-address-actions"><a className="button" href="/display" target="_blank" rel="noreferrer"><Icon name="display" />{t("openDisplay")}</a><button className="button subtle" type="button" onClick={()=>void run(()=>navigator.clipboard.writeText(`${window.location.origin}/display`))}>{t("copyDisplayAddress")}</button></div>
+      <DisplayAddressActions />
       <form
         className="form-stack pairing-form"
         onSubmit={(event) => {
@@ -286,5 +282,45 @@ function PairDialog({
         </div>
       </form>
     </Dialog>
+  );
+}
+
+function DisplayAddressActions() {
+  const { t } = useI18n();
+  const address = typeof window === "undefined" ? "/display" : `${window.location.origin}/display`;
+  const addressInput = useRef<HTMLInputElement>(null);
+  const [needsManualCopy, setNeedsManualCopy] = useState(false);
+
+  const copyAddress = async () => {
+    setNeedsManualCopy(false);
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(address);
+        return;
+      }
+    } catch {
+      // Insecure LAN origins and browser policy can disable clipboard access.
+    }
+    addressInput.current?.focus();
+    addressInput.current?.select();
+    setNeedsManualCopy(true);
+  };
+
+  return (
+    <div>
+      <label className="field display-address-value">
+        <span>{t("displayAddress")}</span>
+        <input ref={addressInput} type="text" value={address} readOnly onFocus={event => event.currentTarget.select()} />
+      </label>
+      <div className="display-address-actions">
+        <a className="button" href="/display" target="_blank" rel="noreferrer">
+          <Icon name="display" />{t("openDisplay")}
+        </a>
+        <button className="button subtle" type="button" onClick={() => void copyAddress()}>
+          {t("copyDisplayAddress")}
+        </button>
+      </div>
+      {needsManualCopy && <p className="field-hint" role="status">{t("displayAddressCopyFallback")}</p>}
+    </div>
   );
 }

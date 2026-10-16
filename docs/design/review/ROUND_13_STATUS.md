@@ -3,14 +3,12 @@
 Updated: 2026-10-16
 Goal: complete all 13 owner-request areas recorded in
 `ROUND_13_REQUIREMENTS.md` and `REQUEST_LEDGER.md`.
-Phase: temperature, Home, display setup/messages, native boards, media,
-HA-controls, Display 036 and guides 037 backend/documentation checkpoints are
-implemented/reviewed. Home day/source-catalog backend and candidate birthday,
-day/week/next/school UI now have focused evidence; local grocery/dinner UI,
-anonymous-page screenshots and media frontend checks also have bounded
-candidate evidence. Home UI follow-ups, HA/display UI, media browser acceptance,
-public contact initialization, provider verification, full visual/QA/release
-and public verification remain open. All 13 areas remain active.
+Phase: all 13 areas remain active. Home, native boards, media and HA have
+candidate UI/browser evidence; bounded acceptance and full QA evidence are
+recorded below. Remaining work includes saved-school activation through an
+authorized household session,
+backup/restore, canonical14, release gate and
+public deployment/verification. Public and LAN runtime remain R12.
 
 ## Baseline snapshot and preservation warning
 
@@ -42,25 +40,74 @@ and public verification remain open. All 13 areas remain active.
 
 | ID | Active requirement area | Implemented | Synthetic | Public | Owner-blocked |
 |---|---|---|---|---|---|
-| R13-01 | Agent economy and durable status | Active status/checkpoint practice recorded; no cost estimates | N/A | N/A | No |
-| R13-02 | Data/environment preservation | Checkpoint preserved baseline; 229 protected root Git hashes independently unchanged at display-message checkpoint | Isolated synthetic runs only | Public R12 runtime remains unchanged | No |
-| R13-03 | Day overview and birthdays | Birthday/day DTO plus local-day boundary backend implemented and focused-tested; Home UI is integrated in the feature candidate with follow-up review still open | Home/all-day focused suite 23/23 (five all-day, eight catalog, five display, five Home) plus API/contracts; `.local/m3/round13/all-day-strong-final.log`; older query fails four red counterfactuals | R12 only; no R13 public deployment | No |
-| R13-04 | People, week and school cards | Bounded Home chronology, school metadata, display week/next/person/saved-school ACL chronology backend implemented; candidate birthday/day/week/next/school UI has browser and seven-layout evidence. Local-date person-future behavior and school-provenance disclosure need small follow-up; C2 presentation metadata/font and full acceptance remain open | Home 23/23 suite/API/contracts; frontend commit 943bd63 has 117 web tests/check/tmpbuild; synthetic life 503, empty 200 and clear 403 browser cases; seven reviewed viewport/theme layouts | R12 preview/details only; no public R13 UI | No |
-| R13-05 | Waste consolidation | Import/day-plan baseline only; remove separate Next Waste surface remains open | No new evidence | R12 only | No |
-| R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, policy GET, read-only real-device-grant preview and server-filtered projections implemented; local board read/write projection is focused-tested. Full display setup/preview UI remains open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4, Round 9 5/5, Display 036 15/15 and all five workspace checks; display-board policy 6/6; final backend checkpoint 52/52; bounded reviews closed | R12 ACL baseline only; no public R13 display UI | No |
-| R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Final combined backend checkpoint 52/52 pass, zero failures/skips/cancellations; bounded findings closed | No R13 public evidence | No |
-| R13-08 | Messages, private background and shared album | Display authors and private album/background backend implemented; media frontend checks pass, but browser/authorization/playback review remains underway; full restore/public acceptance open | Media focused 10/10 plus API 4/4; media frontend 109 tests/check/tmpbuild pass; four review findings corrected with deterministic regressions | No R13 public evidence | No |
+| R13-01 | Agent economy and durable status | Active status/checkpoint practice recorded. Known writers/reviewers: `gpt-6-luna/high` for economical implementation, `gpt-6.1-sol/high` for bounded security/operations review; coordinator model/cost not asserted. | Local runners and durable checkpoints recorded; no estimated cost | N/A | No |
+| R13-02 | Data/environment preservation | User data, vault, schedules, protected root Git and public/LAN R12 runtime preserved. Two default Vite output incidents were restored and hash-checked; no DB/public changes. Future intermediate builds use `/tmp`. | Asset restoration, existing LAN admin/health/FamilyHub checks in current snapshot below | Public and LAN R12 unchanged | No |
+| R13-03 | Day overview and birthdays | Birthday/day DTO plus household-local all-day boundary backend implemented and focused-tested; birthday/day UI evidence accepted in candidate, overall integration/public validation open | Home/all-day 23/23 (five all-day, eight catalog, five display, five Home), API/contracts pass; `.local/m3/round13/all-day-strong-final.log`; old query fails four counterfactuals | R12 only; no R13 public deployment | No |
+| R13-04 | People, week and school cards | Bounded Home chronology/school backend implemented; candidate birthday/day/week/next/school UI. Previously reported person-future, school-provenance and C2 metadata/font follow-ups are complete. Saved existing school tasks still need safe authorized activation and verification. | 117 web tests/check/tmpbuild; browser life 503, empty 200, clear 403; seven reviewed Home layouts and bounds pass; 23/23 backend/API as R13-03 | R12 only; no public R13 UI | No; activation requires a real authorized `household.manage` session, no impersonation or AI calls |
+| R13-05 | Waste consolidation | Separate Next Waste surface removed; day overview waste icons/import retained | Included in synthetic candidate QA; no separate test count asserted | R12 only | No |
+| R13-06 | Display identity/configuration and per-display projection | Reusable setup/device grants, policy/projection and setup/profile UI implemented in DCO-signed feature source `d91436addb4a55f7b27ae27df549b173fa276fe7`. Open/copy now sits outside pair dialog. | Focused backend/UI, pairing/default-deny, board ticks/focus, four compact views (164px, Today/Tomorrow/Next, no implicit week); latest web TypeScript and address2 browser pass. Root reviewed and accepted the desktop address screenshot. | R12 ACL baseline only; no public R13 display UI | No |
+| R13-07 | Permissions and real display author identity | Read-only default, real display author identity, recipient/action grants, revocation and explicit display actions implemented and locally exercised; no member impersonation | Actual UI/API: allowed recipient only; display-authored POST 201 stores real display name with null person ID; revoke removes composer. Six-case composer lifecycle browser evidence, six board ticks/focus, and 6 rendered composer cases | No R13 public evidence | No |
+| R13-08 | Messages, private background and shared album | Message/media frontend and authorization/playback browser acceptance passed on synthetic candidate; backup/restore and public acceptance remain open | 109 frontend tests/check/build and actual album upload/preview/reload, shared ACL/revocation, pause/refresh and background apply/reset reviewed | No R13 public evidence | No |
 | R13-09 | Durable groceries and dated dinners | Native backend and candidate UI support durable boards; local browser acceptance covers core flows, but full integrated UI/QA remains open | Native A isolated browser: six synthetic people, grocery add/check/uncheck, two-page sync, dinner assign/reload, option delete/snapshot clear, 503 stale and 403 clear, mobile hit-test; real-HTTP UUID fallback regression fixed | No R13 public evidence | No |
-| R13-10 | Home Assistant controls and T1–T3 | T1–T3 and selected HA controls backend implemented; device integration/display projection checked. Physical owner verification and UI remain open | HA focused controls 3/3; Display 036 focused expiry/filter suite evidence; final combined backend checkpoint 42/42 pass | R12 read-only baseline; preserve the existing public HA connection | No for isolated work; live consent is separate |
+| R13-10 | Home Assistant controls and T1–T3 | T1–T3 and selected HA controls implemented; HA UI and serialization guard are pushed at `5b39d4375ff8373657f5bfd3492fa52e842326ea`. No physical commands run. | Credential serialization regression 10 focused tests; actual synthetic-transport browser checks for selection/grants, explicit light/garage confirmation, replay, read-only polling, 503 stale and 403 clear; all 5 images reviewed | R12 read-only baseline; preserve existing HA connection; no public R13 controls | No live HA authority required for synthetic testing |
 | R13-11 | Anonymous public information pages | `/om`, `/personvern`, `/vilkar` routing/content, anonymous DTO and safe runtime configuration path implemented in candidate; private contact values are not initialized publicly. Public verification remains open. | guides037 web check: 100 tests/build exit 0; six local candidate screenshots (three pages × mobile-light/desktop-dark) reviewed | Public deployment remains R12; no R13 HTTPS claim or public verification | No; values are privately confirmed but must stay out of Git |
 | R13-12 | Google/Microsoft setup | Google and Microsoft administrator guides/UI implemented; integrated browser/public checks and live provider verification remain open | guides037 web check: 100 tests/build exit 0; provider-focused 5 checks pass | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not call it revoked. No live provider verification. | Registration/consent may be needed for live verification; guide work is not blocked |
-| R13-13 | Matrix, QA, backup/restore and feature delivery | Status is updated; full-target QA, recovery, release gate and public rollout remain open | Checkpoints documented; full retest not yet complete | Round 12 remains deployed; R13 public verification absent | No, except explicitly noted live provider consent |
+| R13-13 | Matrix, QA, backup/restore and feature delivery | Full synthetic QA snapshot passes; backup/restore, canonical14, release gate and public rollout remain open | `.local/m3/round13/qa-final.log`: 468 tests, 0 failures, all workspace TypeScript checks pass; 308 source hashes. Worker tests discovered 0; no worker coverage. Latest display header follow-up has separate web TSC/address browser checks. | R12 remains deployed; R13 public verification absent | No, except external provider consent |
 
 Full acceptance criteria and evidence distinctions are in
 `ROUND_13_REQUIREMENTS.md`. R12 baseline receives credit only for behavior it
 directly reports; it does not satisfy newly requested additions. Local backend
 checkpoint status is reflected in the table above; it does not imply UI or
-public completion.
+public completion. The dated checkpoint sections below preserve earlier
+evidence; this snapshot and the matrix are authoritative for current status.
+
+## Current verified snapshot — 2026-10-16
+
+The QA run in `.local/m3/round13/qa-final.log` passed 468 tests (web 141,
+contracts 5, core 3, API 319), with zero failures and all workspace TypeScript
+checks passing. Source evidence is `.local/m3/round13/qa-source-proof.json`
+(308 input hashes on the codex-dev exact-project read-only snapshot). The worker discovered
+zero tests; worker behavior has no coverage claim. Strong composer evidence
+includes six rendered cases and the 141-web-test run. This does not replace
+backup/restore, full migration recovery, release gate or deployment evidence.
+
+After that frozen QA snapshot, display layout source was DCO-signed and
+feature-pushed as `d91436addb4a55f7b27ae27df549b173fa276fe7`; root independently
+confirmed 17 source inputs match the pin. The address control now renders outside
+the pairing dialog and the address2 browser log passes, as does the latest web
+TypeScript check. Root's review of `admin-address-desktop.png` is still pending;
+this narrow follow-up is not represented as a rerun of all 468 tests. No R13
+public deployment or capture has occurred.
+
+The HA UI checkpoint `5b39d4375ff8373657f5bfd3492fa52e842326ea` is DCO-signed
+and feature-pushed. Serialization has 10 focused tests; synthetic-transport
+browser checks and five reviewed images cover selected identity/grants, explicit
+light/garage confirmation, replay, read-only polling and stale/denied states.
+No live or physical HA command was sent.
+
+Display setup/pairing, protected-photo grant/default-deny, action identity and
+revoke, board ticks/focus, lifecycle cases and actual message authorship have
+focused backend/browser evidence on feature-pushed source
+`d91436addb4a55f7b27ae27df549b173fa276fe7`.
+The compact four-screen review passes height 164px and one Today/Tomorrow/Next
+presentation without implicit week; appearance review used one permitted person
+and an explicit editable-board grant, so it is not proof of default permissions.
+At the earlier display-candidate checkpoint, the open/copy control still sat
+inside the pairing dialog. It was moved outside and passed targeted TypeScript
+and browser checks in the later `d91436a` checkpoint noted above. No display
+candidate is public evidence yet.
+
+Operational helper draft fixes passed static review only. The first isolated
+restore attempt failed safely before migration on the deliberately pre-existing
+`NOT VALID` constraint `ai_rate_snapshots_nonnegative_rates`; cleanup was
+verified (128 foreign keys, one canonical unvalidated check constraint, 0 invalid
+indexes). Restore is not
+passing; no release operation has been executed. A later default Vite build again touched LAN-bound
+`dist`; root restored it from the exact R12 app image and confirmed all ten disk
+and LAN HTTP asset hashes against canonical `00ddc36`, plus existing LAN admin
+login, health and FamilyHub. Private restoration evidence is under
+`.local/m3/round13/c2-dist-restoration/`. No DB or public content changed; public
+and LAN runtime remain R12. Route intermediate builds to `/tmp`.
 
 ## Local candidate UI and browser checkpoints — 2026-10-16
 
@@ -75,12 +122,14 @@ test are included in the candidate evidence. Root reviewed four actual images
 and the mobile four/three-item/form behavior; this is bounded candidate
 acceptance, not full app QA.
 
+This was an earlier local candidate checkpoint; newer accepted media evidence
+and the current frontend status are recorded in the current snapshot below.
 The guide pages have six actual local-browser screenshots under
 `.local/m3/round13/public-pages-browser/` (three anonymous pages × mobile-light
 and desktop-dark), reviewed against the candidate. This makes no public HTTPS
 or deployed-page claim. Media frontend checks in `frontend-media-*.log` report
-109 tests/check/build pass, while browser authorization and playback review is
-still underway.
+109 tests/check/build pass. Browser authorization and playback review passed
+on the synthetic candidate; full deployment/restore remain open.
 
 Operational correction: an intermediate default Vite build wrote to the
 LAN-bound `dist`. Root restored all 10 R12 assets from the immutable R12 image,
@@ -90,8 +139,9 @@ future intermediate builds must use a `/tmp` output directory; do not build to
 the LAN-bound `dist`.
 
 None of these candidate checkpoints updates public or LAN deployments: both
-remain R12. Shared Home/display UI, media browser review, public contact
-initialization, full target QA, backup/restore and release gate remain open.
+remain R12. This earlier checkpoint's open review items are superseded by the
+current verified snapshot above; backup/restore, release gate and public
+deployment remain open.
 
 ## Home day, source-catalog and candidate UI checkpoint — 2026-10-16
 
@@ -100,8 +150,8 @@ and frontend checkpoint `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are pushed.
 The frontend spans 14 files for birthdays, day/week/next, school and source
 catalog. Home/all-day backend evidence is 23/23: five all-day tests, eight
 catalog, five display and five Home, with API/contracts checks passing.
-`.local/m3/round13/all-day-strong-final.log` records the run; the older all-day query fails four
-red counterfactuals. The backend change is frozen pending root review.
+`.local/m3/round13/all-day-strong-final.log` records the run; the older all-day
+query fails four red counterfactuals. Later full-QA evidence is recorded above.
 
 Frontend web validation reports 117 tests/check/tmpbuild. Root browser checks
 cover life 503, empty 200 and clear 403 behavior. Seven source-built viewport/
@@ -111,11 +161,14 @@ Root verified the built snapshot is equivalent to frontend commit 943bd63
 across 256 runtime files. This remains candidate evidence, not full visual or
 integrated acceptance.
 
-Small follow-ups remain for local-date person-future presentation and school
-provenance disclosure; C2 presentation metadata/font, HA/display UI, integrated
-reviews, canonical14, restore, release gate and public deployment remain open.
-Public and LAN runtimes remain R12. No live Google/Microsoft verification or
-new HA action is claimed.
+The prior local-date person-future presentation, school-provenance disclosure
+and C2 presentation metadata/font follow-ups have since been completed. Saved
+school-task activation still requires a real `household.manage` session and a
+safe audited task update; do not impersonate, copy tasks, call AI, or alter
+approval/schedule state. HA/display UI and display final browser/type review,
+canonical14, restore, release gate and public deployment remain open. Public
+and LAN runtimes remain R12. No live Google/Microsoft verification or new HA
+action is claimed.
 
 ## Guides 037 backend and documentation checkpoint — 2026-10-16
 

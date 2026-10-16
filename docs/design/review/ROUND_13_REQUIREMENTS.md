@@ -6,8 +6,9 @@ the current goal.** T1–T3 are the first implementation package within R13-10;
 they are not the whole goal. The other requirements remain active and must be
 implemented or explicitly resolved before the goal is complete.
 
-This document records requirements and initial status only. It does not claim
-new implementation, tests, screenshots, backup/restore, or deployment.
+The matrix below is the current status snapshot. Historical dated checkpoints
+remain useful as evidence for their time, but do not override the current rows.
+No status here implies public deployment unless explicitly stated.
 
 ## Acceptance and evidence matrix
 
@@ -18,19 +19,47 @@ without inventing them.
 
 | ID | Granular acceptance criteria | Implemented | Synthetic evidence | Public evidence | Owner-blocked |
 |---|---|---|---|---|---|
-| R13-01 Agent operations | Record actual agent/model choices and reasoning settings; do not estimate costs without verified pricing; use local runners and durable checkpoints/status; sequence writers on shared files; keep reviews bounded to their roles. | Model selections and resumable checkpoints are recorded in ROUND_13_STATUS; no cost estimates. | Local runner checkpoints recorded. | N/A. | No. Main-agent model/cost remains unasserted. |
-| R13-02 Preservation | Preserve current user data, vault, AI tasks/schedules, root Git metadata and LAN admin/runtime. No reseed, reset, disk work, broad cleanup or loss of newer owner writes. Keep secrets/private data out of artifacts. | R12 data/vault baseline preserved; main verified 229 protected root Git hashes unchanged at display-message checkpoint. No new full database backup/restore gate yet. | Isolated Compose runners; no QA/public reset. | R12 only; public runtime unchanged. | No. Disk work is already complete; do not repeat it. |
-| R13-03 Day overview and birthdays | Show today's/tomorrow's day overview in household local time; birthdays due today/tomorrow with subtle balloons; honor reduced-motion; support multiple birthdays; never infer age. Midnight changes update without forced reload. | Birthday/day DTO and all-day boundary backend implemented and focused-tested. Home UI is integrated in the feature candidate; follow-up review remains open. | Home/all-day 23/23 suite includes five all-day, eight source-catalog, five display and five Home tests; API/contracts checks pass. `.local/m3/round13/all-day-strong-final.log`; previous query fails four red counterfactuals. | R12 calendar preview/details only; no R13 public deployment. | No. |
-| R13-04 People, week and school items | Person-card preview contains only today/tomorrow items; person details keep all fetched future activities in chronological date groups. Quiet cards do not repeat empty messages or redundant CTAs. Provide current/next-week views with paging and optional exactly one explicitly selected next event. School results appear only on actual actionable subject/person cards; expire at a known school end time on that relevant day, otherwise at 13:00 on the relevant date in the household timezone; future preparations use their own dates; unchanged source cannot resurrect expired items; details/history remain available; results stay off family table; presentation/subject edits make no AI calls. Card heights reflect content and empty/error states are honest. | Bounded Home chronology, school metadata and display week/next/person/saved-school ACL chronology backend implemented. Candidate birthday/day/week/next/school UI has focused web/browser and seven-layout evidence; small local-date person-future and school-provenance follow-ups remain. C2 metadata/font and complete UX acceptance remain open. | Frontend `943bd63c3a2eb23b938ad339a77fbe0546119ac5` (14 files), 117 web tests/check/tmpbuild; browser life 503, empty 200 and clear 403 cases; seven source-built viewport/theme layouts reviewed with passing bounds log. Backend/API evidence as R13-03. | R12 calendar preview/details only; no R13 public UI. | No. Fallback is 13:00 on the relevant date, not a school-year end or “13th day.” |
-| R13-05 Waste | Remove separate Next Waste surface. Preserve waste icons in the day overview and existing import. Any optional next-event card is one selected event under R13-04, not a dedicated waste widget. | R12 baseline has waste-purpose import/day-plan support; requested removal is unimplemented. | No new evidence. | R12 baseline only. | No. |
-| R13-06 Display identity/configuration | Open/copy addresses for existing display pairings without exposing URL secrets; pair a new device; revoke any device independently. Reuse one selected display setup for multiple individually revocable devices without silently duplicating configuration. Family layout is independent of external-data opt-in; layout selections never grant read access. Per-display preview includes cards, order, people, sources, temperature, background, theme, language and actions. Server enforces projection ACL; protected images/caches cannot leak across displays or revocation. | Backend policy GET and read-only previews filtered by the real device's grants are implemented, including protected media/photo projections, draft filters, bounded new-message cards and ACL-filtered device/person/school chronology. Display setup/preview UI/browser remains open. | Migration 036 and 42/42 combined backend evidence above; display-board policy projection focused tests 6/6 pass (`display-board-policy-focused.log`). | R12 ACL baseline only; no R13 display UI/public verification. | No. |
-| R13-07 Permissions | Read-only is default. Optional message creation uses the real stored display author identity and never impersonates a member; recipient scope remains restricted. Grocery, dinner, photo and HA grants are separate. Display writes require an explicit capability. Enforce all grants server-side. | Display authorship, per-device recipient/action policy, history, revocation and replay boundaries implemented in backend; UI and public verification open. | Final combined backend checkpoint 42/42 pass, zero failures/skips/cancellations; bounded findings closed. | No R13 public evidence. | No. |
-| R13-08 Messages and media | Message author/avatar is clear; handwritten body remains readable; emoji render; match reference `23_52`; keep Samvev identity and no family footer. Private background upload/reset works. Shared album has slow loop, pause/interval controls, mobile orientation behavior, resized uploads, quotas, GPS metadata removal, backup/restore, deletion and current-ACL checks. | Persisted display authors and private media/background backend implemented. Frontend 109 tests/check/build pass; root browser authorization/playback review remains underway; full UI, second restore and public acceptance open. | Media 10 focused tests plus API 4 pass; deterministic authorization/quota/lock regressions and typechecks pass; frontend checks in `frontend-media-*.log`. | No R13 public evidence. | No. |
-| R13-09 Grocery and dinner | Concurrent durable grocery add/check/undo/delete works for authorized household members. Dated dinner entries support emoji and prevent duplicates. Display can write only with explicit display grant. | Native grocery/dinner backend plus candidate UI has bounded local browser evidence; full integrated UI and QA remain open. | Isolated browser evidence under `.local/m3/round13/boards-browser/`: grocery add/check/uncheck, two-page sync, dinner assignment/reload, option delete/snapshot clear, stale 503/clear 403 and mobile hit-test; six fictional people. Real HTTP uncovered unavailable `crypto.randomUUID`; secure `getRandomValues` UUID fallback and regression added. | No R13 public evidence. | No. |
-| R13-10 Home Assistant and T1–T3 | Only selected temperature/light/garage commands run through backend allowlists. Grants are person/display-specific; state freshness/errors are visible; garage requires confirmation. Do not auto-test physical commands or queue offline commands. Shelly communicates through HA. Additionally satisfy T1–T3 below. | T1–T3 and selected, explicit-grant HA light/garage backend implemented; UI and physical owner verification remain open. | HA focused migration/API/contracts and 3 synthetic tests; Display 036 expiry/filter regressions; final combined backend checkpoint 42/42 pass, zero failures/skips/cancellations, isolated runner actual exit 0 in 81.8 seconds. | R12 read-only baseline. Current public state has one existing HA connection; preserve it and do not ask for a generic reconnect. | Live consent is separate; no secret is needed for isolated fixes. |
+| R13-01 Agent operations | Record actual agent/model choices and reasoning settings; do not estimate costs without verified pricing; use local runners and durable checkpoints/status; sequence writers on shared files; keep reviews bounded to their roles. | Economical writers used `gpt-6-luna/high`; bounded security/operations reviewers used `gpt-6.1-sol/high`. Coordinator model and costs are unasserted. | Checkpoints and exact synthetic evidence paths in ROUND_13_STATUS; no cost estimates. | N/A. | No. |
+| R13-02 Preservation | Preserve current user data, vault, AI tasks/schedules, root Git metadata and LAN admin/runtime. No reseed, reset, disk work, broad cleanup or loss of newer owner writes. Keep secrets/private data out of artifacts. | Data, vault, schedules, protected root Git and R12 public/LAN runtime preserved. Two accidental default Vite output incidents were restored and hash-checked against R12; no DB/public change. Future builds go to `/tmp`. | R12 asset restoration and health/admin/FamilyHub evidence summarized in ROUND_13_STATUS; no data reset. Restore gate still open. | R12 only; public and LAN unchanged. | No. Disk work is complete; do not repeat. |
+| R13-03 Day overview and birthdays | Show today's/tomorrow's day overview in household local time; birthdays due today/tomorrow with subtle balloons; honor reduced-motion; support multiple birthdays; never infer age. Midnight changes update without forced reload. | Birthday/day UI and all-day boundary backend implemented; source-built Home layouts reviewed. | Home/all-day 23/23 (five all-day, eight source-catalog, five display, five Home), API/contracts pass; `.local/m3/round13/all-day-strong-final.log`; old query fails four red counterfactuals. Full QA snapshot and seven Home layouts; no birthday age inference. | R12 only; no R13 public deployment. | No. |
+| R13-04 People, week and school items | Person-card preview contains only today/tomorrow items; person details keep all fetched future activities in chronological date groups. Quiet cards do not repeat empty messages or redundant CTAs. Provide current/next-week views with paging and optional exactly one explicitly selected next event. School results appear only on actual actionable subject/person cards; expire at known school end time on that relevant day, otherwise at 13:00 local on the relevant date; future preparations use their own dates; unchanged source cannot resurrect expired items; details/history remain available; results stay off family table; presentation/subject edits make no AI calls. Honest card heights/empty/error states. | Candidate UI and backend evidence current; local-date person-future, school provenance and C2 presentation metadata/font follow-ups are complete. Existing saved school tasks still need safe classification/activation from actual task origin and subjects under a real `household.manage` session; no impersonation, copies, AI calls, approval or schedule mutation. | Home layout/bounds and browser evidence; all-day focused suite/API checks as R13-03. Activation is not claimed live. | No R13 public UI; R12 preview/details only. | Authorized household session required for existing-task activation; never impersonate. |
+| R13-05 Waste | Remove separate Next Waste surface. Preserve waste icons in the day overview and existing import. Any optional next-event card is one selected event under R13-04, not a dedicated waste widget. | Separate surface removed; day overview waste icons and existing import retained in candidate. | Included in candidate/full QA snapshot; no separate test count claimed. | R12 only. | No. |
+| R13-06 Display identity/configuration | Open/copy addresses for existing display pairings without exposing URL secrets; pair a new device; revoke any device independently. Reuse one selected display setup for multiple individually revocable devices without silently duplicating configuration. Family layout is independent of external-data opt-in; layout selections never grant read access. Per-display preview includes cards, order, people, sources, temperature, background, theme, language and actions. Enforce projection ACL and prevent protected-image/cache leaks across displays/revocation. | Backend and setup/pairing/profile UI implemented in DCO-signed feature source `d91436addb4a55f7b27ae27df549b173fa276fe7`. Open/copy now appears outside the pairing dialog; root reviewed and accepted the desktop address screenshot. | Focused display 5/5; setup/pair/default-deny, explicit grants, actual identity/revoke, six board ticks/focus, compact four-screen review. Latest web TypeScript and address2 browser pass; the 468 full-QA run predates the header adjustment. | R12 only; no R13 display deployment or capture. | No. |
+| R13-07 Permissions | Read-only is default. Optional message creation uses real stored display author identity, never member impersonation; recipients restricted. Grocery, dinner, photo and HA grants separate. Display writes need explicit capability, enforced server-side. | Display authorization, persisted author, grants/revocation and explicit action paths implemented and browser/API exercised. | Actual allowed-recipient POST 201 stores display author name and null person ID; revoke removes composer. Six-case composer lifecycle browser evidence; full QA snapshot below. | No R13 public evidence. | No. |
+| R13-08 Messages and media | Message author/avatar clear; handwritten body readable; emoji render; match reference `23_52`; Samvev identity, no family footer. Private background upload/reset. Shared album slow loop/pause, mobile orientation, resizing/quotas/GPS strip, backup/restore, deletion and ACL. | Media frontend and local browser authorization/playback acceptance passed on synthetic fixture. Backup/restore and public acceptance remain open. | 109 frontend checks plus actual album upload/preview/reload, sharing/revocation, playback/pause and background apply/reset reviewed. | No R13 public evidence. | No. |
+| R13-09 Grocery and dinner | Concurrent durable grocery add/check/undo/delete works for authorized household members. Dated dinner entries support emoji and prevent duplicates. Display can write only with explicit display grant. | Native grocery/dinner backend and candidate UI have bounded browser acceptance; full QA snapshot passes, while integrated release/public acceptance remains open. | Isolated browser evidence under `.local/m3/round13/boards-browser/`: grocery add/check/uncheck, two-page sync, dinner assignment/reload, option delete/snapshot clear, stale 503/clear 403 and mobile hit-test; six fictional people. Real HTTP uncovered unavailable `crypto.randomUUID`; secure `getRandomValues` UUID fallback and regression added. | No R13 public evidence. | No. |
+| R13-10 Home Assistant and T1–T3 | Only selected temperature/light/garage commands run through backend allowlists. Person/display-specific grants; state freshness/errors visible; garage confirmation; no auto-test of physical commands/offline queue; Shelly via HA. Additionally satisfy T1–T3. | T1–T3, explicit selected HA controls and UI implemented; source `5b39d4375ff8373657f5bfd3492fa52e842326ea` DCO-signed/pushed. No live/physical action performed. | Credential-lease serialization 10 focused tests; actual synthetic-transport browser checks and five viewed images; full QA below. | R12 read-only baseline; existing public HA connection preserved; no R13 public controls. | No owner authority needed for synthetic tests; live operations remain separate. |
 | R13-11 Public information pages | Anonymous `/om`, `/personvern`, `/vilkar`; content accurately describes data flows/privacy and verified operator/contact; discreet login/help, no family footer. Google Pages authoring remains a separate backlog task. | Candidate includes anonymous DTO, safe runtime config path, page routing/content and copy/login/help links. Private contact values are not initialized publicly. Keep actual values out of Git. | guides037 web checks: 100 tests/build exit 0; six local candidate screenshots under `.local/m3/round13/public-pages-browser/` cover three pages in mobile-light and desktop-dark, reviewed locally. | Public runtime remains R12; no R13 public HTTPS/visual verification. | No; content work is not blocked, private values stay out of Git. |
 | R13-12 Google and Microsoft setup | Google guide has five steps covering API/client/callback/Branding/Audience/connection; uses current official docs; states scope of testing vs publishing vs verification; includes exact Branding table and missing owner fields. Microsoft distinguishes installation-owner directory/app registration from calendar-account authorization; supports personal and work accounts; does not guess account-lock cause; cites current free eligibility; never creates an organization. | Google and Microsoft guides and administrator UI implemented; external owner registration/consent, integrated browser checks and live provider verification remain open. | guides037 web checks: 100 tests/build exit 0; five provider-focused checks pass. | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not characterize it as revoked. No live provider verification. | Owner registration/consent may be required for live validation, but guide work is not blocked. |
-| R13-13 Traceability, QA and release | Keep this implemented/synthetic/public/owner-blocked matrix current. Use fictional people/data and local runner. Run meaningful full-target tests, backup/restore and review. Release gate runs last. Public test deployment is authorized. DCO-sign feature-only delivery. No PR, merge, main/force push, tag/release or Actions dispatch. Report files, tests, risks, migration/rollback, screenshots and data/secret hygiene. | Current status and checkpoint evidence are registered; complete target QA, backup/restore, release gate and deployment remain open. | Temperature/Home/display suites are checkpoint evidence only; full retest remains open. | R12 evidence is historical; no R13 deployment. | No, except explicit live provider consent. |
+| R13-13 Traceability, QA and release | Maintain this matrix; synthetic local data; full-target QA, backup/restore, release gate last; feature-only DCO delivery. No PR/merge/main/force push/tag/release/Actions. Report risks/migrations/screenshots/privacy. | Full current QA passes; operations restore/release gate, canonical14 and public deployment/verification remain open. | `.local/m3/round13/qa-final.log`: web141 + contracts5 + core3 + API319 = 468, zero failures; workspace TypeScript checks pass; source proof 308 input hashes. Worker tests discovered 0; no worker behavior coverage claimed. | R12 only; no R13 deployment. | No, except external provider consent. |
+
+## Current verified snapshot — 2026-10-16
+
+The frozen QA snapshot passed 468 tests (web 141, contracts 5, core 3, API
+319), zero failures, with all workspace TypeScript checks passing. Its source
+proof contains 308 inputs; worker tests discovered zero, so no worker behavior
+coverage is claimed. Full QA does not substitute for restore, canonical14,
+release gate or deployment.
+
+After the QA snapshot, display source `d91436addb4a55f7b27ae27df549b173fa276fe7`
+was DCO-signed and feature-pushed. Root confirmed the 17 source inputs match the
+pin. Latest web TypeScript and actual-address browser checks pass, but one
+desktop address screenshot was reviewed and accepted. This targeted follow-up is not
+a rerun of the 468-test suite. Public and LAN runtime remain R12.
+
+HA source `5b39d4375ff8373657f5bfd3492fa52e842326ea` is DCO-signed/pushed; ten
+serialization tests and synthetic-transport UI checks pass. Media browser
+authorization/playback was accepted on the isolated fictional fixture. Saved
+school-task activation remains pending a real authorized `household.manage`
+session, using task origin/subject without impersonation, copied tasks, AI calls
+or changes to approvals/schedules. Operations-helper changes passed static
+review only. The first isolated restore attempt failed safely before migration
+on the deliberately pre-existing `NOT VALID` constraint
+`ai_rate_snapshots_nonnegative_rates`; cleanup was verified. Invalid indexes:
+128 foreign keys; one canonical unvalidated check constraint; 0 invalid indexes.
+This is a restore-gate finding, not a passing
+restore. No release operation has been run. Contact values are confirmed
+privately and remain absent from Git and public initialization.
 
 ## First implementation package: temperature T1–T3
 
@@ -81,17 +110,18 @@ checkpointed changes. The two guest disk expansions are complete; no disk job is
 authorized. Preserve root Git, existing LAN admin, data, photos, vault,
 sensor/calendar choices and AI schedules.
 
-## Current checkpoint — local backend only
+## Historical guides037 backend checkpoint — superseded by current snapshot above
 
-Publisher/origin checkpoint `a887028a4344ebb33b828d44e6a4fa3b44ec90da` contains
-T1–T3, Home and display setup/messages packages A+B. Display package B is DCO
-signed/pushed. The latest independent combined backend checkpoint passed 52/52
+At this earlier checkpoint, publisher/origin `a887028a4344ebb33b828d44e6a4fa3b44ec90da`
+contained T1–T3, Home and display setup/messages packages A+B. Display package B
+was DCO signed/pushed. The guides037 combined backend checkpoint passed 52/52
 with zero failures/skips/cancellations; see
 `.local/m3/round13/backend-guides-checkpoint.log` (isolated runner, actual exit
 0, 101.5 seconds). Earlier narrower checkpoints remain historical. This is not
 full QA, release-gate or public evidence. Round 12 remains the deployed public
-source. HA physical controls, shared Home/display UI, media browser review,
-full visual QA, restore and public verification remain open. See the current
+source. Later Home, media, HA and display evidence is recorded in the current
+snapshot/status above. Full restore, release gate and public verification remain
+open. See the current
 status table in
 `ROUND_13_STATUS.md`.
 
@@ -106,9 +136,9 @@ visual QA, backup/restore or release acceptance.
 
 Native boards A browser evidence and guides037 local page captures are detailed
 in `ROUND_13_STATUS.md`. These are synthetic candidate evidence, not public
-deployment tests. Media frontend checks pass 109 tests/check/build, but its
-actual browser authorization/playback review remains open. Candidate work is an
-uncommitted overlay on `8e3440a`, not canonical or public source.
+deployment tests. This historical note predates completed media browser
+authorization/playback acceptance and later feature-source pushes; the early
+`8e3440a` overlay is not current source identity.
 
 An intermediate default Vite build touched the LAN-bound `dist`; root restored
 all ten R12 assets from the immutable R12 image and byte-checked them against
@@ -117,36 +147,38 @@ FamilyHub were verified, and no application data changed. Future intermediate
 builds must direct output to `/tmp`, never LAN-bound `dist`. Public and LAN
 deployments remain R12.
 
-### Home backend evidence checkpoint
+### Historical Home backend evidence checkpoint
 
 R13 birthday/week/school backend is locally implemented and synthetically tested
 (15 passing focused/regression tests; API typecheck pass). Four bounded review
-findings were fixed and re-reviewed. Later Home day/source-catalog work and
-candidate UI evidence are recorded below; final Home UI review and public
-verification remain open.
+findings were fixed and re-reviewed. Later Home day/source-catalog work,
+candidate UI and full synthetic QA are recorded below and in the current
+snapshot; saved-school activation and public verification remain open.
 Evidence: `.local/m3/round13/home-focused-tests.log` and `home-api-check.log`.
 No completion claim applies to the full birthday, school or chronology UX yet.
 
-### Home day/source-catalog checkpoint — 2026-10-16
+### Home day/source-catalog checkpoint — 2026-10-16 (initial candidate snapshot)
 
 Source-catalog/API checkpoint `bb7255ccc023ef1f474f1c2632fb05e3718f93c1` and
 frontend checkpoint `943bd63c3a2eb23b938ad339a77fbe0546119ac5` are pushed.
 Home/all-day evidence is 23/23 (five all-day, eight catalog, five display, five
 Home) plus API/contracts checks in
-`.local/m3/round13/all-day-strong-final.log`. The previous
-all-day query fails four red counterfactuals. The backend is implemented and
-tested; root review remains pending.
+`.local/m3/round13/all-day-strong-final.log`. The previous all-day query fails
+four red counterfactuals. The backend is implemented and tested; later full-QA
+and focused visual evidence is captured in the current snapshot above.
 
 Frontend spans 14 files and reports 117 web tests/check/tmpbuild. Synthetic
 browser checks cover life 503, empty 200 and clear 403. Seven source-built
 viewport/theme layouts were root-reviewed; `.local/m3/round13/home-browser/layout.log`
 records passing bounds, and no CSS injection was found. Root confirmed the
 built snapshot equivalent to commit 943bd63 across 256 runtime files. The
-candidate still needs small local-date person-future and school-provenance
-follow-ups; C2 metadata/font, HA/display UI, integrated review and full QA remain
-open. Public and LAN deployments remain R12.
+Previously open local-date person-future, school-provenance and C2
+metadata/font follow-ups are complete. Saved school task activation still needs
+an authorized `household.manage` session and safe classification; integrated
+release review, restore and public deployment remain open. Public and LAN
+deployments remain R12.
 
-### Display setup backend checkpoint
+### Historical Display setup backend checkpoint
 
 Reusable setup selection and actual device permissions are separate. Migration
 029 preserves old devices and legacy inserts; new pairings copy no device grants.
@@ -156,7 +188,7 @@ These include strengthened existing tests, not nine newly created test cases.
 Display UI, real-browser cookie checks, author/actions and public verification
 remain open. See ROUND_13_STATUS.md for exact evidence.
 
-### Display actions/backend integration evidence checkpoint
+### Historical Display actions/backend integration evidence checkpoint
 
 R13-07 display-authored messages, explicit per-device recipient/action policy,
 author history and revocation/replay boundaries are locally implemented and
