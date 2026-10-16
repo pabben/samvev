@@ -178,6 +178,15 @@ export const displayActionPolicyUpdateSchema = z.object({
   displayIds: z.array(uuidSchema).max(50).refine((value) => new Set(value).size === value.length, 'duplicate_display')
 }).strict();
 
+const boardRequestKey = z.string().min(8).max(128);
+export const groceryCreateSchema = z.object({ label: z.string().trim().min(1).max(120), checked: z.boolean(), requestKey: boardRequestKey }).strict();
+export const groceryUpdateSchema = z.object({ label: z.string().trim().min(1).max(120).optional(), checked: z.boolean().optional(), expectedRevision: z.number().int().positive(), requestKey: boardRequestKey }).strict().refine((value)=>value.label!==undefined||value.checked!==undefined,'grocery_change_required');
+export const groceryDeleteSchema = z.object({ expectedRevision: z.number().int().positive(), requestKey: boardRequestKey }).strict();
+export const dinnerOptionCreateSchema = z.object({ title: z.string().trim().min(1).max(80), emoji: z.string().trim().min(1).max(16), requestKey: boardRequestKey }).strict();
+export const dinnerOptionUpdateSchema = z.object({ title: z.string().trim().min(1).max(80).optional(), emoji: z.string().trim().min(1).max(16).optional(), expectedRevision: z.number().int().positive(), requestKey: boardRequestKey }).strict().refine((value)=>value.title!==undefined||value.emoji!==undefined,'dinner_option_change_required');
+export const dinnerAssignmentSchema = z.object({ optionId: uuidSchema.nullable(), expectedRevision: z.number().int().nonnegative(), requestKey: boardRequestKey }).strict();
+export const displayBoardReadGrantSchema = z.object({ expectedRevision: z.number().int().positive(), groceryRead: z.boolean(), dinnerRead: z.boolean() }).strict();
+
 export const pairingStartSchema = z.object({ verifierHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const pairingApproveSchema = z.object({
   code: z.string().regex(/^\d{6}$/), name: nameSchema, locale: localeSchema.optional(), theme: themeSchema.optional(),

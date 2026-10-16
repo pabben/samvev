@@ -1,21 +1,25 @@
 # Round 13 status — all active requirements registered
 
-Updated: 2026-10-15
+Updated: 2026-10-16
 Goal: complete all 13 owner-request areas recorded in
 `ROUND_13_REQUIREMENTS.md` and `REQUEST_LEDGER.md`.
-Phase: temperature backend package implemented and locally tested; remaining packages active.
-First implementation package: Home Assistant temperature fixes T1–T3 under
-R13-10. These are not the full goal.
+Phase: temperature, Home, display setup and display-message backend checkpoints
+are implemented and locally tested/reviewed; frontend integration, media,
+Home Assistant controls, public pages/provider wizards, full visual/QA/release
+and public verification remain open. All 13 areas remain active.
 
 ## Baseline snapshot and preservation warning
 
-- Canonical publisher Git HEAD is `df04e82`; root Git HEAD `390f6a6` is
-  intentionally stale. Do not mistake the checkout metadata difference for a
-  source conflict, recreate published work, or send every agent to rediscover a
-  false worktree conflict.
-- At the start of this round, all 246 working runtime source files independently matched publisher/deployed
-  source `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`. R13 runtime changes now exist in the root worktree; publisher remains the baseline. Root Git status is historically dirty, not new R13
-  work. Recheck the match only after actual runtime edits.
+- Current publisher/origin checkpoint is
+  `a887028a4344ebb33b828d44e6a4fa3b44ec90da`, containing temperature, Home and
+  display packages A+B. Root Git HEAD `390f6a6` is intentionally stale metadata;
+  do not mistake it for a source conflict, recreate checkpointed work, or ask
+  every agent to rediscover a false worktree conflict. The earlier `df04e82` /
+  deployed R12 source was superseded by this R13 feature checkpoint.
+- At the start of this round, all 246 runtime files matched deployed R12 source
+  `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`. Newer R13 runtime changes have
+  since been committed/pushed to the feature branch. Root Git status remains
+  historically dirty; do not treat it as proof of new uncommitted work.
 - R12 source: `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`; review:
   `fb9998b83ac1d7962edc05747d7982a99f18fcd5`; image:
   `sha256:baa1c70f781ae887a791e52c120a674384f1b9737a6093aee2d1785aa0806a02`;
@@ -34,37 +38,39 @@ R13-10. These are not the full goal.
 
 | ID | Active requirement area | Implemented | Synthetic | Public | Owner-blocked |
 |---|---|---|---|---|---|
-| R13-01 | Agent economy and durable status | Registration only | N/A | N/A | No |
-| R13-02 | Data/environment preservation | R12 baseline only | No new check | R12 only | No |
-| R13-03 | Day overview and birthdays | Household-local calendar preview baseline; existing saved birthday matches owner-reported month/day and household birthday setting is enabled. New presentation open. | No new check | R12 calendar only | No |
-| R13-04 | People, week and school cards | Calendar preview/details baseline only | No new check | R12 only | No |
-| R13-05 | Waste consolidation | Import/day-plan baseline only; removal open | No new check | R12 only | No |
-| R13-06 | Display identity/configuration and per-display projection | No new evidence | No new evidence | R12 ACL paths only | No |
-| R13-07 | Permissions and real display author identity | No new evidence | No new evidence | No new evidence | No |
-| R13-08 | Messages, private background and shared album | No new evidence | No new evidence | No new evidence | No |
-| R13-09 | Durable groceries and dated dinners | No new evidence | No new evidence | No new evidence | No |
-| R13-10 | Home Assistant controls and T1–T3 | Read-only temperature baseline only | No R13 evidence | R12 baseline; one existing public HA connection must be preserved | No for isolated fixes; real provider consent is separate |
-| R13-11 | Anonymous public information pages | No new evidence | No new evidence | Test origin only | Yes: verified operator/contact facts missing |
-| R13-12 | Google/Microsoft setup | No new evidence | No new evidence | One existing Google connection is disconnected; no live provider verification | Live registration/consent may be owner-dependent |
-| R13-13 | Matrix, QA, backup/restore and feature delivery | Registration only | No R13 evidence | R12 historical only | No, aside from facts/consent above |
+| R13-01 | Agent economy and durable status | Active status/checkpoint practice recorded; no cost estimates | N/A | N/A | No |
+| R13-02 | Data/environment preservation | Checkpoint preserved baseline; 229 protected root Git hashes independently unchanged at display-message checkpoint | Isolated synthetic runs only | Public R12 runtime remains unchanged | No |
+| R13-03 | Day overview and birthdays | Birthday/day DTO backend locally implemented; UI celebration/reduced motion and complete display acceptance remain open | 15 focused Home tests and API check pass | R12 only | No |
+| R13-04 | People, week and school cards | Bounded Home chronology and school metadata backend implemented; full card/week/school experience remains open | 15 focused Home tests and API check pass | R12 preview/details only | No |
+| R13-05 | Waste consolidation | Import/day-plan baseline only; remove separate Next Waste surface remains open | No new evidence | R12 only | No |
+| R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, server-filtered projections and authority rechecks implemented; UI/browser/config preview remain open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4 and Round 9 5/5; bounded review closed | R12 ACL baseline only | No |
+| R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Combined backend suite 20/20; bounded findings closed | No R13 public evidence | No |
+| R13-08 | Messages, private background and shared album | Display-authored message backend is implemented; handwritten/emoji UI, backgrounds and album/media lifecycle remain open | Covered in 20/20 combined backend suite only where noted | No R13 public evidence | No |
+| R13-09 | Durable groceries and dated dinners | Native backend, revisions/tombstones, snapshots and independent display grants implemented; UI remains open | Focused integration and API/contracts checks pass; lock-expiry review findings closed | No R13 public evidence | No |
+| R13-10 | Home Assistant controls and T1–T3 | T1–T3 backend implemented; HA light/garage actions remain open | Temperature: 7 new +16 existing focused regressions; included in 20/20 backend suite; checks pass | R12 read-only baseline; preserve the existing public HA connection | No for isolated work; live consent is separate |
+| R13-11 | Anonymous public information pages | Contact values confirmed privately; runtime config and pages pending | No new evidence | Test origin only; no R13 page verification | No for content preparation; private values must not enter Git |
+| R13-12 | Google/Microsoft setup | Guides/wizards remain open | No new evidence | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not call it revoked. No live provider verification. | Registration/consent may be needed for live verification; guide work is not blocked |
+| R13-13 | Matrix, QA, backup/restore and feature delivery | Status is updated; full-target QA, recovery, release gate and public rollout remain open | Checkpoints documented; full retest not yet complete | Round 12 remains deployed; R13 public verification absent | No, except explicitly noted live provider consent |
 
 Full acceptance criteria and evidence distinctions are in
-`ROUND_13_REQUIREMENTS.md`. None of the new criteria is complete by this
-registration. R12 baseline only receives credit for behavior it directly
-reports; it does not satisfy newly requested additions.
+`ROUND_13_REQUIREMENTS.md`. R12 baseline receives credit only for behavior it
+directly reports; it does not satisfy newly requested additions. Local backend
+checkpoint status is reflected in the table above; it does not imply UI or
+public completion.
 
-Current public-state observations are aggregate only: a saved birthday matches
-the owner's reported month/day and the household birthday setting is enabled;
-one HA connection exists; one Google connection exists and is not currently connected (not revoked).
-No person names, dates, provider identifiers, calendar values or sensor values
-are recorded. Preserve those connections and state. Do not ask for a generic HA
-reconnect.
+Current owner/public-state observations are aggregate only: a saved birthday
+matches the owner's reported month/day and the household birthday setting is
+enabled; one existing HA connection must be preserved; one Google connection is
+not currently connected and has `disconnected_at` null (not revoked). No person
+names, dates, provider identifiers, calendar values or sensor values are
+recorded. Preserve state; do not ask for a generic HA reconnect or describe the
+Google connection as revoked.
 
 ## Resume sequence
 
 1. Continue the existing goal. Read the complete requirement matrix and active
-   mailbox before implementation. Keep all 13 areas in scope, including work
-   after the initial T1–T3 package.
+   mailbox. Keep all 13 areas in scope; temperature, Home and display backend
+   checkpoints are not goal completion.
 2. Preserve the root/publisher/deployed source relationship above. Do not create
    fictitious code conflicts from stale root Git metadata. Keep unrelated work
    intact.
@@ -73,11 +79,12 @@ reconnect.
    display identity/authorization review. The supplied model record for repo
    scout, requirements, architecture and UX is `gpt-6-luna` at medium/high/high/
    high. Do not guess the main model or model costs.
-4. Begin implementation with T1–T3, one writer at a time. Backend owns sensor
-   identity, OAuth recovery, polling, API projections and server authorization;
-   frontend work follows settled contracts. After that package, continue across
-   the remaining active R13 areas in `ROUND_13_REQUIREMENTS.md`. Never declare
-   the overall goal complete after temperature fixes alone.
+4. Continue with one writer at a time. T1–T3, Home birthday/week/school backend,
+   reusable display setup/projection, and display-message authorization have
+   documented local checkpoints. The next packages still need UI integration,
+   media/photo lifecycle, grocery/dinner, HA controls, public pages and Google/
+   Microsoft guides/wizards. Preserve their settled backend contracts and do not
+   claim frontend/public completion from backend tests.
 5. QA adds meaningful synthetic regressions and performs a complete applicable
    retest after confirmed fixes. Use fictional identities/data; keep owner-only
    consent and private data out of fixtures and public artifacts.
@@ -96,18 +103,19 @@ requirements are delivered or explicitly resolved.
 
 ## External facts and remaining evidence
 
-Only the public test origin `https://samvev.pabben.org/` is confirmed. At initial registration no
-verified operator name or privacy contact was found. The owner has since supplied
-confirmed public contact values privately; runtime configuration and pages are
-still pending and must use those values without putting them in Git. Provider registration,
-consent and source activation are separate from synthetic QA. These dependencies
-do not block isolated code work. No R13 tests, captures, backup/restore, build or
-deployment were run during requirements registration.
+The public test origin is `https://samvev.pabben.org/`. At initial registration
+operator/contact facts were unknown; the owner has since confirmed the required
+public contact values privately. Do not put those values in Git; runtime
+configuration and pages are still pending. Provider registration, consent and
+source activation remain separate from synthetic QA. No R13 tests, captures,
+backup/restore, build or deployment were run during the original requirements
+registration; later backend checkpoint evidence is recorded below.
 
-## Temperature checkpoint — 2026-10-15
+## Initial temperature checkpoint — 2026-10-15 (superseded)
 
-T1–T3 backend changes are implemented in the root runtime worktree, not yet
-committed, built for QA or publicly deployed. The publisher remains `df04e82`.
+At this checkpoint T1–T3 backend changes were in the root runtime worktree, not
+yet committed, built for QA or publicly deployed. They are now included in the
+current publisher/origin checkpoint recorded above.
 Additive migration 027 retains the HA origin binding. Main independently compared
 all old migrations 001–026 byte-for-byte with the publisher: unchanged.
 
@@ -130,8 +138,8 @@ physical HA action, public deployment or ordinary QA database change was made.
 Remaining temperature work: localized recovery explanations, integrated UI and
 SSE/revocation verification, complete final tests and public candidate validation.
 This checkpoint does not complete R13-10's separate HA-control requirements.
-Next sole writer: Home/birthday/week/school backend, after this package freezes.
-All other areas in the matrix remain active.
+Home and display backend checkpoints have since landed; all other remaining
+areas in the matrix remain active.
 
 ## Actual delegated model selections
 
@@ -167,9 +175,10 @@ closed four findings after repairs by the gpt-6-luna/high writer. No model calls
 real task changes, frontend rendering, screenshot capture or deployment were
 performed for this package. Frontend integration and full acceptance remain open.
 
-The next sequential writer is display13 (gpt-6-luna/high), for reusable display
-setups, device-specific pairing and server-filtered read projections. Other
-writers remain frozen. This checkpoint does not mark the overall round complete.
+At that historical checkpoint, display13 was the next sequential writer for
+reusable display setups, device-specific pairing and server-filtered projections.
+That backend work and its display-message follow-up are now recorded in the later
+checkpoint sections below. The overall round remains incomplete.
 
 ## Display setup backend checkpoint — 2026-10-15
 
@@ -244,3 +253,30 @@ Owner contact values have now been explicitly confirmed and stored in private
 installation preparation, not Git. Their runtime/public-page wiring remains
 pending; external Google/Microsoft console and consent steps are still separate
 owner actions. No secret or real household data was added to this checkpoint.
+
+## Native household boards checkpoint — 2026-10-16
+
+Additive migration 031 stores groceries, reusable dinner options and unique dated
+dinner snapshots independently of imported calendar items. All current household
+viewers, including child members, can edit; actual display devices require
+separate read grants, selected cards and explicit action permissions. Revisions,
+tombstones and actor-scoped idempotency protect concurrent edits and retries.
+Cleared dates retain revision metadata so reload followed by a new dinner works.
+
+The bounded stronger review found late session/device expiry during lock waits
+and an incomplete clear/reassign assertion. Both are corrected and reviewed:
+final transaction authority checks roll back expired writes/receipts/grant edits;
+tests use real database lock barriers and a newly selected dinner option. Focused
+integration plus API/contracts typechecks pass in the isolated local Compose
+runner (`.local/m3/round13/board-review-fixed.log`). Main inspected the critical
+code and assertions; migrations 001–030 remain byte-identical to the publisher.
+UI, integrated visual review and public deployment remain open. Native boards
+need a compatible reader after migration; do not remove their rows during image
+recovery or treat old images that omit them as complete feature rollback.
+
+Main independently reran the combined backend checkpoint on 2026-10-16:
+**21/21 pass**, no failures/skips/cancellations, isolated local Compose test runner.
+Evidence: `.local/m3/round13/backend-board-checkpoint.log` (actual exit 0).
+This includes native boards plus existing API, Round 9, display-message, Home
+and temperature regressions. Frontend/media/HA controls/pages/release remain open;
+public deployment is still R12.

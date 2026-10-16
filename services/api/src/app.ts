@@ -19,6 +19,7 @@ import {
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
   calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,
   temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
+  groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,dinnerOptionCreateSchema,dinnerOptionUpdateSchema,dinnerAssignmentSchema,displayBoardReadGrantSchema,
   integrationCapabilities,
   type Capability, type ErrorCode
 } from '@samvev/contracts';
@@ -44,6 +45,7 @@ import { liveE2eAttestation, liveE2eExecutionEvidence } from './e2e/live-e2e.ts'
 import { applyBrowserSecurityHeaders, browserSecurityHeaders } from './browser-security.ts';
 import { CalendarService,type CalendarTransport } from './calendar/service.ts';
 import { AiCredentialVault } from './ai/credential-vault.ts';
+import { HouseholdBoardService, type BoardActor, type BoardKind } from './household-board/service.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -721,6 +723,20 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
       WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.birth_date IS NOT NULL ORDER BY p.display_name,p.id`,[display.householdId,display.birthdayPersonIds,display.setupId,display.id])).rows:[];
   const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
   const upcomingBirthdays=label.rows[0]?.show_upcoming_birthday?birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday):[];
+  const boardGrant=(await pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])).rows[0];
+  const boardWeekEnd=dateOffset(localToday,6);
+  const groceries=(!display.privacyMode&&display.cards.includes('groceries')&&boardGrant?.grocery_read)
+    ?(await pool.query(`SELECT item.id,item.label,item.checked,item.revision FROM household_grocery_items item WHERE item.household_id=$1 AND item.deleted_at IS NULL
+      AND EXISTS(SELECT 1 FROM display_board_read_grants grant_row JOIN displays device ON device.id=grant_row.display_id AND device.household_id=grant_row.household_id
+        JOIN display_setups setup ON setup.id=device.setup_id AND setup.household_id=device.household_id WHERE grant_row.household_id=$1 AND grant_row.display_id=$2 AND grant_row.grocery_read AND device.privacy_mode=false AND setup.cards ? 'groceries')
+      ORDER BY item.created_at,item.id LIMIT 200`,[display.householdId,display.id])).rows:[];
+  const dinners=(!display.privacyMode&&display.cards.includes('dinners')&&boardGrant?.dinner_read)
+    ?(await pool.query(`SELECT assignment.id,assignment.local_date::text AS "localDate",CASE WHEN assignment.deleted_at IS NULL THEN assignment.title_snapshot ELSE NULL END AS title,
+      CASE WHEN assignment.deleted_at IS NULL THEN assignment.emoji_snapshot ELSE NULL END AS emoji,assignment.revision,(assignment.deleted_at IS NOT NULL) AS cleared FROM household_dinner_assignments assignment
+      WHERE assignment.household_id=$1 AND assignment.local_date BETWEEN $3::date AND $4::date
+        AND EXISTS(SELECT 1 FROM display_board_read_grants grant_row JOIN displays device ON device.id=grant_row.display_id AND device.household_id=grant_row.household_id
+          JOIN display_setups setup ON setup.id=device.setup_id AND setup.household_id=device.household_id WHERE grant_row.household_id=$1 AND grant_row.display_id=$2 AND grant_row.dinner_read AND device.privacy_mode=false AND setup.cards ? 'dinners')
+      ORDER BY assignment.local_date,assignment.id LIMIT 7`,[display.householdId,display.id,localToday,boardWeekEnd])).rows:[];
   return {
     display: {
       id: display.id, name: label.rows[0]?.display_name, householdName: label.rows[0]?.household_name,
@@ -734,7 +750,7 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
     familyLayout:{enabled:!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout'),
       people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:displayPhotoProjection(person.id,person.photo_revision)})),
       upcomingBirthdays},
-    cards,...(hub?{hub}:{}),serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
+    cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd},...(hub?{hub}:{}),serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
   };
 }
 
@@ -760,6 +776,17 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   await projectionEvents.start();
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
   app.addHook('preClose',async()=>projectionEvents.close());
+  const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{
+    const allowed=board==='groceries'?'grocery_read':'dinner_read';
+    const card=board;
+    const grant=(await client.query<{allowed:boolean;selected:boolean;privacy_mode:boolean}>(`SELECT read_grant.${allowed} AS allowed,
+      setup.cards ? $3 AS selected,display.privacy_mode FROM display_board_read_grants read_grant
+      JOIN displays display ON display.id=read_grant.display_id AND display.household_id=read_grant.household_id
+      JOIN display_setups setup ON setup.id=display.setup_id AND setup.household_id=display.household_id
+      WHERE read_grant.household_id=$1 AND read_grant.display_id=$2 FOR UPDATE OF read_grant,display,setup`,[actor.householdId,actor.id,card])).rows[0];
+    if(!grant||!grant.allowed||!grant.selected||grant.privacy_mode)throw new DomainError('FORBIDDEN',403,{reason:'display_board_read_not_granted'});
+    if(write&&!await lockDisplayAction(client,actor.householdId,actor.id,board==='groceries'?'grocery_write':'dinner_write'))throw new DomainError('FORBIDDEN',403,{reason:'display_action_not_granted'});
+  });
 
   app.addHook('onRequest', async (request) => {
     if (!isUnsafe(request.method)) return;
@@ -1363,6 +1390,96 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         targets:{household:message.audience_household,personIds:message.person_ids}
       })),serverNow:now.toISOString()
     };
+  });
+
+  const memberBoardActor=(auth:AuthContext):BoardActor=>({kind:'member',id:auth.accountId,accountId:auth.accountId,sessionId:auth.sessionId,membershipId:auth.membershipId,householdId:auth.householdId});
+  const displayBoardActor=(request:FastifyRequest,display:DisplayContext):Extract<BoardActor,{kind:'display'}>=>{
+    const token=request.cookies[DISPLAY_COOKIE];if(!token)throw new DomainError('UNAUTHENTICATED',401);
+    return{kind:'display',id:display.id,credentialHash:tokenHash(token),householdId:display.householdId};
+  };
+  const householdBoardMemberAuth=async(request:FastifyRequest)=>{const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');return auth;};
+  app.get('/api/v1/households/:householdId/groceries',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);reply.header('Cache-Control','private, no-store');return householdBoards.listGroceries(auth.householdId);
+  });
+  app.post('/api/v1/households/:householdId/groceries',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);const body=parse(groceryCreateSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send(await householdBoards.createGrocery(memberBoardActor(auth),body));
+  });
+  app.patch('/api/v1/households/:householdId/groceries/:itemId',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);const body=parse(groceryUpdateSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.updateGrocery(memberBoardActor(auth),params(request).itemId!,body);
+  });
+  app.delete('/api/v1/households/:householdId/groceries/:itemId',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);const body=parse(groceryDeleteSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.deleteGrocery(memberBoardActor(auth),params(request).itemId!,body);
+  });
+  app.get('/api/v1/households/:householdId/dinner-options',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);reply.header('Cache-Control','private, no-store');return householdBoards.listDinnerOptions(auth.householdId);
+  });
+  app.post('/api/v1/households/:householdId/dinner-options',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);const body=parse(dinnerOptionCreateSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send(await householdBoards.createDinnerOption(memberBoardActor(auth),body));
+  });
+  app.patch('/api/v1/households/:householdId/dinner-options/:optionId',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);const body=parse(dinnerOptionUpdateSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.updateDinnerOption(memberBoardActor(auth),params(request).optionId!,body);
+  });
+  app.delete('/api/v1/households/:householdId/dinner-options/:optionId',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);const body=parse(groceryDeleteSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.deleteDinnerOption(memberBoardActor(auth),params(request).optionId!,body);
+  });
+  app.get('/api/v1/households/:householdId/dinners',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);reply.header('Cache-Control','private, no-store');const query=(request.query??{}) as Record<string,unknown>;
+    const from=dateOnly(query.from),to=dateOnly(query.to);if(!from||!to)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_dinner_date_window'});
+    const days=(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000+1;if(days<1||days>31)throw new DomainError('VALIDATION_FAILED',400,{reason:'dinner_window_max_31_days'});
+    return{from,to,...await householdBoards.listDinners(auth.householdId,from,to)};
+  });
+  app.put('/api/v1/households/:householdId/dinners/:localDate',async(request,reply)=>{
+    const auth=await householdBoardMemberAuth(request);const localDate=dateOnly(params(request).localDate);if(!localDate)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_dinner_local_date'});
+    const body=parse(dinnerAssignmentSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.setDinner(memberBoardActor(auth),localDate,body);
+  });
+  app.get('/api/v1/households/:householdId/displays/:displayId/board-read-grants',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');reply.header('Cache-Control','private, no-store');
+    const row=(await pool.query(`SELECT revision,grocery_read AS "groceryRead",dinner_read AS "dinnerRead" FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[auth.householdId,params(request).displayId])).rows[0];if(!row)throw new DomainError('NOT_FOUND',404);return row;
+  });
+  app.put('/api/v1/households/:householdId/displays/:displayId/board-read-grants',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');const body=parse(displayBoardReadGrantSchema,request.body);reply.header('Cache-Control','private, no-store');
+    return transaction(async(client)=>{
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      const current=(await client.query<{revision:number}>(`SELECT revision FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2 FOR UPDATE`,[auth.householdId,params(request).displayId])).rows[0];
+      if(!current)throw new DomainError('NOT_FOUND',404);if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
+      const updated=(await client.query(`UPDATE display_board_read_grants SET grocery_read=$3,dinner_read=$4,revision=revision+1,updated_at=clock_timestamp() WHERE household_id=$1 AND display_id=$2 RETURNING revision,grocery_read AS "groceryRead",dinner_read AS "dinnerRead"`,[auth.householdId,params(request).displayId,body.groceryRead,body.dinnerRead])).rows[0];
+      await audit(client,auth,'display.board_read_grants_updated','display',params(request).displayId,{groceryRead:body.groceryRead,dinnerRead:body.dinnerRead,revision:updated.revision});
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      return updated;
+    });
+  });
+  app.get('/api/v1/display/groceries',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');return householdBoards.listDisplayGroceries(displayBoardActor(request,display));
+  });
+  app.get('/api/v1/display/dinners',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');const query=(request.query??{}) as Record<string,unknown>;const from=dateOnly(query.from),to=dateOnly(query.to);
+    if(!from||!to)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_dinner_date_window'});const days=(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000+1;if(days<1||days>31)throw new DomainError('VALIDATION_FAILED',400,{reason:'dinner_window_max_31_days'});
+    return{from,to,...await householdBoards.listDisplayDinners(displayBoardActor(request,display),from,to)};
+  });
+  app.get('/api/v1/display/dinner-options',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');return householdBoards.listDisplayDinnerOptions(displayBoardActor(request,display));
+  });
+  app.post('/api/v1/display/groceries',async(request,reply)=>{
+    const display=await displayAuth(request);const body=parse(groceryCreateSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send(await householdBoards.createGrocery(displayBoardActor(request,display),body));
+  });
+  app.patch('/api/v1/display/groceries/:itemId',async(request,reply)=>{
+    const display=await displayAuth(request);const body=parse(groceryUpdateSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.updateGrocery(displayBoardActor(request,display),params(request).itemId!,body);
+  });
+  app.delete('/api/v1/display/groceries/:itemId',async(request,reply)=>{
+    const display=await displayAuth(request);const body=parse(groceryDeleteSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.deleteGrocery(displayBoardActor(request,display),params(request).itemId!,body);
+  });
+  app.post('/api/v1/display/dinner-options',async(request,reply)=>{
+    const display=await displayAuth(request);const body=parse(dinnerOptionCreateSchema,request.body);reply.header('Cache-Control','private, no-store');return reply.status(201).send(await householdBoards.createDinnerOption(displayBoardActor(request,display),body));
+  });
+  app.patch('/api/v1/display/dinner-options/:optionId',async(request,reply)=>{
+    const display=await displayAuth(request);const body=parse(dinnerOptionUpdateSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.updateDinnerOption(displayBoardActor(request,display),params(request).optionId!,body);
+  });
+  app.delete('/api/v1/display/dinner-options/:optionId',async(request,reply)=>{
+    const display=await displayAuth(request);const body=parse(groceryDeleteSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.deleteDinnerOption(displayBoardActor(request,display),params(request).optionId!,body);
+  });
+  app.put('/api/v1/display/dinners/:localDate',async(request,reply)=>{
+    const display=await displayAuth(request);const localDate=dateOnly(params(request).localDate);if(!localDate)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_dinner_local_date'});
+    const body=parse(dinnerAssignmentSchema,request.body);reply.header('Cache-Control','private, no-store');return householdBoards.setDinner(displayBoardActor(request,display),localDate,body);
   });
 
   app.get('/api/v1/households/:householdId/people/:personId/activities',async(request,reply)=>{

@@ -1,5 +1,29 @@
 # M1 implementation status
 
+## Round 13 current status — 2026-10-16
+
+All 13 owner-request areas remain active. Current feature publisher/origin
+checkpoint is `a887028a4344ebb33b828d44e6a4fa3b44ec90da`; it includes the
+temperature fixes, Home birthday/week/school backend, reusable display setup
+and read projection (migration 029), and display-authored messages/action policy
+(migration 030). Main's isolated combined backend checkpoint passed **20/20**;
+focused temperature tests passed **7/7 new + 16/16 existing**, and Home passed
+15 focused tests with API typecheck. Display setup API 4/4 and Round 9 5/5 suites
+passed. Bounded review findings for these backend checkpoints are closed.
+
+These are backend/local checkpoints. The public deployment remains Round 12
+source `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Frontend integration, visual
+captures, private photo/background/album flows, grocery/dinner, physical HA
+controls, public pages/provider wizards, full QA, release gate, backup/restore
+for the candidate and public verification remain open. Owner contact values are
+confirmed privately; do not put them in Git. One existing HA connection must be
+preserved. The existing Google connection is not currently connected, but its
+`disconnected_at` value is null, so do not call it revoked. Both guest disk
+expansions are complete; no disk work remains. See
+[Round 13 status](../design/review/ROUND_13_STATUS.md) and
+[requirements/evidence matrix](../design/review/ROUND_13_REQUIREMENTS.md).
+
 ## HA / calendar round 12 — publicly test-published and verified
 
 Mailbox 1acfd46; DCO source 00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a.
@@ -1029,3 +1053,10 @@ combined backend tests on isolated local Compose; bounded review findings closed
 UI/native-content/media/HA/public pages and release verification remain open.
 Older member-only readers cannot be treated as a complete rollback for new
 messages; preserve history and use compatible/forward recovery.
+
+Main independently reran the combined backend checkpoint on 2026-10-16:
+**21/21 pass**, no failures/skips/cancellations, isolated local Compose test runner.
+Evidence: `.local/m3/round13/backend-board-checkpoint.log` (actual exit 0).
+This includes native boards plus existing API, Round 9, display-message, Home
+and temperature regressions. Frontend/media/HA controls/pages/release remain open;
+public deployment is still R12.
