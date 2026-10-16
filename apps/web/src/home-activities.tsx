@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import { dateOffset, memberHouseholdBoardAdapter, sevenDayWindow, type DinnerAssignment } from "./household-board-adapters";
 import type { HomeBirthday, HomeSchoolActivity, HouseholdTimelineActivity, HubPerson } from "./home-types";
-import { collectActivitySourcePages, dedupeTimelineActivities, homeWeekStart, homeWeekTitleKey, mergeTimelineEntries, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
+import { collectActivitySourcePages, dedupeTimelineActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
 import { CalendarFreshness } from "./calendar-freshness";
 import { calendarParticipationKey } from "./calendar-provider-config";
 import { formatCalendarEventRange, formatDate, wallInput } from "./time";
@@ -43,13 +43,14 @@ export function SchoolActivityCard({ activity, people, compact = false, dateLabe
   return <article className={`hub-school-activity ${compact ? "is-compact" : ""}`} data-review-private="school-activity" data-school-event-id={activity.id}>
     <div className="hub-school-heading">{!compact&&!hideIcon&&<span className="hub-school-icon" aria-hidden="true">🎒</span>}<div><strong data-review-private="school-title">{activity.title}</strong>{!hideMeta&&<span className="hub-school-meta">{dateLabel && <>{dateLabel} · </>}{clockLabel(activity.time, t("hubAllDay"))}{!compact&&names.length?` · ${names.join(" · ")}`:""}</span>}</div></div>
     {!!activity.actions.length && <ul className={`hub-school-actions ${compact ? "is-compact" : ""}`}>{(compact ? activity.actions.slice(0, 1) : activity.actions).map((action, index) => <li key={`${activity.id}-${index}`} data-review-private="school-action">{action}</li>)}</ul>}
-    {!compact && <>
+    {!compact && <details className="hub-school-provenance">
+      <summary>{t("hubSchoolDetails")}</summary>
       {typeof activity.evidence.quote === "string" && activity.evidence.quote && <p className="hub-school-evidence" data-review-private="school-evidence"><strong>{t("hubSchoolEvidence")}:</strong> {activity.evidence.quote}</p>}
       {activity.confidence !== null && <p className="field-hint">{t("hubSchoolConfidence", { value: new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(activity.confidence) })}</p>}
       {activity.uncertainty && <p className="field-hint">{t("hubSchoolUncertainty", { value: activity.uncertainty })}</p>}
       {activity.recordedAt && <p className="field-hint">{t("hubSchoolRecorded", { date: formatDate(activity.recordedAt, locale, "UTC", { dateStyle: "medium" }) })}</p>}
       {activity.sourceUrl && <a href={activity.sourceUrl} target="_blank" rel="noreferrer" data-review-private="school-source">{t("hubSchoolSource")} <Icon name="arrow" size={14}/></a>}
-    </>}
+    </details>}
   </article>;
 }
 
@@ -179,7 +180,7 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
     {loading && !loaded ? <p className="field-hint">{t("loading")}</p> : entries.length ? <div className="hub-week-days">{groupTimelineEntries(entries).map(group => <section className="hub-week-day" key={group.date}><h3><time dateTime={group.date}>{dateHeading(group.date, locale)}</time></h3>{group.rows.map(row => <TimelineRow key={`${row.kind}:${row.id}`} row={row} people={people} family={t("hubFamily")} zone={zone} locale={locale}/>)}</section>)}</div> : loaded && !error && <p className="field-hint">{t("hubWeekEmpty")}</p>}
     {cursor && <button className="hub-week-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? t("loading") : t("hubWeekMore")}</button>}
     <div className="hub-next-activity"><button type="button" className="hub-next-toggle" aria-expanded={showNext} onClick={() => { setShowNext(value => !value); if (!showNext && nextActivity === null) void loadNext(); }}><Icon name="arrow" size={16}/>{t("hubShowNext")}</button>
-      {showNext && (nextLoading ? <p className="field-hint">{t("loading")}</p> : nextError ? <p role="status" className="hub-week-error">{t("hubWeekLoadError")} <button type="button" onClick={() => void loadNext()}>{t("retry")}</button></p> : nextActivity ? <><p className="hub-next-date" data-review-private="next-activity-date">{nextActivity.type === "calendar" && nextActivity.startsAt && nextActivity.startsAt <= new Date(now).toISOString() ? `${t("hubOngoing")} · ` : ""}{dateHeading(nextActivity.type === "school" ? nextActivity.date : nextActivity.metadata.allDay ? nextActivity.startsAt?.slice(0,10) ?? "" : nextActivity.startsAt ? wallInput(nextActivity.startsAt, zone).slice(0,10) : "", locale)}</p><TimelineRow row={mergeTimelineEntries([nextActivity], [], zone)[0]!} people={people} family={t("hubFamily")} zone={zone} locale={locale}/></> : <p className="field-hint">{t("hubNextEmpty")}</p>)}
+      {showNext && (nextLoading ? <p className="field-hint">{t("loading")}</p> : nextError ? <p role="status" className="hub-week-error">{t("hubWeekLoadError")} <button type="button" onClick={() => void loadNext()}>{t("retry")}</button></p> : nextActivity ? <><p className="hub-next-date" data-review-private="next-activity-date">{isTimelineActivityOngoing(nextActivity, localDate, now) ? `${t("hubOngoing")} · ` : ""}{dateHeading(nextActivity.type === "school" ? nextActivity.date : nextActivity.metadata.allDay ? nextActivity.startsAt?.slice(0,10) ?? "" : nextActivity.startsAt ? wallInput(nextActivity.startsAt, zone).slice(0,10) : "", locale)}</p><TimelineRow row={mergeTimelineEntries([nextActivity], [], zone)[0]!} people={people} family={t("hubFamily")} zone={zone} locale={locale}/></> : <p className="field-hint">{t("hubNextEmpty")}</p>)}
     </div>
   </section>;
 }
@@ -210,24 +211,25 @@ export function PersonFutureTimeline({ householdId, personId, localDate, zone, p
   const [error, setError] = useState(false);
   const request = useRef(0);
   const [refreshTick, setRefreshTick] = useState(0);
+  const window = personFutureWindow(weekStart, localDate);
   useEffect(() => { const timer = setInterval(() => setRefreshTick(value => value + 1), 30_000); return () => clearInterval(timer); }, []);
   useEffect(() => { setWeekStart(homeWeekStart(localDate)); setActivities([]); setCursor(null); setLoadingMore(false); setError(false); request.current++; }, [householdId, personId, localDate, display]);
   useEffect(() => {
     const generation = ++request.current; let active = true;
     setLoading(true); if (refreshTick) setLoadingMore(false);
     const path = display ? `/display/people/${encodeURIComponent(personId)}/activities` : `/households/${encodeURIComponent(householdId ?? "")}/people/${encodeURIComponent(personId)}/activities`;
-    const query = new URLSearchParams({ from: weekStart, to: dateOffset(weekStart, 6), limit: "50" });
+    const query = new URLSearchParams({ from: window.from, to: window.to, limit: "50" });
     void api<ActivityWindow>(`${path}?${query}`).then(page => { if (active && request.current === generation) { setActivities(dedupeTimelineActivities(page.activities)); setCursor(page.nextCursor); setError(false); } }).catch(error => { if (active && request.current === generation) { setError(true); if (error instanceof ApiError && [401, 403, 404].includes(error.status)) { setActivities([]); setCursor(null); } } }).finally(() => { if (active && request.current === generation) setLoading(false); });
     return () => { active = false; request.current++; };
-  }, [householdId, personId, weekStart, localDate, display, refreshTick]);
-  const entries = mergeTimelineEntries(activities, [], zone, weekStart, dateOffset(weekStart, 6));
+  }, [householdId, personId, weekStart, localDate, display, refreshTick, window.from, window.to]);
+  const entries = mergeTimelineEntries(activities, [], zone, window.from, window.to);
   const minimum = homeWeekStart(localDate);
   const loadMore = async () => {
     if (!cursor || loadingMore) return;
     const generation = request.current; setLoadingMore(true); setError(false);
     try {
       const path = display ? `/display/people/${encodeURIComponent(personId)}/activities` : `/households/${encodeURIComponent(householdId ?? "")}/people/${encodeURIComponent(personId)}/activities`;
-      const query = new URLSearchParams({ from: weekStart, to: dateOffset(weekStart, 6), limit: "50", cursor });
+      const query = new URLSearchParams({ from: window.from, to: window.to, limit: "50", cursor });
       const page = await api<ActivityWindow>(`${path}?${query}`);
       if (request.current === generation) { setActivities(previous => dedupeTimelineActivities([...previous, ...page.activities])); setCursor(page.nextCursor); }
     } catch (error) { if (request.current === generation) { setError(true); if (error instanceof ApiError && [401, 403, 404].includes(error.status)) { setActivities([]); setCursor(null); } } }

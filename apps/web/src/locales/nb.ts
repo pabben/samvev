@@ -1405,6 +1405,7 @@ export const nb: Record<TranslationKey, string> = {
   hubNextEmpty: "Ingenting er planlagt framover.",
   hubDinnerLabel: "Middag",
   hubSchoolConfidence: "Sikkerhet: {value}",
+  hubSchoolDetails: "Kildedetaljer",
   hubSchoolUncertainty: "Usikkerhet: {value}",
   hubSchoolRecorded: "Lagret {date}",
   hubSchoolSource: "Åpne kilden",

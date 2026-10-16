@@ -12,6 +12,20 @@ export function homeWeekStart(localDate: string): string {
   return shiftHomeDate(localDate, -((day + 6) % 7));
 }
 export function homeWeekTitleKey(weekStart:string,currentWeek:string){return weekStart===currentWeek?"hubWeekTitle":"hubFutureWeekTitle";}
+export function isTimelineActivityOngoing(activity:HouseholdTimelineActivity,localDate:string,now:number):boolean{
+  if(activity.type!=="calendar"||!activity.startsAt)return false;
+  if(activity.metadata.allDay){
+    const start=activity.startsAt.slice(0,10);
+    const endExclusive=activity.endsAt?.slice(0,10)??shiftHomeDate(start,1);
+    return start<=localDate&&localDate<endExclusive;
+  }
+  const start=Date.parse(activity.startsAt),end=activity.endsAt?Date.parse(activity.endsAt):Number.POSITIVE_INFINITY;
+  return start<=now&&now<end;
+}
+
+export function personFutureWindow(weekStart:string,localDate:string){
+  return {from:weekStart>localDate?weekStart:localDate,to:shiftHomeDate(weekStart,6)};
+}
 
 export function shiftHomeDate(localDate: string, offset: number): string {
   const date = new Date(`${localDate}T00:00:00.000Z`);

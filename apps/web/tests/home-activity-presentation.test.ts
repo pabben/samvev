@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { collectActivitySourcePages, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, mergeTimelineEntries, shiftHomeDate } from "../src/home-activity-presentation";
+import { collectActivitySourcePages, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate } from "../src/home-activity-presentation";
 import type { HouseholdTimelineActivity } from "../src/home-types";
 import { registerHooks } from "node:module";
 registerHooks({ load(url, context, nextLoad) { return url.endsWith(".webp") ? { format: "module", source: 'export default "synthetic-avatar.webp"', shortCircuit: true } : nextLoad(url, context); } });
@@ -24,6 +24,23 @@ test("week dates are local ISO dates and navigation starts on Monday across year
   assert.equal(shiftHomeDate("2026-12-31", 1), "2027-01-01");
   assert.equal(homeWeekTitleKey("2026-10-12","2026-10-12"),"hubWeekTitle");
   assert.equal(homeWeekTitleKey("2026-10-19","2026-10-12"),"hubFutureWeekTitle");
+});
+
+test("person chronology starts today within the current week and at Monday in a future week", () => {
+  assert.deepEqual(personFutureWindow("2026-10-12", "2026-10-16"), { from: "2026-10-16", to: "2026-10-18" });
+  assert.deepEqual(personFutureWindow("2026-10-19", "2026-10-16"), { from: "2026-10-19", to: "2026-10-25" });
+});
+
+test("ongoing all-day events use household civil-date bounds, not UTC-midnight instants", () => {
+  const ongoing = calendar("all-day", "2026-10-15T00:00:00Z");
+  ongoing.metadata.allDay = true;
+  ongoing.endsAt = "2026-10-17T00:00:00Z";
+  assert.equal(isTimelineActivityOngoing(ongoing, "2026-10-16", Date.parse("2026-10-15T22:30:00Z")), true);
+  assert.equal(isTimelineActivityOngoing(ongoing, "2026-10-17", Date.parse("2026-10-17T08:00:00Z")), false, "all-day end dates are exclusive");
+  const timed = calendar("timed", "2026-10-16T07:00:00Z");
+  timed.endsAt = "2026-10-16T09:00:00Z";
+  assert.equal(isTimelineActivityOngoing(timed, "2026-10-16", Date.parse("2026-10-16T08:00:00Z")), true);
+  assert.equal(isTimelineActivityOngoing(timed, "2026-10-16", Date.parse("2026-10-16T10:00:00Z")), false);
 });
 
 test("member source catalog exhausts UUID cursors, includes empty sources and sorts labels", async () => {
@@ -60,6 +77,17 @@ test("week rows retain timed and all-day activities that began before Monday, wi
   endedAtBoundary.endsAt = "2026-10-12T00:00:00Z";
   const rows = mergeTimelineEntries([timed, allDay, endedAtBoundary], [], "UTC", "2026-10-12", "2026-10-18");
   assert.deepEqual(rows.map(row => [row.id, row.date]), [["ongoing-all-day", "2026-10-12"], ["ongoing-timed", "2026-10-12"]]);
+});
+
+test("person future range retains an overlap begun yesterday but excludes an item that ended today", () => {
+  const stillRunning = calendar("still-running", "2026-10-15T18:00:00Z");
+  stillRunning.endsAt = "2026-10-16T10:00:00Z";
+  const ended = calendar("ended", "2026-10-15T00:00:00Z");
+  ended.metadata.allDay = true;
+  ended.endsAt = "2026-10-16T00:00:00Z";
+  const range = personFutureWindow("2026-10-12", "2026-10-16");
+  const rows = mergeTimelineEntries([stillRunning, ended], [], "Europe/Oslo", range.from, range.to);
+  assert.deepEqual(rows.map(row => [row.id, row.date]), [["still-running", "2026-10-16"]]);
 });
 
 test("shared school items coalesce every subject while identical-title calendar events do not", () => {
@@ -99,6 +127,8 @@ test("Home renders each same-day birthday and saved school item without birth da
     assert.ok(!html.includes("ageTurning") && !html.includes("birthDate"));
     const schoolHtml = renderToStaticMarkup(createElement(LocaleProvider, { locale, children: createElement(SchoolActivityCard, { activity: school[0]!, people }) }));
     assert.ok(schoolHtml.includes("Pack synthetic book"));
+    assert.ok(schoolHtml.includes(`<summary>${locale === "en" ? "Source details" : "Kildedetaljer"}</summary>`));
+    assert.ok(schoolHtml.indexOf("Pack synthetic book") < schoolHtml.indexOf("<details class=\"hub-school-provenance\">"), "actions stay visible before collapsed provenance");
     assert.ok(schoolHtml.includes("Synthetic source evidence"));
     assert.ok(schoolHtml.includes("https://school.test.invalid/source"));
     const compactSchoolHtml = renderToStaticMarkup(createElement(LocaleProvider, { locale, children: createElement(SchoolActivityCard, { activity: school[0]!, people, compact: true }) }));

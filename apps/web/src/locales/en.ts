@@ -1404,6 +1404,7 @@ export const en = {
   hubNextEmpty: "Nothing is coming up.",
   hubDinnerLabel: "Dinner",
   hubSchoolConfidence: "Confidence: {value}",
+  hubSchoolDetails: "Source details",
   hubSchoolUncertainty: "Uncertainty: {value}",
   hubSchoolRecorded: "Saved {date}",
   hubSchoolSource: "Open source",
