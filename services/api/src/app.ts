@@ -453,6 +453,17 @@ function activityIdFilter(value:unknown,field:string,maximum:number):string[]|un
   if(!normalized.length||normalized.length>maximum||normalized.some((id)=>!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(id)))throw new DomainError('VALIDATION_FAILED',400,{reason:`invalid_${field}`});
   return normalized;
 }
+function activitySourcePagination(query:Record<string,unknown>):{limit:number;cursor:string|null}{
+  const limit=query.limit===undefined?100:Number(query.limit);
+  if(!Number.isInteger(limit)||limit<1||limit>100)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_source_limit'});
+  const cursor=query.cursor;
+  if(cursor!==undefined&&(typeof cursor!=='string'||!/^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i.test(cursor)))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_source_cursor'});
+  return{limit,cursor:typeof cursor==='string'?cursor:null};
+}
+function activitySourcePage(rows:Array<{id:string;name:string}>,limit:number){
+  const sources=rows.slice(0,limit);
+  return{sources,nextCursor:rows.length>limit?sources.at(-1)!.id:null};
+}
 function decodeActivityCursor(value:unknown):ActivityCursor|undefined{
   if(value===undefined)return undefined;if(typeof value!=='string'||value.length>512)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_cursor'});
   try{const parsed=JSON.parse(Buffer.from(value,'base64url').toString('utf8')) as Record<string,unknown>;const at=typeof parsed.at==='string'&&Number.isFinite(Date.parse(parsed.at))?new Date(parsed.at).toISOString():undefined;const rank=parsed.rank;const id=typeof parsed.id==='string'&&/^(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[0-9a-f]{32})$/i.test(parsed.id)?parsed.id:undefined;if(!at||(rank!==0&&rank!==1)||!id)throw new Error();return{at,rank,id};}catch{throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_cursor'});}
@@ -1690,6 +1701,29 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return{personId,activity:page.activities[0]??null,serverNow:new Date().toISOString()};
   });
 
+  app.get('/api/v1/households/:householdId/activities/sources',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');
+    const {limit,cursor}=activitySourcePagination((request.query??{}) as Record<string,unknown>);
+    return transaction(async(client)=>{
+      await recheckHouseholdAuth(client,request,auth,'household.view');
+      // Source visibility is the source-level form of the activity item reader
+      // ACL. Subjects place events on people; they never grant source access.
+      const rows=(await client.query<{id:string;name:string}>(`SELECT source.id,COALESCE(source.display_name,source.name) AS name
+        FROM calendar_sources source
+        JOIN calendar_connections connection ON connection.id=source.connection_id AND connection.household_id=source.household_id
+        JOIN integration_connections integration ON integration.id=connection.integration_connection_id AND integration.household_id=source.household_id AND integration.revoked_at IS NULL
+        JOIN memberships viewer ON viewer.id=$2 AND viewer.account_id=$3 AND viewer.household_id=source.household_id
+        WHERE source.household_id=$1 AND source.enabled AND connection.disconnected_at IS NULL
+          AND (viewer.capabilities ? 'household.manage' OR source.target_household OR EXISTS(SELECT 1 FROM calendar_source_person_readers reader WHERE reader.household_id=source.household_id AND reader.source_id=source.id AND reader.person_id=viewer.person_id))
+          AND ($4::uuid IS NULL OR source.id>$4::uuid)
+        ORDER BY source.id LIMIT $5`,[auth.householdId,auth.membershipId,auth.accountId,cursor,limit+1])).rows;
+      // Keep stale, readable calendars selectable even when they have no active
+      // items. Only current authority is rechecked after any query lock waits.
+      await recheckHouseholdAuth(client,request,auth,'household.view');
+      return activitySourcePage(rows,limit);
+    });
+  });
+
   app.get('/api/v1/households/:householdId/activities',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');
     const query=(request.query??{}) as Record<string,unknown>;const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;const today=localDateInTimezone(new Date(),household.timezone);
@@ -2397,6 +2431,30 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const display = await displayAuth(request);
     reply.header('Cache-Control','private, max-age=0, must-revalidate');
     return projectionFor(display);
+  });
+
+  app.get('/api/v1/display/activities/sources',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
+    const {limit,cursor}=activitySourcePagination((request.query??{}) as Record<string,unknown>);
+    return transaction(async(client)=>{
+      const current=await displayContextForManager(display.householdId,display.id,client,true,true);
+      if(current.credentialHash!==display.credentialHash)throw new DomainError('UNAUTHENTICATED',401);
+      const rows=!current.privacyMode&&current.externalItemsEnabled&&current.cards.includes('external_items')?(await client.query<{id:string;name:string}>(`SELECT source.id,COALESCE(source.display_name,source.name) AS name
+        FROM calendar_sources source
+        JOIN calendar_connections connection ON connection.id=source.connection_id AND connection.household_id=source.household_id
+        JOIN integration_connections integration ON integration.id=connection.integration_connection_id AND integration.household_id=source.household_id AND integration.revoked_at IS NULL
+        JOIN calendar_source_display_targets source_grant ON source_grant.source_id=source.id AND source_grant.household_id=source.household_id AND source_grant.display_id=$2
+        JOIN integration_connection_display_grants connection_grant ON connection_grant.connection_id=integration.id AND connection_grant.household_id=source.household_id AND connection_grant.display_id=$2
+        WHERE source.household_id=$1 AND source.enabled AND connection.disconnected_at IS NULL
+          AND ($3::boolean OR source.id=ANY($4::uuid[]))
+          AND (source.subject_household OR EXISTS(SELECT 1 FROM calendar_source_person_subjects subject WHERE subject.household_id=source.household_id AND subject.source_id=source.id AND subject.person_id=ANY($5::uuid[])))
+          AND ($6::uuid IS NULL OR source.id>$6::uuid)
+        ORDER BY source.id LIMIT $7`,[display.householdId,display.id,current.allSources,current.calendarSourceIds,current.selectedPersonIds,cursor,limit+1])).rows:[];
+      const live=(await client.query(`SELECT id FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()
+        AND privacy_mode=$4 AND external_items_enabled=$5 AND setup_id=$6`,[display.id,display.householdId,display.credentialHash,current.privacyMode,current.externalItemsEnabled,current.setupId])).rows[0];
+      if(!live)throw new DomainError('UNAUTHENTICATED',401);
+      return activitySourcePage(rows,limit);
+    });
   });
 
   app.get('/api/v1/display/activities',async(request,reply)=>{
