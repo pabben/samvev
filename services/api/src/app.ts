@@ -9,7 +9,7 @@ import type { Writable } from 'node:stream';
 import type pg from 'pg';
 import { ZodError, type ZodType } from 'zod';
 import {
-  accountStatusUpdateSchema, claimSchema, displayActionPolicyUpdateSchema, displayMessageCreateSchema, displaySetupCreateSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
+  accountStatusUpdateSchema, claimSchema, displayActionPolicyUpdateSchema, displayMessageCreateSchema, displayPreviewSelectionSchema, displaySetupCreateSchema, displaySetupPreviewSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
   invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
@@ -78,6 +78,8 @@ interface DisplayContext {
   householdId: string;
   locale: 'en' | 'nb';
   theme: 'light' | 'dark' | 'system';
+  localeOverride: 'en' | 'nb' | null;
+  themeOverride: 'light' | 'dark' | 'system' | null;
   privacyMode: boolean;
   externalItemsEnabled: boolean;
   setupId: string;
@@ -198,26 +200,23 @@ async function authForInstallation(request:FastifyRequest,installationId:string)
   if(!row)throw new DomainError('FORBIDDEN',403);return{accountId:account.accountId,sessionId:account.sessionId,installationId,membershipId:row.id,householdId:row.household_id,personId:row.person_id,rolePreset:row.role_preset,capabilities:row.capabilities};
 }
 
-async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
-  const token = request.cookies[DISPLAY_COOKIE];
-  if (!token) throw new DomainError('UNAUTHENTICATED', 401);
-  const result = await pool.query<{ id: string; name:string; household_id: string; locale: 'en'|'nb'; theme: 'light'|'dark'|'system'; privacy_mode: boolean; external_items_enabled:boolean; setup_id:string; cards:string[]; card_order:string[]; family_layout_enabled:boolean; all_sources:boolean; all_sensors:boolean; album_ids:string[]; background_id:string|null }>(`
-    SELECT d.id,d.name,d.household_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
-      d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
-    FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
-    WHERE d.credential_hash=$1 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()`, [tokenHash(token)]);
-  const row = result.rows[0];
-  if (!row) throw new DomainError('UNAUTHENTICATED', 401);
-  await pool.query('UPDATE displays SET last_seen_at=clock_timestamp() WHERE id=$1', [row.id]);
+interface DisplayContextRow {
+  id:string;name:string;household_id:string;locale:'en'|'nb';theme:'light'|'dark'|'system';locale_override:'en'|'nb'|null;theme_override:'light'|'dark'|'system'|null;
+  privacy_mode:boolean;external_items_enabled:boolean;setup_id:string;cards:string[];card_order:string[];family_layout_enabled:boolean;all_sources:boolean;all_sensors:boolean;album_ids:string[];background_id:string|null;
+}
+
+async function displayContextFromRow(row:DisplayContextRow,credentialHash:string,touchLastSeen:boolean,db:DbClient=pool,lockGrants=false):Promise<DisplayContext>{
+  if(touchLastSeen)await db.query('UPDATE displays SET last_seen_at=clock_timestamp() WHERE id=$1',[row.id]);
   const [people,grants,sources,calendarSources,sensors]=await Promise.all([
-    pool.query<{person_id:string}>('SELECT person_id FROM display_setup_people WHERE household_id=$1 AND setup_id=$2 ORDER BY person_id',[row.household_id,row.setup_id]),
-    pool.query<{person_id:string;profile_allowed:boolean;birthday_allowed:boolean}>('SELECT person_id,profile_allowed,birthday_allowed FROM display_person_grants WHERE household_id=$1 AND display_id=$2 ORDER BY person_id',[row.household_id,row.id]),
-    pool.query<{connection_id:string}>('SELECT connection_id FROM display_setup_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY connection_id',[row.household_id,row.setup_id]),
-    pool.query<{source_id:string}>('SELECT source_id FROM display_setup_calendar_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY source_id',[row.household_id,row.setup_id]),
-    pool.query<{sensor_id:string}>('SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id',[row.household_id,row.setup_id])
+    db.query<{person_id:string}>(`SELECT person_id FROM display_setup_people WHERE household_id=$1 AND setup_id=$2 ORDER BY person_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id]),
+    db.query<{person_id:string;profile_allowed:boolean;birthday_allowed:boolean}>(`SELECT person_id,profile_allowed,birthday_allowed FROM display_person_grants WHERE household_id=$1 AND display_id=$2 ORDER BY person_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.id]),
+    db.query<{connection_id:string}>(`SELECT connection_id FROM display_setup_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY connection_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id]),
+    db.query<{source_id:string}>(`SELECT source_id FROM display_setup_calendar_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY source_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id]),
+    db.query<{sensor_id:string}>(`SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id])
   ]);
   return {
-    id: row.id,credentialHash:tokenHash(token),name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
+    id: row.id,credentialHash,name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
+    localeOverride:row.locale_override,themeOverride:row.theme_override,
     privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled,
     setupId:row.setup_id,cards:row.cards,cardOrder:row.card_order,familyLayoutEnabled:row.family_layout_enabled,
     allSources:row.all_sources,allSensors:row.all_sensors,selectedPersonIds:people.rows.map((item)=>item.person_id),grantedPersonIds:grants.rows.map((item)=>item.person_id),
@@ -225,6 +224,34 @@ async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
     sourceIds:sources.rows.map((item)=>item.connection_id),calendarSourceIds:calendarSources.rows.map((item)=>item.source_id),sensorIds:sensors.rows.map((item)=>item.sensor_id),
     albumIds:row.album_ids,backgroundId:row.background_id
   };
+}
+
+async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
+  const token=request.cookies[DISPLAY_COOKIE];if(!token)throw new DomainError('UNAUTHENTICATED',401);
+  const result=await pool.query<DisplayContextRow>(`SELECT d.id,d.name,d.household_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
+      d.locale AS locale_override,d.theme AS theme_override,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
+    FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
+    WHERE d.credential_hash=$1 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()`,[tokenHash(token)]);
+  const row=result.rows[0];if(!row)throw new DomainError('UNAUTHENTICATED',401);
+  return displayContextFromRow(row,tokenHash(token),true);
+}
+
+async function displayContextForManager(householdId:string,displayId:string,db:DbClient=pool,lock=false,lockGrants=false):Promise<DisplayContext>{
+  const row=(await db.query<DisplayContextRow&{credential_hash:string}>(`SELECT d.id,d.name,d.household_id,d.credential_hash,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
+      d.locale AS locale_override,d.theme AS theme_override,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
+    FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
+    WHERE d.id=$1 AND d.household_id=$2 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()${lock?' FOR SHARE OF d,s':''}`,[displayId,householdId])).rows[0];
+  if(!row)throw new DomainError('NOT_FOUND',404);
+  return displayContextFromRow(row,row.credential_hash,false,db,lockGrants);
+}
+
+function previewContextTag(display:DisplayContext):string{
+  return Buffer.from(JSON.stringify({cards:display.cards,familyLayoutEnabled:display.familyLayoutEnabled,allSources:display.allSources,allSensors:display.allSensors,personIds:display.selectedPersonIds,sourceIds:display.sourceIds,calendarSourceIds:display.calendarSourceIds,sensorIds:display.sensorIds,albumIds:display.albumIds,backgroundId:display.backgroundId}),'utf8').toString('base64url');
+}
+
+function parsePreviewContextTag(value:unknown):{cards:string[];familyLayoutEnabled:boolean;allSources:boolean;allSensors:boolean;personIds:string[];sourceIds:string[];calendarSourceIds:string[];sensorIds:string[];albumIds:string[];backgroundId:string|null}{
+  if(typeof value!=='string'||value.length>8192||!/^[A-Za-z0-9_-]+$/.test(value))throw new DomainError('NOT_FOUND',404);
+  try{return parse(displayPreviewSelectionSchema,JSON.parse(Buffer.from(value,'base64url').toString('utf8')));}catch{throw new DomainError('NOT_FOUND',404);}
 }
 
 type DisplayActionKey='message_create'|'message_schedule'|'grocery_write'|'dinner_write'|'photo_upload'|'home_assistant_control';
@@ -457,9 +484,14 @@ async function schoolActivitiesForHome(householdId:string,viewer:{personId:strin
   return rows.rows.map((row)=>({type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}));
 }
 
-async function personActivities(input:{householdId:string;personIds:string[]|null;viewer:{personId:string;membershipId:string};canViewAll:boolean;from:string;to:string;limit:number;sourceIds?:string[];cursor?:ActivityCursor;maxDays:number;upcomingOnly?:boolean}):Promise<{activities:Record<string,unknown>[];nextCursor:string|null}>{
+async function personActivities(input:{householdId:string;personIds:string[]|null;viewer:{personId:string;membershipId:string};canViewAll:boolean;from:string;to:string;limit:number;sourceIds?:string[];cursor?:ActivityCursor;maxDays:number;upcomingOnly?:boolean;display?:DisplayContext}):Promise<{activities:Record<string,unknown>[];nextCursor:string|null}>{
   const {householdId,personIds,viewer,canViewAll,from,to,limit,sourceIds,cursor}=input;
-  const calendarCursor=cursor?`AND (i.starts_at>$9::timestamptz OR (i.starts_at=$9::timestamptz AND $10=0 AND i.id::text>$11))`:'';
+  const calendarCursor=`AND ($9::timestamptz IS NULL OR i.starts_at>$9::timestamptz OR (i.starts_at=$9::timestamptz AND $10=0 AND i.id::text>$11))`;
+  const display=input.display;
+  const displayCalendarSource=`(EXISTS(SELECT 1 FROM calendar_occurrences selected_occurrence WHERE selected_occurrence.integration_item_id=i.id)
+      AND ($15::boolean OR EXISTS(SELECT 1 FROM calendar_occurrences selected_occurrence WHERE selected_occurrence.integration_item_id=i.id AND selected_occurrence.source_id=ANY($17::uuid[]))))`;
+  const displayGenericSource=`(NOT EXISTS(SELECT 1 FROM calendar_occurrences generic_occurrence WHERE generic_occurrence.integration_item_id=i.id)
+      AND ($15::boolean OR connection.id=ANY($16::uuid[])))`;
   const calendar=await pool.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},i.starts_at AS activity_at,
       (SELECT min(subject.person_id::text)::uuid FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))) AS activity_person_id,
       COALESCE((SELECT array_agg(subject.person_id ORDER BY subject.person_id) FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),ARRAY[]::uuid[]) AS activity_person_ids
@@ -471,28 +503,37 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       AND i.starts_at < (($4::date+1)::timestamp AT TIME ZONE household.timezone)
       AND ((i.kind='event' AND i.metadata->'calendar' IS NOT NULL AND (COALESCE((i.metadata#>>'{calendar,subjectHousehold}')::boolean,false) OR EXISTS(SELECT 1 FROM integration_item_person_subjects placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2)))))
         OR (i.kind IN ('event','reminder') AND i.metadata->'calendar' IS NULL AND (i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2))))))
-      AND ($5 OR i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets readable WHERE readable.item_id=i.id AND readable.person_id=$6))
+      AND (($12::uuid IS NULL AND ($5 OR i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets readable WHERE readable.item_id=i.id AND readable.person_id=$6)))
+        OR ($12::uuid IS NOT NULL AND $13::boolean AND $14::boolean
+          AND EXISTS(SELECT 1 FROM integration_connection_display_grants cg WHERE cg.household_id=i.household_id AND cg.connection_id=i.connection_id AND cg.display_id=$12)
+          AND EXISTS(SELECT 1 FROM integration_item_display_targets dt WHERE dt.household_id=i.household_id AND dt.item_id=i.id AND dt.display_id=$12)
+          AND (${displayCalendarSource} OR ${displayGenericSource})))
       ${input.upcomingOnly?'AND (i.ends_at IS NULL AND i.starts_at>clock_timestamp() OR i.ends_at>clock_timestamp())':''}
       AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8)))
       AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
       ${calendarCursor}
-    ORDER BY i.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,...(cursor?[cursor.at,cursor.rank,cursor.id]:[])]);
-  const schoolCursor=cursor?`AND (((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)>$10::timestamptz OR (((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)=$10::timestamptz AND ($11<1 OR ($11=1 AND event.id::text>$12))))`:'';
+    ORDER BY i.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[]]);
+  const schoolCursor=`AND ($10::timestamptz IS NULL OR ((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)>$10::timestamptz OR (((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)=$10::timestamptz AND ($11<1 OR ($11=1 AND event.id::text>$12))))`;
+  const schoolReader=display
+    ?`($5::boolean IS NOT NULL AND $6::uuid IS NOT NULL AND $7::uuid IS NOT NULL)
+      AND EXISTS(SELECT 1 FROM message_display_targets target WHERE target.household_id=message.household_id AND target.message_id=message.id AND target.display_id=$13 AND target.delivery_state IN ('queued','delivered','displayed'))
+      AND (message.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences any_audience WHERE any_audience.message_id=message.id) OR EXISTS(SELECT 1 FROM message_person_audiences visible_audience WHERE visible_audience.message_id=message.id AND visible_audience.person_id=ANY($2::uuid[])))`
+    :schoolReaderAclWeek;
   const school=await pool.query<SchoolActivityRow>(`SELECT ${schoolActivitySelect}
     FROM monitor_events event JOIN monitor_tasks task ON task.id=event.task_id AND task.household_id=event.household_id
     JOIN LATERAL (SELECT min(subject.person_id::text)::uuid AS person_id,array_agg(subject.person_id ORDER BY subject.person_id) AS person_ids FROM monitor_task_subjects subject WHERE subject.task_id=task.id AND subject.household_id=task.household_id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2)) HAVING count(*)>0) subject ON true
     JOIN households household ON household.id=task.household_id
     JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id AND message.state IN ('scheduled','published')
     LEFT JOIN LATERAL (SELECT checked_at,source_url FROM monitor_runs WHERE task_id=task.id AND fingerprint=event.source_fingerprint AND run_kind IN ('scheduled','manual') AND outcome='changed' AND result_kind='events' ORDER BY checked_at DESC,id DESC LIMIT 1) run ON true
-    WHERE event.household_id=$1 AND event.event_date BETWEEN $3::date AND $4::date AND $8::uuid[] IS NULL
+    WHERE event.household_id=$1 AND event.event_date BETWEEN $3::date AND $4::date AND ($8::uuid[] IS NULL OR $13::uuid IS NOT NULL)
       AND event.active AND jsonb_typeof(event.actions)='array' AND jsonb_array_length(event.actions)>0
       AND task.presentation_kind='school' AND task.state='active' AND task.approved_revision=task.revision
       AND event.school_expires_at>clock_timestamp() AND message.expires_at>clock_timestamp()
-      AND ${schoolTaskAuthorized} AND ${schoolReaderAclWeek}
+      AND ${schoolTaskAuthorized} AND ${schoolReader}
       ${schoolCursor}
-    ORDER BY activity_at,event.id LIMIT $9`,[householdId,personIds,from,to,canViewAll,viewer.membershipId,viewer.personId,sourceIds??null,limit+1,...(cursor?[cursor.at,cursor.rank,cursor.id]:[])]);
+    ORDER BY activity_at,event.id LIMIT $9`,[householdId,personIds,from,to,canViewAll,viewer.membershipId,viewer.personId,sourceIds??null,limit+1,cursor?.at??null,cursor?.rank??0,cursor?.id??null,display?.id??null]);
   const merged=[
-    ...calendar.rows.map((row)=>({rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',personId:row.activity_person_id,...mapExternalItem(row),personIds:row.activity_person_ids}})),
+    ...calendar.rows.map((row)=>({rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',personId:row.activity_person_id,...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds:row.activity_person_ids}})),
     ...school.rows.map((row)=>({rank:1 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'school',personId:row.person_id,personIds:row.person_ids,id:row.id,taskId:row.task_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}}))
   ].filter((row)=>!cursor||row.at>cursor.at||(row.at===cursor.at&&(row.rank>cursor.rank||(row.rank===cursor.rank&&row.id>cursor.id))))
     .sort((left,right)=>left.at.localeCompare(right.at)||left.rank-right.rank||left.id.localeCompare(right.id));
@@ -500,9 +541,9 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
   return{activities:page.map((row)=>row.value),nextCursor:more&&page.length?encodeActivityCursor({at:page.at(-1)!.at,rank:page.at(-1)!.rank,id:page.at(-1)!.id}):null};
 }
 
-async function displayHub(display:DisplayContext):Promise<Record<string,unknown>|undefined>{
+async function displayHub(display:DisplayContext,db:DbClient=pool,lockRows=false):Promise<Record<string,unknown>|undefined>{
   if(display.privacyMode || !display.externalItemsEnabled || !display.cards.includes('external_items'))return undefined;
-  const rows=await pool.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
+  const rows=await db.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
     FROM integration_items i
     JOIN integration_connections c ON c.id=i.connection_id AND c.household_id=i.household_id AND c.revoked_at IS NULL
     JOIN integration_connection_display_grants g ON g.connection_id=i.connection_id AND g.household_id=i.household_id AND g.display_id=$1
@@ -519,8 +560,8 @@ async function displayHub(display:DisplayContext):Promise<Record<string,unknown>
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp())
       AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
       ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
-      i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200`,[display.id,display.householdId,display.allSources,display.sourceIds,display.calendarSourceIds,display.selectedPersonIds]);
-  const temperatures=await pool.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
+      i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200${lockRows?' FOR SHARE OF i,c,g,dt':''}`,[display.id,display.householdId,display.allSources,display.sourceIds,display.calendarSourceIds,display.selectedPersonIds]);
+  const temperatures=await db.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
     FROM home_assistant_temperature_sensors sensor
     JOIN calendar_connections calendar ON calendar.id=sensor.connection_id AND calendar.household_id=sensor.household_id AND calendar.provider='home_assistant' AND calendar.disconnected_at IS NULL
     JOIN integration_connections c ON c.id=calendar.integration_connection_id AND c.household_id=sensor.household_id AND c.revoked_at IS NULL
@@ -534,28 +575,28 @@ async function displayHub(display:DisplayContext):Promise<Record<string,unknown>
       AND (i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets selected_item_reader WHERE selected_item_reader.item_id=i.id AND selected_item_reader.person_id=ANY($5::uuid[])))
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
       AND EXISTS(SELECT 1 FROM memberships owner JOIN persons owner_person ON owner_person.id=owner.person_id AND owner_person.household_id=owner.household_id AND owner_person.age_group='adult' JOIN accounts owner_account ON owner_account.id=owner.account_id AND owner_account.disabled_at IS NULL WHERE owner.account_id=calendar.owner_account_id AND owner.household_id=calendar.household_id AND owner.capabilities ? 'household.view')
-    ORDER BY sensor.display_order,sensor.id LIMIT 2000`,[display.id,display.householdId,display.allSensors,display.sensorIds,display.selectedPersonIds]);
+    ORDER BY sensor.display_order,sensor.id LIMIT 2000${lockRows?' FOR SHARE OF sensor,calendar,c,g,sensor_target,i,dt':''}`,[display.id,display.householdId,display.allSensors,display.sensorIds,display.selectedPersonIds]);
   const allRows=[...rows.rows,...temperatures.rows];
   const personIds=[...new Set(allRows.flatMap((row)=>[...row.person_ids,...row.subject_person_ids]))];
   const permittedPeople=display.selectedPersonIds.length?personIds.filter((personId)=>display.selectedPersonIds.includes(personId)):[];
-  const people=permittedPeople.length?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,permittedPeople])).rows:[];
+  const people=permittedPeople.length?(await db.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,permittedPeople])).rows:[];
   return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:displayPhotoProjection(person.id,person.photo_revision)})),items:allRows.map((row)=>mapExternalItem(row,{forDisplay:true,selectedPersonIds:display.selectedPersonIds}))};
 }
 
-async function displayPersonPhotoVisible(display:DisplayContext,personId:string):Promise<boolean>{
+async function displayPersonPhotoVisible(display:DisplayContext,personId:string,db:DbClient=pool,lockRows=false):Promise<boolean>{
   if(display.privacyMode||!display.selectedPersonIds.includes(personId))return false;
   if(display.familyLayoutEnabled&&display.cards.includes('family_layout')&&display.profilePersonIds.includes(personId))return true;
   if(display.cards.includes('household_messages')){
-    const message=await pool.query(`SELECT 1 FROM messages msg JOIN memberships author ON author.id=msg.author_membership_id
+    const message=await db.query(`SELECT 1 FROM messages msg JOIN memberships author ON author.id=msg.author_membership_id
       JOIN message_display_targets target ON target.message_id=msg.id AND target.household_id=msg.household_id
       WHERE msg.household_id=$1 AND author.person_id=$2 AND target.display_id=$3 AND msg.state='published'
         AND target.delivery_state IN ('queued','delivered','displayed') AND msg.publish_at<=clock_timestamp() AND msg.expires_at>clock_timestamp()
         AND (msg.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id)
-          OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id AND audience.person_id=ANY($4::uuid[])))`,[display.householdId,personId,display.id,display.selectedPersonIds]);
+          OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id AND audience.person_id=ANY($4::uuid[])))${lockRows?' FOR SHARE OF msg,target,author':''}`,[display.householdId,personId,display.id,display.selectedPersonIds]);
     if(message.rowCount)return true;
   }
   if(display.cards.includes('external_items')){
-    const hub=await displayHub(display);
+    const hub=await displayHub(display,db,lockRows);
     if(hub&&Array.isArray(hub.people)&&(hub.people as Array<{id:string}>).some((person)=>person.id===personId))return true;
   }
   return false;
@@ -590,6 +631,12 @@ function photoProjection(householdId:string,personId:string,revision:number|null
 
 function displayPhotoProjection(personId:string,revision:number|null):Record<string,unknown>|null{
   return revision?{revision,url96:`/api/v1/display/people/${personId}/photo/96?v=${revision}`,url512:`/api/v1/display/people/${personId}/photo/512?v=${revision}`}:null;
+}
+
+function previewPhotoProjection(householdId:string,displayId:string,personId:string,revision:number|null,selectionTag:string):Record<string,unknown>|null{
+  if(!revision)return null;
+  const base=`/api/v1/households/${householdId}/displays/${displayId}/preview/people/${personId}/photo`;
+  return{revision,url96:`${base}/96?v=${revision}&s=${selectionTag}`,url512:`${base}/512?v=${revision}&s=${selectionTag}`};
 }
 
 interface DisplaySetupInput {
@@ -690,7 +737,17 @@ async function audit(client: DbClient, auth: Pick<AuthContext,'installationId'|'
     VALUES ($1,$2,'account',$3,$4,$5,$6,$7)`, [auth.installationId, auth.householdId, auth.accountId, action, subjectType, subjectId ?? null, JSON.stringify(metadata)]);
 }
 
-async function projectionFor(display: DisplayContext): Promise<Record<string, unknown>> {
+async function displayCanComposeMessage(display:DisplayContext):Promise<boolean>{
+  if(display.privacyMode||!display.cards.includes('new_message'))return false;
+  const row=(await pool.query<{available:boolean}>(`SELECT policy.message_create AND (
+      EXISTS(SELECT 1 FROM display_action_people allowed WHERE allowed.household_id=policy.household_id AND allowed.display_id=policy.display_id)
+      OR EXISTS(SELECT 1 FROM display_action_displays allowed JOIN displays recipient ON recipient.id=allowed.recipient_display_id AND recipient.household_id=allowed.household_id
+        WHERE allowed.household_id=policy.household_id AND allowed.display_id=policy.display_id AND recipient.revoked_at IS NULL AND recipient.credential_expires_at>clock_timestamp())
+    ) AS available FROM display_action_policies policy WHERE policy.household_id=$1 AND policy.display_id=$2`,[display.householdId,display.id])).rows[0];
+  return row?.available===true;
+}
+
+async function projectionFor(display: DisplayContext,options:{markDelivered?:boolean;preview?:boolean;previewTag?:string}={}): Promise<Record<string, unknown>> {
   const now = new Date();
   const hardCache = new Date(now.getTime() + 15 * 60_000);
   const label=await pool.query<{display_name:string;household_name:string;timezone:string;show_upcoming_birthday:boolean}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone,h.show_upcoming_birthday FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
@@ -707,9 +764,9 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
       ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId,display.selectedPersonIds])).rows.map((row) => ({
         id: row.id, kind: 'household_message', body: row.body, importance: row.importance,
-        author: row.author_name,authorType:row.author_type,authorDisplayId:row.author_display_id, authorPersonId:row.author_person_id, authorAvatarKey:row.author_avatar_key,authorPhoto:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?displayPhotoProjection(row.author_person_id,row.author_photo_revision):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
+        author: row.author_name,authorType:row.author_type,authorDisplayId:row.author_display_id, authorPersonId: row.author_person_id, authorAvatarKey: row.author_avatar_key,authorPhoto:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?(options.preview?previewPhotoProjection(display.householdId,display.id,row.author_person_id,row.author_photo_revision,options.previewTag??''):displayPhotoProjection(row.author_person_id,row.author_photo_revision)):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
       }));
-  if(!display.privacyMode && cards.length){
+  if(options.markDelivered!==false&&!display.privacyMode && cards.length){
     const cardIds=cards.map((card)=>(card as {id:string}).id);
     await pool.query(`UPDATE message_display_targets t SET delivery_state='delivered',delivered_revision=m.revision,delivered_at=clock_timestamp(),displayed_at=CASE WHEN t.delivered_revision IS DISTINCT FROM m.revision THEN NULL ELSE t.displayed_at END
       FROM messages m WHERE t.message_id=m.id AND t.display_id=$1 AND m.id=ANY($2::uuid[])
@@ -720,16 +777,14 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   }
   const hub=await displayHub(display);
   const familyProfiles=(!display.privacyMode && display.familyLayoutEnabled && display.cards.includes('family_layout') && display.profilePersonIds.length)
-    ?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision
-      FROM persons p JOIN display_setup_people selected ON selected.household_id=p.household_id AND selected.person_id=p.id AND selected.setup_id=$3
+    ?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p
       JOIN display_person_grants profile ON profile.household_id=p.household_id AND profile.person_id=p.id AND profile.display_id=$4 AND profile.profile_allowed
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
-      WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,display.profilePersonIds,display.setupId,display.id])).rows:[];
+      WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.id=ANY($3::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,display.selectedPersonIds,display.profilePersonIds,display.id])).rows:[];
   const birthdayPeople=(!display.privacyMode && display.familyLayoutEnabled && display.cards.includes('family_layout') && label.rows[0]?.show_upcoming_birthday && display.birthdayPersonIds.length)
     ?(await pool.query<{id:string;display_name:string;birth_date:string}>(`SELECT p.id,p.display_name,p.birth_date::text FROM persons p
-      JOIN display_setup_people selected ON selected.household_id=p.household_id AND selected.person_id=p.id AND selected.setup_id=$3
       JOIN display_person_grants birthday ON birthday.household_id=p.household_id AND birthday.person_id=p.id AND birthday.display_id=$4 AND birthday.birthday_allowed
-      WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.birth_date IS NOT NULL ORDER BY p.display_name,p.id`,[display.householdId,display.birthdayPersonIds,display.setupId,display.id])).rows:[];
+      WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.id=ANY($3::uuid[]) AND p.birth_date IS NOT NULL ORDER BY p.display_name,p.id`,[display.householdId,display.selectedPersonIds,display.birthdayPersonIds,display.id])).rows:[];
   const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
   const upcomingBirthdays=label.rows[0]?.show_upcoming_birthday?birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday):[];
   const boardGrant=(await pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])).rows[0];
@@ -737,15 +792,15 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
   const groceries=(!display.privacyMode&&display.cards.includes('groceries')&&boardGrant?.grocery_read)
     ?(await pool.query(`SELECT item.id,item.label,item.checked,item.revision FROM household_grocery_items item WHERE item.household_id=$1 AND item.deleted_at IS NULL
       AND EXISTS(SELECT 1 FROM display_board_read_grants grant_row JOIN displays device ON device.id=grant_row.display_id AND device.household_id=grant_row.household_id
-        JOIN display_setups setup ON setup.id=device.setup_id AND setup.household_id=device.household_id WHERE grant_row.household_id=$1 AND grant_row.display_id=$2 AND grant_row.grocery_read AND device.privacy_mode=false AND setup.cards ? 'groceries')
-      ORDER BY item.created_at,item.id LIMIT 200`,[display.householdId,display.id])).rows:[];
+        JOIN display_setups setup ON setup.id=device.setup_id AND setup.household_id=device.household_id WHERE grant_row.household_id=$1 AND grant_row.display_id=$2 AND grant_row.grocery_read AND device.privacy_mode=false AND ($3::boolean OR setup.cards ? 'groceries'))
+      ORDER BY item.created_at,item.id LIMIT 200`,[display.householdId,display.id,Boolean(options.preview)])).rows:[];
   const dinners=(!display.privacyMode&&display.cards.includes('dinners')&&boardGrant?.dinner_read)
     ?(await pool.query(`SELECT assignment.id,assignment.local_date::text AS "localDate",CASE WHEN assignment.deleted_at IS NULL THEN assignment.title_snapshot ELSE NULL END AS title,
       CASE WHEN assignment.deleted_at IS NULL THEN assignment.emoji_snapshot ELSE NULL END AS emoji,assignment.revision,(assignment.deleted_at IS NOT NULL) AS cleared FROM household_dinner_assignments assignment
       WHERE assignment.household_id=$1 AND assignment.local_date BETWEEN $3::date AND $4::date
         AND EXISTS(SELECT 1 FROM display_board_read_grants grant_row JOIN displays device ON device.id=grant_row.display_id AND device.household_id=grant_row.household_id
-          JOIN display_setups setup ON setup.id=device.setup_id AND setup.household_id=device.household_id WHERE grant_row.household_id=$1 AND grant_row.display_id=$2 AND grant_row.dinner_read AND device.privacy_mode=false AND setup.cards ? 'dinners')
-      ORDER BY assignment.local_date,assignment.id LIMIT 7`,[display.householdId,display.id,localToday,boardWeekEnd])).rows:[];
+          JOIN display_setups setup ON setup.id=device.setup_id AND setup.household_id=device.household_id WHERE grant_row.household_id=$1 AND grant_row.display_id=$2 AND grant_row.dinner_read AND device.privacy_mode=false AND ($5::boolean OR setup.cards ? 'dinners'))
+      ORDER BY assignment.local_date,assignment.id LIMIT 7`,[display.householdId,display.id,localToday,boardWeekEnd,Boolean(options.preview)])).rows:[];
   return {
     display: {
       id: display.id, name: label.rows[0]?.display_name, householdName: label.rows[0]?.household_name,
@@ -755,11 +810,12 @@ async function projectionFor(display: DisplayContext): Promise<Record<string, un
     setup:{cards:display.cards,cardOrder:display.cardOrder,familyLayoutEnabled:display.familyLayoutEnabled,personIds:display.privacyMode?[]:display.selectedPersonIds,
       sourceIds:display.privacyMode?[]:display.sourceIds,calendarSourceIds:display.privacyMode?[]:display.calendarSourceIds,sensorIds:display.privacyMode?[]:display.sensorIds,
       albumIds:display.albumIds,backgroundId:display.backgroundId},
-    displayGrants:{personIds:display.privacyMode?[]:display.grantedPersonIds,profilePersonIds:display.privacyMode?[]:display.profilePersonIds,birthdayPersonIds:display.privacyMode?[]:display.birthdayPersonIds},
+    displayGrants:{personIds:display.privacyMode?[]:display.grantedPersonIds.filter(id=>display.selectedPersonIds.includes(id)),profilePersonIds:display.privacyMode?[]:display.profilePersonIds.filter(id=>display.selectedPersonIds.includes(id)),birthdayPersonIds:display.privacyMode?[]:display.birthdayPersonIds.filter(id=>display.selectedPersonIds.includes(id))},
     familyLayout:{enabled:!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout'),
-      people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:displayPhotoProjection(person.id,person.photo_revision)})),
+      people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:options.preview?previewPhotoProjection(display.householdId,display.id,person.id,person.photo_revision,options.previewTag??''):displayPhotoProjection(person.id,person.photo_revision)})),
       upcomingBirthdays},
-    cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd},...(hub?{hub}:{}),serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
+    cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd},...(hub?{hub:options.preview?{...hub,people:(hub.people as Array<Record<string,unknown>>).map((person)=>{const photo=person.photo as {revision?:number}|null;return{...person,photo:previewPhotoProjection(display.householdId,display.id,String(person.id),photo?.revision??null,options.previewTag??'')};})}:hub}:{}),
+    actionAvailability:{newMessage:await displayCanComposeMessage(display)},serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
   };
 }
 
@@ -1207,8 +1263,51 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const requestedRevision=Number((request.query as Record<string,unknown>).v);
     if(!Number.isSafeInteger(requestedRevision)||requestedRevision<1)throw new DomainError('NOT_FOUND',404);
     if(!await displayPersonPhotoVisible(display,personId))throw new DomainError('NOT_FOUND',404);
-    const photo=(await pool.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2`,[personId,display.householdId])).rows[0];
-    if(!photo||photo.revision!==requestedRevision)throw new DomainError('NOT_FOUND',404);
+    const requested=(await pool.query<{revision:number}>(`SELECT revision FROM person_profile_photos WHERE person_id=$1 AND household_id=$2`,[personId,display.householdId])).rows[0];
+    if(!requested||requested.revision!==requestedRevision)throw new DomainError('NOT_FOUND',404);
+    const photo=await transaction(async(client)=>{
+      const current=await displayContextForManager(display.householdId,display.id,client,true,true);
+      if(current.credentialHash!==display.credentialHash||current.privacyMode!==display.privacyMode||current.externalItemsEnabled!==display.externalItemsEnabled)throw new DomainError('UNAUTHENTICATED',401);
+      if(!await displayPersonPhotoVisible(current,personId,client,true))throw new DomainError('NOT_FOUND',404);
+      const selected=(await client.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2 FOR SHARE`,[personId,display.householdId])).rows[0];
+      if(!selected||selected.revision!==requestedRevision)throw new DomainError('NOT_FOUND',404);
+      if(!await displayPersonPhotoVisible(current,personId,client,true))throw new DomainError('NOT_FOUND',404);
+      const active=(await client.query(`SELECT id FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()`,[display.id,display.householdId,display.credentialHash])).rows[0];
+      if(!active)throw new DomainError('UNAUTHENTICATED',401);
+      return selected;
+    });
+    const etag=`\"photo-${photo.revision}-${createHash('sha256').update(photo.data).digest('hex').slice(0,16)}-${variant}\"`;
+    reply.header('Cache-Control','private, no-store').header('ETag',etag).header('X-Content-Type-Options','nosniff').type('image/webp');
+    if(request.headers['if-none-match']===etag)return reply.status(304).send();return reply.send(photo.data);
+  });
+
+  app.get('/api/v1/households/:householdId/displays/:displayId/preview/people/:personId/photo/:variant',async(request,reply)=>{
+    const householdId=params(request).householdId!,displayId=params(request).displayId!,personId=params(request).personId!,variant=params(request).variant!;
+    if(!['96','512'].includes(variant))throw new DomainError('NOT_FOUND',404);
+    const revision=Number((request.query as Record<string,unknown>).v);if(!Number.isSafeInteger(revision)||revision<1)throw new DomainError('NOT_FOUND',404);
+    const selection=parsePreviewContextTag((request.query as Record<string,unknown>).s);const auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'display.manage');
+    const device=await displayContextForManager(householdId,displayId);const candidate:DisplayContext={...device,cards:selection.cards,familyLayoutEnabled:selection.familyLayoutEnabled,allSources:selection.allSources,allSensors:selection.allSensors,selectedPersonIds:selection.personIds,sourceIds:selection.sourceIds,calendarSourceIds:selection.calendarSourceIds,sensorIds:selection.sensorIds,albumIds:selection.albumIds,backgroundId:selection.backgroundId};
+    if(!await displayPersonPhotoVisible(candidate,personId))throw new DomainError('NOT_FOUND',404);
+    const requested=(await pool.query<{revision:number}>(`SELECT revision FROM person_profile_photos WHERE person_id=$1 AND household_id=$2`,[personId,householdId])).rows[0];
+    if(!requested||requested.revision!==revision)throw new DomainError('NOT_FOUND',404);
+    const photo=await transaction(async(client)=>{
+      // Match media operations: lock manager authority before the target device.
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      const currentDevice=await displayContextForManager(householdId,displayId,client,true,true);
+      if(currentDevice.credentialHash!==device.credentialHash||currentDevice.privacyMode!==device.privacyMode||currentDevice.externalItemsEnabled!==device.externalItemsEnabled)throw new DomainError('NOT_FOUND',404);
+      const current:DisplayContext={...currentDevice,cards:selection.cards,familyLayoutEnabled:selection.familyLayoutEnabled,allSources:selection.allSources,allSensors:selection.allSensors,selectedPersonIds:selection.personIds,sourceIds:selection.sourceIds,calendarSourceIds:selection.calendarSourceIds,sensorIds:selection.sensorIds,albumIds:selection.albumIds,backgroundId:selection.backgroundId};
+      if(!await displayPersonPhotoVisible(current,personId,client,true))throw new DomainError('NOT_FOUND',404);
+      const selected=(await client.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2 FOR SHARE`,[personId,householdId])).rows[0];
+      if(!selected||selected.revision!==revision)throw new DomainError('NOT_FOUND',404);
+      if(!await displayPersonPhotoVisible(current,personId,client,true))throw new DomainError('NOT_FOUND',404);
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      const final=(await client.query<{session_id:string}>(`SELECT session.id AS session_id FROM sessions session JOIN accounts account ON account.id=session.account_id JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2 JOIN displays device ON device.id=$3 AND device.household_id=$2
+        WHERE session.id=$1 AND session.account_id=$4 AND membership.id=$5 AND membership.capabilities ? 'display.manage' AND account.disabled_at IS NULL
+          AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND device.credential_hash=$6 AND device.revoked_at IS NULL AND device.credential_expires_at>clock_timestamp()
+          AND device.privacy_mode=$7 AND device.external_items_enabled=$8`,[auth.sessionId,householdId,displayId,auth.accountId,auth.membershipId,device.credentialHash,device.privacyMode,device.externalItemsEnabled])).rows[0];
+      if(!final)throw new DomainError('NOT_FOUND',404);
+      return selected;
+    });
     const etag=`\"photo-${photo.revision}-${createHash('sha256').update(photo.data).digest('hex').slice(0,16)}-${variant}\"`;
     reply.header('Cache-Control','private, no-store').header('ETag',etag).header('X-Content-Type-Options','nosniff').type('image/webp');
     if(request.headers['if-none-match']===etag)return reply.status(304).send();return reply.send(photo.data);
@@ -1252,6 +1351,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   });
   app.get('/api/v1/households/:householdId/media/assets/:assetId/:variant',async(request,reply)=>{
     const householdId=params(request).householdId!,assetId=params(request).assetId!,variant=params(request).variant!;if(variant!=='master'&&variant!=='preview')throw new DomainError('NOT_FOUND',404);const revision=Number((request.query as Record<string,unknown>).v);if(!Number.isSafeInteger(revision)||revision<1)throw new DomainError('NOT_FOUND',404);const auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'household.view');const result=await media.assetBytesMember(mediaActor(auth),assetId,variant,revision,request.headers['if-none-match']);reply.header('Cache-Control','private, no-store').header('ETag',result.etag).header('X-Content-Type-Options','nosniff').type(result.contentType);if(result.notModified)return reply.status(304).send();return reply.send(result.bytes);
+  });
+  app.get('/api/v1/households/:householdId/displays/:displayId/preview/assets/:assetId/:variant',async(request,reply)=>{
+    const householdId=params(request).householdId!,displayId=params(request).displayId!,assetId=params(request).assetId!,variant=params(request).variant!;
+    if(variant!=='master'&&variant!=='preview')throw new DomainError('NOT_FOUND',404);
+    const query=request.query as Record<string,unknown>,revision=Number(query.v);if(!Number.isSafeInteger(revision)||revision<1)throw new DomainError('NOT_FOUND',404);
+    const selection=parsePreviewContextTag(query.s),auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'display.manage');
+    const display=await displayContextForManager(householdId,displayId);
+    const result=await media.previewAssetBytes(mediaActor(auth),{id:display.id,householdId,setupId:display.setupId,privacyMode:display.privacyMode,credentialHash:display.credentialHash},selection,assetId,variant,revision,request.headers['if-none-match']);
+    reply.header('Cache-Control','private, no-store').header('ETag',result.etag).header('X-Content-Type-Options','nosniff').type(result.contentType);
+    if(result.notModified)return reply.status(304).send();return reply.send(result.bytes);
   });
   app.get('/api/v1/households/:householdId/media/background',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');reply.header('Cache-Control','private, no-store');return media.householdBackground(mediaActor(auth));
@@ -1911,6 +2020,63 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {setups};
   });
 
+  app.get('/api/v1/households/:householdId/displays/:displayId/action-policy',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');reply.header('Cache-Control','private, no-store');
+    const displayId=params(request).displayId!;
+    const policy=(await pool.query<{revision:number;message_create:boolean;message_schedule:boolean;grocery_write:boolean;dinner_write:boolean;photo_upload:boolean;home_assistant_control:boolean}>(`SELECT revision,message_create,message_schedule,grocery_write,dinner_write,photo_upload,home_assistant_control FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[auth.householdId,displayId])).rows[0];
+    if(!policy)throw new DomainError('NOT_FOUND',404);
+    const [people,displays]=await Promise.all([
+      pool.query<{person_id:string}>('SELECT person_id FROM display_action_people WHERE household_id=$1 AND display_id=$2 ORDER BY person_id',[auth.householdId,displayId]),
+      pool.query<{recipient_display_id:string}>('SELECT recipient_display_id FROM display_action_displays WHERE household_id=$1 AND display_id=$2 ORDER BY recipient_display_id',[auth.householdId,displayId])
+    ]);
+    return{revision:policy.revision,messageCreate:policy.message_create,messageSchedule:policy.message_schedule,groceryWrite:policy.grocery_write,dinnerWrite:policy.dinner_write,photoUpload:policy.photo_upload,homeAssistantControl:policy.home_assistant_control,personIds:people.rows.map(row=>row.person_id),displayIds:displays.rows.map(row=>row.recipient_display_id)};
+  });
+
+  app.post('/api/v1/households/:householdId/displays/:displayId/preview',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');reply.header('Cache-Control','private, no-store');
+    const householdId=auth.householdId;const displayId=params(request).displayId!;const source=parse(displaySetupPreviewSchema,request.body);
+    const selectedInput=await transaction(async(client)=>{
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      const device=(await client.query(`SELECT id FROM displays WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId])).rows[0];if(!device)throw new DomainError('NOT_FOUND',404);
+      let input:DisplaySetupInput;
+      if(source.setupId){await client.query('SELECT id FROM display_setups WHERE id=$1 AND household_id=$2 FOR SHARE',[source.setupId,householdId]);const saved=await displaySetupResponse(client,householdId,source.setupId);input={name:String(saved.name),cards:saved.cards as string[],cardOrder:saved.cardOrder as string[],familyLayoutEnabled:Boolean(saved.familyLayoutEnabled),allSources:Boolean(saved.allSources),allSensors:Boolean(saved.allSensors),personIds:saved.personIds as string[],sourceIds:saved.sourceIds as string[],calendarSourceIds:saved.calendarSourceIds as string[],sensorIds:saved.sensorIds as string[],albumIds:saved.albumIds as string[],backgroundId:saved.backgroundId as string|null,locale:saved.locale as 'en'|'nb',theme:saved.theme as 'light'|'dark'|'system'};}
+      else input=source.draft as DisplaySetupInput;
+      const checks=await Promise.all([
+        client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.personIds]),
+        client.query('SELECT id FROM integration_connections WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.sourceIds]),
+        client.query('SELECT id FROM calendar_sources WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.calendarSourceIds]),
+        client.query('SELECT id FROM home_assistant_temperature_sensors WHERE household_id=$1 AND id=ANY($2::uuid[])',[householdId,input.sensorIds])
+      ]);
+      for(const [index,ids] of [[0,input.personIds],[1,input.sourceIds],[2,input.calendarSourceIds],[3,input.sensorIds]] as const)if(checks[index]!.rowCount!==new Set(ids).size)throw new DomainError('NOT_FOUND',404);
+      await validateDisplaySetupMediaSelection(client,householdId,auth.membershipId,input.albumIds,input.backgroundId);
+      return input;
+    });
+    const device=await displayContextForManager(householdId,displayId);
+    const preview:DisplayContext={...device,setupId:source.setupId??device.setupId,cards:selectedInput.cards,cardOrder:selectedInput.cardOrder,familyLayoutEnabled:selectedInput.familyLayoutEnabled,
+      allSources:selectedInput.allSources,allSensors:selectedInput.allSensors,selectedPersonIds:selectedInput.personIds,sourceIds:selectedInput.sourceIds,calendarSourceIds:selectedInput.calendarSourceIds,sensorIds:selectedInput.sensorIds,
+      albumIds:selectedInput.albumIds,backgroundId:selectedInput.backgroundId,locale:device.localeOverride??selectedInput.locale,theme:device.themeOverride??selectedInput.theme};
+    const tag=previewContextTag(preview);const mediaActorDevice={id:preview.id,householdId,setupId:preview.setupId,privacyMode:preview.privacyMode,credentialHash:preview.credentialHash};
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[householdId])).rows[0]!;
+    const today=localDateInTimezone(new Date(),household.timezone),weekTo=dateOffset(weekStart(today),6);
+    const [projection,previewMedia,week,next]=await Promise.all([
+      projectionFor(preview,{markDelivered:false,preview:true,previewTag:tag}),
+      media.previewProjection(mediaActor(auth),mediaActorDevice,{cards:preview.cards,albumIds:preview.albumIds,backgroundId:preview.backgroundId},tag),
+      !preview.privacyMode&&preview.cards.includes('week')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:weekTo,limit:50,maxDays:7,display:preview}):Promise.resolve(null),
+      !preview.privacyMode&&preview.cards.includes('next')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,365),limit:1,maxDays:366,upcomingOnly:true,display:preview}):Promise.resolve(null)
+    ]);
+    await transaction(async(client)=>{
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      const live=(await client.query<{privacy_mode:boolean;external_items_enabled:boolean}>(`SELECT privacy_mode,external_items_enabled FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId,device.credentialHash])).rows[0];
+      if(!live||live.privacy_mode!==device.privacyMode||live.external_items_enabled!==device.externalItemsEnabled)throw new DomainError('NOT_FOUND',404);
+      const final=(await client.query<{session_id:string}>(`SELECT session.id AS session_id FROM sessions session JOIN accounts account ON account.id=session.account_id JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2 JOIN displays device ON device.id=$3 AND device.household_id=$2
+        WHERE session.id=$1 AND session.account_id=$4 AND membership.id=$5 AND membership.capabilities ? 'display.manage' AND account.disabled_at IS NULL
+          AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND device.credential_hash=$6 AND device.revoked_at IS NULL AND device.credential_expires_at>clock_timestamp()
+          AND device.privacy_mode=$7 AND device.external_items_enabled=$8`,[auth.sessionId,householdId,displayId,auth.accountId,auth.membershipId,device.credentialHash,device.privacyMode,device.externalItemsEnabled])).rows[0];
+      if(!final)throw new DomainError('NOT_FOUND',404);
+    });
+    return{...projection,preview:true,media:previewMedia,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{})};
+  });
+
   app.post('/api/v1/households/:householdId/display-setups',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
     const body=parse(displaySetupCreateSchema,request.body) as DisplaySetupInput;
@@ -2206,6 +2372,82 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const display = await displayAuth(request);
     reply.header('Cache-Control','private, max-age=0, must-revalidate');
     return projectionFor(display);
+  });
+
+  app.get('/api/v1/display/activities',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
+    if(display.privacyMode)return{from:null,to:null,activities:[],nextCursor:null,serverNow:new Date().toISOString()};
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[display.householdId])).rows[0];
+    if(!household)throw new DomainError('UNAUTHENTICATED',401);
+    const today=localDateInTimezone(new Date(),household.timezone);const query=(request.query??{}) as Record<string,unknown>;
+    const from=dateOnly(query.from),to=dateOnly(query.to);
+    if(!from||!to||from<weekStart(today))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_date_window'});
+    const days=(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000+1;
+    if(days<1||days>7)throw new DomainError('VALIDATION_FAILED',400,{reason:'activity_window_max_seven_days'});
+    const requested=activityIdFilter(query.personIds,'activity_people',50);
+    const personIds=requested?display.selectedPersonIds.filter((id)=>requested.includes(id)):display.selectedPersonIds;
+    const limit=query.limit===undefined?20:Number(query.limit);
+    if(!Number.isInteger(limit)||limit<1||limit>50)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_limit'});
+    const page=await personActivities({householdId:display.householdId,personIds,viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from,to,limit,cursor:decodeActivityCursor(query.cursor),maxDays:7,display});
+    const activities=page.activities.map((row)=>{const normalized={...row};if(row.type==='calendar'){const subjects=row.subjects as {personIds?:unknown}|undefined;normalized.personIds=Array.isArray(subjects?.personIds)?subjects.personIds:[];}else normalized.personIds=Array.isArray(row.personIds)?row.personIds:typeof row.personId==='string'?[row.personId]:[];delete normalized.personId;return normalized;});
+    return{from,to,...page,activities,serverNow:new Date().toISOString()};
+  });
+
+  app.get('/api/v1/display/activities/next',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
+    if(display.privacyMode)return{activity:null,serverNow:new Date().toISOString()};
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[display.householdId])).rows[0];
+    if(!household)throw new DomainError('UNAUTHENTICATED',401);
+    const query=(request.query??{}) as Record<string,unknown>;const requested=activityIdFilter(query.personIds,'activity_people',50);
+    const personIds=requested?display.selectedPersonIds.filter((id)=>requested.includes(id)):display.selectedPersonIds;
+    const from=localDateInTimezone(new Date(),household.timezone);const to=dateOffset(from,365);
+    const page=await personActivities({householdId:display.householdId,personIds,viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from,to,limit:1,maxDays:366,upcomingOnly:true,display});
+    const activity=page.activities[0]??null;
+    if(activity){if(activity.type==='calendar'){const subjects=activity.subjects as {personIds?:unknown}|undefined;activity.personIds=Array.isArray(subjects?.personIds)?subjects.personIds:[];}else activity.personIds=Array.isArray(activity.personIds)?activity.personIds:typeof activity.personId==='string'?[activity.personId]:[];delete activity.personId;}
+    return{activity,serverNow:new Date().toISOString()};
+  });
+
+  app.get('/api/v1/display/people/:personId/activities',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
+    const personId=params(request).personId!;if(display.privacyMode||!display.selectedPersonIds.includes(personId))throw new DomainError('NOT_FOUND',404);
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[display.householdId])).rows[0];if(!household)throw new DomainError('UNAUTHENTICATED',401);
+    const today=localDateInTimezone(new Date(),household.timezone),query=(request.query??{}) as Record<string,unknown>,from=dateOnly(query.from),to=dateOnly(query.to);
+    if(!from||!to||from<weekStart(today))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_date_window'});
+    const days=(Date.parse(`${to}T00:00:00Z`)-Date.parse(`${from}T00:00:00Z`))/86_400_000+1;if(days<1||days>7)throw new DomainError('VALIDATION_FAILED',400,{reason:'activity_window_max_seven_days'});
+    const limit=query.limit===undefined?20:Number(query.limit);if(!Number.isInteger(limit)||limit<1||limit>50)throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_activity_limit'});
+    const page=await personActivities({householdId:display.householdId,personIds:[personId],viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from,to,limit,cursor:decodeActivityCursor(query.cursor),maxDays:7,display});
+    const activities=page.activities.map((row)=>{const normalized={...row};if(row.type==='calendar'){const subjects=row.subjects as {personIds?:unknown}|undefined;normalized.personIds=Array.isArray(subjects?.personIds)?subjects.personIds:[];}else normalized.personIds=Array.isArray(row.personIds)?row.personIds:[];delete normalized.personId;return normalized;});
+    return{personId,from,to,...page,activities,serverNow:new Date().toISOString()};
+  });
+
+  app.get('/api/v1/display/people/:personId/activities/next',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
+    const personId=params(request).personId!;if(display.privacyMode||!display.selectedPersonIds.includes(personId))throw new DomainError('NOT_FOUND',404);
+    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[display.householdId])).rows[0];if(!household)throw new DomainError('UNAUTHENTICATED',401);
+    const from=localDateInTimezone(new Date(),household.timezone),page=await personActivities({householdId:display.householdId,personIds:[personId],viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from,to:dateOffset(from,365),limit:1,maxDays:366,upcomingOnly:true,display});
+    const activity=page.activities[0]??null;if(activity){if(activity.type==='calendar'){const subjects=activity.subjects as {personIds?:unknown}|undefined;activity.personIds=Array.isArray(subjects?.personIds)?subjects.personIds:[];}else activity.personIds=Array.isArray(activity.personIds)?activity.personIds:[];delete activity.personId;}
+    return{personId,activity,serverNow:new Date().toISOString()};
+  });
+
+  app.get('/api/v1/display/people/:personId/school-activities/:eventId',async(request,reply)=>{
+    const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
+    if(display.privacyMode)throw new DomainError('NOT_FOUND',404);
+    const personId=params(request).personId!,eventId=params(request).eventId!;if(!display.selectedPersonIds.includes(personId))throw new DomainError('NOT_FOUND',404);
+    const row=(await pool.query<SchoolActivityRow>(`SELECT ${schoolActivitySelect}
+      FROM monitor_events event JOIN monitor_tasks task ON task.id=event.task_id AND task.household_id=event.household_id
+      JOIN LATERAL (SELECT subject.person_id,ARRAY[subject.person_id] AS person_ids FROM monitor_task_subjects subject WHERE subject.task_id=task.id AND subject.household_id=task.household_id AND subject.person_id=$2) subject ON true
+      JOIN households household ON household.id=task.household_id
+      JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id
+      JOIN message_display_targets target ON target.household_id=message.household_id AND target.message_id=message.id AND target.display_id=$4 AND target.delivery_state IN ('queued','delivered','displayed')
+      LEFT JOIN LATERAL (SELECT checked_at,source_url FROM monitor_runs WHERE task_id=task.id AND fingerprint=event.source_fingerprint AND run_kind IN ('scheduled','manual') AND outcome='changed' AND result_kind='events' ORDER BY checked_at DESC,id DESC LIMIT 1) run ON true
+      WHERE event.id=$1 AND event.household_id=$3 AND event.active AND event.actions IS NOT NULL AND task.presentation_kind='school' AND task.state='active' AND task.approved_revision=task.revision
+        AND event.school_expires_at>clock_timestamp() AND jsonb_typeof(event.actions)='array' AND jsonb_array_length(event.actions)>0
+        AND message.state='published' AND message.publish_at<=clock_timestamp() AND message.expires_at>clock_timestamp()
+        AND ${schoolTaskAuthorized}
+        AND (message.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id)
+          OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id AND audience.person_id=ANY($5::uuid[])))`,[eventId,personId,display.householdId,display.id,display.selectedPersonIds])).rows[0];
+    if(!row)throw new DomainError('NOT_FOUND',404);
+    return{type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at?.toISOString()??null};
   });
 
   app.post('/api/v1/display/render-ack', async (request, reply) => {

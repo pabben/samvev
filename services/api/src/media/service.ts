@@ -7,6 +7,7 @@ import type {MediaAlbumCreate,MediaAlbumGrant,MediaAlbumUpdate,MediaAssetDelete,
 
 export interface MediaMemberActor {accountId:string;sessionId:string;householdId:string;membershipId:string;personId:string;}
 export interface MediaDisplayActor {id:string;householdId:string;setupId:string;privacyMode:boolean;credentialHash:string;}
+export interface MediaPreviewSelection {cards:string[];albumIds:string[];backgroundId:string|null;}
 export type MediaNormalizer=(base64:string)=>Promise<NormalizedMediaImage>;
 export interface MediaOptions {normalizer?:MediaNormalizer;}
 interface AlbumRow {id:string;name:string;album_kind:'photos'|'backgrounds';revision:number;owner_membership_id:string;owner:boolean;can_read:boolean;can_upload:boolean;can_manage:boolean;asset_count:number;}
@@ -216,11 +217,56 @@ export class MediaService {
     const householdBackground=householdBackgroundId?await selectedDisplayAsset(pool,actor.householdId,actor.id,actor.setupId,householdBackgroundId,false):undefined;
     return{albums,assets:assets.map(displayAssetMetadata),background:background?displayAssetMetadata(background):null,householdBackground:householdBackground?displayAssetMetadata(householdBackground):null};
   }
+  async previewProjection(manager:MediaMemberActor,actor:MediaDisplayActor,selection:MediaPreviewSelection,selectionTag:string){
+    return transaction(async(client)=>{
+      const managerState=await liveMember(client,manager);if(!managerState.capabilities.includes('display.manage'))throw new DomainError('FORBIDDEN',403);
+      const device=await liveDisplay(client,actor);if(device.privacy_mode)return{albums:[],assets:[],background:null};
+      const albums=selection.cards.includes('photos')&&selection.albumIds.length?(await client.query<{id:string;name:string;asset_count:number}>(`SELECT album.id,album.name,count(asset.id)::int AS asset_count
+        FROM media_albums album JOIN media_album_display_grants grant_row ON grant_row.household_id=album.household_id AND grant_row.album_id=album.id AND grant_row.display_id=$3 AND grant_row.can_read
+        LEFT JOIN media_assets asset ON asset.household_id=album.household_id AND asset.album_id=album.id
+        WHERE album.household_id=$1 AND album.id=ANY($2::uuid[]) AND album.album_kind='photos' GROUP BY album.id,album.name ORDER BY album.name,album.id`,[manager.householdId,selection.albumIds,actor.id])).rows:[];
+      const assets=selection.cards.includes('photos')&&selection.albumIds.length?(await client.query<AssetRow>(`SELECT asset.id,asset.album_id,album.album_kind,asset.revision,asset.title,asset.description,asset.original_mime,asset.width,asset.height,asset.content_sha256,asset.stored_bytes,asset.created_at,asset.updated_at
+        FROM media_assets asset JOIN media_albums album ON album.household_id=asset.household_id AND album.id=asset.album_id
+        JOIN media_album_display_grants grant_row ON grant_row.household_id=asset.household_id AND grant_row.album_id=asset.album_id AND grant_row.display_id=$3 AND grant_row.can_read
+        WHERE asset.household_id=$1 AND asset.album_id=ANY($2::uuid[]) AND album.album_kind='photos' ORDER BY asset.created_at,asset.id LIMIT 250`,[manager.householdId,selection.albumIds,actor.id])).rows:[];
+      const background=selection.backgroundId?(await client.query<AssetRow>(`SELECT asset.id,asset.album_id,album.album_kind,asset.revision,asset.title,asset.description,asset.original_mime,asset.width,asset.height,asset.content_sha256,asset.stored_bytes,asset.created_at,asset.updated_at
+        FROM media_assets asset JOIN media_albums album ON album.household_id=asset.household_id AND album.id=asset.album_id
+        JOIN media_album_display_grants grant_row ON grant_row.household_id=asset.household_id AND grant_row.album_id=asset.album_id AND grant_row.display_id=$3 AND grant_row.can_read
+        WHERE asset.household_id=$1 AND asset.id=$2 AND album.album_kind='backgrounds'`,[manager.householdId,selection.backgroundId,actor.id])).rows[0]:undefined;
+      const householdBackground=(await client.query<AssetRow>(`SELECT asset.id,asset.album_id,album.album_kind,asset.revision,asset.title,asset.description,asset.original_mime,asset.width,asset.height,asset.content_sha256,asset.stored_bytes,asset.created_at,asset.updated_at
+        FROM media_household_settings setting JOIN media_assets asset ON asset.household_id=setting.household_id AND asset.id=setting.background_asset_id
+        JOIN media_albums album ON album.household_id=asset.household_id AND album.id=asset.album_id AND album.album_kind='backgrounds'
+        JOIN media_album_display_grants grant_row ON grant_row.household_id=asset.household_id AND grant_row.album_id=asset.album_id AND grant_row.display_id=$2 AND grant_row.can_read
+        WHERE setting.household_id=$1`,[manager.householdId,actor.id])).rows[0];
+      const metadata=(asset:AssetRow)=>{const path=`/api/v1/households/${manager.householdId}/displays/${actor.id}/preview/assets/${asset.id}`;return{id:asset.id,albumId:asset.album_id,kind:asset.album_kind,revision:asset.revision,title:asset.title,description:asset.description,mimeType:'image/webp',width:asset.width,height:asset.height,url:`${path}/master?v=${asset.revision}&s=${selectionTag}`,previewUrl:`${path}/preview?v=${asset.revision}&s=${selectionTag}`};};
+      await liveMember(client,manager);await liveDisplay(client,actor);
+      return{albums,assets:assets.map(metadata),background:background?metadata(background):null,householdBackground:householdBackground?metadata(householdBackground):null};
+    });
+  }
   async assetBytesMember(actor:MediaMemberActor,assetId:string,variant:'master'|'preview',revision:number,ifNoneMatch?:string){
     return memberTransaction(actor,async(client)=>{await liveMember(client,actor);const location=(await client.query<{album_id:string}>(`SELECT album_id FROM media_assets WHERE household_id=$1 AND id=$2`,[actor.householdId,assetId])).rows[0];if(!location)throw new DomainError('NOT_FOUND',404);const album=await lockAlbum(client,actor.householdId,location.album_id);await requireAlbumPermission(client,actor,album.id,'can_read');const header=(await client.query<{revision:number;master_webp:Buffer;preview_webp:Buffer;content_sha256:string}>(`SELECT revision,master_webp,preview_webp,content_sha256 FROM media_assets WHERE household_id=$1 AND id=$2 FOR SHARE`,[actor.householdId,assetId])).rows[0];if(!header||header.revision!==revision)throw new DomainError('NOT_FOUND',404);return this.conditionalImage(variant==='master'?header.master_webp:header.preview_webp,header.revision,header.content_sha256,variant,ifNoneMatch);});
   }
   async assetBytesDisplay(actor:MediaDisplayActor,assetId:string,variant:'master'|'preview',revision:number,ifNoneMatch?:string){
     return transaction(async(client)=>{const display=await liveDisplay(client,actor);if(display.setup_id!==actor.setupId||display.privacy_mode)throw new DomainError('NOT_FOUND',404);const visible=await selectedDisplayAsset(client,actor.householdId,actor.id,display.setup_id,assetId,false);if(!visible||visible.revision!==revision)throw new DomainError('NOT_FOUND',404);const row=(await client.query<{master_webp:Buffer;preview_webp:Buffer}>(`SELECT master_webp,preview_webp FROM media_assets WHERE household_id=$1 AND id=$2`,[actor.householdId,assetId])).rows[0]!;await liveDisplay(client,actor);return this.conditionalImage(variant==='master'?row.master_webp:row.preview_webp,visible.revision,visible.content_sha256,variant,ifNoneMatch);});
+  }
+  async previewAssetBytes(manager:MediaMemberActor,actor:MediaDisplayActor,selection:MediaPreviewSelection,assetId:string,variant:'master'|'preview',revision:number,ifNoneMatch?:string){
+    return transaction(async(client)=>{
+      const managerState=await liveMember(client,manager);
+      if(!managerState.capabilities.includes('display.manage'))throw new DomainError('FORBIDDEN',403);
+      const device=await liveDisplay(client,actor);
+      if(device.privacy_mode)throw new DomainError('NOT_FOUND',404);
+      const asset=(await client.query<AssetRow>(`SELECT asset.id,asset.album_id,album.album_kind,asset.revision,asset.title,asset.description,asset.original_mime,asset.width,asset.height,asset.content_sha256,asset.stored_bytes,asset.created_at,asset.updated_at
+        FROM media_assets asset JOIN media_albums album ON album.household_id=asset.household_id AND album.id=asset.album_id
+        JOIN media_album_display_grants grant_row ON grant_row.household_id=asset.household_id AND grant_row.album_id=asset.album_id AND grant_row.display_id=$3 AND grant_row.can_read
+        WHERE asset.household_id=$1 AND asset.id=$2 FOR SHARE OF asset,grant_row`,[manager.householdId,assetId,actor.id])).rows[0];
+      let selected=false;
+      if(asset?.album_kind==='photos')selected=selection.cards.includes('photos')&&selection.albumIds.includes(asset.album_id);
+      else if(asset?.album_kind==='backgrounds')selected=selection.backgroundId===asset.id||Boolean((await client.query(`SELECT 1 FROM media_household_settings WHERE household_id=$1 AND background_asset_id=$2`,[manager.householdId,asset.id])).rowCount);
+      if(!asset||!selected||asset.revision!==revision)throw new DomainError('NOT_FOUND',404);
+      const bytes=(await client.query<{master_webp:Buffer;preview_webp:Buffer}>(`SELECT master_webp,preview_webp FROM media_assets WHERE household_id=$1 AND id=$2`,[manager.householdId,assetId])).rows[0]!;
+      await liveMember(client,manager);await liveDisplay(client,actor);
+      return this.conditionalImage(variant==='master'?bytes.master_webp:bytes.preview_webp,asset.revision,asset.content_sha256,variant,ifNoneMatch);
+    });
   }
   private conditionalImage(bytes:Buffer,revision:number,sha:string,variant:string,ifNoneMatch?:string){const etag=`"media-${revision}-${sha.slice(0,16)}-${variant}"`;return{bytes,etag,notModified:ifNoneMatch===etag,contentType:'image/webp' as const};}
 }

@@ -5,23 +5,28 @@
 All 13 owner-request areas remain active. Backend checkpoints now include
 T1–T3, Home birthdays/week/school, display setup and authorship, durable native
 household boards, private albums/backgrounds, and selected HA light/cover
-controls (additive migrations 027–035). Native/media checkpoint source is
-`f7383975c0b85d7af17bdd91fd11d4d118dc68c5`; the subsequent HA checkpoint is
-identified by the commit containing this update. Root Git metadata is protected
-and deliberately stale; use the publishing checkout for source identity.
+controls (migrations 027–035), followed by Display 036 policy/projection backend.
+The pushed HA checkpoint is `670f0b3`; Display 036 is the next local checkpoint.
+Root Git metadata is protected and deliberately stale; use the publishing
+checkout for source identity.
 
-These are local backend checkpoints. Main independently passed 31 combined
-regressions before HA integration. HA review repaired final expiry checks,
-absolute wire deadlines, grant lock ordering, selected-origin binding and a
-confirmed ambiguous SQL column on provider-origin changes. The focused final
-HA runner passed migration, API/contracts checks and 3 tests; the prior lock
-ordering demonstrably failed the deadlock regression. See the Round 13 status
-for the subsequent combined run and exact evidence.
+These are local backend checkpoints. The combined 31-test backend/media run and
+the HA-focused migration/API/contracts plus 3-test suite passed. Display 036's
+`display-expiry-check.log` reports all five workspace checks exit 0; its strong
+final verification passes API/contracts typechecks and 15/15 display/media/image
+tests. Review repaired expiry, photo-grant, draft-filter and lock-order findings;
+the former lock order fails its counterfactual. Main's earlier combined 41/41
+run is historical. The final combined backend checkpoint passed 42/42 with zero
+failures, skips or cancellations on the isolated local runner in 81.8 seconds
+(actual process exit 0); evidence is
+`.local/m3/round13/backend-display-accepted-checkpoint.log`. This is backend-only
+evidence; display UI, visual capture, full QA, backup/restore, release gate and
+public verification remain open. See Round 13 status for details.
 
 The public deployment remains Round 12 source
 `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
-`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Frontend integration, display backend
-completion, visual captures, public pages/provider wizards, full QA, release
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Frontend integration, display UI,
+visual captures, public pages/provider wizards, full QA, release
 gate, candidate backup/restore and public verification remain open. Physical HA
 actions have not been tested and must never run automatically in acceptance.
 Owner contact is confirmed privately for runtime configuration; keep its values

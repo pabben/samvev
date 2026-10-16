@@ -3,16 +3,16 @@
 Updated: 2026-10-16
 Goal: complete all 13 owner-request areas recorded in
 `ROUND_13_REQUIREMENTS.md` and `REQUEST_LEDGER.md`.
-Phase: temperature, Home, display setup/messages, native boards, media and
-HA-control backend checkpoints are locally implemented. Display backend
-completion, all new UI, pages/wizards, full visual/QA/release and public
-verification remain open. All 13 areas remain active.
+Phase: temperature, Home, display setup/messages, native boards, media,
+HA-controls and Display 036 backend checkpoints are implemented/reviewed.
+All new UI, pages/wizards, full visual/QA/release and public verification remain
+open. All 13 areas remain active.
 
 ## Baseline snapshot and preservation warning
 
-- Pre-HA publisher/origin checkpoint is
-  `f7383975c0b85d7af17bdd91fd11d4d118dc68c5`, including native boards and media.
-  The subsequent HA checkpoint is the commit containing this update. Root Git HEAD `390f6a6` is intentionally stale metadata;
+- HA publisher/origin checkpoint `670f0b3` contains migrations 033–035 and is
+  pushed to the feature branch. Display 036 backend changes are the next local
+  checkpoint and are not claimed as published here. Root Git HEAD `390f6a6` is intentionally stale metadata;
   do not mistake it for a source conflict, recreate checkpointed work, or ask
   every agent to rediscover a false worktree conflict. The earlier `df04e82` /
   deployed R12 source was superseded by this R13 feature checkpoint.
@@ -41,13 +41,13 @@ verification remain open. All 13 areas remain active.
 | R13-01 | Agent economy and durable status | Active status/checkpoint practice recorded; no cost estimates | N/A | N/A | No |
 | R13-02 | Data/environment preservation | Checkpoint preserved baseline; 229 protected root Git hashes independently unchanged at display-message checkpoint | Isolated synthetic runs only | Public R12 runtime remains unchanged | No |
 | R13-03 | Day overview and birthdays | Birthday/day DTO backend locally implemented; UI celebration/reduced motion and complete display acceptance remain open | 15 focused Home tests and API check pass | R12 only | No |
-| R13-04 | People, week and school cards | Bounded Home chronology and school metadata backend implemented; full card/week/school experience remains open | 15 focused Home tests and API check pass | R12 preview/details only | No |
+| R13-04 | People, week and school cards | Bounded Home chronology, school metadata, and display week/next/person/saved-school ACL chronology backend implemented; full card/week/school UI remains open | Home 15 focused tests/API; Display 036 focused review evidence below | R12 preview/details only | No |
 | R13-05 | Waste consolidation | Import/day-plan baseline only; remove separate Next Waste surface remains open | No new evidence | R12 only | No |
-| R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, server-filtered projections and authority rechecks implemented; UI/browser/config preview remain open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4 and Round 9 5/5; bounded review closed | R12 ACL baseline only | No |
-| R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Combined backend suite 20/20; bounded findings closed | No R13 public evidence | No |
+| R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, policy GET, read-only real-device-grant preview and server-filtered projections implemented; UI/browser/config preview remain open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4, Round 9 5/5, Display 036 15/15 focused plus all five workspace checks; final combined backend checkpoint 42/42, bounded strong review closed | R12 ACL baseline only | No |
+| R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Final combined backend checkpoint 42/42 pass, zero failures/skips/cancellations; bounded findings closed | No R13 public evidence | No |
 | R13-08 | Messages, private background and shared album | Display authors and private album/background backend implemented; message typography, album playback/UI and restore/public acceptance remain open | Media focused 10/10 plus API 4/4; four review findings corrected with deterministic regressions | No R13 public evidence | No |
 | R13-09 | Durable groceries and dated dinners | Native backend, revisions/tombstones, snapshots and independent display grants implemented; UI remains open | Focused integration and API/contracts checks pass; lock-expiry review findings closed | No R13 public evidence | No |
-| R13-10 | Home Assistant controls and T1–T3 | T1–T3 backend implemented; HA light/garage actions remain open | Temperature: 7 new +16 existing focused regressions; included in 20/20 backend suite; checks pass | R12 read-only baseline; preserve the existing public HA connection | No for isolated work; live consent is separate |
+| R13-10 | Home Assistant controls and T1–T3 | T1–T3 and selected HA controls backend implemented; device integration/display projection checked. Physical owner verification and UI remain open | HA focused controls 3/3; Display 036 focused expiry/filter suite evidence; final combined backend checkpoint 42/42 pass | R12 read-only baseline; preserve the existing public HA connection | No for isolated work; live consent is separate |
 | R13-11 | Anonymous public information pages | Contact values confirmed privately; runtime config and pages pending | No new evidence | Test origin only; no R13 page verification | No for content preparation; private values must not enter Git |
 | R13-12 | Google/Microsoft setup | Guides/wizards remain open | No new evidence | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not call it revoked. No live provider verification. | Registration/consent may be needed for live verification; guide work is not blocked |
 | R13-13 | Matrix, QA, backup/restore and feature delivery | Status is updated; full-target QA, recovery, release gate and public rollout remain open | Checkpoints documented; full retest not yet complete | Round 12 remains deployed; R13 public verification absent | No, except explicitly noted live provider consent |
@@ -358,3 +358,27 @@ actual exit 0, no failures/skips/cancellations, local isolated Compose runner.
 Evidence: `.local/m3/round13/backend-ha-checkpoint.log`. This includes existing
 HA wire, API/Round 9, display messages, Home, temperature, native boards and
 media regressions plus new controls. This is not final frontend/public proof.
+
+## Display 036 backend completion — 2026-10-16
+
+Display backend now includes policy GET and read-only previews filtered by the
+real device's current grants, with protected photo/media access and draft
+filters. New-message projections are bounded to 14 cards. Device week/next,
+person and saved-school chronology respects ACLs. These are backend projection
+and policy capabilities; display setup, browsing and card UI remain open.
+
+Cheap-writer implementation and bounded strong review/repair are complete. The
+review repairs covered stale photo grants, draft-filter mismatches, final expiry
+and privacy checks, plus manager/device lock ordering. The old lock ordering
+counterfactual reproduces HTTP 500; the exact corrected source was restored.
+Evidence under `.local/m3/round13/`: `display-expiry-check.log` reports all five
+workspace checks exit 0; `display-lock-strong-final-verification.log` covers API
+and contracts typechecks plus 15/15 display/media/image tests. The lock-order
+counterfactual and restoration logs are retained beside them.
+
+The earlier main 41/41 combined run is historical. The final combined backend
+checkpoint `.local/m3/round13/backend-display-accepted-checkpoint.log` passed
+42/42 with zero failures, skips or cancellations, using the isolated local
+runner in 81.8 seconds (actual process exit 0). This verifies backend only; no
+display UI, visual capture, public deployment, public restore or full release
+acceptance is implied here.

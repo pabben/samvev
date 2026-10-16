@@ -202,7 +202,7 @@ export const displayUpdateSchema = z.object({
   profilePersonIds: displaySetupIdsSchema.optional(),birthdayPersonIds:displaySetupIdsSchema.optional()
 }).strict().refine((value) => Object.keys(value).length > 0);
 
-export const displaySetupCards = ['household_messages','family_layout','external_items','worth_remembering','today','tomorrow','people','week','next','groceries','dinners','photos','home_assistant'] as const;
+export const displaySetupCards = ['household_messages','new_message','family_layout','external_items','worth_remembering','today','tomorrow','people','week','next','groceries','dinners','photos','home_assistant'] as const;
 const displaySetupCardSchema = z.enum(displaySetupCards);
 const displaySetupCardListSchema = z.array(displaySetupCardSchema).max(displaySetupCards.length)
   .refine((value) => new Set(value).size === value.length, 'duplicate_display_setup_card');
@@ -229,6 +229,8 @@ function refineDisplaySetup(value: z.infer<typeof displaySetupFieldsSchema>, con
 }
 export const displaySetupCreateSchema = displaySetupFieldsSchema.superRefine(refineDisplaySetup);
 export const displaySetupUpdateSchema = displaySetupFieldsSchema.extend({ expectedRevision: z.number().int().positive() }).strict().superRefine(refineDisplaySetup);
+export const displaySetupPreviewSchema = z.object({setupId:uuidSchema.optional(),draft:displaySetupCreateSchema.optional()}).strict().refine(value=>Boolean(value.setupId)!==Boolean(value.draft),'exactly_one_preview_source_required');
+export const displayPreviewSelectionSchema = z.object({cards:displaySetupCardListSchema,familyLayoutEnabled:z.boolean(),allSources:z.boolean(),allSensors:z.boolean(),personIds:displaySetupIdsSchema,sourceIds:displaySetupIdsSchema,calendarSourceIds:displaySetupIdsSchema,sensorIds:displaySetupIdsSchema,albumIds:displaySetupIdsSchema,backgroundId:uuidSchema.nullable()}).strict();
 
 export const mediaAlbumCreateSchema=z.object({name:nameSchema,kind:z.enum(['photos','backgrounds']).default('photos')}).strict();
 export const mediaAlbumUpdateSchema=z.object({expectedRevision:z.number().int().positive(),name:nameSchema}).strict();
