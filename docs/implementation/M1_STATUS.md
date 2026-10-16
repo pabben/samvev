@@ -36,12 +36,36 @@ acceptance, shared UI, full QA, backup/restore and release gate remain open.
 
 The public deployment remains Round 12 source
 `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
-`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Frontend integration, display UI,
-visual captures, public pages/provider wizards, full QA, release
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. Full frontend integration, display
+and shared Home UI, complete visual QA, public contact initialization/provider
+wizards, full QA, release
 gate, candidate backup/restore and public verification remain open. Physical HA
 actions have not been tested and must never run automatically in acceptance.
 Owner contact is confirmed privately for runtime configuration; keep its values
 out of Git. Preserve existing HA/Google connections and data. No new disk work.
+
+## Local candidate UI checkpoints — 2026-10-16
+
+Native boards A has isolated real-browser evidence in
+`.local/m3/round13/boards-browser/`: grocery add/check/uncheck, two-page sync,
+dinner assignment/reload, option delete/snapshot clear, stale 503 and clear 403
+states, mobile hit testing, six fictional people. The real-HTTP run exposed
+unavailable `crypto.randomUUID`; the secure `getRandomValues` fallback and
+regression were added. Root reviewed four actual images and mobile form/list
+behavior. This remains bounded candidate evidence, not full UI acceptance.
+
+Guides037 has six actual local browser captures under
+`.local/m3/round13/public-pages-browser/` (three pages in mobile-light and
+desktop-dark) reviewed locally; no public HTTPS claim. Media frontend 109
+tests/check/build pass, but browser authorization and playback review remains
+underway. Candidate work is an uncommitted overlay on `8e3440a`, not canonical
+or public source.
+
+An intermediate Vite build touched LAN-bound `dist`. Root restored all ten R12
+assets from the immutable R12 image, byte-checked them against canonical proof
+`00ddc36`, and verified existing LAN admin authentication, health and FamilyHub.
+No application data changed. Direct all intermediate builds to `/tmp`; do not
+write to LAN-bound `dist`. Public and LAN runtime remain R12.
 
 See [Round 13 status](../design/review/ROUND_13_STATUS.md) and
 [requirements/evidence matrix](../design/review/ROUND_13_REQUIREMENTS.md).
@@ -1089,3 +1113,11 @@ Evidence `.local/m3/round13/backend-media-checkpoint.log`. Migrations 001–031
 remain unchanged. All 229 baseline protected root Git hashes are unchanged.
 This is a backend checkpoint; UI/HA controls/pages/restore/release and public
 acceptance remain open. Public runtime is still R12.
+
+Round 13 native boards/media frontend checkpoint (2026-10-16): web check,
+109 web tests and isolated Vite build pass. Main actual-browser tests pass for
+boards, media upload/persistence, explicit two-account image grant/revocation,
+playback pause across refresh and Home background apply/reset. Main reviewed
+mobile/desktop screenshots. Dedicated synthetic data only; no public deployment
+or full release acceptance is implied. See ROUND_13_STATUS.md for evidence and
+remaining work.

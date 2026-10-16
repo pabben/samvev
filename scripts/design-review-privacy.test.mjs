@@ -17,6 +17,7 @@ test('capture masking hides protected photos and name-free private content witho
       <article class="hub-support-preview" data-item-id="synthetic-brief"><button><strong>Private AI summary</strong></button><p>Confidential unnamed household details</p><details class="hub-provenance" open><summary>Internal source</summary><a href="https://example.invalid/private">Private source and timestamp</a></details></article>
       <section class="hub-waste"><button><span data-item-id="waste-private"><strong>Confidential waste route</strong><time>24 October</time></span></button></section>
       <article class="hub-temperature" data-item-id="temperature-private"><strong>Private bedroom sensor</strong><span class="hub-temperature-value">−3.5 °C</span><details open><summary>Source time</summary><p>Private source timestamp</p></details></article>
+      <section class="household-boards"><span data-review-private="grocery-label">Private grocery item</span><span data-review-private="dinner-option">Private dinner plan</span></section>
       </main>`);
     await page.locator('#protected-photo').evaluate(image=>image.decode());
     const geometry=()=>page.locator('.hub-person,.hub-message,.hub-timeline,.hub-reminder,.hub-support-preview,#protected-photo').evaluateAll(nodes=>nodes.map(node=>{const {x,y,width,height}=node.getBoundingClientRect();return{x,y,width,height}}));
@@ -24,10 +25,10 @@ test('capture masking hides protected photos and name-free private content witho
     assert.equal(await page.locator('#protected-photo').evaluate(node=>getComputedStyle(node).visibility),'visible');
     const redactions=await maskReviewPrivacy(page,['private fixture']);
     assert.deepEqual(await geometry(),before);
-    for(const kind of ['runtimeIdentity','messageBody','protectedPhoto','dynamicItem','personalActivity','provenance','homeEnvironment'])assert.ok(redactions.includes(kind),kind);
+    for(const kind of ['runtimeIdentity','messageBody','protectedPhoto','dynamicItem','personalActivity','provenance','homeEnvironment','grocery-label','dinner-option'])assert.ok(redactions.includes(kind),kind);
     assert.equal(await page.locator('#protected-photo').evaluate(node=>getComputedStyle(node).visibility),'hidden');
     assert.equal(await page.locator('.avatar').evaluate(node=>getComputedStyle(node).visibility),'hidden');
-    const privateText='.hub-person-name strong,.combined,.hub-person-activity,.display-card-body,.display-card-body b,.hub-message-meta time,.hub-timeline time,.hub-timeline strong,.hub-timeline small,.hub-reminder strong,.hub-support-preview strong,.hub-support-preview p,.hub-provenance summary,.hub-provenance a,.hub-waste strong,.hub-waste time,.hub-temperature strong,.hub-temperature-value,.hub-temperature p';
+    const privateText='.hub-person-name strong,.combined,.hub-person-activity,.display-card-body,.display-card-body b,.hub-message-meta time,.hub-timeline time,.hub-timeline strong,.hub-timeline small,.hub-reminder strong,.hub-support-preview strong,.hub-support-preview p,.hub-provenance summary,.hub-provenance a,.hub-waste strong,.hub-waste time,.hub-temperature strong,.hub-temperature-value,.hub-temperature p,[data-review-private]';
     for(const state of await page.locator(privateText).evaluateAll(nodes=>nodes.map(node=>{const css=getComputedStyle(node);return{marked:!!node.closest('[data-review-redact]'),hidden:css.visibility==='hidden'||(css.color==='rgba(0, 0, 0, 0)'&&css.webkitTextFillColor==='rgba(0, 0, 0, 0)'),shadow:css.textShadow}}))){
       assert.equal(state.marked,true);assert.equal(state.hidden,true);
     }

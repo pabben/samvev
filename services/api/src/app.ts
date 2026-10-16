@@ -789,7 +789,15 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
       WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.id=ANY($3::uuid[]) AND p.birth_date IS NOT NULL ORDER BY p.display_name,p.id`,[display.householdId,display.selectedPersonIds,display.birthdayPersonIds,display.id])).rows:[];
   const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
   const upcomingBirthdays=label.rows[0]?.show_upcoming_birthday?birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday):[];
-  const boardGrant=(await pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])).rows[0];
+  const [boardGrant,boardActions]=await Promise.all([
+    pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id]),
+    pool.query<{grocery_write:boolean;dinner_write:boolean}>(`SELECT grocery_write,dinner_write FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])
+  ]).then(([grants,actions])=>[grants.rows[0],actions.rows[0]] as const);
+  const boardReadable={
+    groceries:!display.privacyMode&&display.cards.includes('groceries')&&boardGrant?.grocery_read===true,
+    dinners:!display.privacyMode&&display.cards.includes('dinners')&&boardGrant?.dinner_read===true
+  };
+  const boardWritable={groceries:boardReadable.groceries&&boardActions?.grocery_write===true,dinners:boardReadable.dinners&&boardActions?.dinner_write===true};
   const boardWeekEnd=dateOffset(localToday,6);
   const groceries=(!display.privacyMode&&display.cards.includes('groceries')&&boardGrant?.grocery_read)
     ?(await pool.query(`SELECT item.id,item.label,item.checked,item.revision FROM household_grocery_items item WHERE item.household_id=$1 AND item.deleted_at IS NULL
@@ -816,7 +824,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
     familyLayout:{enabled:!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout'),
       people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:options.preview?previewPhotoProjection(display.householdId,display.id,person.id,person.photo_revision,options.previewTag??''):displayPhotoProjection(person.id,person.photo_revision)})),
       upcomingBirthdays},
-    cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd},...(hub?{hub:options.preview?{...hub,people:(hub.people as Array<Record<string,unknown>>).map((person)=>{const photo=person.photo as {revision?:number}|null;return{...person,photo:previewPhotoProjection(display.householdId,display.id,String(person.id),photo?.revision??null,options.previewTag??'')};})}:hub}:{}),
+    cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd,readable:boardReadable,writable:boardWritable},...(hub?{hub:options.preview?{...hub,people:(hub.people as Array<Record<string,unknown>>).map((person)=>{const photo=person.photo as {revision?:number}|null;return{...person,photo:previewPhotoProjection(display.householdId,display.id,String(person.id),photo?.revision??null,options.previewTag??'')};})}:hub}:{}),
     actionAvailability:{newMessage:await displayCanComposeMessage(display)},serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
   };
 }

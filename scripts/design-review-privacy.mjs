@@ -20,6 +20,7 @@ export async function maskReviewPrivacy(page, names) {
     };
     const patterns=values.map(value=>new RegExp(`(^|[^\\p{L}\\p{N}])${value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}(?=$|[^\\p{L}\\p{N}])`,'u'));
     const apply=()=>{
+      document.querySelectorAll('[data-review-private]').forEach(node => mark(node, node.getAttribute('data-review-private') || 'privateContent'));
       for (const [kind, selector] of Object.entries(selectors)) document.querySelectorAll(selector).forEach(node => mark(node, kind));
       const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {

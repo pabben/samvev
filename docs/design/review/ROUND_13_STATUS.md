@@ -5,9 +5,11 @@ Goal: complete all 13 owner-request areas recorded in
 `ROUND_13_REQUIREMENTS.md` and `REQUEST_LEDGER.md`.
 Phase: temperature, Home, display setup/messages, native boards, media,
 HA-controls, Display 036 and guides 037 backend/documentation checkpoints are
-implemented/reviewed. Shared UI, public contact initialization, provider
-wizards, full visual/QA/release and public verification remain open. All 13
-areas remain active.
+implemented/reviewed. Local grocery/dinner UI, anonymous-page screenshots and
+media frontend checks now have bounded candidate evidence; shared Home/display
+UI, media browser acceptance, public contact initialization, provider wizards,
+full visual/QA/release and public verification remain open. All 13 areas remain
+active.
 
 ## Baseline snapshot and preservation warning
 
@@ -44,13 +46,13 @@ areas remain active.
 | R13-03 | Day overview and birthdays | Birthday/day DTO backend locally implemented; UI celebration/reduced motion and complete display acceptance remain open | 15 focused Home tests and API check pass | R12 only | No |
 | R13-04 | People, week and school cards | Bounded Home chronology, school metadata, and display week/next/person/saved-school ACL chronology backend implemented; full card/week/school UI remains open | Home 15 focused tests/API; Display 036 focused review evidence below | R12 preview/details only | No |
 | R13-05 | Waste consolidation | Import/day-plan baseline only; remove separate Next Waste surface remains open | No new evidence | R12 only | No |
-| R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, policy GET, read-only real-device-grant preview and server-filtered projections implemented; UI/browser/config preview remain open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4, Round 9 5/5, Display 036 15/15 focused plus all five workspace checks; final combined backend checkpoint 42/42, bounded strong review closed | R12 ACL baseline only | No |
-| R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Final combined backend checkpoint 42/42 pass, zero failures/skips/cancellations; bounded findings closed | No R13 public evidence | No |
-| R13-08 | Messages, private background and shared album | Display authors and private album/background backend implemented; message typography, album playback/UI and restore/public acceptance remain open | Media focused 10/10 plus API 4/4; four review findings corrected with deterministic regressions | No R13 public evidence | No |
-| R13-09 | Durable groceries and dated dinners | Native backend, revisions/tombstones, snapshots and independent display grants implemented; UI remains open | Focused integration and API/contracts checks pass; lock-expiry review findings closed | No R13 public evidence | No |
+| R13-06 | Display identity/configuration and per-display projection | Reusable setup, independent device grants, policy GET, read-only real-device-grant preview and server-filtered projections implemented; local board read/write projection is focused-tested. Full display setup/preview UI remains open. Family layout is independent of external-data opt-in; selection grants no access. | API 4/4, Round 9 5/5, Display 036 15/15 and all five workspace checks; display-board policy 6/6; final backend checkpoint 52/52; bounded reviews closed | R12 ACL baseline only; no public R13 display UI | No |
+| R13-07 | Permissions and real display author identity | Persisted real display authors, per-device recipient/action policy, safe replay and revocation boundaries implemented; UI and public verification open | Final combined backend checkpoint 52/52 pass, zero failures/skips/cancellations; bounded findings closed | No R13 public evidence | No |
+| R13-08 | Messages, private background and shared album | Display authors and private album/background backend implemented; media frontend checks pass, but browser/authorization/playback review remains underway; full restore/public acceptance open | Media focused 10/10 plus API 4/4; media frontend 109 tests/check/tmpbuild pass; four review findings corrected with deterministic regressions | No R13 public evidence | No |
+| R13-09 | Durable groceries and dated dinners | Native backend and candidate UI support durable boards; local browser acceptance covers core flows, but full integrated UI/QA remains open | Native A isolated browser: six synthetic people, grocery add/check/uncheck, two-page sync, dinner assign/reload, option delete/snapshot clear, 503 stale and 403 clear, mobile hit-test; real-HTTP UUID fallback regression fixed | No R13 public evidence | No |
 | R13-10 | Home Assistant controls and T1–T3 | T1–T3 and selected HA controls backend implemented; device integration/display projection checked. Physical owner verification and UI remain open | HA focused controls 3/3; Display 036 focused expiry/filter suite evidence; final combined backend checkpoint 42/42 pass | R12 read-only baseline; preserve the existing public HA connection | No for isolated work; live consent is separate |
-| R13-11 | Anonymous public information pages | `/om`, `/personvern`, `/vilkar` routing/content, anonymous DTO and safe runtime configuration path implemented in candidate; private contact values are not initialized publicly. Browser/public verification remains open. | guides037 web check: 100 tests and build exit 0; initial five workspace checks pass | Public deployment remains R12; no R13 browser/public visual verification | No; values are privately confirmed but must stay out of Git |
-| R13-12 | Google/Microsoft setup | Google and Microsoft guides implemented; interactive setup wizards and live provider verification remain open | guides037 web check: 100 tests/build exit 0; provider-focused 5 checks pass | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not call it revoked. No live provider verification. | Registration/consent may be needed for live verification; guide work is not blocked |
+| R13-11 | Anonymous public information pages | `/om`, `/personvern`, `/vilkar` routing/content, anonymous DTO and safe runtime configuration path implemented in candidate; private contact values are not initialized publicly. Public verification remains open. | guides037 web check: 100 tests/build exit 0; six local candidate screenshots (three pages × mobile-light/desktop-dark) reviewed | Public deployment remains R12; no R13 HTTPS claim or public verification | No; values are privately confirmed but must stay out of Git |
+| R13-12 | Google/Microsoft setup | Google and Microsoft administrator guides/UI implemented; integrated browser/public checks and live provider verification remain open | guides037 web check: 100 tests/build exit 0; provider-focused 5 checks pass | One Google connection exists but is not currently connected; `disconnected_at` is null, so do not call it revoked. No live provider verification. | Registration/consent may be needed for live verification; guide work is not blocked |
 | R13-13 | Matrix, QA, backup/restore and feature delivery | Status is updated; full-target QA, recovery, release gate and public rollout remain open | Checkpoints documented; full retest not yet complete | Round 12 remains deployed; R13 public verification absent | No, except explicitly noted live provider consent |
 
 Full acceptance criteria and evidence distinctions are in
@@ -58,6 +60,37 @@ Full acceptance criteria and evidence distinctions are in
 directly reports; it does not satisfy newly requested additions. Local backend
 checkpoint status is reflected in the table above; it does not imply UI or
 public completion.
+
+## Local candidate UI and browser checkpoints — 2026-10-16
+
+Native boards A has isolated real-browser evidence in
+`.local/m3/round13/boards-browser/`: `check.mjs`, `snapshot.json`,
+`results/result.json`, `browser.log` and `mobile-input.log`. It exercises
+grocery add/check/uncheck, two-page sync, dinner assignment/reload, deleting an
+option and snapshot clear, stale 503 and clear 403 states, mobile hit testing,
+and six fictional people. A real-HTTP run exposed missing
+`crypto.randomUUID`; the secure `getRandomValues` UUID fallback and regression
+test are included in the candidate evidence. Root reviewed four actual images
+and the mobile four/three-item/form behavior; this is bounded candidate
+acceptance, not full app QA.
+
+The guide pages have six actual local-browser screenshots under
+`.local/m3/round13/public-pages-browser/` (three anonymous pages × mobile-light
+and desktop-dark), reviewed against the candidate. This makes no public HTTPS
+or deployed-page claim. Media frontend checks in `frontend-media-*.log` report
+109 tests/check/build pass, while browser authorization and playback review is
+still underway.
+
+Operational correction: an intermediate default Vite build wrote to the
+LAN-bound `dist`. Root restored all 10 R12 assets from the immutable R12 image,
+byte-checked them against canonical proof `00ddc36`, and verified existing LAN
+admin authentication, health and FamilyHub. No application data changed. All
+future intermediate builds must use a `/tmp` output directory; do not build to
+the LAN-bound `dist`.
+
+None of these candidate checkpoints updates public or LAN deployments: both
+remain R12. Shared Home/display UI, media browser review, public contact
+initialization, full target QA, backup/restore and release gate remain open.
 
 ## Guides 037 backend and documentation checkpoint — 2026-10-16
 
@@ -408,3 +441,28 @@ checkpoint `.local/m3/round13/backend-display-accepted-checkpoint.log` passed
 runner in 81.8 seconds (actual process exit 0). This verifies backend only; no
 display UI, visual capture, public deployment, public restore or full release
 acceptance is implied here.
+
+## Native boards and media browser acceptance — 2026-10-16
+
+Main independently exercised the frozen frontend candidate against dedicated
+`samvev_r13_boards_fixture` data, with six fictional people and no worker or
+external provider calls. `boards-browser/media-browser.log` and
+`boards-browser/media-access.log` both exited 0. Actual album creation, synthetic
+PNG upload/decoded preview, reload persistence and mobile layout passed. A
+second synthetic account could read an explicitly shared image (200); removing
+its grant returned 404 for the same image URL and removed the image from its UI.
+Playback pause and image selection survived manual and 30-second refreshes.
+Household background application and reset were observed in the actual Home UI.
+Two additional media screenshots were visually reviewed by main. Evidence is
+under `.local/m3/round13/boards-browser/`, including snapshot hashes and
+`results/media-access-result.json`.
+
+This is local candidate acceptance, not public or full display acceptance.
+Repeated browser logins reached the normal 429 limit; only login buckets in the
+dedicated synthetic fixture were cleared for subsequent scenarios. Runtime rate
+limits, retained QA data and public data were not modified. Adapter/browser
+review fixes include keyed household/device scopes, revocation clearing, honest
+transient errors, preserved playback state, readable mobile inputs and the HTTP
+LAN secure UUID fallback. Web checks and 109 tests pass; intermediate builds
+remain confined to `/tmp`. Full integrated QA, canonical screenshots, restore,
+release gate and public test deployment remain pending.
