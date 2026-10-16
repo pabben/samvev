@@ -196,6 +196,21 @@ async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:
   requireCapability(row.capabilities,capability);
 }
 
+async function recheckPersonPhotoAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,personId:string,lock=true):Promise<void>{
+  // Account/membership management takes installation before actor rows. Pin
+  // that parent first so the photo audit FK cannot invert those locks.
+  if(lock)await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE',[auth.installationId]);
+  const row=(await client.query<{person_id:string;capabilities:Capability[];csrf_hash:string}>(`SELECT membership.person_id,membership.capabilities,session.csrf_hash
+    FROM sessions session JOIN accounts account ON account.id=session.account_id
+    JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2
+    WHERE session.id=$1 AND session.account_id=$3 AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp()
+      AND account.disabled_at IS NULL AND membership.id=$4
+    ${lock?'FOR KEY SHARE OF session FOR SHARE OF account,membership':''}`,[auth.sessionId,auth.householdId,auth.accountId,auth.membershipId])).rows[0];
+  if(!row)throw new DomainError('UNAUTHENTICATED',401);
+  const csrf=request.headers['x-csrf-token'];if(typeof csrf!=='string'||tokenHash(csrf)!==row.csrf_hash)throw new DomainError('CSRF_REQUIRED',403);
+  if(row.person_id!==personId)requireCapability(row.capabilities,'people.manage');
+}
+
 async function authForInstallation(request:FastifyRequest,installationId:string):Promise<AuthContext>{
   const account=await sessionAccount(request);if(account.installationId!==installationId)throw new DomainError('NOT_FOUND',404);
   const row=(await pool.query<{id:string;household_id:string;person_id:string;role_preset:string;capabilities:Capability[]}>(`SELECT membership.id,membership.household_id,membership.person_id,membership.role_preset,membership.capabilities FROM memberships membership JOIN households household ON household.id=membership.household_id AND household.installation_id=$1 JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult' WHERE membership.account_id=$2 AND membership.capabilities ? 'installation.manage' ORDER BY membership.id LIMIT 1`,[installationId,account.accountId])).rows[0];
@@ -1250,6 +1265,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     await operationRateLimit(request,auth,'person_photo_upload',{account:30,household:120,ip:60,windowSeconds:3600});
     const body=parse(personPhotoUploadSchema,request.body);const photo=await normalizePhoto(body.imageBase64,body.crop);
     const result=await transaction(async(client)=>{
+      // Actor before target; session KEY SHARE permits last_seen updates and
+      // revocation, while account/membership SHARE holds identity and grants.
+      await recheckPersonPhotoAuth(client,request,auth,personId);
       const person=(await client.query<{photo_revision:number}>('SELECT photo_revision FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE',[personId,auth.householdId])).rows[0];
       if(!person)throw new DomainError('NOT_FOUND',404);
       if(person.photo_revision!==body.expectedPhotoRevision)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'photo'});
@@ -1258,7 +1276,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         ON CONFLICT(person_id) DO UPDATE SET revision=EXCLUDED.revision,content_sha256=EXCLUDED.content_sha256,original_mime=EXCLUDED.original_mime,width=EXCLUDED.width,height=EXCLUDED.height,variant_96=EXCLUDED.variant_96,variant_512=EXCLUDED.variant_512,updated_by_account_id=EXCLUDED.updated_by_account_id,updated_at=clock_timestamp()`,[personId,auth.householdId,next,photo.contentSha256,photo.originalMime,photo.width,photo.height,photo.variant96,photo.variant512,auth.accountId]);
       await client.query('UPDATE persons SET photo_revision=$3 WHERE id=$1 AND household_id=$2',[personId,auth.householdId,next]);
-      await audit(client,auth,'person.photo_updated','person',personId,{photoRevision:next});return next;
+      await audit(client,auth,'person.photo_updated','person',personId,{photoRevision:next});
+      // The target/image/audit operations can wait. Do not acquire more locks
+      // here; evaluate current authority and real expiry after every wait.
+      await recheckPersonPhotoAuth(client,request,auth,personId,false);return next;
     });
     reply.header('Cache-Control','private, no-store');return{personId,photoRevision:result};
   });
@@ -1268,12 +1289,14 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     if(auth.personId!==personId)requireCapability(auth.capabilities,'people.manage');
     const body=parse(personPhotoRevisionSchema,request.body);
     await transaction(async(client)=>{
+      await recheckPersonPhotoAuth(client,request,auth,personId);
       const person=(await client.query<{photo_revision:number}>('SELECT photo_revision FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE',[personId,auth.householdId])).rows[0];if(!person)throw new DomainError('NOT_FOUND',404);
       if(person.photo_revision!==body.expectedPhotoRevision)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'photo'});
       const deleted=await client.query('DELETE FROM person_profile_photos WHERE person_id=$1 AND household_id=$2 RETURNING person_id',[personId,auth.householdId]);
       if(!deleted.rowCount)throw new DomainError('NOT_FOUND',404);
       await client.query('UPDATE persons SET photo_revision=photo_revision+1 WHERE id=$1 AND household_id=$2',[personId,auth.householdId]);
       await audit(client,auth,'person.photo_removed','person',personId,{photoRevision:body.expectedPhotoRevision});
+      await recheckPersonPhotoAuth(client,request,auth,personId,false);
     });
     return reply.status(204).send();
   });
