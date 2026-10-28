@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const locales = ['en', 'nb'] as const;
 export const themes = ['light', 'dark', 'system'] as const;
 export const avatarKeys = ['avatar-01','avatar-02','avatar-03','avatar-04','avatar-05','avatar-06'] as const;
+export const personColorTokens = ['teal','blue','violet','rose','amber','green','coral','orange','lime','cyan','sky','indigo'] as const;
 export const ageGroups = ['adult', 'teen', 'child', 'unspecified'] as const;
 export const rolePresets = ['installation_admin', 'household_admin', 'member', 'limited'] as const;
 export const capabilities = [
@@ -71,10 +72,11 @@ export const personCreateSchema = z.object({
 export const personUpdateSchema = z.object({
   displayName: nameSchema.optional(),
   avatarKey: z.enum(avatarKeys).nullable().optional(),
+  colorToken: z.enum(personColorTokens).optional(),
   birthDate: birthDateSchema.nullable().optional(),
   ageGroup: z.enum(ageGroups).optional(),
   expectedRevision: z.number().int().positive()
-}).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
+}).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.colorToken !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
 
 export const personPhotoCropSchema = z.object({
   x: z.number().min(0).max(1),

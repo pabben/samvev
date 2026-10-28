@@ -3,6 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { PhotoEditor } from "./profile-photo";
 import { calendarPendingHousehold } from "./calendar-connections";
 import { Home } from "./home";
+import { HouseholdActivityWeek } from "./home-activities";
+import type { HubPerson } from "./home-types";
 import { IntegrationsPanel } from "./integrations";
 import { api } from "./api";
 import type { Display, HouseholdDashboard, HouseholdSettings, Me, Message, Person } from "./types";
@@ -143,7 +145,7 @@ export function MemberApp({
   );
   const can = (cap: string) => member.capabilities.includes(cap);
   const navigation: MemberTab[] = [
-    "home", "messages", "people", "more",
+    "home", "calendar", "messages", "people", "more",
   ];
   const goHome = () => {
     setTab("home");
@@ -197,8 +199,10 @@ export function MemberApp({
                     ? "message"
                     : key === "displays"
                       ? "display"
-                      : key === "people"
+                    : key === "people"
                         ? "people"
+                      : key === "calendar"
+                        ? "calendar"
                         : "spark"
                 }
               />
@@ -279,6 +283,11 @@ export function MemberApp({
           {photoPersonId&&people.some(p=>p.id===photoPersonId)&&<PhotoEditor person={people.find(p=>p.id===photoPersonId)!} householdId={household} onClose={()=>setPhotoPersonId(undefined)} onSaved={refresh}/>}
           {tab === "home" ? (
             <Home key={household} householdId={household} member={member} people={people} displays={displays} canManageHousehold={canManageHousehold} canManageDisplays={can("display.manage")} taskAccess={canManageHousehold?{householdId:household,onOpen:openTask,onNew:newPersonTask}:undefined} onEditPhoto={personId=>{if(personId===member.person_id||can("people.manage"))setPhotoPersonId(personId)}} editablePhotoIds={people.filter(person=>person.id===member.person_id||can("people.manage")).map(person=>person.id)} onSessionChange={onSessionChange} onManagePeople={can("people.manage") ? () => setTab("people") : undefined} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
+          ) : tab === "calendar" ? (
+            !loaded ? <Loading /> : <section className="member-calendar-page">
+              <header className="section-heading"><div><p className="eyebrow">{t("calendarTab")}</p><h1>{t("calendarOverviewTitle")}</h1><p>{t("calendarOverviewBody")}</p></div></header>
+              <HouseholdActivityWeek householdId={household} localDate={householdLocalDate(member.timezone)} zone={member.timezone} people={people.map(toHubPerson)} showNextActivity />
+            </section>
           ) : tab === "integrations" && canAccessIntegrations ? (
             <IntegrationsPanel key={household} member={member} displays={displays} people={people} installationId={me.account.installation_id} accountId={me.account.id}/>
           ) : tab === "more" ? (
@@ -634,6 +643,15 @@ export function MemberApp({
       )}
     </div>
   );
+}
+
+function householdLocalDate(timezone:string):string {
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:timezone,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const value=(type:string)=>parts.find(part=>part.type===type)?.value??"00";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+function toHubPerson(person:Person):HubPerson {
+  return {id:person.id,displayName:person.display_name,avatarKey:person.avatarKey,colorToken:person.colorToken,photo:person.photo,photoRevision:person.photoRevision,ageGroup:person.age_group};
 }
 
 function BirthdayCard({ birthday, locale }: { birthday: NonNullable<HouseholdDashboard["upcomingBirthday"]>; locale: "en" | "nb" }) {

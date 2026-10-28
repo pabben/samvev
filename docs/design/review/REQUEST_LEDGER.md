@@ -1,10 +1,35 @@
 # Samvev combined experience, defect and wish ledger
 
-Updated: 2026-10-15. All 13 numbered areas below are active requirements in the
-current goal. `ROUND_13_REQUIREMENTS.md` carries the acceptance matrix and
-implementation/evidence status; `ROUND_13_STATUS.md` is the resumable run record.
-The temperature fixes T1–T3 are the first implementation package within this
-larger goal. They do not narrow or replace the remaining areas.
+Updated: 2026-10-27. Round 14 is the current active request; its evidence and
+open requirements are in `ROUND_14_REQUIREMENTS.md` and its resumable checkpoint
+is `ROUND_14_STATUS.md`. The dated R13 ledger below is retained as historical
+scope and evidence, not silently replaced. The R13 owner actions remain separate
+follow-up items and are not blockers to this round.
+
+## Round 14 — active request
+
+The three owner issues are the source of scope: [#15 compact calendar and person
+colors](https://github.com/pabben/samvev/issues/15), [#14 ICS link
+onboarding](https://github.com/pabben/samvev/issues/14), and [#13 Anthropic
+provider](https://github.com/pabben/samvev/issues/13). The work sequence is
+design/reference review and #15, then #14, then #13; all three are required.
+The initial acceptance/evidence snapshot is in `ROUND_14_REQUIREMENTS.md`.
+
+R14 inherits the preservation boundary: preserve user data, vault, existing
+connections, AI tasks/schedules, protected Git metadata and current runtime;
+no AI or schedule mutations; use synthetic household data, local runners, final
+review and restore before any authorized public publish, with feature-only DCO
+delivery. No secrets or private household names may enter repository artifacts.
+Any live Anthropic request requires a separate owner action; synthetic transport
+is the test boundary until then. The existing R13 owner actions remain recorded
+in `ROUND_13_OWNER_ACTIONS.md` and do not block this R14 work.
+
+## Historical Round 13 — retained scope
+
+All 13 numbered areas below were active in R13. `ROUND_13_REQUIREMENTS.md`
+carries that round's acceptance matrix and evidence; `ROUND_13_STATUS.md` is its
+resumable run record. T1–T3 were the first package within R13-10, not a scope
+replacement. R13 owner-controlled follow-ups remain distinct from R14.
 
 Statuses distinguish verified R12 behavior from newly requested behavior. No
 new implementation or verification is claimed by this registration.

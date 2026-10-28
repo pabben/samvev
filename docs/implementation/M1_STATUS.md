@@ -1,8 +1,28 @@
 # M1 implementation status
 
-## Round 13 current status — 2026-10-16
+## Round 14 current status — 2026-10-27
 
-All 13 owner-request areas remain active. Current source is
+R14 scope is registered, not implemented. The active sequence is reference-led
+design and compact calendar (#15), ICS link onboarding (#14), then Anthropic
+provider support (#13). See [requirements and evidence](../design/review/ROUND_14_REQUIREMENTS.md),
+[resumable status](../design/review/ROUND_14_STATUS.md), and the
+[request ledger](../design/review/REQUEST_LEDGER.md). No R14 acceptance evidence
+is claimed.
+
+Root source inputs reportedly match publisher `0f808404…`; the public
+application is source `7c61557`, image `a0668cc…`, and reported healthy. QA is
+reported healthy but carries stale provenance metadata, so it is not fresh-source
+R14 evidence. Preserve existing user data, vault, integrations, AI tasks and
+schedules, protected Git metadata, and runtime. No code, provider credentials,
+AI requests, schedule changes, or public changes were made during registration.
+Use synthetic data and local runners; a real Anthropic call requires explicit
+owner action. Initial design inspection found no member Calendar route; canceled
+events and collision-safe persisted person-color assignment also remain open.
+Keep R13 owner actions separate and nonblocking.
+
+## Historical Round 13 status — 2026-10-16
+
+At the R13 checkpoint, all 13 owner-request areas were active. The source then was
 `7c61557b92333408c628911784aff267411479ba`. Immutable full QA at base
 `fb08236` passed 485/485 (web 141, contracts 5, core 3, API 336, worker 0)
 and all five workspace checks. The source delta contains only three capture

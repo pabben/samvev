@@ -1,4 +1,5 @@
-import type { MonitorTaskLifecycle } from "@samvev/contracts";
+import { personColorTokens, type MonitorTaskLifecycle } from "@samvev/contracts";
+export type PersonColorToken = typeof personColorTokens[number];
 export type Locale = "en" | "nb";
 export type Theme = "light" | "dark" | "system";
 export interface Membership {
@@ -25,6 +26,7 @@ export interface PersonPhoto { revision:number; url96:string; url512:string }
 export interface Person {
   photoRevision?:number; photo?:PersonPhoto|null;
   avatarKey?: string | null;
+  colorToken?: PersonColorToken;
   id: string;
   display_name: string;
   age_group: string;

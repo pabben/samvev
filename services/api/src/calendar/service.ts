@@ -13,6 +13,23 @@ export interface CalendarActor{accountId:string;sessionId:string;installationId:
 export interface CalendarTokenSet{accessToken:string;refreshToken?:string;expiresAt:string;scopes:string[];providerSubject:string;accountLabel?:string;}
 export interface CalendarInfo{externalId:string;name:string;provenance?:Record<string,unknown>;sourceWarning?:string;}
 export interface CalendarEvent{uid:string;instanceId:string;identityKind?:'provider'|'local_snapshot';title:string;start:string;end:string|null;allDay:boolean;cancelled:boolean;status?:'confirmed'|'tentative'|'declined'|'unanswered'|'cancelled';location?:string;}
+export interface CalendarCancellationMarker{marker:'cancellation';uid:string;instanceId:string;instanceIdOnly?:boolean;identityKind:'provider';}
+export type CalendarProviderEvent=CalendarEvent|CalendarCancellationMarker;
+export function isCalendarCancellationMarker(event:CalendarProviderEvent):event is CalendarCancellationMarker{return'marker'in event&&event.marker==='cancellation';}
+export function uniqueCalendarProviderEvents(events:CalendarProviderEvent[]):CalendarProviderEvent[]{
+  const unique=new Map<string,CalendarProviderEvent>(),signatures=new Map<string,string>();
+  for(const event of events){
+    const identityKind=event.identityKind??'provider';
+    const key=`${identityKind}\n${event.uid}\n${event.instanceId}`;
+    const signature=isCalendarCancellationMarker(event)
+      ?JSON.stringify(['marker',identityKind,event.uid,event.instanceId,event.instanceIdOnly??false])
+      :JSON.stringify(['event',identityKind,event.uid,event.instanceId,event.title,event.start,event.end,event.allDay,event.cancelled,event.status??null,event.location??null]);
+    const prior=signatures.get(key);
+    if(prior!==undefined&&prior!==signature)throw invalidProviderResponse();
+    if(prior===undefined){signatures.set(key,signature);unique.set(key,event);}
+  }
+  return [...unique.values()];
+}
 export interface CalendarPage<T>{items:T[];nextPageToken?:string;responseBytes?:number;}
 type LegacyCalendarReadiness={google:{configured:boolean;redirectUri:string;requiredEnvironment:string[]};microsoft:{configured:boolean;redirectUri:string;requiredEnvironment:string[]};ics:{configured:true;redirectUri:null;requiredEnvironment:never[]}};
 export interface CalendarTransport{
@@ -20,7 +37,7 @@ export interface CalendarTransport{
   refresh(provider:CalendarProvider,refreshToken:string,config?:ProviderRuntimeConfig):Promise<CalendarTokenSet>;
   revoke(provider:Exclude<CalendarProvider,'ics'>,token:string,config?:ProviderRuntimeConfig):Promise<'confirmed'|'local_only'>;
   listCalendars(provider:Exclude<CalendarProvider,'ics'>,accessToken:string,pageToken?:string,config?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarInfo>>;
-  listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string,config?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarEvent>>;
+  listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string,config?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarProviderEvent>>;
   listTemperatureSensors?(accessToken:string,config:ProviderRuntimeConfig):Promise<HomeAssistantTemperatureCandidate[]>;
   readTemperatureSensor?(accessToken:string,entityId:string,config:ProviderRuntimeConfig):Promise<HomeAssistantTemperatureObservation>;
   fetchIcs(url:string):Promise<string>;
@@ -97,7 +114,7 @@ export class DefaultCalendarTransport implements CalendarTransport{
     if(provider==='google'){const url=new URL('https://www.googleapis.com/calendar/v3/users/me/calendarList');url.searchParams.set('maxResults','250');if(pageToken)url.searchParams.set('pageToken',pageToken);const {body:data,bytes}=await jsonRequest(url.toString(),{headers:{authorization:`Bearer ${accessToken}`}});if(!Array.isArray(data.items)||data.items.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();return{items:data.items.map(calendarInfo),nextPageToken:nextToken(data.nextPageToken,4096),responseBytes:bytes};}
     const url=pageToken??'https://graph.microsoft.com/v1.0/me/calendars?$select=id,name&$top=100';const parsed=new URL(url);if(parsed.origin!=='https://graph.microsoft.com'||!parsed.pathname.startsWith('/v1.0/me/calendars'))throw new DomainError('AI_ENDPOINT_BLOCKED',422);const {body:data,bytes}=await jsonRequest(url,{headers:{authorization:`Bearer ${accessToken}`}});if(!Array.isArray(data.value)||data.value.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();return{items:data.value.map(calendarInfo),nextPageToken:nextToken(data['@odata.nextLink']),responseBytes:bytes};
   }
-  async listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string,runtime?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarEvent>>{
+  async listEvents(provider:CalendarProvider,accessToken:string,calendarId:string,window:{from:string;to:string},pageToken?:string,runtime?:ProviderRuntimeConfig):Promise<CalendarPage<CalendarProviderEvent>>{
     if(provider==='ics')throw new DomainError('CONFLICT',409);
     if(provider==='home_assistant'){if(!runtime||pageToken)throw new DomainError('AI_CONFIGURATION_INVALID',422);const items=await this.homeAssistant.listEvents(runtime,accessToken,calendarId,window);return{items,responseBytes:Buffer.byteLength(JSON.stringify(items))};}
     if(provider==='google'){
@@ -105,17 +122,39 @@ export class DefaultCalendarTransport implements CalendarTransport{
       url.searchParams.set('timeMin',window.from);url.searchParams.set('timeMax',window.to);url.searchParams.set('singleEvents','true');url.searchParams.set('showDeleted','true');url.searchParams.set('maxResults','2500');if(pageToken)url.searchParams.set('pageToken',pageToken);
       const {body:data,bytes}=await jsonRequest(url.toString(),{headers:{authorization:`Bearer ${accessToken}`}});
       if(!Array.isArray(data.items)||data.items.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();
-      return{items:data.items.map((item:any)=>{
+      const items:CalendarProviderEvent[]=[];
+      for(const item of data.items){
         const cancelled=item?.status==='cancelled',recurring=typeof item?.recurringEventId==='string';
+        const identityStart=item?.originalStartTime??{},identityValue=identityStart.dateTime??identityStart.date;
+        const id=boundedString(item?.id,2048,{optional:cancelled});
+        if(cancelled){
+          if(recurring){
+            if(typeof identityValue!=='string')throw invalidProviderResponse();
+            const uid=boundedString(item.recurringEventId,2048)!;
+            const actualStart=item?.start??{};
+            const title=typeof item?.summary==='string'&&item.summary.length>0?item.summary:undefined;
+            if(typeof actualStart.dateTime!=='string'&&typeof actualStart.date!=='string'||!title){items.push({marker:'cancellation',uid,instanceId:boundedString(identityValue,2048)!,identityKind:'provider'});continue;}
+            const status:CalendarEvent['status']='cancelled';
+            items.push({uid,instanceId:boundedString(identityValue,2048)!,title:boundedString(title,2048)!,start:boundedString(actualStart.dateTime??actualStart.date,100)!,end:item.end?boundedString(item.end.dateTime??item.end.date,100,{optional:true})??null:null,allDay:Boolean(actualStart.date&&!actualStart.dateTime),cancelled:true,status,location:boundedString(item.location,1024,{optional:true})});
+            continue;
+          }
+          if(!id)throw invalidProviderResponse();
+          const uid=boundedString(item?.iCalUID??id,2048)!;
+          const actualStart=item?.start??{};
+          const title=typeof item?.summary==='string'&&item.summary.length>0?item.summary:undefined;
+          if(typeof item?.iCalUID!=='string'||typeof actualStart.dateTime!=='string'&&typeof actualStart.date!=='string'||!title){items.push({marker:'cancellation',uid,instanceId:id,instanceIdOnly:typeof item?.iCalUID!=='string',identityKind:'provider'});continue;}
+          items.push({uid,instanceId:id,title:boundedString(title,2048)!,start:boundedString(actualStart.dateTime??actualStart.date,100)!,end:item.end?boundedString(item.end.dateTime??item.end.date,100,{optional:true})??null:null,allDay:Boolean(actualStart.date&&!actualStart.dateTime),cancelled:true,status:'cancelled',location:boundedString(item.location,1024,{optional:true})});
+          continue;
+        }
         const ownResponse=Array.isArray(item?.attendees)?item.attendees.find((attendee:any)=>attendee&&attendee.self===true)?.responseStatus:undefined;
-        const status:CalendarEvent['status']=cancelled?'cancelled':item?.status==='tentative'||ownResponse==='tentative'?'tentative':ownResponse==='declined'?'declined':ownResponse==='needsAction'?'unanswered':'confirmed';
-        const identityStart=item?.originalStartTime??{},actualStart=item?.start??identityStart;
-        const identityValue=identityStart.dateTime??identityStart.date;
-        const id=boundedString(item?.id,2048);if((recurring&&typeof identityValue!=='string')||(!cancelled&&typeof actualStart.dateTime!=='string'&&typeof actualStart.date!=='string'))throw invalidProviderResponse();
-        return{uid:boundedString(recurring?item.recurringEventId:(item.iCalUID??id),2048)!,instanceId:boundedString(recurring?identityValue:id,2048)!,title:boundedString(item.summary??'Untitled event',2048)!,start:boundedString(actualStart.dateTime??actualStart.date??'1970-01-01T00:00:00.000Z',100)!,end:item.end?boundedString(item.end.dateTime??item.end.date,100,{optional:true})??null:null,allDay:Boolean(actualStart.date&&!actualStart.dateTime),cancelled,status,location:boundedString(item.location,1024,{optional:true})};
-      }),nextPageToken:nextToken(data.nextPageToken,4096),responseBytes:bytes};
+        const status:CalendarEvent['status']=item?.status==='tentative'||ownResponse==='tentative'?'tentative':ownResponse==='declined'?'declined':ownResponse==='needsAction'?'unanswered':'confirmed';
+        const actualStart=item?.start??identityStart;
+        if((recurring&&typeof identityValue!=='string')||!id||typeof actualStart.dateTime!=='string'&&typeof actualStart.date!=='string')throw invalidProviderResponse();
+        items.push({uid:boundedString(recurring?item.recurringEventId:(item.iCalUID??id),2048)!,instanceId:boundedString(recurring?identityValue:id,2048)!,title:boundedString(item.summary??'Untitled event',2048)!,start:boundedString(actualStart.dateTime??actualStart.date,100)!,end:item.end?boundedString(item.end.dateTime??item.end.date,100,{optional:true})??null:null,allDay:Boolean(actualStart.date&&!actualStart.dateTime),cancelled:false,status,location:boundedString(item.location,1024,{optional:true})});
+      }
+      return{items,nextPageToken:nextToken(data.nextPageToken,4096),responseBytes:bytes};
     }
-    const url=pageToken??`https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(window.from)}&endDateTime=${encodeURIComponent(window.to)}&$select=id,subject,start,end,isAllDay,isCancelled,seriesMasterId,originalStart,location,responseStatus&$top=100`;const parsed=new URL(url);if(parsed.origin!=='https://graph.microsoft.com'||!/^\/v1\.0\/me\/calendars\/[^/]+\/calendarView$/.test(parsed.pathname))throw new DomainError('AI_ENDPOINT_BLOCKED',422);const {body:data,bytes}=await jsonRequest(url,{headers:{authorization:`Bearer ${accessToken}`,Prefer:'outlook.timezone="UTC"'}});if(!Array.isArray(data.value)||data.value.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();const instant=(value:unknown)=>{const text=boundedString(value,100)!;return /(?:Z|[+-]\d\d:\d\d)$/.test(text)?text:`${text}Z`;};return{items:data.value.map((item:any)=>{const id=boundedString(item?.id,2048);if(!item||(!item.isCancelled&&typeof item.start?.dateTime!=='string'))throw invalidProviderResponse();const recurring=typeof item.seriesMasterId==='string',response=item.responseStatus?.response;const status:CalendarEvent['status']=item.isCancelled?'cancelled':response==='declined'?'declined':response==='tentativelyAccepted'?'tentative':response==='notResponded'||response==='none'?'unanswered':'confirmed';return{uid:boundedString(recurring?item.seriesMasterId:id,2048)!,instanceId:recurring?boundedString(item.originalStart??item.start?.dateTime,100)!:'single',title:boundedString(item.subject??'Untitled event',2048)!,start:instant(item.start?.dateTime??item.originalStart),end:item.end?.dateTime?instant(item.end.dateTime):null,allDay:Boolean(item.isAllDay),cancelled:Boolean(item.isCancelled),status,location:boundedString(item.location?.displayName,1024,{optional:true})}}),nextPageToken:nextToken(data['@odata.nextLink']),responseBytes:bytes};
+    const url=pageToken??`https://graph.microsoft.com/v1.0/me/calendars/${encodeURIComponent(calendarId)}/calendarView?startDateTime=${encodeURIComponent(window.from)}&endDateTime=${encodeURIComponent(window.to)}&$select=id,subject,start,end,isAllDay,isCancelled,seriesMasterId,originalStart,location,responseStatus&$top=100`;const parsed=new URL(url);if(parsed.origin!=='https://graph.microsoft.com'||!/^\/v1\.0\/me\/calendars\/[^/]+\/calendarView$/.test(parsed.pathname))throw new DomainError('AI_ENDPOINT_BLOCKED',422);const {body:data,bytes}=await jsonRequest(url,{headers:{authorization:`Bearer ${accessToken}`,Prefer:'outlook.timezone="UTC"'}});if(!Array.isArray(data.value)||data.value.length>PROVIDER_PAGE_MAX_ITEMS)throw invalidProviderResponse();const instant=(value:unknown)=>{const text=boundedString(value,100)!;return /(?:Z|[+-]\d\d:\d\d)$/.test(text)?text:`${text}Z`;};const items:CalendarProviderEvent[]=[];for(const item of data.value){const cancelled=Boolean(item?.isCancelled),id=boundedString(item?.id,2048,{optional:cancelled}),recurring=typeof item?.seriesMasterId==='string';if(!item)throw invalidProviderResponse();if(cancelled){if(recurring){const original=typeof item.originalStart==='string'?item.originalStart:undefined;if(!original)throw invalidProviderResponse();const uid=boundedString(item.seriesMasterId,2048)!;const title=typeof item.subject==='string'&&item.subject.length?item.subject:undefined;if(typeof item.start?.dateTime!=='string'||!title){items.push({marker:'cancellation',uid,instanceId:boundedString(original,100)!,identityKind:'provider'});continue;}items.push({uid,instanceId:boundedString(original,100)!,title:boundedString(title,2048)!,start:instant(item.start.dateTime),end:item.end?.dateTime?instant(item.end.dateTime):null,allDay:Boolean(item.isAllDay),cancelled:true,status:'cancelled',location:boundedString(item.location?.displayName,1024,{optional:true})});continue;}if(!id)throw invalidProviderResponse();const title=typeof item.subject==='string'&&item.subject.length?item.subject:undefined;if(typeof item.start?.dateTime!=='string'||!title){items.push({marker:'cancellation',uid:id,instanceId:'single',identityKind:'provider'});continue;}items.push({uid:id,instanceId:'single',title:boundedString(title,2048)!,start:instant(item.start.dateTime),end:item.end?.dateTime?instant(item.end.dateTime):null,allDay:Boolean(item.isAllDay),cancelled:true,status:'cancelled',location:boundedString(item.location?.displayName,1024,{optional:true})});continue;}if(!id||typeof item.start?.dateTime!=='string')throw invalidProviderResponse();const response=item.responseStatus?.response,status:CalendarEvent['status']=response==='declined'?'declined':response==='tentativelyAccepted'?'tentative':response==='notResponded'||response==='none'?'unanswered':'confirmed';items.push({uid:boundedString(recurring?item.seriesMasterId:id,2048)!,instanceId:recurring?boundedString(item.originalStart??item.start?.dateTime,100)!:'single',title:boundedString(item.subject??'Untitled event',2048)!,start:instant(item.start.dateTime),end:item.end?.dateTime?instant(item.end.dateTime):null,allDay:Boolean(item.isAllDay),cancelled:false,status,location:boundedString(item.location?.displayName,1024,{optional:true})});}return{items,nextPageToken:nextToken(data['@odata.nextLink']),responseBytes:bytes};
   }
   fetchIcs(url:string){return this.ics.fetch(url);}
   listTemperatureSensors(accessToken:string,config:ProviderRuntimeConfig){return this.homeAssistant.listTemperatureSensors(config,accessToken);}
@@ -134,7 +173,7 @@ function calendarItemMetadata(current:unknown,connection:Pick<ConnectionRow,'pro
   const metadata=current&&typeof current==='object'&&!Array.isArray(current)?{...(current as Record<string,unknown>)}:{};
   const calendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?{...(metadata.calendar as Record<string,unknown>)}:{};
   if(event)delete calendar.freshnessReason;
-  metadata.calendar={...calendar,provider:connection.provider,sourceId:source.id,bridgeKind:source.bridge_kind,purpose:source.purpose??'calendar',displayName:source.display_name??null,subjectHousehold:source.subject_household,freshness:event?'current':calendar.freshness??'current',lastSuccessfulSyncAt:event?source.last_sync_succeeded_at?.toISOString()??calendar.lastSuccessfulSyncAt??null:calendar.lastSuccessfulSyncAt??null,lastCompleteWindow:source.last_complete_window_from&&source.last_complete_window_to?{from:source.last_complete_window_from.toISOString(),to:source.last_complete_window_to.toISOString()}:calendar.lastCompleteWindow??null,...(event?{status:event.status??'unknown',identityKind:event.identityKind??'provider'}:{})};
+  metadata.calendar={...calendar,provider:connection.provider,sourceId:source.id,bridgeKind:source.bridge_kind,purpose:source.purpose??'calendar',displayName:source.display_name??null,subjectHousehold:source.subject_household,freshness:event?'current':calendar.freshness??'current',lastSuccessfulSyncAt:event?source.last_sync_succeeded_at?.toISOString()??calendar.lastSuccessfulSyncAt??null:calendar.lastSuccessfulSyncAt??null,lastCompleteWindow:source.last_complete_window_from&&source.last_complete_window_to?{from:source.last_complete_window_from.toISOString(),to:source.last_complete_window_to.toISOString()}:calendar.lastCompleteWindow??null,...(event?{status:event.cancelled?'cancelled':event.status??'unknown',identityKind:event.identityKind??'provider'}:{})};
   if(event){metadata.category='activity';metadata.allDay=event.allDay;if(event.location)metadata.location=event.location;else delete metadata.location;}
   return metadata;
 }
@@ -445,10 +484,10 @@ export class CalendarService{
       events=parseIcsEvents(await this.transport.fetchIcs(credential.url),window);pageCount=1;
     }else{
       const pages=await this.withConnectionCredential(row,(accessToken,runtime)=>this.allPages((token)=>this.transport.listEvents(row.provider,accessToken,source.external_id,window,token,runtime)));
-      events=pages.items.map(canonicalEvent);pageCount=pages.pageCount;
+      events=pages.items.filter((event):event is CalendarEvent=>!isCalendarCancellationMarker(event)).map(canonicalEvent);pageCount=pages.pageCount;
     }
     await this.assertPreviewFence(actor,row,sourceId,source.revision);
-    return{sourceId,sourceRevision:source.revision,window,pageCount,totalCount:events.filter((event)=>!event.cancelled).length,events:events.filter((event)=>!event.cancelled).sort((a,b)=>a.start.localeCompare(b.start)).slice(0,25).map((event)=>({title:event.title,start:event.start,end:event.end,allDay:event.allDay,status:event.status??'unknown',location:event.location??null}))};
+    return{sourceId,sourceRevision:source.revision,window,pageCount,totalCount:events.length,events:events.sort((a,b)=>a.start.localeCompare(b.start)).slice(0,25).map((event)=>({title:event.title,start:event.start,end:event.end,allDay:event.allDay,status:event.cancelled?'cancelled':event.status??'unknown',location:event.location??null}))};
   }
   async disconnect(actor:CalendarActor,id:string,expectedRevision:number){
     const owned=await this.row(actor,id);await this.authorize(actor,owned);
@@ -507,7 +546,7 @@ export class CalendarService{
     let pageCount=0,eventCount=0;
     try{
       const sources=(await pool.query<{id:string;external_id:string;sync_past_days:number;sync_future_days:number;revision:number}>(`SELECT id,external_id,sync_past_days,sync_future_days,revision FROM calendar_sources WHERE connection_id=$1 AND enabled ORDER BY id`,[row.id])).rows;
-      const eventMap=new Map<string,{events:CalendarEvent[];window:{from:string;to:string}}>(),failedSources=new Map<string,string>(),aad=calendarAad(row.household_id,row.id,row.owner_account_id);let snapshotBytes=0;
+      const eventMap=new Map<string,{events:CalendarProviderEvent[];window:{from:string;to:string}}>(),failedSources=new Map<string,string>(),aad=calendarAad(row.household_id,row.id,row.owner_account_id);let snapshotBytes=0;
       if(row.provider==='ics'){
         const secret=JSON.parse(await this.vault.decrypt(aad,row.credential_ciphertext!)) as StoredCredential;if(!secret.url)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
         const text=await this.transport.fetchIcs(secret.url);snapshotBytes=Buffer.byteLength(text);if(snapshotBytes>SNAPSHOT_MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});if(sources[0]){const snapshotWindow=windowFor(this.now(),sources[0].sync_past_days,sources[0].sync_future_days);eventMap.set(sources[0].id,{events:parseIcsEvents(text,snapshotWindow),window:snapshotWindow});}pageCount=1;
@@ -521,7 +560,7 @@ export class CalendarService{
           const persisted=await pool.query('UPDATE calendar_connections SET credential_ciphertext=$2,access_expires_at=$3 WHERE id=$1 AND lease_token=$4 AND disconnected_at IS NULL RETURNING id',[row.id,await this.vault.encrypt(aad,JSON.stringify(secret)),refreshed.expiresAt,lease]);
           if(!persisted.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_sync_superseded'});
         }
-        for(const source of sources){const snapshotWindow=windowFor(this.now(),source.sync_past_days,source.sync_future_days);try{const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,secret.accessToken!,source.external_id,snapshotWindow,token,runtime));snapshotBytes+=pages.byteCount;if(snapshotBytes>SNAPSHOT_MAX_BYTES||eventCount+pages.items.length>SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});const canonical=pages.items.map(canonicalEvent);eventMap.set(source.id,{events:canonical,window:snapshotWindow});pageCount+=pages.pageCount;eventCount+=canonical.length;}catch(error){const reason=error instanceof DomainError?error.details?.reason:undefined,isGlobal=reason==='calendar_reauthorization_required'||reason==='calendar_client_configuration_invalid'||error instanceof DomainError&&error.status===413;if(row.provider!=='home_assistant'||isGlobal)throw error;failedSources.set(source.id,'CALENDAR_SOURCE_SYNC_FAILED');}}
+        for(const source of sources){const snapshotWindow=windowFor(this.now(),source.sync_past_days,source.sync_future_days);try{const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,secret.accessToken!,source.external_id,snapshotWindow,token,runtime));snapshotBytes+=pages.byteCount;if(snapshotBytes>SNAPSHOT_MAX_BYTES||eventCount+pages.items.length>SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});const canonical=pages.items.map((entry)=>isCalendarCancellationMarker(entry)?entry:canonicalEvent(entry));eventMap.set(source.id,{events:canonical,window:snapshotWindow});pageCount+=pages.pageCount;eventCount+=canonical.length;}catch(error){const reason=error instanceof DomainError?error.details?.reason:undefined,isGlobal=reason==='calendar_reauthorization_required'||reason==='calendar_client_configuration_invalid'||error instanceof DomainError&&error.status===413;if(row.provider!=='home_assistant'||isGlobal)throw error;failedSources.set(source.id,'CALENDAR_SOURCE_SYNC_FAILED');}}
       }
       if(row.provider==='ics')for(const values of eventMap.values())eventCount+=values.events.length;
       await transaction(async(client)=>{
@@ -626,15 +665,14 @@ export class CalendarService{
   }
   private async assertPreviewFence(actor:CalendarActor,row:ConnectionRow,sourceId:string,sourceRevision:number):Promise<void>{await transaction(async(client)=>{await this.assertInteractiveFence(client,actor,row,'calendar_preview_superseded','connected');const current=await client.query(`SELECT 1 FROM calendar_sources source WHERE source.id=$1 AND source.connection_id=$2 AND source.household_id=$3 AND source.revision=$4 FOR SHARE`,[sourceId,row.id,row.household_id,sourceRevision]);if(!current.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_preview_superseded'});});}
   private async allPages<T>(fn:(token?:string)=>Promise<CalendarPage<T>>,maxItems=SNAPSHOT_MAX_ITEMS):Promise<{items:T[];pageCount:number;byteCount:number}>{const items:T[]=[];let token:string|undefined,pageCount=0,byteCount=0;const seen=new Set<string>();do{const page=await fn(token);if(!Array.isArray(page.items))throw invalidProviderResponse();pageCount++;byteCount+=page.responseBytes??Buffer.byteLength(JSON.stringify(page.items));if(items.length+page.items.length>maxItems||byteCount>SNAPSHOT_MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});items.push(...page.items);token=page.nextPageToken;if(token){if(pageCount>=100)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});if(typeof token!=='string'||token.length>8192||seen.has(token))throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'calendar_provider_response_invalid'});seen.add(token);}}while(token);return{items,pageCount,byteCount};}
-  private async reconcileSource(client:DbClient,connection:ConnectionRow,sourceId:string,events:CalendarEvent[],generation:number,window:{from:string;to:string},completedAt:Date){
+  private async reconcileSource(client:DbClient,connection:ConnectionRow,sourceId:string,events:CalendarProviderEvent[],generation:number,window:{from:string;to:string},completedAt:Date){
     const source=(await client.query<any>(`SELECT s.*,COALESCE((SELECT array_agg(person_id ORDER BY person_id) FROM calendar_source_person_subjects WHERE source_id=s.id),'{}'::uuid[]) subject_person_ids,COALESCE((SELECT array_agg(person_id ORDER BY person_id) FROM calendar_source_person_readers WHERE source_id=s.id),'{}'::uuid[]) reader_person_ids,COALESCE((SELECT array_agg(display_id ORDER BY display_id) FROM calendar_source_display_targets WHERE source_id=s.id),'{}'::uuid[]) display_ids FROM calendar_sources s WHERE s.id=$1 AND s.connection_id=$2 AND s.enabled FOR UPDATE`,[sourceId,connection.id])).rows[0];
     if(!source)return;
     source.last_complete_window_from=new Date(window.from);source.last_complete_window_to=new Date(window.to);source.last_sync_succeeded_at=completedAt;
-    const unique=new Map<string,CalendarEvent>();for(const event of events)unique.set(`${event.identityKind??'provider'}\n${event.uid}\n${event.instanceId}`,event);
-    for(const event of unique.values()){
+    for(const event of uniqueCalendarProviderEvents(events)){
+      if(isCalendarCancellationMarker(event)){await this.applyCancellationMarker(client,connection,source,sourceId,event,generation);continue;}
       const identityKind=event.identityKind??'provider';const existing=(await client.query<any>(`SELECT occurrence.* FROM calendar_occurrences occurrence WHERE occurrence.source_id=$1 AND occurrence.identity_kind=$2 AND occurrence.event_uid=$3 AND occurrence.instance_id=$4 FOR UPDATE`,[sourceId,identityKind,event.uid,event.instanceId])).rows[0];
       if(existing?.integration_item_id)existing.item_metadata=(await client.query<{metadata:Record<string,unknown>}>('SELECT metadata FROM integration_items WHERE id=$1 FOR UPDATE',[existing.integration_item_id])).rows[0]?.metadata;
-      if(event.cancelled){if(existing?.status==='active')await this.withdrawOccurrence(client,existing);if(existing)await client.query('UPDATE calendar_occurrences SET last_seen_generation=$2,updated_at=clock_timestamp() WHERE id=$1',[existing.id,generation]);continue;}
       const incarnation=existing?.status==='withdrawn'?Number(existing.incarnation)+1:Number(existing?.incarnation??1);
       const identitySeed=identityKind==='provider'?`${event.uid}\n${event.instanceId}`:`local_snapshot\n${event.uid}\n${event.instanceId}`;const externalId=existing?.status==='active'?existing.external_item_id:`cal:${sourceId.slice(0,8)}:${sha(identitySeed).slice(0,20)}:${incarnation}`;
       const fingerprint=sha(JSON.stringify(event));let itemId=existing?.status==='active'?existing.integration_item_id:null;
@@ -643,7 +681,7 @@ export class CalendarService{
         itemId=(await client.query<{id:string}>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,priority,publish_at,starts_at,ends_at,expires_at,source,metadata,status,request_hash,content_locale) VALUES($1,$2,$3,'event',$4,$5,$5,'normal',NULL,$6,$7,$8,$9,$10,'active',$11,NULL) RETURNING id`,[connection.household_id,connection.integration_connection_id,externalId,source.target_household,event.title,event.start,event.end,new Date(new Date(event.end??event.start).getTime()+86400_000),JSON.stringify({label:`${connection.name}: ${source.name}`,observedAt:this.now().toISOString(),uncertainty:'low'}),JSON.stringify(metadata),fingerprint])).rows[0]!.id;
       }else if(existing.fingerprint!==fingerprint){
         await client.query(`UPDATE integration_items SET title=$2,body=$2,starts_at=$3,ends_at=$4,expires_at=$5,source=$6,metadata=$7,request_hash=$8,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND status='active'`,[itemId,event.title,event.start,event.end,new Date(new Date(event.end??event.start).getTime()+86400_000),JSON.stringify({label:`${connection.name}: ${source.name}`,observedAt:this.now().toISOString(),uncertainty:'low'}),JSON.stringify(metadata),fingerprint]);
-      }else if(existing.item_metadata?.calendar?.subjectHousehold!==source.subject_household||existing.item_metadata?.calendar?.bridgeKind!==source.bridge_kind||existing.item_metadata?.calendar?.purpose!==(source.purpose??'calendar')||existing.item_metadata?.calendar?.displayName!==(source.display_name??null)||existing.item_metadata?.calendar?.lastSuccessfulSyncAt!==completedAt.toISOString()||existing.item_metadata?.calendar?.lastCompleteWindow?.from!==window.from||existing.item_metadata?.calendar?.lastCompleteWindow?.to!==window.to){
+      }else if(existing.item_metadata?.calendar?.subjectHousehold!==source.subject_household||existing.item_metadata?.calendar?.bridgeKind!==source.bridge_kind||existing.item_metadata?.calendar?.purpose!==(source.purpose??'calendar')||existing.item_metadata?.calendar?.displayName!==(source.display_name??null)||existing.item_metadata?.calendar?.status!==(event.cancelled?'cancelled':event.status??'unknown')||existing.item_metadata?.calendar?.lastSuccessfulSyncAt!==completedAt.toISOString()||existing.item_metadata?.calendar?.lastCompleteWindow?.from!==window.from||existing.item_metadata?.calendar?.lastCompleteWindow?.to!==window.to){
         await client.query(`UPDATE integration_items SET metadata=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND status='active'`,[itemId,JSON.stringify(metadata)]);
       }
       await client.query('DELETE FROM integration_item_person_subjects WHERE item_id=$1',[itemId]);for(const personId of source.subject_person_ids)await client.query('INSERT INTO integration_item_person_subjects(household_id,item_id,person_id) VALUES($1,$2,$3)',[connection.household_id,itemId,personId]);
@@ -653,6 +691,28 @@ export class CalendarService{
     }
     const missing=await client.query<any>(`SELECT occurrence.* FROM calendar_occurrences occurrence JOIN integration_items item ON item.id=occurrence.integration_item_id WHERE occurrence.source_id=$1 AND occurrence.status='active' AND occurrence.last_seen_generation<$2 AND item.starts_at<$4::timestamptz AND ((item.ends_at IS NULL AND item.starts_at>=$3::timestamptz) OR item.ends_at>$3::timestamptz) FOR UPDATE OF occurrence,item`,[sourceId,generation,window.from,window.to]);for(const occurrence of missing.rows)await this.withdrawOccurrence(client,occurrence);
     await client.query(`UPDATE calendar_sources SET last_complete_window_from=$2,last_complete_window_to=$3,updated_at=clock_timestamp() WHERE id=$1`,[sourceId,window.from,window.to]);
+  }
+  private async applyCancellationMarker(client:DbClient,connection:ConnectionRow,source:any,sourceId:string,marker:CalendarCancellationMarker,generation:number):Promise<void>{
+    let matches=(await client.query<any>(`SELECT occurrence.* FROM calendar_occurrences occurrence WHERE occurrence.source_id=$1 AND occurrence.identity_kind='provider' AND occurrence.event_uid=$2 AND occurrence.instance_id=$3 FOR UPDATE`,[sourceId,marker.uid,marker.instanceId])).rows;
+    if(!matches.length&&marker.instanceIdOnly){
+      matches=(await client.query<any>(`SELECT occurrence.* FROM calendar_occurrences occurrence WHERE occurrence.source_id=$1 AND occurrence.identity_kind='provider' AND occurrence.instance_id=$2 ORDER BY occurrence.id LIMIT 2 FOR UPDATE`,[sourceId,marker.instanceId])).rows;
+    }
+    // A sparse cancellation is only actionable when its exact source and provider
+    // identity resolve to exactly one occurrence already known to this source.
+    if(matches.length!==1)return;
+    const occurrence=matches[0]!;
+    if(occurrence.status==='active'&&occurrence.integration_item_id){
+      const item=(await client.query<{metadata:Record<string,unknown>}>(`SELECT metadata FROM integration_items WHERE id=$1 AND status='active' FOR UPDATE`,[occurrence.integration_item_id])).rows[0];
+      if(item){
+        const metadata=calendarItemMetadata(item.metadata,connection,source);
+        const calendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?metadata.calendar as Record<string,unknown>:{};
+        delete calendar.freshnessReason;
+        metadata.calendar={...calendar,status:'cancelled',identityKind:'provider',freshness:'current',lastSuccessfulSyncAt:source.last_sync_succeeded_at?.toISOString()??calendar.lastSuccessfulSyncAt??null,lastCompleteWindow:source.last_complete_window_from&&source.last_complete_window_to?{from:source.last_complete_window_from.toISOString(),to:source.last_complete_window_to.toISOString()}:calendar.lastCompleteWindow??null};
+        await client.query(`UPDATE integration_items SET metadata=$2,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND status='active'`,[occurrence.integration_item_id,JSON.stringify(metadata)]);
+      }
+    }
+    // A late cancellation can refresh the tombstone generation but never restore it.
+    await client.query('UPDATE calendar_occurrences SET last_seen_generation=$2,updated_at=clock_timestamp() WHERE id=$1',[occurrence.id,generation]);
   }
   private async withdrawOccurrence(client:DbClient,occurrence:any){if(occurrence.integration_item_id)await client.query(`UPDATE integration_items SET status='withdrawn',withdrawn_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND status='active'`,[occurrence.integration_item_id]);await client.query(`UPDATE calendar_occurrences SET status='withdrawn',updated_at=clock_timestamp() WHERE id=$1`,[occurrence.id]);}
   private async withdrawAll(client:DbClient,connectionId:string){const rows=await client.query<any>(`SELECT occurrence.* FROM calendar_occurrences occurrence JOIN calendar_sources source ON source.id=occurrence.source_id WHERE source.connection_id=$1 AND occurrence.status='active' FOR UPDATE OF occurrence`,[connectionId]);for(const row of rows.rows)await this.withdrawOccurrence(client,row);const sensors=await client.query<{id:string;integration_item_id:string|null}>(`SELECT id,integration_item_id FROM home_assistant_temperature_sensors WHERE connection_id=$1 FOR UPDATE`,[connectionId]);for(const sensor of sensors.rows)if(sensor.integration_item_id)await client.query(`UPDATE integration_items SET status='withdrawn',withdrawn_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND status='active'`,[sensor.integration_item_id]);await client.query(`UPDATE home_assistant_temperature_sensors SET enabled=false,status='inactive',next_poll_at=NULL,lease_token=NULL,lease_expires_at=NULL,integration_item_id=NULL,updated_at=clock_timestamp() WHERE connection_id=$1`,[connectionId]);}

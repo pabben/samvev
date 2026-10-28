@@ -19,7 +19,7 @@ test('photo crops stay square in oriented pixels and within image bounds at ever
  }
 });
 test('validated deep links preserve intended pages and calendar callback without arbitrary redirects',()=>{
- for(const tab of ['people','integrations','monitors','ai','messages'] as const)assert.equal(initialMemberTab(`/?tab=${tab}`),tab);
+ for(const tab of ['calendar','people','integrations','monitors','ai','messages'] as const)assert.equal(initialMemberTab(`/?tab=${tab}`),tab);
  assert.equal(initialMemberTab('/integrations#calendar-oauth=opaque'),'integrations');
  assert.equal(initialMemberTab('/?tab=javascript:alert(1)'),'home');
  assert.equal(initialMemberTab('/?redirect=https://example.org/'),'home');
@@ -63,7 +63,7 @@ test('offline display preserves only already-authorized active calendar subjects
 test('Home canonicalizes to root while member deep links and pending calendar completion survive navigation',()=>{
  assert.equal(initialMemberTab('/?tab=home'),'home');
  for(const url of ['/','/?tab=home','/?tab=people','/integrations?tab=integrations'])assert.equal(memberTabUrl(url,'home'),'/');
- for(const tab of ['people','integrations','monitors','ai'] as const){
+ for(const tab of ['calendar','people','integrations','monitors','ai'] as const){
   const url=memberTabUrl('/',tab);
   assert.equal(url,`/?tab=${tab}`);
   assert.equal(initialMemberTab(url),tab);

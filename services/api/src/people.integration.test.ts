@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test,{after,before} from 'node:test';
 import type {FastifyInstance,LightMyRequestResponse} from 'fastify';
-import {roleCapabilityPresets} from '@samvev/contracts';
+import {personColorTokens,roleCapabilityPresets} from '@samvev/contracts';
 import {hashPassword} from '@samvev/core';
 import {buildApp} from './app.ts';
 import {pool} from './db.ts';
@@ -29,6 +29,35 @@ test('fresh locale defaults to nb while explicit account preference is retained'
   await pool.query('DELETE FROM installations WHERE id=$1',[fresh.id]);
 });
 
+test('person color migration backfills by household creation order and installs a deterministic insert allocator',async()=>{
+  const installation=(await pool.query<{id:string}>(`INSERT INTO installations(singleton,claim_token_hash,claim_expires_at) VALUES(true,'synthetic-color-migration-token',clock_timestamp()+interval '1 hour') RETURNING id`)).rows[0]!;
+  const firstHousehold=(await pool.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) VALUES($1,'Synthetic palette migration','UTC','en') RETURNING id`,[installation.id])).rows[0]!;
+  const secondHousehold=(await pool.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) VALUES($1,'Synthetic palette boundary','UTC','en') RETURNING id`,[installation.id])).rows[0]!;
+  let migrationApplied=false;
+  try{
+    await pool.query('BEGIN');
+    await pool.query('DROP TRIGGER IF EXISTS persons_assign_color_before_insert ON persons');
+    await pool.query('DROP FUNCTION IF EXISTS assign_person_color_before_insert()');
+    await pool.query('ALTER TABLE persons DROP CONSTRAINT IF EXISTS persons_color_token_check');
+    await pool.query('ALTER TABLE persons DROP COLUMN IF EXISTS color_token');
+    await pool.query(`DELETE FROM schema_migrations WHERE version='038_person_colors.sql'`);
+    for(let index=0;index<13;index++)await pool.query(`INSERT INTO persons(household_id,display_name,age_group,created_at) VALUES($1,$2,'adult',clock_timestamp()+($3*interval '1 second'))`,[firstHousehold.id,`Synthetic migration member ${index+1}`,index]);
+    await pool.query(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic second household member','adult')`,[secondHousehold.id]);
+    await pool.query('COMMIT');
+    await migrate();migrationApplied=true;
+    const firstColors=await pool.query<{color_token:string}>(`SELECT color_token FROM persons WHERE household_id=$1 ORDER BY created_at,id`,[firstHousehold.id]);
+    assert.deepEqual(firstColors.rows.slice(0,12).map((row)=>row.color_token),personColorTokens);
+    assert.equal(firstColors.rows[12]!.color_token,personColorTokens[0]);
+    assert.deepEqual((await pool.query<{color_token:string}>(`SELECT color_token FROM persons WHERE household_id=$1`,[secondHousehold.id])).rows.map((row)=>row.color_token),[personColorTokens[0]],'backfill restarts the palette for each household');
+    const inserted=(await pool.query<{color_token:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic trigger allocation','adult') RETURNING color_token`,[firstHousehold.id])).rows[0]!;
+    assert.equal(inserted.color_token,personColorTokens[1],'the migration trigger chooses the least-used token for raw creation paths');
+  }finally{
+    if(!migrationApplied){await pool.query('ROLLBACK').catch(()=>undefined);await migrate();}
+    await pool.query('DELETE FROM households WHERE id=ANY($1::uuid[])',[[firstHousehold.id,secondHousehold.id]]);
+    await pool.query('DELETE FROM installations WHERE id=$1',[installation.id]);
+  }
+});
+
 test('owner creates administrators, invitations and people while role and birthday privacy remain enforced',async()=>{
   const begin=await app.inject({method:'POST',url:'/api/v1/setup/begin'});
   const weakClaim=await app.inject({method:'POST',url:'/api/v1/setup/claim',payload:{claimToken:begin.json().claimToken,owner:{displayName:'Synthetic Owner',email:'owner@people.test.invalid',password:'abcdefg1'},household:{name:'Synthetic household',timezone:'UTC',locale:'nb'},preferences:{locale:'nb',theme:'system'}}});
@@ -36,6 +65,13 @@ test('owner creates administrators, invitations and people while role and birthd
   const claim=await app.inject({method:'POST',url:'/api/v1/setup/claim',payload:{claimToken:begin.json().claimToken,owner:{displayName:'Synthetic Owner',email:'owner@people.test.invalid',password},household:{name:'Synthetic household',timezone:'UTC',locale:'nb'},preferences:{locale:'nb',theme:'system'}}});
   assert.equal(claim.statusCode,200,claim.body);
   const ownerCookie=cookies(claim),ownerCsrf=claim.json().csrfToken as string,householdId=claim.json().householdId as string;
+  const concurrentPeople=await Promise.all(Array.from({length:13},(_,index)=>app.inject({method:'POST',url:`/api/v1/households/${householdId}/people`,headers:auth(ownerCookie,ownerCsrf),payload:{displayName:`Synthetic color member ${index+1}`,rolePreset:'limited',displayIds:[]}})));
+  assert.ok(concurrentPeople.every((response)=>response.statusCode===201),concurrentPeople.map((response)=>response.body).join('\n'));
+  const colorRows=await pool.query<{color_token:string}>(`SELECT color_token FROM persons WHERE household_id=$1 ORDER BY created_at,id`,[householdId]);
+  assert.equal(new Set(colorRows.rows.slice(0,6).map((row)=>row.color_token)).size,6,'the first six household people receive distinct defaults');
+  const counts=new Map<string,number>();for(const row of colorRows.rows)counts.set(row.color_token,(counts.get(row.color_token)??0)+1);
+  assert.equal(counts.size,12,'automatic colors cover the complete palette');
+  assert.equal(Math.max(...counts.values())-Math.min(...counts.values()),1,'the 13th and later people reuse the least-used palette entries deterministically');
   await app.inject({method:'PATCH',url:'/api/v1/me/preferences',headers:auth(ownerCookie,ownerCsrf),payload:{locale:'en'}});
   await pool.query(`UPDATE households SET default_locale='en' WHERE id=$1`,[householdId]);await migrate();
   assert.equal((await app.inject({method:'GET',url:'/api/v1/me',headers:{cookie:ownerCookie}})).json().account.locale,'en');
@@ -81,8 +117,11 @@ test('owner creates administrators, invitations and people while role and birthd
   const ownerRow=ownerPeople.json().people.find((person:{display_name:string})=>person.display_name==='Synthetic Owner');
   const personRow=ownerPeople.json().people.find((person:{display_name:string})=>person.display_name==='Synthetic Person Only');
   assert.equal(personRow.birth_date,'2014-09-10');assert.equal(typeof personRow.calculated_age,'number');
-  const edited=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${personOnly.json().personId}`,headers:auth(ownerCookie,ownerCsrf),payload:{birthDate:'2014-09-11',expectedRevision:personRow.person_revision}});
-  assert.equal(edited.statusCode,200,edited.body);assert.equal(edited.json().birth_date,'2014-09-11');
+  const edited=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${personOnly.json().personId}`,headers:auth(ownerCookie,ownerCsrf),payload:{birthDate:'2014-09-11',colorToken:ownerRow.colorToken,expectedRevision:personRow.person_revision}});
+  assert.equal(edited.statusCode,200,edited.body);assert.equal(edited.json().birth_date,'2014-09-11');assert.equal(edited.json().colorToken,ownerRow.colorToken,'administrators may deliberately reuse a color');
+  assert.equal(edited.json().revision,personRow.person_revision+1,'a color change advances the person revision');
+  assert.equal((await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${personOnly.json().personId}`,headers:auth(ownerCookie,ownerCsrf),payload:{colorToken:'violet',expectedRevision:personRow.person_revision}})).statusCode,409,'stale color edits retain revision protection');
+  assert.equal((await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${personOnly.json().personId}`,headers:auth(memberCookie,memberCsrf),payload:{colorToken:'violet',expectedRevision:edited.json().revision}})).statusCode,403,'color edits require people.manage');
   const promotedProfile=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/memberships/${personOnly.json().membershipId}/account`,headers:auth(ownerCookie,ownerCsrf),payload:{rolePreset:'household_admin',capabilities:roleCapabilityPresets.household_admin,displayIds:[],expectedRevision:personRow.revision,login:{email:'promoted-admin@people.test.invalid',loginMethod:'invitation',locale:'nb',theme:'system'}}});
   assert.equal(promotedProfile.statusCode,201,promotedProfile.body);assert.match(promotedProfile.json().invitationToken,/^[A-Za-z0-9_-]{40,}$/);
   assert.equal((await app.inject({method:'POST',url:'/api/v1/auth/invitations/accept',payload:{token:promotedProfile.json().invitationToken,password:'Synthetic-promoted-admin-42'}})).statusCode,200);

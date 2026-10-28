@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import { dateOffset, memberHouseholdBoardAdapter, sevenDayWindow, type DinnerAssignment } from "./household-board-adapters";
+import type { CSSProperties } from "react";
 import type { HomeBirthday, HomeSchoolActivity, HouseholdTimelineActivity, HubPerson } from "./home-types";
 import { collectActivitySourcePages, dedupeTimelineActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
 import { CalendarFreshness } from "./calendar-freshness";
 import { calendarParticipationKey } from "./calendar-provider-config";
 import { formatCalendarEventRange, formatDate, wallInput } from "./time";
 import { Avatar, Icon, useI18n } from "./ui";
+import { personColorToken } from "./person-identity";
 
 type ActivityPage = { activities: HouseholdTimelineActivity[]; nextCursor: string | null };
 type ActivityWindow = ActivityPage & { from: string; to: string };
@@ -26,8 +28,8 @@ function clockLabel(value: string | null, allDay: string) { return value ? value
 function shortDate(date: string, locale: string) {
   return new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" }).format(new Date(`${date}T12:00:00Z`));
 }
-function timeLabel(row: TimelineEntry, locale: string, zone: string, allDay: string) {
-  if (row.kind === "dinner") return "";
+function timeLabel(row: TimelineEntry, locale: string, zone: string, allDay: string, dinnerLabel="") {
+  if (row.kind === "dinner") return dinnerLabel;
   if (row.kind === "school") return clockLabel(row.activity.time, allDay);
   if (row.activity.metadata.allDay) return allDay;
   return row.activity.startsAt ? formatDate(row.activity.startsAt, locale, zone, { hour: "2-digit", minute: "2-digit" }) : allDay;
@@ -196,12 +198,37 @@ function groupTimelineEntries(entries: TimelineEntry[]) {
 
 function TimelineRow({ row, people, family, zone, locale }: { row: TimelineEntry; people: HubPerson[]; family: string; zone: string; locale: string }) {
   const { t } = useI18n();
-  if (row.kind === "school") return <div className="hub-week-entry"><time>{timeLabel(row, locale, zone, t("hubAllDay"))}</time><span className="hub-week-icon" aria-hidden="true">🎒</span><SchoolActivityCard activity={row.activity} people={people} hideIcon/></div>;
-  if (row.kind === "dinner") return <article className="hub-week-entry hub-week-dinner" data-review-private="dinner-event" data-event-id={row.id}><time dateTime={row.date}>{t("hubDinnerLabel")}</time><span aria-hidden="true">{row.emoji || "🍽️"}</span><strong>{row.title}</strong></article>;
-  const activity = row.activity;
-  return <article className={`hub-week-entry hub-week-calendar ${activity.metadata.calendar?.purpose === "waste" ? "is-waste" : ""}`} data-review-private="week-activity" data-item-id={activity.id}>
-    <time dateTime={activity.startsAt ?? row.date}>{timeLabel(row, locale, zone, t("hubAllDay"))}</time><span className="hub-week-icon" aria-hidden="true"><Icon name={activity.metadata.calendar?.purpose === "waste" ? "trash" : "calendar"} size={17}/></span><div><strong lang={activity.contentLocale ?? ""}>{activity.title}</strong><CalendarFreshness item={activity} zone={zone}/>{activity.startsAt&&<small className="hub-week-range" data-review-private="week-activity-range">{formatCalendarEventRange(activity.startsAt,activity.endsAt,locale,zone,activity.metadata.allDay)}</small>}<small>{activityPeople(row, people, family)}</small>{activity.metadata.calendar?.status && <small className="hub-week-status">{t(calendarParticipationKey(activity.metadata.calendar.status))}</small>}{activity.metadata.location && <small data-review-private="week-location">{activity.metadata.location}</small>}</div>
-  </article>;
+  const [open,setOpen]=useState(false);
+  const buttonId=useId(),detailsId=useId();
+  const trigger=useRef<HTMLButtonElement>(null);
+  const ids=row.kind==='calendar'||row.kind==='school'?row.activity.personIds:[];
+  const associated=people.filter(person=>ids.includes(person.id));
+  const householdSubject=row.kind==='dinner'||row.kind==='calendar'&&row.activity.metadata.calendar?.subjectHousehold===true;
+  const participants=associated.map(person=>person.displayName).join(' · ')||(householdSubject?family:t('calendarRowUnassigned'));
+  const time=row.kind==='dinner'?t('hubDinnerLabel'):timeLabel(row,locale,zone,t('hubAllDay'),t('hubDinnerLabel'));
+  const title=row.kind==='dinner'?row.title:row.activity.title;
+  const rawStatus=row.kind==='calendar'?row.activity.metadata.calendar?.status:undefined;
+  const status=row.kind==='school'?t('calendarRowSchool'):row.kind==='calendar'&&rawStatus&&rawStatus!=='confirmed'&&rawStatus!=='unknown'?t(calendarParticipationKey(rawStatus)):'';
+  const accessibleLabel=[time,status,title,participants].filter(Boolean).join(', ');
+  const tokens=associated.map(person=>personColorToken(person.id,person.colorToken,person.avatarKey)).sort();
+  const stripe=tokens.length>1?`linear-gradient(180deg,${tokens.map((token,index)=>`var(--person-${token}) ${index*100/tokens.length}% ${(index+1)*100/tokens.length}%`).join(',')})`:tokens.length?`var(--person-${tokens[0]})`:householdSubject?'var(--person-household)':'var(--person-unassigned)';
+  const rowClass=`hub-week-entry hub-week-compact ${row.kind==='school'?'hub-week-school':row.kind==='dinner'?'hub-week-dinner':'hub-week-calendar'} ${row.kind==='calendar'&&row.activity.metadata.calendar?.purpose==='waste'?'is-waste':''}`;
+  const date=row.kind==='school'?row.activity.date:row.kind==='dinner'?row.date:row.activity.startsAt?.slice(0,10)??row.date;
+  return <div className={rowClass} data-review-private={row.kind==='dinner'?'dinner-event':'week-activity'} data-item-id={row.kind==='calendar'?row.activity.id:undefined} data-event-id={row.kind==='dinner'?row.id:undefined} style={{'--activity-stripe':stripe} as CSSProperties}>
+    <button ref={trigger} id={buttonId} className="hub-week-row-button" type="button" aria-expanded={open} aria-controls={detailsId} aria-label={accessibleLabel} onClick={()=>setOpen(value=>!value)}>
+      <time dateTime={row.kind==='calendar'?row.activity.startsAt??date:date}>{time}</time>
+      <span className="hub-week-row-status">{status}</span>
+      <strong lang={row.kind==='calendar'?row.activity.contentLocale??undefined:undefined}>{title}</strong>
+    </button>
+    {open&&<div id={detailsId} className="hub-week-row-details" role="region" aria-labelledby={buttonId} onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();setOpen(false);trigger.current?.focus();}}}>
+      {row.kind==='school'?<SchoolActivityCard activity={row.activity} people={people}/>:row.kind==='dinner'?<dl><dt>{t('hubDinnerLabel')}</dt><dd>{dateHeading(row.date,locale)}</dd><dt>{t('hubFamily')}</dt><dd>{participants}</dd></dl>:<>
+        <dl><dt>{t('calendarRowPeople')}</dt><dd>{participants}</dd>{row.activity.startsAt&&<><dt>{t('calendarRowWhen')}</dt><dd>{formatCalendarEventRange(row.activity.startsAt,row.activity.endsAt,locale,zone,row.activity.metadata.allDay)}</dd></>}{row.activity.metadata.calendar?.status&&<><dt>{t('calendarRowStatus')}</dt><dd>{t(calendarParticipationKey(row.activity.metadata.calendar.status))}</dd></>}{row.activity.metadata.calendar&&<><dt>{t('calendarRowSource')}</dt><dd>{row.activity.metadata.calendar.displayName||row.activity.source.label}</dd></>}{row.activity.metadata.location&&<><dt>{t('calendarRowLocation')}</dt><dd>{row.activity.metadata.location}</dd></>}</dl>
+        <CalendarFreshness item={row.activity} zone={zone}/>
+        {row.activity.body&&<p>{row.activity.body}</p>}
+        {!!row.activity.source.links?.length&&<ul>{row.activity.source.links.map((link,index)=><li key={`${link.url}:${index}`}><a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></li>)}</ul>}
+      </>}
+    </div>}
+  </div>;
 }
 
 export function PersonFutureTimeline({ householdId, personId, localDate, zone, people, display = false }: { householdId?: string; personId: string; localDate: string; zone: string; people: HubPerson[]; display?: boolean }) {

@@ -1,9 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from './api';
 import type { HomeProjection } from './home-types';
 import { FamilyHub, type TaskAccess } from './family-hub';
-import { MemberHouseholdBoards } from './household-boards';
-import { HouseholdBackgroundLayer, MediaLibraryPanel } from './media-library';
+import { HouseholdBoardCards } from './household-boards';
+import { memberHouseholdBoardAdapter } from './household-board-adapters';
+import { HouseholdBackgroundLayer, MediaLibraryPanel, MediaSlideshow } from './media-library';
+import { memberMediaAdapter } from './media-adapters';
+import { emptyHomePhotoPreview, homePhotoPreviewFailure, homePhotoPreviewSuccess } from './home-media-presentation';
 import type { Display, Membership, Person } from './types';
 import {HouseholdHomeAssistantControls} from './home-assistant-controls';
 import { ErrorNotice, Loading, useI18n } from './ui';
@@ -22,5 +25,21 @@ export function Home({householdId,member,onCompose,onSessionChange,onManagePeopl
   return()=>{active=false;request++;stream.close();clearInterval(timer)};
  },[householdId,onSessionChange]);
  const localDate=home?.household.localDate??new Intl.DateTimeFormat('en-CA',{timeZone:home?.household.timezone??'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- return <><ErrorNotice error={error}/>{home?<div className="home-background-surface"><HouseholdBackgroundLayer householdId={householdId}/><div className="home-background-content"><FamilyHub householdId={householdId} localDate={localDate} birthdays={home.upcomingBirthdays??[]} schoolActivities={home.schoolActivities??[]} taskAccess={taskAccess} onEditPhoto={onEditPhoto} editablePhotoIds={editablePhotoIds} people={home.people} items={home.items} messages={home.messages} zone={home.household.timezone} householdName={home.household.name} onCompose={onCompose} onManagePeople={onManagePeople} connection={t(live?'live':'polling')}/><div className="home-boards-shell"><MemberHouseholdBoards householdId={householdId} localDate={localDate}/><HouseholdHomeAssistantControls householdId={householdId} member={member}/><MediaLibraryPanel householdId={householdId} people={people} displays={displays} canManageHousehold={canManageHousehold} canManageDisplays={canManageDisplays}/></div></div></div>:!error?<Loading/>:null}</>;
+ return <><ErrorNotice error={error}/>{home?<div className="home-background-surface"><HouseholdBackgroundLayer householdId={householdId}/><div className="home-background-content"><FamilyHub householdId={householdId} localDate={localDate} birthdays={home.upcomingBirthdays??[]} schoolActivities={home.schoolActivities??[]} taskAccess={taskAccess} onEditPhoto={onEditPhoto} editablePhotoIds={editablePhotoIds} people={home.people} items={home.items} messages={home.messages} zone={home.household.timezone} householdName={home.household.name} onCompose={onCompose} onManagePeople={onManagePeople} connection={t(live?'live':'polling')} homeModules={<HomeModules householdId={householdId} localDate={localDate} member={member}/>}/><MediaLibraryPanel householdId={householdId} people={people} displays={displays} canManageHousehold={canManageHousehold} canManageDisplays={canManageDisplays}/></div></div>:!error?<Loading/>:null}</>;
+}
+
+function HomeModules({householdId,localDate,member}:{householdId:string;localDate:string;member:Membership}){
+ const adapter=useMemo(()=>memberHouseholdBoardAdapter(householdId),[householdId]);
+ return <div className="hub-home-modules">
+  <HouseholdBoardCards adapter={adapter} localDate={localDate} visibleCards={['groceries','dinners']} display={false}/>
+  <HouseholdHomeAssistantControls householdId={householdId} member={member}/>
+  <HomePhotoPreview key={householdId} householdId={householdId}/>
+ </div>;
+}
+
+function HomePhotoPreview({householdId}:{householdId:string}){
+ const {t}=useI18n();const adapter=useMemo(()=>memberMediaAdapter(householdId),[householdId]);const [projection,setProjection]=useState(()=>emptyHomePhotoPreview(householdId));
+ useEffect(()=>{let active=true;let generation=0;setProjection(emptyHomePhotoPreview(householdId));const refresh=async()=>{const request=++generation;try{const result=await adapter.listAlbums();const selected=result.albums.find(item=>item.kind==='photos'&&item.permissions.read&&item.assetCount>0);if(!selected){if(active&&request===generation)setProjection(emptyHomePhotoPreview(householdId));return}const images=await adapter.listAssets(selected.id);if(active&&request===generation)setProjection(homePhotoPreviewSuccess(householdId,selected,images.assets))}catch(error){if(!active||request!==generation)return;setProjection(current=>homePhotoPreviewFailure(current,householdId,(error as {status?:number})?.status))}};void refresh();const timer=window.setInterval(()=>void refresh(),30_000);return()=>{active=false;generation++;window.clearInterval(timer)}},[adapter,householdId]);
+ const {album,assets,stale}=projection;if(projection.householdId!==householdId||!album||!assets.length)return null;
+ return <section className="hub-panel hub-home-photos" aria-label={t('mediaPhotosTitle')}><header className="hub-panel-title"><h2>{t('mediaPhotosTitle')}</h2><span>{album.name}</span></header>{stale&&<p className="field-hint" role="status">{t('mediaPreviewStale')}</p>}<MediaSlideshow assets={assets} label={album.name}/></section>;
 }

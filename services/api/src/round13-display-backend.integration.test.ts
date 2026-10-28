@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import test,{after,before} from 'node:test';
 import type {FastifyInstance,LightMyRequestResponse} from 'fastify';
-import {displaySetupCards} from '@samvev/contracts';
+import {displaySetupCards,personColorTokens} from '@samvev/contracts';
 import {buildApp} from './app.ts';
 import {pool} from './db.ts';
 import {migrate} from './db/migrate.ts';
@@ -194,7 +194,7 @@ test('admin preview is side-effect-free and image bytes remain device-grant filt
   const filteredPreview=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/displays/${displayId}/preview`,headers:adminHeaders(),payload:noDinnerDraft});assert.equal(filteredPreview.statusCode,200,filteredPreview.body);assert.deepEqual(filteredPreview.json().householdBoards.readable,{groceries:false,dinners:false});assert.deepEqual(filteredPreview.json().householdBoards.writable,{groceries:false,dinners:false},'draft board selection narrows actual device write grants during preview');
   const selectedPhoto=await app.inject({method:'GET',url:child.photo.url96,headers:adminHeaders()});assert.equal(selectedPhoto.statusCode,200,selectedPhoto.body);
   await pool.query('INSERT INTO display_person_grants(household_id,display_id,person_id,profile_allowed,birthday_allowed) VALUES($1,$2,$3,true,false)',[householdId,displayId,childId]);
-  const profilePreview=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/displays/${displayId}/preview`,headers:adminHeaders(),payload:{setupId}});assert.equal(profilePreview.statusCode,200,profilePreview.body);const familyPhoto=profilePreview.json().familyLayout.people.find((person:any)=>person.id===childId)?.photo;assert.ok(familyPhoto);
+  const profilePreview=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/displays/${displayId}/preview`,headers:adminHeaders(),payload:{setupId}});assert.equal(profilePreview.statusCode,200,profilePreview.body);const visibleFamilyPerson=profilePreview.json().familyLayout.people.find((person:any)=>person.id===childId);assert.ok(visibleFamilyPerson?.photo);assert.ok(personColorTokens.includes(visibleFamilyPerson.colorToken),'an authorized display profile receives its persisted color token');assert.equal(profilePreview.json().familyLayout.people.some((person:any)=>person.id===hiddenPersonId),false,'unselected people do not gain color data in the display profile projection');const familyPhoto=visibleFamilyPerson.photo;
   const profileLock=await pool.connect();let waitingProfile:Promise<LightMyRequestResponse>|undefined;await profileLock.query('BEGIN');await profileLock.query('LOCK TABLE person_profile_photos IN ACCESS EXCLUSIVE MODE');
   try{
     waitingProfile=app.inject({method:'GET',url:`/api/v1/households/${householdId}/displays/${displayId}/preview/people/${childId}/photo/96?v=${profileRevision}&s=${profileTag()}`,headers:adminHeaders()});

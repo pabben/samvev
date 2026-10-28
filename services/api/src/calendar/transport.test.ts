@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test,{afterEach,beforeEach} from 'node:test';
-import {CalendarService,DefaultCalendarTransport,parseIcsEvents} from './service.ts';
+import {CalendarService,DefaultCalendarTransport,parseIcsEvents,uniqueCalendarProviderEvents,type CalendarEvent,type CalendarProviderEvent} from './service.ts';
 import {parseHomeAssistantCalendarEvents} from './home-assistant-client.ts';
 import {normalizeHomeAssistantOrigin} from './provider-config.ts';
 
@@ -14,7 +14,7 @@ test('Google transport consumes official token, identity, list and cancellation 
   globalThis.fetch=async(input,init)=>{const url=String(input);calls.push({url,init});if(url.includes('/token'))return json({access_token:'access',refresh_token:'refresh',expires_in:3600,scope:'openid email https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events.readonly'});if(url.includes('/userinfo'))return json({sub:'synthetic-subject',email:'calendar@test.invalid'});if(url.includes('/calendarList'))return json({items:[{id:'primary',summary:'Primary'}],nextPageToken:'next'});if(url.includes('/events'))return json({items:[{id:'single-id',iCalUID:'uid@example',summary:'Moved',attendees:[{self:true,responseStatus:'needsAction'},{displayName:'Must not be retained',responseStatus:'accepted'}],start:{dateTime:'2026-10-25T10:00:00+01:00'},end:{dateTime:'2026-10-25T11:00:00+01:00'}},{id:'deleted-recurring',recurringEventId:'series-id',originalStartTime:{dateTime:'2026-10-26T09:00:00+01:00'},status:'cancelled'}]});return new Response(null,{status:204});};
   const transport=new DefaultCalendarTransport();const tokens=await transport.exchangeCode('google',{code:'code',verifier:'verifier',redirectUri:'https://samvev.test.invalid/callback'});assert.equal(tokens.providerSubject,'synthetic-subject');assert.equal(tokens.refreshToken,'refresh');
   const tokenBody=new URLSearchParams(String(calls.find((call)=>call.url.includes('/token'))?.init?.body));assert.equal(tokenBody.get('client_secret'),'synthetic-google-secret');
-  assert.deepEqual((await transport.listCalendars('google','access')).items,[{externalId:'primary',name:'Primary'}]);const first=await transport.listEvents('google','access','primary',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(first.items[0]!.instanceId,'single-id');assert.equal(first.items[0]!.status,'unanswered');assert.equal(JSON.stringify(first.items).includes('Must not be retained'),false);assert.deepEqual(first.items[1],{uid:'series-id',instanceId:'2026-10-26T09:00:00+01:00',title:'Untitled event',start:'2026-10-26T09:00:00+01:00',end:null,allDay:false,cancelled:true,status:'cancelled',location:undefined});assert.ok(calls.some((call)=>call.url.includes('showDeleted=true')));
+  assert.deepEqual((await transport.listCalendars('google','access')).items,[{externalId:'primary',name:'Primary'}]);const first=await transport.listEvents('google','access','primary',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(first.items[0]!.instanceId,'single-id');assert.equal((first.items[0] as CalendarEvent).status,'unanswered');assert.equal(JSON.stringify(first.items).includes('Must not be retained'),false);assert.deepEqual(first.items[1],{marker:'cancellation',uid:'series-id',instanceId:'2026-10-26T09:00:00+01:00',identityKind:'provider'});assert.ok(calls.some((call)=>call.url.includes('showDeleted=true')));
 });
 
 test('confidential web registrations require both provider credentials and publish exact callbacks',async()=>{
@@ -58,9 +58,48 @@ test('Home Assistant calendar parsing preserves provider UIDs and gives UID-less
 
 test('Microsoft transport keeps stable single identities and rejects untrusted next links',async()=>{
   globalThis.fetch=async(input)=>{const url=String(input);if(url.includes('/calendarView'))return json({value:[{id:'event-id',subject:'Moved event',start:{dateTime:'2026-10-25T09:00:00.0000000'},end:{dateTime:'2026-10-25T10:00:00.0000000'},isAllDay:false,isCancelled:false,responseStatus:{response:'declined'}}]});return json({value:[]});};
-  const transport=new DefaultCalendarTransport();const page=await transport.listEvents('microsoft','access','calendar-id',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(page.items[0]!.uid,'event-id');assert.equal(page.items[0]!.instanceId,'single');assert.equal(page.items[0]!.status,'declined');
+  const transport=new DefaultCalendarTransport();const page=await transport.listEvents('microsoft','access','calendar-id',{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});assert.equal(page.items[0]!.uid,'event-id');assert.equal(page.items[0]!.instanceId,'single');assert.equal((page.items[0] as CalendarEvent).status,'declined');
   await assert.rejects(()=>transport.listCalendars('microsoft','access','https://attacker.invalid/steal'),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
   await assert.rejects(()=>transport.listEvents('microsoft','access','calendar-id',{from:'x',to:'y'},'https://graph.microsoft.com/v1.0/users/other/messages'),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
+});
+
+test('Google and Microsoft sparse cancellation entries carry bounded identity markers only',async()=>{
+  globalThis.fetch=async(input)=>{
+    const url=String(input);
+    if(url.includes('googleapis.com/calendar'))return json({items:[
+      {id:'google-single-provider-id',status:'cancelled'},
+      {id:'google-recurring-instance-id',recurringEventId:'google-series-id',originalStartTime:{dateTime:'2026-10-25T09:00:00Z'},status:'cancelled'},
+      {id:'google-full-cancel-id',iCalUID:'google-full-ical-id',summary:'Synthetic cancelled appointment',start:{dateTime:'2026-10-25T09:00:00Z'},end:{dateTime:'2026-10-25T10:00:00Z'},status:'cancelled'}
+    ]});
+    return json({value:[
+      {id:'microsoft-single-id',isCancelled:true},
+      {id:'microsoft-recurring-id',seriesMasterId:'microsoft-series-id',originalStart:'2026-10-25T09:00:00Z',isCancelled:true},
+      {id:'microsoft-full-id',subject:'Synthetic cancelled meeting',start:{dateTime:'2026-10-25T09:00:00Z'},end:{dateTime:'2026-10-25T10:00:00Z'},isCancelled:true}
+    ]});
+  };
+  const transport=new DefaultCalendarTransport();
+  const google=await transport.listEvents('google','access','primary',{from:'2026-10-01T00:00:00Z',to:'2027-01-01T00:00:00Z'});
+  assert.equal(google.items.length,3);
+  assert.deepEqual(google.items[0],{marker:'cancellation',uid:'google-single-provider-id',instanceId:'google-single-provider-id',instanceIdOnly:true,identityKind:'provider'});
+  assert.deepEqual(google.items[1],{marker:'cancellation',uid:'google-series-id',instanceId:'2026-10-25T09:00:00Z',identityKind:'provider'});
+  assert.equal('marker'in google.items[2]!,false);assert.equal((google.items[2] as any).title,'Synthetic cancelled appointment');
+  const microsoft=await transport.listEvents('microsoft','access','calendar-id',{from:'2026-10-01T00:00:00Z',to:'2027-01-01T00:00:00Z'});
+  assert.equal(microsoft.items.length,3);
+  assert.deepEqual(microsoft.items[0],{marker:'cancellation',uid:'microsoft-single-id',instanceId:'single',identityKind:'provider'});
+  assert.deepEqual(microsoft.items[1],{marker:'cancellation',uid:'microsoft-series-id',instanceId:'2026-10-25T09:00:00Z',identityKind:'provider'});
+  assert.equal('marker'in microsoft.items[2]!,false);assert.equal((microsoft.items[2] as any).cancelled,true);
+  globalThis.fetch=async(input)=>String(input).includes('googleapis.com')?json({items:[{status:'cancelled'}]}):json({value:[{isCancelled:true}]});
+  await assert.rejects(()=>transport.listEvents('google','access','primary',{from:'2026-10-01T00:00:00Z',to:'2027-01-01T00:00:00Z'}),(error:any)=>error.details?.reason==='calendar_provider_response_invalid');
+  await assert.rejects(()=>transport.listEvents('microsoft','access','calendar-id',{from:'2026-10-01T00:00:00Z',to:'2027-01-01T00:00:00Z'}),(error:any)=>error.details?.reason==='calendar_provider_response_invalid');
+});
+
+test('conflicting full-event and sparse-cancellation identities fail regardless of page order',()=>{
+  const event:CalendarEvent={uid:'stable-provider-id',instanceId:'stable-instance-id',title:'Synthetic confirmed appointment',start:'2026-10-25T09:00:00Z',end:'2026-10-25T10:00:00Z',allDay:false,cancelled:false};
+  const marker={marker:'cancellation' as const,uid:event.uid,instanceId:event.instanceId,identityKind:'provider' as const};
+  for(const page of [[event,marker],[marker,event]] as CalendarProviderEvent[][]){
+    assert.throws(()=>uniqueCalendarProviderEvents(page),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE'&&error.details.reason==='calendar_provider_response_invalid');
+  }
+  assert.equal(uniqueCalendarProviderEvents([event,{...event,identityKind:'provider'}]).length,1,'identical duplicate representations remain idempotent');
 });
 
 test('provider 200 responses fail closed when list schemas are malformed',async()=>{

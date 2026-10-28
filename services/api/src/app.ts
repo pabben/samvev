@@ -41,6 +41,7 @@ import { MonitorExecutionQueue } from './monitor/execution.ts';
 import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
 import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, birthdaysDueSoon, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
+import { assignPersonColor } from './people/person-colors.ts';
 import { normalizeProfilePhoto } from './people/photo.ts';
 import { personMonitorSummaries, replaceMonitorSubjects, reviewMonitorResult } from './monitor/subjects.ts';
 import { monitorPresentationUpdateSchema, updateMonitorPresentation } from './monitor/presentation.ts';
@@ -451,7 +452,7 @@ async function homeItems(householdId:string,personId:string,canViewAll:boolean):
 }
 
 interface ActivityCursor {at:string;rank:0|1;id:string;}
-interface ActivityRow extends ExternalItemRow {activity_at:Date;activity_person_id:string|null;activity_person_ids:string[];}
+interface ActivityRow extends ExternalItemRow {activity_at:Date;activity_person_id:string|null;activity_person_ids:string[];activity_person_colors:Record<string,string>;}
 function dateOnly(value:unknown):string|undefined{
   if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return undefined;
   const parsed=new Date(`${value}T00:00:00Z`);
@@ -485,8 +486,9 @@ function decodeActivityCursor(value:unknown):ActivityCursor|undefined{
 }
 function encodeActivityCursor(cursor:ActivityCursor):string{return Buffer.from(JSON.stringify(cursor)).toString('base64url');}
 
-interface SchoolActivityRow {id:string;task_id:string;person_id:string;person_ids:string[];event_date:string;event_time:string|null;event_type:string;description:string;actions:string[];evidence:Record<string,unknown>;confidence:number|null;uncertainty:string|null;school_expires_at:Date;source_url:string|null;recorded_at:Date|null;activity_at:Date;}
+interface SchoolActivityRow {id:string;task_id:string;person_id:string;person_ids:string[];person_colors:Record<string,string>;event_date:string;event_time:string|null;event_type:string;description:string;actions:string[];evidence:Record<string,unknown>;confidence:number|null;uncertainty:string|null;school_expires_at:Date;source_url:string|null;recorded_at:Date|null;activity_at:Date;}
 const schoolActivitySelect=`event.id,event.task_id,subject.person_id,subject.person_ids,event.event_date::text,event.event_time::text,event.event_type,event.description,event.actions,event.evidence,event.confidence,event.uncertainty,event.school_expires_at,COALESCE(event.evidence->>'sourceUrl',run.source_url) AS source_url,run.checked_at AS recorded_at,
+  COALESCE((SELECT jsonb_object_agg(person.id::text,person.color_token) FROM persons person WHERE person.household_id=event.household_id AND person.id=ANY(subject.person_ids)),'{}'::jsonb) AS person_colors,
   ((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone) AS activity_at`;
 const schoolReaderAcl=`($3 OR message.audience_household OR message.author_membership_id=$4 OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id AND audience.person_id=$5))`;
 const schoolReaderAclWeek=`($5 OR message.audience_household OR message.author_membership_id=$6 OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id AND audience.person_id=$7))`;
@@ -509,7 +511,7 @@ async function schoolActivitiesForHome(householdId:string,viewer:{personId:strin
       AND event.school_expires_at>clock_timestamp() AND message.expires_at>clock_timestamp()
       AND ${schoolTaskAuthorized} AND ${schoolReaderAcl}
     ORDER BY event.event_date,event.event_time NULLS FIRST,event.id LIMIT 200`,[householdId,today,canViewAll,viewer.membershipId,viewer.personId]);
-  return rows.rows.map((row)=>({type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}));
+  return rows.rows.map((row)=>({type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,date:row.event_date,time:row.event_time,kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}));
 }
 
 async function personActivities(input:{householdId:string;personIds:string[]|null;viewer:{personId:string;membershipId:string};canViewAll:boolean;from:string;to:string;limit:number;sourceIds?:string[];cursor?:ActivityCursor;maxDays:number;upcomingOnly?:boolean;display?:DisplayContext}):Promise<{activities:Record<string,unknown>[];nextCursor:string|null}>{
@@ -522,7 +524,8 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       AND ($15::boolean OR connection.id=ANY($16::uuid[])))`;
   const calendar=await pool.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},activity.starts_at AS activity_at,
       (SELECT min(subject.person_id::text)::uuid FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))) AS activity_person_id,
-      COALESCE((SELECT array_agg(subject.person_id ORDER BY subject.person_id) FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),ARRAY[]::uuid[]) AS activity_person_ids
+      COALESCE((SELECT array_agg(subject.person_id ORDER BY subject.person_id) FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),ARRAY[]::uuid[]) AS activity_person_ids,
+      COALESCE((SELECT jsonb_object_agg(subject.person_id::text,person.color_token) FROM integration_item_person_subjects subject JOIN persons person ON person.id=subject.person_id AND person.household_id=i.household_id WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),'{}'::jsonb) AS activity_person_colors
     FROM integration_items i JOIN integration_connections connection ON connection.id=i.connection_id AND connection.household_id=i.household_id AND connection.revoked_at IS NULL
     JOIN households household ON household.id=i.household_id
     -- Calendar all-day timestamps encode civil dates, not UTC instants. Keep
@@ -568,8 +571,8 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       ${schoolCursor}
     ORDER BY activity_at,event.id LIMIT $9`,[householdId,personIds,from,to,canViewAll,viewer.membershipId,viewer.personId,sourceIds??null,limit+1,cursor?.at??null,cursor?.rank??0,cursor?.id??null,display?.id??null]);
   const merged=[
-    ...calendar.rows.map((row)=>({rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',personId:row.activity_person_id,...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds:row.activity_person_ids}})),
-    ...school.rows.map((row)=>({rank:1 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'school',personId:row.person_id,personIds:row.person_ids,id:row.id,taskId:row.task_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}}))
+    ...calendar.rows.map((row)=>({rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',personId:row.activity_person_id,...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds:row.activity_person_ids,personColors:row.activity_person_colors}})),
+    ...school.rows.map((row)=>({rank:1 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'school',personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,id:row.id,taskId:row.task_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}}))
   ].filter((row)=>!cursor||row.at>cursor.at||(row.at===cursor.at&&(row.rank>cursor.rank||(row.rank===cursor.rank&&row.id>cursor.id))))
     .sort((left,right)=>left.at.localeCompare(right.at)||left.rank-right.rank||left.id.localeCompare(right.id));
   const page=merged.slice(0,limit);const more=merged.length>limit;
@@ -614,8 +617,8 @@ async function displayHub(display:DisplayContext,db:DbClient=pool,lockRows=false
   const allRows=[...rows.rows,...temperatures.rows];
   const personIds=[...new Set(allRows.flatMap((row)=>[...row.person_ids,...row.subject_person_ids]))];
   const permittedPeople=display.selectedPersonIds.length?personIds.filter((personId)=>display.selectedPersonIds.includes(personId)):[];
-  const people=permittedPeople.length?(await db.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,permittedPeople])).rows:[];
-  return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:displayPhotoProjection(person.id,person.photo_revision)})),items:allRows.map((row)=>mapExternalItem(row,{forDisplay:true,selectedPersonIds:display.selectedPersonIds}))};
+  const people=permittedPeople.length?(await db.query<{id:string;display_name:string;avatar_key:string|null;color_token:string;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.color_token,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,permittedPeople])).rows:[];
+  return {people:people.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,colorToken:person.color_token,photo:displayPhotoProjection(person.id,person.photo_revision)})),items:allRows.map((row)=>mapExternalItem(row,{forDisplay:true,selectedPersonIds:display.selectedPersonIds}))};
 }
 
 async function displayPersonPhotoVisible(display:DisplayContext,personId:string,db:DbClient=pool,lockRows=false):Promise<boolean>{
@@ -787,9 +790,9 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   const hardCache = new Date(now.getTime() + 15 * 60_000);
   const label=await pool.query<{display_name:string;household_name:string;timezone:string;show_upcoming_birthday:boolean}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone,h.show_upcoming_birthday FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
   const cards = display.privacyMode || !display.cards.includes('household_messages') ? [] : (await pool.query<{
-    id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_type:'member'|'display';author_display_id:string|null; author_person_id:string|null; author_avatar_key:string|null;author_photo_revision:number|null
+        id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_type:'member'|'display';author_display_id:string|null; author_person_id:string|null; author_avatar_key:string|null;author_color_token:string|null;author_photo_revision:number|null
   }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,COALESCE(p.display_name,m.author_display_name) AS author_name,
-      CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.avatar_key AS author_avatar_key,ph.revision AS author_photo_revision
+      CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.avatar_key AS author_avatar_key,p.color_token AS author_color_token,ph.revision AS author_photo_revision
       FROM messages m JOIN message_display_targets t ON t.message_id=m.id AND t.household_id=m.household_id
       LEFT JOIN memberships ms ON ms.id=m.author_membership_id LEFT JOIN persons p ON p.id=ms.person_id AND p.household_id=m.household_id
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
@@ -799,7 +802,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
       ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId,display.selectedPersonIds])).rows.map((row) => ({
         id: row.id, kind: 'household_message', body: row.body, importance: row.importance,
-        author: row.author_name,authorType:row.author_type,authorDisplayId:row.author_display_id, authorPersonId: row.author_person_id, authorAvatarKey: row.author_avatar_key,authorPhoto:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?(options.preview?previewPhotoProjection(display.householdId,display.id,row.author_person_id,row.author_photo_revision,options.previewTag??''):displayPhotoProjection(row.author_person_id,row.author_photo_revision)):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
+        author: row.author_name,authorType:row.author_type,authorDisplayId:row.author_display_id, authorPersonId: row.author_person_id, authorAvatarKey: row.author_avatar_key,authorColorToken:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?row.author_color_token:null,authorPhoto:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?(options.preview?previewPhotoProjection(display.householdId,display.id,row.author_person_id,row.author_photo_revision,options.previewTag??''):displayPhotoProjection(row.author_person_id,row.author_photo_revision)):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
       }));
   if(options.markDelivered!==false&&!display.privacyMode && cards.length){
     const cardIds=cards.map((card)=>(card as {id:string}).id);
@@ -812,7 +815,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   }
   const hub=await displayHub(display);
   const familyProfiles=(!display.privacyMode && display.familyLayoutEnabled && display.cards.includes('family_layout') && display.profilePersonIds.length)
-    ?(await pool.query<{id:string;display_name:string;avatar_key:string|null;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,ph.revision AS photo_revision FROM persons p
+    ?(await pool.query<{id:string;display_name:string;avatar_key:string|null;color_token:string;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.color_token,ph.revision AS photo_revision FROM persons p
       JOIN display_person_grants profile ON profile.household_id=p.household_id AND profile.person_id=p.id AND profile.display_id=$4 AND profile.profile_allowed
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.id=ANY($3::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,display.selectedPersonIds,display.profilePersonIds,display.id])).rows:[];
@@ -855,7 +858,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
       albumIds:display.albumIds,backgroundId:display.backgroundId},
     displayGrants:{personIds:display.privacyMode?[]:display.grantedPersonIds.filter(id=>display.selectedPersonIds.includes(id)),profilePersonIds:display.privacyMode?[]:display.profilePersonIds.filter(id=>display.selectedPersonIds.includes(id)),birthdayPersonIds:display.privacyMode?[]:display.birthdayPersonIds.filter(id=>display.selectedPersonIds.includes(id))},
     familyLayout:{enabled:!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout'),
-      people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photo:options.preview?previewPhotoProjection(display.householdId,display.id,person.id,person.photo_revision,options.previewTag??''):displayPhotoProjection(person.id,person.photo_revision)})),
+      people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,colorToken:person.color_token,photo:options.preview?previewPhotoProjection(display.householdId,display.id,person.id,person.photo_revision,options.previewTag??''):displayPhotoProjection(person.id,person.photo_revision)})),
       upcomingBirthdays},
     cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd,readable:boardReadable,writable:boardWritable},...(hub?{hub:options.preview?{...hub,people:(hub.people as Array<Record<string,unknown>>).map((person)=>{const photo=person.photo as {revision?:number}|null;return{...person,photo:previewPhotoProjection(display.householdId,display.id,String(person.id),photo?.revision??null,options.previewTag??'')};})}:hub}:{}),
     actionAvailability:{newMessage:await displayCanComposeMessage(display),homeAssistantControl:!options.preview&&!display.privacyMode&&display.cards.includes('home_assistant')&&boardActions?.home_assistant_control===true},serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
@@ -979,7 +982,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const passwordHash = await hashPassword(body.owner.password);
     const household = await client.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale,data_kind) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [current.id,body.household.name,body.household.timezone,body.household.locale,demo?'demo':'live']);
     const householdId = household.rows[0]!.id;
-    const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES ($1,$2,'adult') RETURNING id`, [householdId,body.owner.displayName]);
+    const colorToken=await assignPersonColor(client,householdId);
+    const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group,color_token) VALUES ($1,$2,'adult',$3) RETURNING id`, [householdId,body.owner.displayName,colorToken]);
     const account = await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [current.id,body.owner.email,passwordHash,body.preferences.locale,body.preferences.theme]);
     const membership = await client.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,'installation_admin',$4) RETURNING id`, [householdId,account.rows[0]!.id,person.rows[0]!.id,JSON.stringify(roleCapabilityPresets.installation_admin)]);
     await client.query(`UPDATE installations SET claimed_at=clock_timestamp(),claim_token_hash=NULL,claim_expires_at=NULL,default_locale=$2,setup_step='people',demo_mode=$3 WHERE id=$1`, [current.id,body.preferences.locale,demo]);
@@ -1226,7 +1230,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const canManageAccounts=auth.capabilities.includes('account.manage');
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone);
-    const result = await pool.query(`SELECT p.id,p.display_name,p.avatar_key AS "avatarKey",p.age_group,p.revision AS person_revision,p.photo_revision AS "photoRevision",ph.revision AS asset_photo_revision,
+    const result = await pool.query(`SELECT p.id,p.display_name,p.avatar_key AS "avatarKey",p.color_token AS "colorToken",p.age_group,p.revision AS person_revision,p.photo_revision AS "photoRevision",ph.revision AS asset_photo_revision,
       CASE WHEN $2 THEN p.birth_date::text ELSE NULL END AS birth_date,m.id AS membership_id,m.role_preset,
       CASE WHEN $2 THEN m.capabilities ELSE '[]'::jsonb END AS capabilities,m.revision,
       (m.account_id IS NOT NULL) AS has_login,(m.account_id IS NOT NULL AND a.password_hash IS NOT NULL AND a.disabled_at IS NULL) AS has_active_login,
@@ -1448,7 +1452,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const passwordHash=body.login?.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result = await transaction(async (client) => {
       await validateAudience(client, auth, [], body.displayIds, false);
-      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group,birth_date) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,body.displayName,body.avatarKey??null,ageGroup,body.birthDate??null]);
+      const colorToken=await assignPersonColor(client,auth.householdId);
+      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group,birth_date,color_token) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [auth.householdId,body.displayName,body.avatarKey??null,ageGroup,body.birthDate??null,colorToken]);
       let accountId: string|null = null;
       if (body.login) {
         accountId = (await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.installationId,body.login.email,passwordHash,body.login.locale,body.login.theme])).rows[0]!.id;
@@ -1471,7 +1476,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
       const birthDate=body.birthDate===undefined?current.rows[0]!.birth_date:body.birthDate;
       const ageGroup=body.ageGroup??(body.birthDate===undefined?current.rows[0]!.age_group:deriveAgeGroup(birthDate,localDateInTimezone(new Date(),household.timezone)));
-      const updated=await client.query(`UPDATE persons SET display_name=COALESCE($3,display_name),avatar_key=CASE WHEN $4 THEN $5 ELSE avatar_key END,birth_date=$6,age_group=$7,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$8 RETURNING id,display_name,avatar_key AS "avatarKey",birth_date::text,age_group,revision`,[params(request).personId,auth.householdId,body.displayName??null,body.avatarKey!==undefined,body.avatarKey??null,birthDate,ageGroup,body.expectedRevision]);
+      const updated=await client.query(`UPDATE persons SET display_name=COALESCE($3,display_name),avatar_key=CASE WHEN $4 THEN $5 ELSE avatar_key END,color_token=COALESCE($6,color_token),birth_date=$7,age_group=$8,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$9 RETURNING id,display_name,avatar_key AS "avatarKey",color_token AS "colorToken",birth_date::text,age_group,revision`,[params(request).personId,auth.householdId,body.displayName??null,body.avatarKey!==undefined,body.avatarKey??null,body.colorToken??null,birthDate,ageGroup,body.expectedRevision]);
       if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       await audit(client,auth,'person.updated','person',params(request).personId,{fields:Object.keys(body).filter((key)=>key!=='expectedRevision')});
       return updated.rows[0];
@@ -1592,9 +1597,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
     reply.header('Cache-Control','private, no-store');
     const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:'en'|'nb';show_upcoming_birthday:boolean}>(`SELECT id,name,timezone,default_locale,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
-    const people=await pool.query<{id:string;display_name:string;avatar_key:string|null;age_group:string;birth_date:string|null;photo_revision:number;asset_photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.age_group,p.birth_date::text,p.photo_revision,ph.revision AS asset_photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 ORDER BY p.created_at,p.id`,[auth.householdId]);
+    const people=await pool.query<{id:string;display_name:string;avatar_key:string|null;color_token:string;age_group:string;birth_date:string|null;photo_revision:number;asset_photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.color_token,p.age_group,p.birth_date::text,p.photo_revision,ph.revision AS asset_photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 ORDER BY p.created_at,p.id`,[auth.householdId]);
     const canViewAll=auth.capabilities.includes('household.manage');
-    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_type:'member'|'display';author_display_id:string|null;author_person_id:string|null;author_photo_revision:number|null;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,COALESCE(p.display_name,m.author_display_name) AS author_name,CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,ph.revision AS author_photo_revision,m.publish_at,m.expires_at,m.revision,m.audience_household,
+    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_type:'member'|'display';author_display_id:string|null;author_person_id:string|null;author_color_token:string|null;author_photo_revision:number|null;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,COALESCE(p.display_name,m.author_display_name) AS author_name,CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.color_token AS author_color_token,ph.revision AS author_photo_revision,m.publish_at,m.expires_at,m.revision,m.audience_household,
       COALESCE((SELECT json_agg(pa.person_id ORDER BY pa.person_id) FROM message_person_audiences pa WHERE pa.message_id=m.id),'[]') AS person_ids
       FROM messages m LEFT JOIN memberships am ON am.id=m.author_membership_id LEFT JOIN persons p ON p.id=am.person_id AND p.household_id=m.household_id LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE m.household_id=$1 AND m.state IN ('scheduled','published') AND m.expires_at>clock_timestamp()
@@ -1613,10 +1618,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return {
       household:{id:household.id,name:household.name,timezone:household.timezone,locale:household.default_locale,localDate:localToday},
       viewer:{personId:auth.personId,membershipId:auth.membershipId},
-      people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,photoRevision:person.photo_revision,photo:photoProjection(auth.householdId,person.id,person.asset_photo_revision),ageGroup:person.age_group})),
+      people:people.rows.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,colorToken:person.color_token,photoRevision:person.photo_revision,photo:photoProjection(auth.householdId,person.id,person.asset_photo_revision),ageGroup:person.age_group})),
       upcomingBirthday:upcomingBirthday?safeUpcomingBirthday:null,upcomingBirthdays,schoolActivities:await schoolActivitiesForHome(auth.householdId,{personId:auth.personId,membershipId:auth.membershipId},canViewAll,localToday),items:await homeItems(auth.householdId,auth.personId,canViewAll),
       messages:messages.rows.map((message)=>({
-        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,authorType:message.author_type,authorDisplayId:message.author_display_id,authorPersonId:message.author_person_id,authorPhoto:message.author_person_id?photoProjection(auth.householdId,message.author_person_id,message.author_photo_revision):null,
+        id:message.id,body:message.body,importance:message.importance,authorName:message.author_name,authorType:message.author_type,authorDisplayId:message.author_display_id,authorPersonId:message.author_person_id,authorColorToken:message.author_color_token,authorPhoto:message.author_person_id?photoProjection(auth.householdId,message.author_person_id,message.author_photo_revision):null,
         publishAt:message.publish_at.toISOString(),expiresAt:message.expires_at.toISOString(),revision:message.revision,
         targets:{household:message.audience_household,personIds:message.person_ids}
       })),serverNow:now.toISOString()
@@ -2678,7 +2683,8 @@ async function seedDemoHousehold(householdId:string):Promise<void>{
       {name:'Sky',age:'child',role:'limited',caps:['household.view'] as Capability[],email:null}
     ];
     for(const row of rows){
-      const person=(await client.query<{id:string}>('INSERT INTO persons(household_id,display_name,age_group) VALUES ($1,$2,$3) RETURNING id',[householdId,row.name,row.age])).rows[0]!;
+      const colorToken=await assignPersonColor(client,householdId);
+      const person=(await client.query<{id:string}>('INSERT INTO persons(household_id,display_name,age_group,color_token) VALUES ($1,$2,$3,$4) RETURNING id',[householdId,row.name,row.age,colorToken])).rows[0]!;
       let accountId:null|string=null;
       if(row.email){const password=await hashPassword('Synthetic-demo-pass-42');accountId=(await client.query<{id:string}>('INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,\'en\',\'system\') RETURNING id',[installation,row.email,password])).rows[0]!.id;}
       await client.query('INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,$4,$5)',[householdId,accountId,person.id,row.role,JSON.stringify(row.caps)]);
