@@ -46,11 +46,22 @@ export function SchoolActivityCard({ activity, people, compact = false, dateLabe
   const { t, locale } = useI18n();
   const names = "personIds" in activity ? people.filter(person => activity.personIds.includes(person.id)).map(person => person.displayName) : people.filter(person => person.id === activity.personId).map(person => person.displayName);
   const freshness=activity.freshness;
-  const freshnessDate=freshness?.state==='retained'?(freshness.verifiedAt??freshness.recordedAt):(freshness?.latestAttempt.at??freshness?.recordedAt);
-  const freshnessDateLabel=freshnessTimestamp(freshnessDate,locale,zone??"UTC")??t("hubSchoolDateUnknown");
+  const attemptDateLabel=freshnessTimestamp(freshness?.latestAttempt.at,locale,zone??"UTC");
   const verifiedDateLabel=freshnessTimestamp(freshness?.verifiedAt,locale,zone??"UTC");
+  const failed=freshness?.latestAttempt.outcome==='failed';
+  let freshnessMessage:string|undefined;
+  if(freshness?.state==='retained'){
+    if(failed) freshnessMessage=verifiedDateLabel
+      ?t("hubSchoolRetainedFailedVerified",{attemptDate:attemptDateLabel??t("hubSchoolDateUnknown"),verifiedDate:verifiedDateLabel})
+      :t(attemptDateLabel?"hubSchoolRetainedFailedUnverified":"hubSchoolRetainedFailedNoDates",attemptDateLabel?{attemptDate:attemptDateLabel}:{});
+    else freshnessMessage=verifiedDateLabel?t("hubSchoolRetainedVerified",{date:verifiedDateLabel}):t("hubSchoolRetainedUnverified");
+  }else if(freshness?.state==='unknown'){
+    freshnessMessage=failed
+      ?t(attemptDateLabel?"hubSchoolUnknownFailed":"hubSchoolUnknownFailedNoDate",attemptDateLabel?{attemptDate:attemptDateLabel}:{})
+      :t("hubSchoolFreshnessUnknown");
+  }
   return <article className={`hub-school-activity ${compact ? "is-compact" : ""}`} data-review-private="school-activity" data-school-event-id={activity.id}>
-    <div className="hub-school-heading">{!compact&&!hideIcon&&<span className="hub-school-icon" aria-hidden="true">🎒</span>}<div><strong data-review-private="school-title">{activity.title}</strong>{now!==undefined&&Date.parse(activity.expiresAt)<=now&&<span className="hub-ended-label">{t("hubEnded")}</span>}{!hideMeta&&<span className="hub-school-meta">{dateLabel && <>{dateLabel} · </>}{clockLabel(activity.time, t("hubAllDay"))}{!compact&&names.length?` · ${names.join(" · ")}`:""}</span>}{freshness?.state==='retained'&&<span className="hub-school-freshness is-retained" role="status">{t("hubSchoolRetained",{date:freshnessDateLabel})}</span>}{freshness?.state==='unknown'&&<span className="hub-school-freshness is-unknown" role="status">{t("hubSchoolFreshnessUnknown",{date:freshnessDateLabel})}</span>}</div></div>
+    <div className="hub-school-heading">{!compact&&!hideIcon&&<span className="hub-school-icon" aria-hidden="true">🎒</span>}<div><strong data-review-private="school-title">{activity.title}</strong>{now!==undefined&&Date.parse(activity.expiresAt)<=now&&<span className="hub-ended-label">{t("hubEnded")}</span>}{!hideMeta&&<span className="hub-school-meta">{dateLabel && <>{dateLabel} · </>}{clockLabel(activity.time, t("hubAllDay"))}{!compact&&names.length?` · ${names.join(" · ")}`:""}</span>}{freshnessMessage&&<span className={`hub-school-freshness ${freshness?.state==='retained'?'is-retained':'is-unknown'}`} role="status">{freshnessMessage}</span>}</div></div>
     {!!activity.actions.length && <ul className={`hub-school-actions ${compact ? "is-compact" : ""}`}>{(compact ? activity.actions.slice(0, 1) : activity.actions).map((action, index) => <li key={`${activity.id}-${index}`} data-review-private="school-action">{action}</li>)}</ul>}
     {!compact && <details className="hub-school-provenance">
       <summary>{t("hubSchoolDetails")}</summary>

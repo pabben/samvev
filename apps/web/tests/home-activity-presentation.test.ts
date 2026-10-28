@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { advanceHomeBirthdays } from "../src/home-presentation";
 import { collectActivitySourcePages, calendarActivityEnded, currentCalendarActivityRelevant, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate, timedActivityUnended, timelineActivityVisible } from "../src/home-activity-presentation";
 import type { HomeSchoolActivity, HouseholdTimelineActivity } from "../src/home-types";
 import { registerHooks } from "node:module";
@@ -174,22 +175,45 @@ test("Home renders each same-day birthday and saved school item without birth da
   }
 });
 
-test("school freshness distinguishes verified, retained, unknown and legacy projections without exposing error codes",()=>{
+test("school freshness distinguishes confirmed, retained success, failed checks, unknown data and legacy projections",()=>{
  const people=[{id:"freshness-person",displayName:"Synthetic freshness person"}];
  const base={type:"school" as const,id:"freshness-school",taskId:"synthetic-task",personId:people[0]!.id,date:"2026-10-28",time:"14:00",kind:"notice",title:"Synthetic school notice",actions:[],evidence:{},confidence:null,uncertainty:null,sourceUrl:null,recordedAt:"2026-10-28T11:00:00Z",expiresAt:"2026-10-28T15:00:00Z"};
- const render=(activity:HomeSchoolActivity,locale:"en"|"nb"="en")=>renderToStaticMarkup(createElement(LocaleProvider,{locale,children:createElement(SchoolActivityCard,{activity,people,zone:"Europe/Oslo"})}));
+ const render=(activity:HomeSchoolActivity,locale:"en"|"nb"="en",now?:number)=>renderToStaticMarkup(createElement(LocaleProvider,{locale,children:createElement(SchoolActivityCard,{activity,people,zone:"Europe/Oslo",now})}));
  const retained=render({...base,freshness:{state:"retained",recordedAt:"2026-10-28T11:00:00Z",verifiedAt:"2026-10-28T12:15:00Z",latestAttempt:{outcome:"failed",at:"2026-10-28T12:20:00Z",errorCode:"synthetic-private-provider-code"}}});
  assert.match(retained,/class="hub-school-freshness is-retained"/);
  assert.match(retained,/1:15 PM|13:15/,"the freshness timestamp uses household time and includes time of day");
- assert.match(retained,/newer data could not be confirmed|nyere data kunne ikke bekreftes/);
+ assert.match(retained,/Latest check failed|Siste kontroll feilet/);
+ assert.match(retained,/earlier result last verified|tidligere resultat sist bekreftet/);
  assert.doesNotMatch(retained,/synthetic-private-provider-code|provider-code/);
- const unknown=render({...base,freshness:{state:"unknown",recordedAt:"2026-10-28T11:00:00Z",verifiedAt:null,latestAttempt:{outcome:null,at:"2026-10-28T12:20:00Z",errorCode:null}}});
+ const retainedSuccess=render({...base,freshness:{state:"retained",recordedAt:"2026-10-28T11:00:00Z",verifiedAt:"2026-10-28T12:15:00Z",latestAttempt:{outcome:"unchanged",at:"2026-10-28T12:20:00Z",errorCode:null}}},"en",Date.parse("2026-10-28T15:00:00Z"));
+ assert.match(retainedSuccess,/Earlier result; last verified/);
+ assert.doesNotMatch(retainedSuccess,/check failed|could not be confirmed/i);
+ assert.match(retainedSuccess,/hub-ended-label/,"expired successful history is marked ended without implying a failed refresh");
+ const unknown=render({...base,recordedAt:null,freshness:{state:"unknown",recordedAt:null,verifiedAt:null,latestAttempt:{outcome:"failed",at:"2026-10-28T12:20:00Z",errorCode:null}}});
  assert.match(unknown,/class="hub-school-freshness is-unknown"/);
- assert.match(unknown,/Freshness is unknown|Oppdateringsstatus er ukjent/);
+ assert.match(unknown,/Latest check failed|Siste kontroll feilet/);
+ assert.match(unknown,/verification remains unknown|bekreftelse av skoledata er fortsatt ukjent/);
+ assert.doesNotMatch(unknown,/11:00|Last verified|Sist bekreftet/,"unknown provenance does not borrow a recorded timestamp as verification");
+ const unknownNoAttempt=render({...base,recordedAt:null,freshness:{state:"unknown",recordedAt:null,verifiedAt:null,latestAttempt:{outcome:"running",at:null,errorCode:null}}});
+ assert.match(unknownNoAttempt,/School data verification is unknown|Bekreftelse av skoledata er ukjent/);
+ assert.doesNotMatch(unknownNoAttempt,/Latest check failed|Siste kontroll feilet|date unavailable|dato ukjent/);
  const verified=render({...base,freshness:{state:"verified",recordedAt:"2026-10-28T12:30:00Z",verifiedAt:"2026-10-28T12:25:00Z",latestAttempt:{outcome:"succeeded_no_findings",at:"2026-10-28T12:25:00Z",errorCode:null}}});
  assert.doesNotMatch(verified,/hub-school-freshness/,"a verified run with no findings is not mislabeled stale");
  assert.match(verified,/Last verified|Sist bekreftet/);
  assert.doesNotMatch(render(base),/hub-school-freshness|Last verified|Sist bekreftet/,"older projections remain compatible without claiming freshness");
+});
+
+test("offline birthday labels advance once from the source civil date without inferring birthdays",()=>{
+ const birthdays=[{personId:"today",displayName:"Today person",due:"today" as const},{personId:"tomorrow",displayName:"Tomorrow person",due:"tomorrow" as const}];
+ assert.deepEqual(advanceHomeBirthdays(birthdays,"2026-10-28","2026-10-28"),birthdays);
+ assert.deepEqual(advanceHomeBirthdays(birthdays,"2026-10-28","2026-10-29"),[{personId:"tomorrow",displayName:"Tomorrow person",due:"today"}]);
+ assert.deepEqual(advanceHomeBirthdays(birthdays,"2026-10-28","2026-10-30"),[]);
+ assert.deepEqual(advanceHomeBirthdays(birthdays,"2026-10-28","2026-10-27"),birthdays);
+ assert.deepEqual(advanceHomeBirthdays(birthdays,undefined,"2026-10-29"),birthdays,"generic callers keep the snapshot labels unless they pass the source day");
+ const people=birthdays.map(person=>({id:person.personId,displayName:person.displayName}));
+ const html=renderToStaticMarkup(createElement(LocaleProvider,{locale:"en",children:createElement(FamilyHub,{people,items:[],messages:[],zone:"Europe/Oslo",householdName:"Synthetic household",localDate:"2026-10-29",birthdaySourceLocalDate:"2026-10-28",birthdays,now:Date.parse("2026-10-28T23:30:00Z")})}));
+ assert.match(html,/Birthday today/);
+ assert.doesNotMatch(html,/Birthday tomorrow/);
 });
 
 test("school person summaries expire from the server deadline while day history keeps an ended row",()=>{

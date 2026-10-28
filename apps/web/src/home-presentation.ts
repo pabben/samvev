@@ -1,4 +1,4 @@
-import type { HubItem, HubMessage, HubPerson } from './home-types';
+import type { HomeBirthday, HubItem, HubMessage, HubPerson } from './home-types';
 import { currentCalendarActivityRelevant, timedActivityUnended } from './home-activity-presentation';
 import { wallInput } from './time';
 export function currentItems(items:HubItem[], now:number):HubItem[] {
@@ -7,6 +7,19 @@ export function currentItems(items:HubItem[], now:number):HubItem[] {
 export function dayKey(now:number, zone:string, offset=0) {
   const day=wallInput(now,zone).slice(0,10);
   return new Date(Date.parse(`${day}T12:00:00Z`)+offset*86400000).toISOString().slice(0,10);
+}
+function civilDateOrdinal(value:string){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;
+ const timestamp=Date.parse(`${value}T00:00:00.000Z`);
+ return Number.isFinite(timestamp)&&new Date(timestamp).toISOString().slice(0,10)===value?timestamp/86400000:null;
+}
+/** Advance snapshot-relative birthday labels as the anchored household day moves. */
+export function advanceHomeBirthdays(birthdays:HomeBirthday[],snapshotDay:string|undefined,currentDay:string):HomeBirthday[]{
+ if(!snapshotDay)return birthdays;
+ const source=civilDateOrdinal(snapshotDay),current=civilDateOrdinal(currentDay);
+ if(source===null||current===null||current<=source)return birthdays;
+ if(current-source>1)return [];
+ return birthdays.flatMap(birthday=>birthday.due==='tomorrow'?[{...birthday,due:'today' as const}]:[]);
 }
 /** Calendar all-day dates are civil; timed events overlap a local day at either end. */
 export function eventDay(item:HubItem,zone:string) {return item.startsAt?(item.metadata.calendar&&item.metadata.allDay?item.startsAt.slice(0,10):wallInput(item.startsAt,zone).slice(0,10)):'';}
