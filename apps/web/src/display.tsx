@@ -532,7 +532,11 @@ function DisplayRuntime({
           if(card==="people")return <div className="display-ordered-card" style={{order}} key={card}><FamilyHub display displayCompactPeople displaySections={{people:true,today:false,tomorrow:false,important:false,messages:false,support:false,week:false,environment:false,next:false}} people={familyPeople} items={[]} messages={[]} birthdays={projection.familyLayout?.upcomingBirthdays??[]} zone={zone} householdName={projection.display.householdName} now={Date.now()}/></div>;
           if(!hub)return null;
           if(card==="worth_remembering")return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("worthRemembering")}</h2>{hub.items.filter(item=>item.kind==="summary"||item.kind==="list").slice(0,8).map(item=><article key={item.id}><strong>{item.title}</strong>{item.body&&<p>{item.body}</p>}</article>)}</section>;
-          if(card==="external_items")return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("externalItems")}</h2>{hub.items.filter(item=>item.metadata.calendar).slice(0,8).map(item=><article key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>)}</section>;
+          if(card==="external_items"){
+            const calendarItems=hub.items.filter(item=>item.metadata.calendar).slice(0,8);
+            if(!calendarItems.length)return null;
+            return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("externalItems")}</h2>{calendarItems.map(item=><article key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>)}</section>;
+          }
           return null;
         })}
       </main>

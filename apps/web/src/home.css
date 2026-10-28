@@ -24,6 +24,15 @@ body{font-family:var(--font-sans)}
 .family-hub.hub-member .hub-home-primary-grid .hub-person-activity>small{display:block;font-size:11px;line-height:1.35}
 .hub-home-smart{display:grid;align-content:start;gap:var(--hub-gap);min-width:0}
 .hub-home-smart:empty{display:none}
+/* Optional modules leave no vacant overview track once their authorized data is empty. */
+.family-hub.hub-member .hub-home-primary-grid:not(.hub-home-mobile):has(>.hub-home-smart:empty)>*{grid-column:auto;grid-row:auto}
+@media(min-width:1101px){
+ .family-hub.hub-member .hub-home-primary-grid:has(>.hub-home-smart:empty){grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(min-width:641px) and (max-width:1100px){
+ .family-hub.hub-member .hub-home-primary-grid:has(>.hub-home-smart:empty)>.hub-person-section{grid-column:1/-1}
+}
+
 .hub-home-smart .hub-environment{display:block;margin:0}
 .hub-home-smart .hub-temperature-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .hub-home-smart .hub-temperature{display:flex;flex-direction:column;gap:3px;min-width:0;align-items:flex-start}
