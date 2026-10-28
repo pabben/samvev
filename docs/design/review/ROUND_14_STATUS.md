@@ -188,3 +188,34 @@ reload persistence and manual refresh. API/database relationships and three
 synthetic transport fetches were checked; zero unexpected transports. The saved
 runner still needs its onboarding/resume/text-selector corrections persisted,
 and final-candidate repeat plus browser-error assertions remain pending.
+
+### Full-QA findings and corrections
+
+The first full workspace run passed web 152, contracts 5 and core 3 tests; API
+passed 356/364 and therefore stopped the run before worker completion. All
+workspace typechecks passed. Failures were investigated rather than skipped:
+new color fields required explicit DTO expectations; stale fixed-date calendar
+fixtures were replaced with future-relative lifecycle/window dates; dependent
+fixture failures then cleared. Explicit migration-ledger expectations now
+include 038–041. The four affected integration files pass 19/19, with the final
+far-window calendar adjustment separately passing 5/5.
+
+The reserve repair guard incorrectly treated injected providers without a known
+primary pin as switched routes. It now compares only known pins; an actual
+primary-503/reserve-malformed regression still proves exactly two requests, no
+fresh repair and no publication/approval/schedule change. Existing weather flow
+coverage passes after retaining its validation fields and new safe provider
+metadata.
+
+Actual AI UI testing found an unassociated Anthropic model label caused by a
+fragment inside the shared Field component. The scoped fix keeps input nodes
+direct children, with rendered label/ID and datalist regression checks. Web
+typecheck and three focused UI checks pass. Full frozen-candidate QA and actual
+UI repetition remain required.
+
+Independent security review of `cc38ebf` found no new boundary regression and ran
+33 additional synthetic tests. Requirements review confirmed the publisher
+provenance, owner-scoped usage and conditional billing guidance. Ops review
+rejected the first private restore helper: embedded schema checks were invalid
+and incomplete. Those helpers have not run against public data and must pass
+executable schema validation and independent re-review before use.

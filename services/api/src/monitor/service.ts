@@ -282,6 +282,7 @@ export class MonitorService{
     try{
       const row=(await pool.query<Record<string,unknown>>(`${selectMonitorTask} WHERE t.id=$1 AND t.household_id=$2 AND t.lease_token=$3`,[id,actor.householdId,token])).rows[0];if(!row)throw new DomainError('CONFLICT',409);
       const runAuthorization=(await pool.query<{enabled:boolean;provider:string;settings_revision:number;registration_id:string|null;registration_generation:number|null}>(`SELECT s.enabled,s.provider,s.revision settings_revision,s.active_chatgpt_registration_id registration_id,r.generation registration_generation FROM ai_settings s LEFT JOIN ai_chatgpt_registrations r ON r.id=s.active_chatgpt_registration_id AND r.household_id=s.household_id AND r.owner_account_id=$2 AND r.status='connected' WHERE s.household_id=$1`,[actor.householdId,actor.accountId])).rows[0];if(runAuthorization&&!runAuthorization.enabled)throw new DomainError('AI_DISABLED',422);if(runAuthorization?.provider==='chatgpt_subscription'&&(!runAuthorization.registration_id||!runAuthorization.registration_generation))throw new DomainError('AI_REAUTHORIZATION_REQUIRED',422);
+      const pinnedProvider=execution.expectedProvider??runAuthorization?.provider;
       const approvedSourceUrl=row.source_url?normalizeMonitorUrl(String(row.source_url)):undefined;const toolPlan=(Array.isArray(row.tool_plan)?row.tool_plan:['web.open']) as MonitorToolName[];
       const interpretationWeatherScope=toolPlan.includes('weather.forecast')?weatherScopeFromInstruction(String(row.instruction),toolPlan.includes('web.open')):undefined;
       const route=routeMonitorInterpretationQuality({savedTier:row.model_tier as AiModelTier,tools:toolPlan,instruction:String(row.instruction)});
@@ -298,7 +299,7 @@ export class MonitorService{
       catch(error){
         const reason=error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'?'invalid_schema':error instanceof DomainError&&error.code==='MONITOR_TOOL_LIMIT'&&audit.provenance.length>0?'composition_failure':null;
         const budget=reason&&effectiveTier==='routine'?remainingEscalationBudget(audit.aiCalls,audit.attemptedTools,deadlineMs-(Date.now()-interpretationStarted)):null;
-        if(!reason||!budget||(error instanceof DomainError&&error.details?.provider&&error.details.provider!==runAuthorization?.provider)){rule=fallbackFor(error);if(!rule)throw error;}
+        if(!reason||!budget||(error instanceof DomainError&&error.details?.provider&&pinnedProvider!=null&&error.details.provider!==pinnedProvider)){rule=fallbackFor(error);if(!rule)throw error;}
         else{
         const expectedProvider=error instanceof DomainError&&typeof error.details?.provider==='string'?error.details.provider as MonitorAgentResult['provider']:undefined;
         await writeInterpretationQualityAudit(id,expectedRevision,reason,'routine','strong','escalated',execution.executionId);
@@ -310,7 +311,7 @@ export class MonitorService{
       if(route.reason)await writeInterpretationQualityAudit(id,expectedRevision,route.reason,row.model_tier as AiModelTier,route.tier,'selected',execution.executionId);
       if(!rule){if(!outcome)throw new DomainError('MONITOR_INTERPRETATION_SCHEMA_INVALID',502);try{rule=interpretationFromAi(outcome.output);}
       catch(error){
-        if(outcome.provider!==runAuthorization?.provider)throw new DomainError('AI_RESPONSE_INVALID',502,{provider:outcome.provider,aiCalls:outcome.aiCalls});
+        if(pinnedProvider!=null&&outcome.provider!==pinnedProvider)throw new DomainError('AI_RESPONSE_INVALID',502,{provider:outcome.provider,aiCalls:outcome.aiCalls});
         let finalError=error;
         if(error instanceof DomainError&&['MONITOR_INTERPRETATION_SCHEMA_INVALID','MONITOR_INTERPRETATION_SOURCE_REFUSAL'].includes(error.code)&&outcome.attemptedToolCount===0&&toolPlan.includes('web.open')){
           const retryPrompt=`${prompt} The previous response was not usable. You MUST call web.open on the approved root before returning the strict setup JSON. Base the summary on the user's requested action and the fetched source capability; do not answer the task itself and do not mention access limitations.`;

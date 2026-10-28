@@ -101,6 +101,7 @@ export class MonitorEngine{
   constructor(private readonly fetcher=new MonitorSourceFetcher(),private readonly ai=new AiAdminService(),private readonly weather=new MetWeatherClient(),private readonly now=()=>new Date()){this.agent=new MonitorAgentRunner(ai,fetcher,MONITOR_AGENT_DEADLINE_MS,weather);}
   private async execute(task:ClaimedTask,kind:MonitorRunKind,options:MonitorEngineExecutionOptions={}):Promise<MonitorRunResult|'superseded'|'failed'>{
     const deadlineMs=options.deadlineMs??MONITOR_AGENT_DEADLINE_MS;const agent=deadlineMs===MONITOR_AGENT_DEADLINE_MS?this.agent:new MonitorAgentRunner(this.ai,this.fetcher,deadlineMs,this.weather);const controller=new AbortController();const deadlineAt=Date.now()+deadlineMs;const timeout=setTimeout(()=>controller.abort(),deadlineMs);
+    const pinnedProvider=options.expectedProvider??task.run_ai_provider;
     let meta:RunMeta={aiCalls:0,attemptedTools:0,provider:null,model:null,provenance:[],attempts:[],dependencies:[],fingerprint:''};
     try{
       const approvedSourceUrl=task.source_url?normalizeMonitorUrl(task.source_url):undefined;
@@ -133,7 +134,7 @@ export class MonitorEngine{
       catch(error){
         const first=failureMeta(error);const reason=error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'?'invalid_schema':error instanceof DomainError&&error.code==='MONITOR_TOOL_LIMIT'&&first.provenance.length>0?'composition_failure':null;
         const budget=reason&&effectiveTier==='routine'?remainingEscalationBudget(first.aiCalls,first.attemptedTools,deadlineAt-Date.now()):null;
-        if(!reason||!budget||(first.provider&&first.provider!==task.run_ai_provider))throw error;
+        if(!reason||!budget||(first.provider&&pinnedProvider!=null&&first.provider!==pinnedProvider))throw error;
         await writeQualityAudit(task,kind,reason,'routine','strong','escalated');
         try{const stronger=await invoke('strong',[],budget.maxTurns,budget.maxToolExecutions,(first.provider??undefined) as MonitorAgentResult['provider']|undefined);effectiveTier='strong';const firstResult:MonitorAgentResult={...stronger,aiCalls:first.aiCalls,attemptedToolCount:first.attemptedTools,documents:[],evidenceDocuments:[],provenance:first.provenance,attempts:first.attempts,dependencies:first.dependencies};outcome=mergeAgentResults(firstResult,stronger);await writeQualityAudit(task,kind,reason,'routine','strong','succeeded');}
         catch(strongError){await writeQualityAudit(task,kind,reason,'routine','strong','failed');throw withRunMeta(strongError,mergeRunMeta(first,failureMeta(strongError)));}
@@ -142,10 +143,10 @@ export class MonitorEngine{
       const parseAnalysis=(candidate:MonitorAgentResult):Analysis=>rule.weatherCondition&&toolPlan.length===1&&toolPlan[0]==='weather.forecast'?{kind:'events',value:conditionalWeatherExtraction(candidate.evidenceDocuments,rule.weatherCondition,task.locale)}:resultKind==='answer'?{kind:'answer',value:answerFromAi(candidate.output,candidate.evidenceDocuments,{locale:task.locale})}:{kind:'events',value:compositeDecision?compositeDecisionFromAi(candidate.output,candidate.evidenceDocuments,new Date(),task.locale,{allowUndatedWebDate:Boolean(rule.weatherScope&&!rule.weatherScope.dynamicDateFromEvidence)}):extractionFromAi(candidate.output,candidate.evidenceDocuments,new Date(),{instruction:task.instruction,locale:task.locale})};
       let analysis:Analysis|undefined;let reason:ReturnType<typeof escalationReason>=null;
       try{analysis=parseAnalysis(outcome);const quality=monitorAnalysisQuality(analysis.value);reason=escalationReason(quality);}
-      catch(error){if(outcome.provider!==task.run_ai_provider)throw withRunMeta(error,resultMeta(outcome));reason=escalationReason({code:errorCode(error),explicitConfidence:false,confidence:null});if(!reason)throw withRunMeta(error,resultMeta(outcome));if(effectiveTier==='strong'){
+      catch(error){if(pinnedProvider!=null&&outcome.provider!==pinnedProvider)throw withRunMeta(error,resultMeta(outcome));reason=escalationReason({code:errorCode(error),explicitConfidence:false,confidence:null});if(!reason)throw withRunMeta(error,resultMeta(outcome));if(effectiveTier==='strong'){
         const budget=remainingEscalationBudget(outcome.aiCalls,outcome.attemptedToolCount,deadlineAt-Date.now());if(!budget||!outcome.evidenceDocuments.length)throw withRunMeta(error,resultMeta(outcome));const beforeRepair=outcome;try{const repaired=await invoke('strong',outcome.evidenceDocuments,1,budget.maxToolExecutions,outcome.provider,true);outcome=mergeAgentResults(outcome,repaired);analysis=parseAnalysis(outcome);reason=null;}catch(repairError){const accumulated=outcome===beforeRepair?mergeRunMeta(resultMeta(beforeRepair),failureMeta(repairError)):mergeRunMeta(resultMeta(outcome),failureMeta(repairError));throw withRunMeta(repairError,accumulated);}
       }else{/* routine failures may use the one quality escalation below */}}
-      if(reason&&outcome.provider!==task.run_ai_provider)throw new DomainError('AI_RESPONSE_INVALID',502,{provider:outcome.provider,aiCalls:outcome.aiCalls});
+      if(reason&&pinnedProvider!=null&&outcome.provider!==pinnedProvider)throw new DomainError('AI_RESPONSE_INVALID',502,{provider:outcome.provider,aiCalls:outcome.aiCalls});
       if(reason&&effectiveTier==='routine'){
         const budget=remainingEscalationBudget(outcome.aiCalls,outcome.attemptedToolCount,deadlineAt-Date.now());if(!budget)throw new DomainError(controller.signal.aborted?'AI_TIMEOUT':'AI_RESPONSE_INVALID',controller.signal.aborted?504:502,{aiCalls:outcome.aiCalls,attemptedToolCount:outcome.attemptedToolCount,provenance:outcome.provenance,attempts:outcome.attempts,dependencies:outcome.dependencies});
         await writeQualityAudit(task,kind,reason,'routine','strong','escalated');

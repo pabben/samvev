@@ -6,9 +6,9 @@ import {resolve} from 'node:path';
 import {AiAdminService} from './ai/admin-service.ts';
 import {pool} from './db.ts';
 import {migrate} from './db/migrate.ts';
-import type {AiTask} from '@samvev/contracts';
+import {roleCapabilityPresets,type AiTask} from '@samvev/contracts';
 import {DomainError} from '@samvev/core';
-import {sanitizedMonitorErrorDetails} from './monitor/service.ts';
+import {MonitorService,sanitizedMonitorErrorDetails} from './monitor/service.ts';
 import {MonitorAgentRunner} from './monitor/agent-runner.ts';
 import {MonitorExecutionQueue} from './monitor/execution.ts';
 
@@ -130,4 +130,20 @@ test('reserve open failure records unwired reserve preflight and safe selected-r
  await assert.rejects(session.next(),(error:any)=>{assert.equal(error.code,'AI_CONFIGURATION_INVALID');assert.deepEqual(sanitizedMonitorErrorDetails(error),{provider:'anthropic',fallbackFromProvider:'openai',fallbackReason:'transient',actualDispatch:false});return true;});assert.equal(session.physicalAttempts,1);assert.equal(calls.length,1);session.close();
  assert.deepEqual((await pool.query('SELECT provider,actual_dispatch,outcome,fallback_reason FROM ai_usage_events WHERE household_id=$1 ORDER BY occurred_at,id',[h])).rows,[{provider:'openai',actual_dispatch:true,outcome:'failed',fallback_reason:null},{provider:'anthropic',actual_dispatch:false,outcome:'preflight_rejected',fallback_reason:'transient'}]);
  const safe=sanitizedMonitorErrorDetails(new DomainError('AI_UPSTREAM_ERROR',502,{provider:'malicious-private-provider',fallbackFromProvider:'secret',fallbackReason:'raw-secret',actualDispatch:'unknown',apiKey:'synthetic-private-key',message:'raw upstream detail'}));assert.equal(safe,null);
+});
+
+test('real reserve malformed interpretation stops before fresh repair and leaves draft instructions unapproved',async()=>{
+ const h=await fixture();await policy(h,{fallbackProvider:'anthropic'});
+ const installation=(await pool.query<{installation_id:string}>('SELECT installation_id FROM households WHERE id=$1',[h])).rows[0]!.installation_id;
+ const person=(await pool.query<{id:string}>("INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic repair owner','adult') RETURNING id",[h])).rows[0]!.id;
+ const account=(await pool.query<{id:string}>("INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'repair@test.invalid','synthetic','en','system') RETURNING id",[installation])).rows[0]!.id;
+ const membership=(await pool.query<{id:string}>("INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'household_admin',$4) RETURNING id",[h,account,person,JSON.stringify(roleCapabilityPresets.household_admin)])).rows[0]!.id;
+ const actor={householdId:h,installationId:installation,accountId:account,membershipId:membership,capabilities:[...roleCapabilityPresets.household_admin]};
+ let sourceCalls=0;const fetcher={fetch:async()=>{sourceCalls++;throw new Error('unexpected source fetch');}} as any;const service=new MonitorService(ai,fetcher);
+ const instruction='Read the synthetic source at https://example.invalid/source and summarize updates.';const created=await service.create(actor,{instruction,checkIntervalMinutes:60,noticeDaysBefore:0,noticeLocalTime:'18:00',targets:{personIds:[person],displayIds:[]}}) as any;
+ const before=(await pool.query('SELECT instruction,check_interval_minutes,revision,approved_revision,next_check_at FROM monitor_tasks WHERE id=$1',[created.id])).rows[0];
+ handler=async(url,body)=>url.includes('openai.com')?json({error:{type:'server_error'}},503):json({model:body.model,stop_reason:'end_turn',content:[{type:'text',text:'{"version":'}],usage:{input_tokens:3,output_tokens:2}});
+ await assert.rejects(service.interpret(actor,created.id,created.revision),(error:any)=>error.code==='AI_RESPONSE_INVALID'&&error.details.provider==='anthropic');
+ assert.equal(calls.length,2,'reserve malformed output cannot restart primary or create a fresh repair session');assert.deepEqual(calls.map(c=>c.url),['https://api.openai.com/v1/responses','https://api.anthropic.com/v1/messages']);assert.equal(sourceCalls,0);
+ const persisted=(await pool.query('SELECT instruction,check_interval_minutes,revision,approved_revision,next_check_at,state,interpreted_rule FROM monitor_tasks WHERE id=$1',[created.id])).rows[0];assert.deepEqual(persisted,{...before,state:'draft',interpreted_rule:null});assert.equal((await pool.query('SELECT count(*)::int count FROM messages WHERE household_id=$1',[h])).rows[0].count,0);assert.equal((await pool.query('SELECT count(*)::int count FROM monitor_quality_audits WHERE task_id=$1',[created.id])).rows[0].count,0);
 });

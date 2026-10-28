@@ -71,7 +71,7 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   }
   const avatarList=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/people`,headers:{cookie:adminCookie}});
   const avatarListed=avatarList.json().people.find((person:{id:string})=>person.id===avatarPersonId);assert.equal(avatarListed.avatarKey,'avatar-01');assert.equal(avatarListed.birth_date,'2018-04-03');
-  const avatarHome=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/home`,headers:{cookie:adminCookie}});const avatarProjected=avatarHome.json().people.find((person:{id:string})=>person.id===avatarPersonId);assert.deepEqual(avatarProjected,{id:avatarPersonId,displayName:'No login one',avatarKey:'avatar-01',photoRevision:0,photo:null,ageGroup:'child'});assert.equal('birthDate' in avatarProjected,false);assert.equal('birth_date' in avatarProjected,false);assert.equal('email' in avatarProjected,false);
+  const avatarHome=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/home`,headers:{cookie:adminCookie}});const avatarProjected=avatarHome.json().people.find((person:{id:string})=>person.id===avatarPersonId);assert.deepEqual(avatarProjected,{id:avatarPersonId,displayName:'No login one',avatarKey:'avatar-01',colorToken:'blue',photoRevision:0,photo:null,ageGroup:'child'});assert.equal('birthDate' in avatarProjected,false);assert.equal('birth_date' in avatarProjected,false);assert.equal('email' in avatarProjected,false);
   const changedAvatar=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${avatarPersonId}`,headers:auth(adminCookie,adminCsrf),payload:{avatarKey:'avatar-06',expectedRevision:1}});assert.equal(changedAvatar.statusCode,200,changedAvatar.body);assert.equal(changedAvatar.json().avatarKey,'avatar-06');
   const invalidAvatar=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${avatarPersonId}`,headers:auth(adminCookie,adminCsrf),payload:{avatarKey:'avatar-99',expectedRevision:2}});assert.equal(invalidAvatar.statusCode,400);assert.equal((await pool.query<{avatar_key:string}>('SELECT avatar_key FROM persons WHERE id=$1',[avatarPersonId])).rows[0]!.avatar_key,'avatar-06');
   const clearedAvatar=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${avatarPersonId}`,headers:auth(adminCookie,adminCsrf),payload:{avatarKey:null,expectedRevision:2}});assert.equal(clearedAvatar.statusCode,200,clearedAvatar.body);assert.equal(clearedAvatar.json().avatarKey,null);
@@ -364,7 +364,11 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '034_home_assistant_dispatch_deadline.sql',
     '035_home_assistant_control_origin_binding.sql',
     '036_display_action_preview_activities.sql',
-    '037_installation_public_contact.sql'
+    '037_installation_public_contact.sql',
+    '038_person_colors.sql',
+    '039_ics_sync_intervals.sql',
+    '040_anthropic_ai_provider.sql',
+    '041_ai_fallback_and_dispatch_limits.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
 });
