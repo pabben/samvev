@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readFile, writeFile, readdir, lstat } from 'node:fs/promises';
+import { resolve, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
 export const root = process.cwd();
@@ -32,6 +32,7 @@ export function requireMatchingProof(proof, inputs, assets, runtime) {
   if (inputs.sourceSha !== proof.sourceSha || inputs.inputFingerprint !== proof.inputFingerprint) throw new Error('Build provenance is stale for the canonical source or root inputs.');
   if (JSON.stringify(assets) !== JSON.stringify(proof.distHashes)) throw new Error('Built web bundle differs from build provenance.');
   if (!runtime || proof.runtimeFingerprint !== runtime.runtimeFingerprint) throw new Error('Build provenance is stale for the verified QA runtime.');
+  if(runtime.transition==='qa-app-command-only-recreate'&&(!/^[a-f0-9]{64}$/.test(proof.stageManifestSha256??'')||proof.stageManifestSha256!==runtime.activation?.stageManifestSha256||proof.builderImageId!==runtime.after?.app?.imageId))throw new Error('Build provenance is not bound to the activated staged builder manifest.');
 }
 
 export function trackedBuildInputs(cloneDir = clone) {
@@ -99,6 +100,22 @@ function leafProcess(container, sourceFile) {
   const program = `const fs=require('node:fs');const self=process.pid;const source=${JSON.stringify(sourceFile)};const out=[];for(const name of fs.readdirSync('/proc')){if(!/^\\d+$/.test(name)||Number(name)===self)continue;try{const args=fs.readFileSync('/proc/'+name+'/cmdline').toString().split('\\0').filter(Boolean);if(!/(^|\\/)node$/.test(args[0]||'')||!args.includes('--import')||!args.some(v=>/\\/tsx\\/dist\\/loader\\.mjs$/.test(v))||!args.includes(source))continue;const stat=fs.readFileSync('/proc/'+name+'/stat','utf8');const end=stat.lastIndexOf(')');const fields=stat.slice(end+2).split(' ');out.push({pid:Number(name),startTimeTicks:fields[19],cmdline:args});}catch{}}if(out.length!==1)throw new Error('Expected one leaf process for ${sourceFile}, got '+out.length);process.stdout.write(JSON.stringify(out[0]));`;
   return JSON.parse(docker(['exec', container, 'node', '-e', program]));
 }
+export const directApiCommand = ['npm', 'run', 'dev:api'];
+export function recreationInvariant(value) {
+  const config=structuredClone(value.Config);
+  delete config.Cmd;
+  for(const key of ['com.docker.compose.config-hash','com.docker.compose.project.config_files','com.docker.compose.replace'])delete config.Labels?.[key];
+  const networks=Object.fromEntries(Object.entries(value.NetworkSettings?.Networks??{}).map(([name,item])=>[name,{aliases:[...(item.Aliases??[])].sort(),ipam:item.IPAMConfig??null}]));
+  return {imageId:value.Image,config,hostConfig:value.HostConfig,mounts:[...value.Mounts].sort((a,b)=>a.Destination.localeCompare(b.Destination)),networks};
+}
+export function requireAppRecreation(before,after) {
+  if(before.Id===after.Id)throw new Error('QA app was not recreated.');
+  const old=before.Config?.Cmd;
+  if(stable(old)!==stable(directApiCommand)&&stable(old)!==stable(['sh','-c','npm run build && npm run dev:api']))throw new Error('Unrecognized previous QA app startup command.');
+  if(stable(after.Config?.Cmd)!==stable(directApiCommand))throw new Error('QA app startup must not build.');
+  if(stable(recreationInvariant(before))!==stable(recreationInvariant(after)))throw new Error('QA app recreation changed configuration beyond the approved command and identity transition.');
+}
+
 function safeContainer(value, service, sourceFile) {
   const env = envObject(value.Config.Env);
   if (env.DATABASE_URL !== expectedDatabaseUrl) throw new Error(`${service} is not connected to the synthetic QA database.`);
@@ -115,7 +132,7 @@ function safeContainer(value, service, sourceFile) {
     nodeModules: requireMount(value, '/workspace/node_modules', { type: 'volume', name: 'samvev-m1-workspace-node-modules', rw: true }),
   };
   const portBinding = service === 'qa-app' ? value.HostConfig.PortBindings['4173/tcp'][0] : null;
-  const summary = { name: value.Name.slice(1), service, containerId: value.Id, imageId: value.Image, imageReference: value.Config.Image, startedAt: value.State.StartedAt, restartCount: value.RestartCount, command: [...(value.Config.Entrypoint ?? []), ...(value.Config.Cmd ?? [])], databaseUrl: env.DATABASE_URL, publicOrigin: env.SAMVEV_PUBLIC_ORIGIN ?? null, demoMode: env.SAMVEV_DEMO_MODE ?? null, portBinding, mounts, leaf: leafProcess(value.Name.slice(1), sourceFile) };
+  const summary = { name: value.Name.slice(1), service, containerId: value.Id, imageId: value.Image, imageReference: value.Config.Image, startedAt: value.State.StartedAt, restartCount: value.RestartCount, command: [...(value.Config.Entrypoint ?? []), ...(value.Config.Cmd ?? [])], startupCommand:value.Config.Cmd, recreationInvariantFingerprint:hash(stable(recreationInvariant(value))), databaseUrl: env.DATABASE_URL, publicOrigin: env.SAMVEV_PUBLIC_ORIGIN ?? null, demoMode: env.SAMVEV_DEMO_MODE ?? null, portBinding, mounts, leaf: leafProcess(value.Name.slice(1), sourceFile) };
   return { ...summary, configFingerprint: hash(stable({ imageId: summary.imageId, imageReference: summary.imageReference, command: summary.command, databaseUrl: summary.databaseUrl, publicOrigin: summary.publicOrigin, demoMode: summary.demoMode, portBinding, mounts })) };
 }
 
@@ -126,9 +143,11 @@ export function requireMatchingRuntimeProof(proof, current, inputs, migrations) 
   if (proof.runtimeFingerprint !== current.runtimeFingerprint) throw new Error('QA runtime containers or processes changed after runtime preparation.');
 }
 
-export function requireRuntimeTransition(before, after) {
+export function requireRuntimeTransition(before, after, {appRecreated=false}={}) {
   for (const key of ['app', 'worker']) {
-    if (before[key].containerId !== after[key].containerId || before[key].imageId !== after[key].imageId || before[key].configFingerprint !== after[key].configFingerprint) throw new Error(`QA ${key} container configuration changed during restart.`);
+    if(key==='app'&&appRecreated){
+      if(before.app.containerId===after.app.containerId||before.app.imageId!==after.app.imageId||!before.app.recreationInvariantFingerprint||before.app.recreationInvariantFingerprint!==after.app.recreationInvariantFingerprint||stable(after.app.startupCommand)!==stable(directApiCommand))throw new Error('QA app recreation is not the approved no-build transition.');
+    }else if (before[key].containerId !== after[key].containerId || before[key].imageId !== after[key].imageId || before[key].configFingerprint !== after[key].configFingerprint) throw new Error(`QA ${key} container configuration changed during restart.`);
     if (before[key].startedAt === after[key].startedAt) throw new Error(`QA ${key} was not restarted.`);
   }
   if (before.db.containerId !== after.db.containerId || before.db.startedAt !== after.db.startedAt || before.db.restartCount !== after.db.restartCount) throw new Error('QA database was restarted or replaced.');
@@ -155,14 +174,14 @@ export function captureRuntimeState() {
   return { ...state, runtimeFingerprint: hash(stable(state)) };
 }
 
-export async function writeRuntimeProof({ before, expectedSourceSha }) {
+export async function writeRuntimeProof({ before, expectedSourceSha, appRecreated=false, activation }) {
   const inputs = await verifyInputs();
   if (inputs.sourceSha !== expectedSourceSha) throw new Error('Canonical source changed during QA runtime preparation.');
   const migrations = await migrationManifest();
   const after = captureRuntimeState();
-  requireRuntimeTransition(before, after);
+  requireRuntimeTransition(before, after,{appRecreated});
   if (JSON.stringify(after.appliedMigrations) !== JSON.stringify(migrations.files)) throw new Error('QA database migrations do not exactly match the canonical migration set after migration.');
-  const proof = { version: 2, sourceSha: inputs.sourceSha, inputFingerprint: inputs.inputFingerprint, rootSourceFingerprint: inputs.rootSourceFingerprint, cloneSourceFingerprint: inputs.cloneSourceFingerprint, migrationFingerprint: migrations.fingerprint, migrationFiles: migrations.files, preparedAt: new Date().toISOString(), requestedRestart: ['qa-app', 'qa-worker'], before, after, runtimeFingerprint: after.runtimeFingerprint };
+  const proof = { version: 2, sourceSha: inputs.sourceSha, inputFingerprint: inputs.inputFingerprint, rootSourceFingerprint: inputs.rootSourceFingerprint, cloneSourceFingerprint: inputs.cloneSourceFingerprint, migrationFingerprint: migrations.fingerprint, migrationFiles: migrations.files, preparedAt: new Date().toISOString(), requestedRestart: ['qa-app', 'qa-worker'], transition:appRecreated?'qa-app-command-only-recreate':'restart', ...(activation?{activation}:{}), before, after, runtimeFingerprint: after.runtimeFingerprint };
   await mkdir(localRoot, { recursive: true });
   await writeFile(runtimeProofPath, `${JSON.stringify(proof, null, 2)}\n`, { mode: 0o600 });
   return proof;
@@ -178,23 +197,24 @@ export async function currentRuntimeProof() {
   return proof;
 }
 
-export async function distHashes() {
-  const dist = resolve(root, 'apps/web/dist');
-  if (!existsSync(dist)) throw new Error('Missing apps/web/dist; run the explicit build command.');
-  const names = execFileSync('find', [dist, '-type', 'f', '-printf', '%P\n'], { encoding: 'utf8' }).trim().split('\n').filter(Boolean).sort();
-  if (!names.includes('index.html')) throw new Error('Built index.html is missing.');
-  const hashes = {};
-  for (const name of names) hashes[name] = hash(await readFile(resolve(dist, name)));
-  return hashes;
+export async function directoryHashes(directory) {
+  const dist=resolve(directory);const info=await lstat(dist);if(!info.isDirectory()||info.isSymbolicLink())throw new Error('Artifact root must be a real directory.');const hashes={};
+  async function walk(path){for(const entry of (await readdir(path,{withFileTypes:true})).sort((a,b)=>a.name.localeCompare(b.name))){const full=resolve(path,entry.name);const info=await lstat(full);if(info.isSymbolicLink())throw new Error('Artifact must not contain symbolic links.');if(info.isDirectory())await walk(full);else if(info.isFile())hashes[relative(dist,full).split('\\').join('/')]=hash(await readFile(full));else throw new Error('Artifact contains a nonregular file.');}}
+  await walk(dist);if(!hashes['index.html'])throw new Error('Built index.html is missing.');
+  return Object.fromEntries(Object.entries(hashes).sort(([a],[b])=>a.localeCompare(b)));
 }
+export async function distHashes() {return directoryHashes(resolve(root,'apps/web/dist'));}
 
-export async function writeProof({ containerId, nodeVersion, expectedSourceSha }) {
+export async function writeProof({ containerId, nodeVersion, expectedSourceSha, stageBuild }) {
   const runtime = await currentRuntimeProof();
   const inputs = await verifyInputs();
   const assets = await distHashes();
   if (expectedSourceSha && inputs.sourceSha !== expectedSourceSha) throw new Error('Canonical source changed during build.');
+  if(stageBuild&&(stageBuild.sourceSha!==inputs.sourceSha||stageBuild.inputFingerprint!==inputs.inputFingerprint||stageBuild.nodeVersion!==nodeVersion||stageBuild.builderImageId!==runtime.after.app.imageId))throw new Error('Staged builder provenance is stale.');
+  const stageManifestSha256=stageBuild?hash(await readFile(resolve(stageBuild.stageDir,'stage-provenance.json'))):undefined;
+  if(stageBuild&&stageManifestSha256!==runtime.activation?.stageManifestSha256)throw new Error('Activated staged manifest binding changed.');
   const workingTreeDirty = execFileSync('git', ['--git-dir', resolve(clone, '.git'), '--work-tree', root, 'status', '--porcelain'], { encoding: 'utf8' }).trim().length > 0;
-  const proof = { version: 2, sourceSha: inputs.sourceSha, inputFingerprint: inputs.inputFingerprint, rootSourceFingerprint: inputs.rootSourceFingerprint, cloneSourceFingerprint: inputs.cloneSourceFingerprint, inputFileHashes: inputs.inputFiles, distHashes: assets, builtAt: new Date().toISOString(), containerId, nodeVersion, runtimeFingerprint: runtime.runtimeFingerprint, migrationFingerprint: runtime.migrationFingerprint, workingTreeDirty };
+  const proof = { version: 2, sourceSha: inputs.sourceSha, inputFingerprint: inputs.inputFingerprint, rootSourceFingerprint: inputs.rootSourceFingerprint, cloneSourceFingerprint: inputs.cloneSourceFingerprint, inputFileHashes: inputs.inputFiles, distHashes: assets, builtAt: stageBuild?.builtAt??new Date().toISOString(), ...(stageBuild?{builderImageId:stageBuild.builderImageId,stageManifestSha256,dependencies:stageBuild.dependencies}:{}), containerId, nodeVersion, runtimeFingerprint: runtime.runtimeFingerprint, migrationFingerprint: runtime.migrationFingerprint, workingTreeDirty };
   await mkdir(localRoot, { recursive: true });
   await writeFile(proofPath, `${JSON.stringify(proof, null, 2)}\n`, { mode: 0o600 });
   return proof;

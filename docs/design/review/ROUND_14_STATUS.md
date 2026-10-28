@@ -219,3 +219,37 @@ provenance, owner-scoped usage and conditional billing guidance. Ops review
 rejected the first private restore helper: embedded schema checks were invalid
 and incomplete. Those helpers have not run against public data and must pass
 executable schema validation and independent re-review before use.
+
+### Integrated verification and final visual corrections
+
+Source `2693fba96c18f59eade8c3715febc4718d5f6445` passed all five workspace
+typechecks and 526 tests on the local isolated Docker runner: web 153, contracts
+5, core 3, API 365; worker has no tests. The coordinator checked the exit codes
+and logs. The actual browser ICS flow and AI configuration/explicit reserve
+flow passed using guarded synthetic transports, with no unexpected provider
+requests or page exceptions. A separate bounded security review passed.
+
+The coordinator verified 241 recorded source hashes against Git blobs, all 12
+built assets and all 68 image hashes. UX and coordinator opened actual images
+and reference/before/after panels. Desktop/mobile materially improved, but
+tablet portrait was rejected: the shared header overflowed 768px. The scoped
+two-row tablet correction and browser geometry regression are under final
+verification. Initial paired displays correctly showed empty authorized
+projections; populated six-person display evidence requires explicit synthetic
+grants and is not inferred from those empty captures. Two capture assertions
+(stripe timing and hashed-background filename) were false negatives; original
+failed evidence remains preserved and corrected checks must pass.
+
+The review pipeline now stages an immutable-source build outside active LAN
+dist. Explicit activation retains the previous artifact and switches only the
+QA app startup to direct API execution, with strict configuration, source,
+runtime and served-asset verification. Fixture checks and read-only preflight
+have passed; actual staged build/activation and canonical capture remain open.
+
+Private restore helpers passed 19 schema/generator/wiring fixtures and an
+independent wiring review after correction. A fresh public custom-format backup
+and 37-row baseline ledger were captured and its TOC parsed; no public runtime
+change has occurred. A real isolated restore/migration gate, release gate and
+public verification still remain. Protected root Git metadata matches all 229
+recorded files. Origin and issue metadata were rechecked; no newer branch work
+or issue changes were found. Owner consent/key/school actions remain separate.
