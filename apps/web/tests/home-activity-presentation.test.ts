@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { collectActivitySourcePages, calendarActivityEnded, currentCalendarActivityRelevant, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate, timedActivityUnended, timelineActivityVisible } from "../src/home-activity-presentation";
-import type { HouseholdTimelineActivity } from "../src/home-types";
+import type { HomeSchoolActivity, HouseholdTimelineActivity } from "../src/home-types";
 import { registerHooks } from "node:module";
 registerHooks({ load(url, context, nextLoad) { return url.endsWith(".webp") ? { format: "module", source: 'export default "synthetic-avatar.webp"', shortCircuit: true } : nextLoad(url, context); } });
 const [{ FamilyHub }, { LocaleProvider }, { SchoolActivityCard }] = await Promise.all([import("../src/family-hub"), import("../src/ui"), import("../src/home-activities")]);
@@ -172,6 +172,24 @@ test("Home renders each same-day birthday and saved school item without birth da
     assert.ok(compactSchoolHtml.includes("Pack synthetic book"), "compact person previews keep the actionable school instruction");
     assert.ok(!compactSchoolHtml.includes("Synthetic Child 3"), "compact school preview does not repeat the entire subject roster");
   }
+});
+
+test("school freshness distinguishes verified, retained, unknown and legacy projections without exposing error codes",()=>{
+ const people=[{id:"freshness-person",displayName:"Synthetic freshness person"}];
+ const base={type:"school" as const,id:"freshness-school",taskId:"synthetic-task",personId:people[0]!.id,date:"2026-10-28",time:"14:00",kind:"notice",title:"Synthetic school notice",actions:[],evidence:{},confidence:null,uncertainty:null,sourceUrl:null,recordedAt:"2026-10-28T11:00:00Z",expiresAt:"2026-10-28T15:00:00Z"};
+ const render=(activity:HomeSchoolActivity,locale:"en"|"nb"="en")=>renderToStaticMarkup(createElement(LocaleProvider,{locale,children:createElement(SchoolActivityCard,{activity,people,zone:"Europe/Oslo"})}));
+ const retained=render({...base,freshness:{state:"retained",recordedAt:"2026-10-28T11:00:00Z",verifiedAt:"2026-10-28T12:15:00Z",latestAttempt:{outcome:"failed",at:"2026-10-28T12:20:00Z",errorCode:"synthetic-private-provider-code"}}});
+ assert.match(retained,/class="hub-school-freshness is-retained"/);
+ assert.match(retained,/1:15 PM|13:15/,"the freshness timestamp uses household time and includes time of day");
+ assert.match(retained,/newer data could not be confirmed|nyere data kunne ikke bekreftes/);
+ assert.doesNotMatch(retained,/synthetic-private-provider-code|provider-code/);
+ const unknown=render({...base,freshness:{state:"unknown",recordedAt:"2026-10-28T11:00:00Z",verifiedAt:null,latestAttempt:{outcome:null,at:"2026-10-28T12:20:00Z",errorCode:null}}});
+ assert.match(unknown,/class="hub-school-freshness is-unknown"/);
+ assert.match(unknown,/Freshness is unknown|Oppdateringsstatus er ukjent/);
+ const verified=render({...base,freshness:{state:"verified",recordedAt:"2026-10-28T12:30:00Z",verifiedAt:"2026-10-28T12:25:00Z",latestAttempt:{outcome:"succeeded_no_findings",at:"2026-10-28T12:25:00Z",errorCode:null}}});
+ assert.doesNotMatch(verified,/hub-school-freshness/,"a verified run with no findings is not mislabeled stale");
+ assert.match(verified,/Last verified|Sist bekreftet/);
+ assert.doesNotMatch(render(base),/hub-school-freshness|Last verified|Sist bekreftet/,"older projections remain compatible without claiming freshness");
 });
 
 test("school person summaries expire from the server deadline while day history keeps an ended row",()=>{

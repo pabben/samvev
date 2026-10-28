@@ -59,3 +59,7 @@ full QA, release gate, kilde-/imagebinding og offentlig testpublisering med HTTP
 kontroll gjenstår. Privat bakgrunn og ekte konto-/oppdragskonfigurasjon skal
 bevares. Loggene ligger i ignorert lokal lagring; ingen privat husholdningsdata
 eller hemmeligheter er lagt til i kilde- eller dokumentasjonsfilene.
+
+## Nyeste lokale checkpoint
+
+Skjerm-/ICS-flyten er integrert i `d4490a5`, Next/historikk i `cd53080`, og skjermforhåndsvisningens kontekst i `e21e1b8`. Sikkerhetsreview av Next-rettingen er PASS. Home-komposisjon, tomme seksjoner og skoleferskhet er nå implementert; 19 målrettede tester og web-typekontroll bestod. Hovedagenten kjørte hele webpakken etter integrasjon: 164/164, ingen feil/skips. Faktisk geometri, før/etterbilder, samlet slutt-QA, backup/restore og offentlig R15-publisering gjenstår. Offentlig drift er fortsatt R14.

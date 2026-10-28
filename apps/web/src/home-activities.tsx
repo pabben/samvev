@@ -34,16 +34,23 @@ function timeLabel(row: TimelineEntry, locale: string, zone: string, allDay: str
   if (row.activity.metadata.allDay) return allDay;
   return row.activity.startsAt ? formatDate(row.activity.startsAt, locale, zone, { hour: "2-digit", minute: "2-digit" }) : allDay;
 }
+function freshnessTimestamp(value:string|null|undefined,locale:string,zone:string){
+  return value&&Number.isFinite(Date.parse(value))?formatDate(value,locale,zone,{dateStyle:"medium",timeStyle:"short"}):null;
+}
 function activityPeople(row: TimelineEntry, people: HubPerson[], family: string) {
   const ids = row.kind === "school" ? row.activity.personIds : row.kind === "calendar" ? row.activity.personIds : [];
   return ids.length ? people.filter(person => ids.includes(person.id)).map(person => person.displayName).join(" · ") : family;
 }
 
-export function SchoolActivityCard({ activity, people, compact = false, dateLabel, hideMeta = false, hideIcon = false, now }: { activity: GroupedSchoolActivity | HomeSchoolActivity; people: HubPerson[]; compact?: boolean; dateLabel?: string; hideMeta?: boolean; hideIcon?: boolean; now?:number }) {
+export function SchoolActivityCard({ activity, people, compact = false, dateLabel, hideMeta = false, hideIcon = false, now, zone }: { activity: GroupedSchoolActivity | HomeSchoolActivity; people: HubPerson[]; compact?: boolean; dateLabel?: string; hideMeta?: boolean; hideIcon?: boolean; now?:number; zone?:string }) {
   const { t, locale } = useI18n();
   const names = "personIds" in activity ? people.filter(person => activity.personIds.includes(person.id)).map(person => person.displayName) : people.filter(person => person.id === activity.personId).map(person => person.displayName);
+  const freshness=activity.freshness;
+  const freshnessDate=freshness?.state==='retained'?(freshness.verifiedAt??freshness.recordedAt):(freshness?.latestAttempt.at??freshness?.recordedAt);
+  const freshnessDateLabel=freshnessTimestamp(freshnessDate,locale,zone??"UTC")??t("hubSchoolDateUnknown");
+  const verifiedDateLabel=freshnessTimestamp(freshness?.verifiedAt,locale,zone??"UTC");
   return <article className={`hub-school-activity ${compact ? "is-compact" : ""}`} data-review-private="school-activity" data-school-event-id={activity.id}>
-    <div className="hub-school-heading">{!compact&&!hideIcon&&<span className="hub-school-icon" aria-hidden="true">🎒</span>}<div><strong data-review-private="school-title">{activity.title}</strong>{now!==undefined&&Date.parse(activity.expiresAt)<=now&&<span className="hub-ended-label">{t("hubEnded")}</span>}{!hideMeta&&<span className="hub-school-meta">{dateLabel && <>{dateLabel} · </>}{clockLabel(activity.time, t("hubAllDay"))}{!compact&&names.length?` · ${names.join(" · ")}`:""}</span>}</div></div>
+    <div className="hub-school-heading">{!compact&&!hideIcon&&<span className="hub-school-icon" aria-hidden="true">🎒</span>}<div><strong data-review-private="school-title">{activity.title}</strong>{now!==undefined&&Date.parse(activity.expiresAt)<=now&&<span className="hub-ended-label">{t("hubEnded")}</span>}{!hideMeta&&<span className="hub-school-meta">{dateLabel && <>{dateLabel} · </>}{clockLabel(activity.time, t("hubAllDay"))}{!compact&&names.length?` · ${names.join(" · ")}`:""}</span>}{freshness?.state==='retained'&&<span className="hub-school-freshness is-retained" role="status">{t("hubSchoolRetained",{date:freshnessDateLabel})}</span>}{freshness?.state==='unknown'&&<span className="hub-school-freshness is-unknown" role="status">{t("hubSchoolFreshnessUnknown",{date:freshnessDateLabel})}</span>}</div></div>
     {!!activity.actions.length && <ul className={`hub-school-actions ${compact ? "is-compact" : ""}`}>{(compact ? activity.actions.slice(0, 1) : activity.actions).map((action, index) => <li key={`${activity.id}-${index}`} data-review-private="school-action">{action}</li>)}</ul>}
     {!compact && <details className="hub-school-provenance">
       <summary>{t("hubSchoolDetails")}</summary>
@@ -51,6 +58,7 @@ export function SchoolActivityCard({ activity, people, compact = false, dateLabe
       {activity.confidence !== null && <p className="field-hint">{t("hubSchoolConfidence", { value: new Intl.NumberFormat(locale, { style: "percent", maximumFractionDigits: 0 }).format(activity.confidence) })}</p>}
       {activity.uncertainty && <p className="field-hint">{t("hubSchoolUncertainty", { value: activity.uncertainty })}</p>}
       {activity.recordedAt && <p className="field-hint">{t("hubSchoolRecorded", { date: formatDate(activity.recordedAt, locale, "UTC", { dateStyle: "medium" }) })}</p>}
+      {freshness?.state==='verified'&&verifiedDateLabel&&<p className="field-hint">{t("hubSchoolVerified",{date:verifiedDateLabel})}</p>}
       {activity.sourceUrl && <a href={activity.sourceUrl} target="_blank" rel="noreferrer" data-review-private="school-source">{t("hubSchoolSource")} <Icon name="arrow" size={14}/></a>}
     </details>}
   </article>;
@@ -223,7 +231,7 @@ function TimelineRow({ row, people, family, zone, locale, now }: { row: Timeline
       <strong lang={row.kind==='calendar'?row.activity.contentLocale??undefined:undefined}>{title}</strong>{ended&&<span className="hub-ended-label">{t('hubEnded')}</span>}
     </button>
     {open&&<div id={detailsId} className="hub-week-row-details" role="region" aria-labelledby={buttonId}>
-      {row.kind==='school'?<SchoolActivityCard activity={row.activity} people={people} now={now}/>:row.kind==='dinner'?<dl><dt>{t('hubDinnerLabel')}</dt><dd>{dateHeading(row.date,locale)}</dd><dt>{t('hubFamily')}</dt><dd>{participants}</dd></dl>:<>
+      {row.kind==='school'?<SchoolActivityCard activity={row.activity} people={people} now={now} zone={zone}/>:row.kind==='dinner'?<dl><dt>{t('hubDinnerLabel')}</dt><dd>{dateHeading(row.date,locale)}</dd><dt>{t('hubFamily')}</dt><dd>{participants}</dd></dl>:<>
         <dl><dt>{t('calendarRowPeople')}</dt><dd>{participants}</dd>{row.activity.startsAt&&<><dt>{t('calendarRowWhen')}</dt><dd>{formatCalendarEventRange(row.activity.startsAt,row.activity.endsAt,locale,zone,row.activity.metadata.allDay)}</dd></>}{row.activity.metadata.calendar?.status&&<><dt>{t('calendarRowStatus')}</dt><dd>{t(calendarParticipationKey(row.activity.metadata.calendar.status))}</dd></>}{row.activity.metadata.calendar&&<><dt>{t('calendarRowSource')}</dt><dd>{row.activity.metadata.calendar.displayName||row.activity.source.label}</dd></>}{row.activity.metadata.location&&<><dt>{t('calendarRowLocation')}</dt><dd>{row.activity.metadata.location}</dd></>}</dl>
         <CalendarFreshness item={row.activity} zone={zone}/>
         {row.activity.body&&<p>{row.activity.body}</p>}

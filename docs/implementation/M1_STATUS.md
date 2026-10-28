@@ -1,5 +1,7 @@
 # M1 implementation status
 
+R15 nyeste lokale status: Home er implementert og hele webpakken består 164/164. Visuell kontroll og offentlig R15-utrulling gjenstår; offentlig source er fortsatt R14 `971913e`. Se `docs/design/review/ROUND_15_STATUS.md`.
+
 ## Round 15 active checkpoint — 2026-10-28
 
 Round 15 remains in local implementation and review. The public R14 baseline
