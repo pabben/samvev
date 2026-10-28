@@ -4,6 +4,7 @@ import { DomainError } from '@samvev/core';
 const { Client } = pg;
 
 export type ProjectionStreamEvent =
+  | { type: 'authorization-revoked'; data: Record<string, never> }
   | { type: 'projection-invalidated'; data: Record<string, never> }
   | { type: 'listener-degraded'; data: { pollingFallback: true; listenerConnected: boolean; reason: 'notification-listener-unavailable' | 'authorization-check-unavailable' } }
   | { type: 'listener-restored'; data: { pollingFallback: true; listenerConnected: true; refetchRequired: true } };
@@ -13,6 +14,10 @@ interface Subscription {
   householdId: string;
   send: (event: ProjectionStreamEvent) => void;
   close: () => void;
+  revalidate?:()=>Promise<void>;
+  active:boolean;
+  checking:boolean;
+  pending:boolean;
 }
 
 export class ProjectionEventFanout {
@@ -30,17 +35,18 @@ export class ProjectionEventFanout {
     try{await this.ensureConnected();}catch{this.scheduleReconnect();}
   }
 
-  subscribe(displayId:string,householdId:string,send:Subscription['send'],close:()=>void):()=>void{
+  subscribe(displayId:string,householdId:string,send:Subscription['send'],close:()=>void,revalidate?:()=>Promise<void>):()=>void{
     const displayCount=this.perDisplay.get(displayId) ?? 0;
     if(this.subscriptions.size>=this.maxGlobal || displayCount>=this.maxPerDisplay) throw new DomainError('RATE_LIMITED',429,{reason:'display_stream_limit'});
     const id=this.nextId++;
-    this.subscriptions.set(id,{displayId,householdId,send,close});
+    const subscription:Subscription={displayId,householdId,send,close,revalidate,active:true,checking:false,pending:false};
+    this.subscriptions.set(id,subscription);
     this.perDisplay.set(displayId,displayCount+1);
     void this.ensureConnected().catch(()=>this.scheduleReconnect());
     let active=true;
     return ()=>{
       if(!active)return;
-      active=false;
+      active=false;subscription.active=false;
       this.subscriptions.delete(id);
       const remaining=(this.perDisplay.get(displayId) ?? 1)-1;
       if(remaining>0)this.perDisplay.set(displayId,remaining);else this.perDisplay.delete(displayId);
@@ -85,7 +91,7 @@ export class ProjectionEventFanout {
       await client.query('LISTEN display_projection');
       client.on('notification',(message)=>{
         if(message.channel!=='display_projection' || !message.payload)return;
-        for(const subscription of this.subscriptions.values())if(subscription.householdId===message.payload)subscription.send({type:'projection-invalidated',data:{}});
+        for(const subscription of this.subscriptions.values())if(subscription.householdId===message.payload)void this.invalidate(subscription);
       });
       const failed=()=>this.listenerFailed(client);
       client.once('error',failed);
@@ -93,6 +99,21 @@ export class ProjectionEventFanout {
       this.client=client;
       for(const subscription of this.subscriptions.values())subscription.send({type:'listener-restored',data:{pollingFallback:true,listenerConnected:true,refetchRequired:true}});
     }catch(error){await client.end().catch(()=>undefined);throw error;}
+  }
+
+  private async invalidate(subscription:Subscription):Promise<void>{
+    if(!subscription.active)return;
+    if(subscription.checking){subscription.pending=true;return;}
+    subscription.checking=true;
+    try{
+      await subscription.revalidate?.();
+      if(subscription.active)subscription.send({type:'projection-invalidated',data:{}});
+    }catch(error){
+      if(!subscription.active)return;
+      if(error instanceof DomainError&&(error.status===401||error.status===403)){
+        subscription.send({type:'authorization-revoked',data:{}});subscription.close();
+      }else subscription.send({type:'listener-degraded',data:{pollingFallback:true,listenerConnected:this.listenerConnected(),reason:'authorization-check-unavailable'}});
+    }finally{subscription.checking=false;if(subscription.pending&&subscription.active){subscription.pending=false;void this.invalidate(subscription);}}
   }
 
   private listenerFailed(client:pg.Client):void{

@@ -1,6 +1,6 @@
 # M1 implementation status
 
-R15 nyeste lokale status: forrige kandidat bestod 546 tester; etterfølgende lokal #16-retting har bestått målrettede parser-/transport-, tilgangs-, presentasjons- og Chromium-maskeringstester. #17–#19, samlet slutt-QA, visuell kontroll og offentlig R15-utrulling gjenstår. Offentlig source er fortsatt R14 `971913e`. Se `docs/design/review/ROUND_15_STATUS.md` for gjeldende bevis og begrensninger; eldre kontrollpunkter nedenfor er historikk.
+R15 nyeste lokale status: #16 og #17/#18-backend er implementert. Full API bestod 388 tester før en etterfølgende klarstatusretting; 8 policytester og typekontroll bestod etter den. UI, #19, samlet slutt-QA, visuell kontroll, restore og offentlig R15-utrulling gjenstår. Offentlig source er fortsatt R14 `971913e`; ny lesende kontroll viser eksisterende HA-synkfeil. Se `docs/design/review/ROUND_15_STATUS.md` for bevis og begrensninger; eldre kontrollpunkter nedenfor er historikk.
 
 ## Round 15 active checkpoint — 2026-10-28
 

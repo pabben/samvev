@@ -115,6 +115,8 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
     allSources:false,allSensors:false,personIds:[avatarPersonId],sourceIds:[],calendarSourceIds:[],sensorIds:[],albumIds:[],backgroundId:null,locale:'en',theme:'light'
   }});
   assert.equal(createdFourCardSetup.statusCode,201,createdFourCardSetup.body);assert.equal(createdFourCardSetup.json().cards.length,4);assert.deepEqual(createdFourCardSetup.json().cardOrder,['today','family_layout','household_messages','external_items']);
+  // Exercise the preserved pre-044 per-person birthday consent policy.
+  await pool.query("UPDATE displays SET birthday_mode='legacy_selected' WHERE id=$1",[displayId]);
   const existingProfileGrant=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${displayId}`,headers:auth(adminCookie,adminCsrf),payload:{profilePersonIds:[avatarPersonId],birthdayPersonIds:[avatarPersonId]}});
   assert.equal(existingProfileGrant.statusCode,200,existingProfileGrant.body);
   const profileImage=await sharp({create:{width:32,height:24,channels:3,background:'#a86442'}}).png().toBuffer();
@@ -369,7 +371,9 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '039_ics_sync_intervals.sql',
     '040_anthropic_ai_provider.sql',
     '041_ai_fallback_and_dispatch_limits.sql',
-    '042_monitor_event_producing_run.sql'
+    '042_monitor_event_producing_run.sql',
+    '043_display_credential_generation.sql',
+    '044_display_presentation_policy.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
 });

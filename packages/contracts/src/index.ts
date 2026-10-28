@@ -196,13 +196,17 @@ export const pairingApproveSchema = z.object({
   privacyMode: z.boolean().default(false), allowedContent: z.enum(['household_messages']).default('household_messages')
 }).strict();
 export const pairingRedeemSchema = z.object({ pairingId: uuidSchema, verifier: z.string().min(43).max(256) }).strict();
+export const displayReconnectApproveSchema = z.object({code:z.string().regex(/^\d{6}$/),expectedCredentialGeneration:z.number().int().positive()}).strict();
+export const displayDisconnectSchema = z.object({}).strict();
 const displaySetupIdsSchema = z.array(uuidSchema).max(100)
   .refine((value) => new Set(value).size === value.length, 'duplicate_display_setup_id');
 export const displayUpdateSchema = z.object({
   setupId: uuidSchema.optional(),locale: localeSchema.nullable().optional(), theme: themeSchema.nullable().optional(), privacyMode: z.boolean().optional(),
   externalItemsEnabled: z.boolean().optional(), revoked: z.literal(true).optional(),
-  profilePersonIds: displaySetupIdsSchema.optional(),birthdayPersonIds:displaySetupIdsSchema.optional()
-}).strict().refine((value) => Object.keys(value).length > 0);
+  profilePersonIds: displaySetupIdsSchema.optional(),birthdayPersonIds:displaySetupIdsSchema.optional(),
+  birthdayMode:z.enum(['off','all']).optional(),personIdsOverride:displaySetupIdsSchema.nullable().optional()
+}).strict().refine((value) => Object.keys(value).length > 0)
+  .refine((value)=>!(value.birthdayMode!==undefined&&value.birthdayPersonIds!==undefined),'conflicting_birthday_policy');
 
 export const displaySetupCards = ['household_messages','new_message','family_layout','external_items','worth_remembering','today','tomorrow','people','week','next','groceries','dinners','photos','home_assistant'] as const;
 const displaySetupCardSchema = z.enum(displaySetupCards);

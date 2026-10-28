@@ -25,7 +25,7 @@ ICS laster hele svaret innenfor **5 MiB**, **15 sekunder** og høyst **tre
 omdirigeringer**. Forekomstvinduet reduserer ikke nedlastingsstørrelsen.
 Historiske enkeltavtaler utenfor vinduet bruker ikke forekomstgrensen på 10 000.
 Gjentakelser beholder opprinnelig start, COUNT, unntak og flyttede forekomster.
-Parsing skjer i høyst to arbeidstråder, med fire ventende jobber; nye jobber
+Parsing skjer i høyst to arbeidstråder per prosess, med fire ventende jobber; nye jobber
 utover dette avvises som opptatt. Hver arbeidstråd har fem sekunders frist og
 128 MiB grense for V8s gamle heap, i tillegg til 16 MiB for den unge heapen.
 Dette er ikke en total RSS-grense for hele appen. Siste gyldige kalender beholdes

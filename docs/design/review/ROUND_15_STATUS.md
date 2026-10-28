@@ -4,6 +4,33 @@ Status: lokalt arbeid pågår, 28. oktober 2026. Kravgrunnlaget er
 [ROUND_15_REQUIREMENTS.md](ROUND_15_REQUIREMENTS.md). Dette er en kontrollert
 mellomstatus; samlet QA, release gate og offentlig testpublisering gjenstår.
 
+## Nyeste kontrollpunkt: skjermbackend #17/#18
+
+Backend med additive migrasjoner 043/044 er implementert og kontrollert lokalt.
+Gjenkobling bevarer registrering, oppsett og delinger; vellykket innløsning roterer
+legitimasjon og stenger gammel API-/SSE-tilgang. Endelige lesesvar kontrollerer
+legitimasjonen på nytt. Handlinger beholder eksisterende serviceautorisasjon og
+avgrensede kvitteringer, også når en faktisk tilstand ikke kan bekreftes.
+
+Bursdager har off/all/legacy_selected med begrensningsbevarende migrering.
+Personvalg kan overstyres per enhet uten å endre delt oppsett eller gi nye
+profil-/kalenderrettigheter. Rå valg, arv og effektive verdier er separate i
+administratorens API. Klarstatus kontrollerer deling av den nøyaktige valgte
+kalenderkilden; gyldig husstandskalender krever ikke et personvalg.
+
+Full API-kjøring bestod 388/388 etter retting av handlingskvittering; contracts
+bestod 7/7 og typekontroller bestod. Deretter ble en avgrenset feil i klarstatus
+rettet: 8/8 policytester og API-typekontroll bestod på ny kilde. Det eldre
+388-resultatet er derfor bevis før denne siste rettingen, ikke endelig samlet
+QA. Se [API-/UI-overlevering](../../implementation/ROUND_15_DISPLAY_API.md).
+UI, faktisk to-nettleserflyt, endelig full QA, bilder, restore og publisering
+gjenstår. Ingen reell skjerm er koblet om som test.
+
+En ny lesende kontroll av offentlig R14 viste HA-synkfeil, med siste vellykkede
+oppdatering 28. oktober kl. 20.13 UTC. Dette er en observert eksisterende status,
+ikke en R15-regresjon eller en live-godkjenning av HA. Kilder, hemmeligheter og
+delinger er ikke endret. Videre kontroll holdes adskilt fra syntetisk testing.
+
 ## Nyeste kontrollpunkt: kalenderfeil #16
 
 Samme pågående runde omfatter nå #16–#19. Kalenderrettingen er implementert
@@ -76,8 +103,10 @@ Migrasjon 042 legger til en valgfri produsentkjøring med fremmednøkkel innenfo
 samme oppdrag. Eksisterende verdier forblir `NULL`; proveniensen vises som ukjent
 til en legitim ny resultatkjøring oppretter koblingen. Migrasjonen er bare kjørt
 mot isolert testdatabase i denne kontrollen. Offentlig migrasjon krever fortsatt
-rundens backup-/restore-bevis. Foretrekk applikasjonsrollback; destruktiv
-skjemanedgradering er ikke en automatisk rollback.
+rundens backup-/restore-bevis. Etter 043/044 er R14-applikasjonsrollback utrygg:
+den overser nye skjermbegrensninger. Bevar databasen og rett backend fremover;
+eventuell UI-fallback krever et særskilt verifisert policykompatibelt kildepunkt.
+Destruktiv skjemanedgradering er ikke en automatisk rollback.
 
 Visuell Home-gjennomgang og skjermbilder, samlet sikkerhets-/krav-/UX-kontroll,
 full QA, release gate, kilde-/imagebinding og offentlig testpublisering med HTTPS-

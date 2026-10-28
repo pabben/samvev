@@ -1,6 +1,6 @@
 # R15 display contract: issues 17 and 18
 
-Status: implementation contract, additive 043/044 after existing 042. The coordinator serializes writers. B owns backend/contracts/migrations; C owns UI after B delivers. Existing IDs, assignments, grants and rights remain intact unless an authorized manager explicitly changes them.
+Status: backend implemented and locally tested; UI, integrated QA and public restore/publication pending. Exact API handoff: [ROUND_15_DISPLAY_API.md](ROUND_15_DISPLAY_API.md). Additive 043/044 follow existing 042. The coordinator serializes writers. B owns backend/contracts/migrations; C owns UI after B delivers. Existing IDs, assignments, grants and rights remain intact unless an authorized manager explicitly changes them.
 
 ## Reconnect (043)
 

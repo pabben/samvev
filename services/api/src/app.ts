@@ -11,7 +11,7 @@ import { ZodError, type ZodType } from 'zod';
 import {
   accountStatusUpdateSchema, claimSchema, displayActionPolicyUpdateSchema, displayMessageCreateSchema, displayPreviewSelectionSchema, displaySetupCreateSchema, displaySetupPreviewSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
   invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
-  messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema,
+  messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema, displayReconnectApproveSchema, displayDisconnectSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,aiChatGptImportSchema,aiChatGptDisconnectSchema,aiChatGptSelectSchema,aiUsageQuerySchema,
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
@@ -79,6 +79,13 @@ interface AuthContext {
 interface DisplayContext {
   id: string;
   credentialHash:string;
+  credentialGeneration:number;
+  birthdayMode:'off'|'all'|'legacy_selected';
+  personIdsOverride:string[]|null;
+  setupPersonIds:string[];
+  setupLocale:'en'|'nb';
+  setupTheme:'light'|'dark'|'system';
+  setupName:string;
   name: string;
   householdId: string;
   locale: 'en' | 'nb';
@@ -222,6 +229,7 @@ async function authForInstallation(request:FastifyRequest,installationId:string)
 
 interface DisplayContextRow {
   id:string;name:string;household_id:string;locale:'en'|'nb';theme:'light'|'dark'|'system';locale_override:'en'|'nb'|null;theme_override:'light'|'dark'|'system'|null;
+  credential_generation:number;birthday_mode:'off'|'all'|'legacy_selected';person_ids_override:string[]|null;setup_locale:'en'|'nb';setup_theme:'light'|'dark'|'system';setup_name:string;
   privacy_mode:boolean;external_items_enabled:boolean;setup_id:string;cards:string[];card_order:string[];family_layout_enabled:boolean;all_sources:boolean;all_sensors:boolean;album_ids:string[];background_id:string|null;
 }
 
@@ -234,31 +242,43 @@ async function displayContextFromRow(row:DisplayContextRow,credentialHash:string
     db.query<{source_id:string}>(`SELECT source_id FROM display_setup_calendar_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY source_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id]),
     db.query<{sensor_id:string}>(`SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id])
   ]);
+  const setupPersonIds=people.rows.map((item)=>item.person_id);
+  const selectedPersonIds=row.person_ids_override===null?setupPersonIds:(await db.query<{id:string}>('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id',[row.household_id,row.person_ids_override])).rows.map((person)=>person.id);
   return {
-    id: row.id,credentialHash,name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
+    id: row.id,credentialHash,credentialGeneration:row.credential_generation,birthdayMode:row.birthday_mode,personIdsOverride:row.person_ids_override,setupPersonIds,setupLocale:row.setup_locale,setupTheme:row.setup_theme,setupName:row.setup_name,name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
     localeOverride:row.locale_override,themeOverride:row.theme_override,
     privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled,
     setupId:row.setup_id,cards:row.cards,cardOrder:row.card_order,familyLayoutEnabled:row.family_layout_enabled,
-    allSources:row.all_sources,allSensors:row.all_sensors,selectedPersonIds:people.rows.map((item)=>item.person_id),grantedPersonIds:grants.rows.map((item)=>item.person_id),
+    allSources:row.all_sources,allSensors:row.all_sensors,selectedPersonIds,grantedPersonIds:grants.rows.map((item)=>item.person_id),
     profilePersonIds:grants.rows.filter((item)=>item.profile_allowed).map((item)=>item.person_id),birthdayPersonIds:grants.rows.filter((item)=>item.birthday_allowed).map((item)=>item.person_id),
     sourceIds:sources.rows.map((item)=>item.connection_id),calendarSourceIds:calendarSources.rows.map((item)=>item.source_id),sensorIds:sensors.rows.map((item)=>item.sensor_id),
     albumIds:row.album_ids,backgroundId:row.background_id
   };
 }
 
+const displayResponseFences=new WeakMap<FastifyRequest,DisplayContext>();
+async function assertDisplayCredential(display:DisplayContext,checkPolicy=false):Promise<void>{
+  const row=(await pool.query<{privacy_mode:boolean;birthday_mode:string;person_ids_override:string[]|null;setup_id:string}>(`SELECT privacy_mode,birthday_mode,person_ids_override,setup_id FROM displays
+    WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND credential_generation=$4
+      AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()`,[display.id,display.householdId,display.credentialHash,display.credentialGeneration])).rows[0];
+  if(!row)throw new DomainError('UNAUTHENTICATED',401);
+  if(checkPolicy&&(row.privacy_mode!==display.privacyMode||row.birthday_mode!==display.birthdayMode||row.setup_id!==display.setupId||JSON.stringify(row.person_ids_override)!==JSON.stringify(display.personIdsOverride)))throw new DomainError('CONFLICT',409);
+}
+
 async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
   const token=request.cookies[DISPLAY_COOKIE];if(!token)throw new DomainError('UNAUTHENTICATED',401);
   const result=await pool.query<DisplayContextRow>(`SELECT d.id,d.name,d.household_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
-      d.locale AS locale_override,d.theme AS theme_override,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
+      d.locale AS locale_override,d.theme AS theme_override,d.credential_generation,d.birthday_mode,d.person_ids_override,s.locale AS setup_locale,s.theme AS setup_theme,s.name AS setup_name,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
     FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
     WHERE d.credential_hash=$1 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()`,[tokenHash(token)]);
   const row=result.rows[0];if(!row)throw new DomainError('UNAUTHENTICATED',401);
-  return displayContextFromRow(row,tokenHash(token),true);
+  const context=await displayContextFromRow(row,tokenHash(token),true);
+  displayResponseFences.set(request,context);return context;
 }
 
 async function displayContextForManager(householdId:string,displayId:string,db:DbClient=pool,lock=false,lockGrants=false):Promise<DisplayContext>{
   const row=(await db.query<DisplayContextRow&{credential_hash:string}>(`SELECT d.id,d.name,d.household_id,d.credential_hash,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
-      d.locale AS locale_override,d.theme AS theme_override,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
+      d.locale AS locale_override,d.theme AS theme_override,d.credential_generation,d.birthday_mode,d.person_ids_override,s.locale AS setup_locale,s.theme AS setup_theme,s.name AS setup_name,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
     FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
     WHERE d.id=$1 AND d.household_id=$2 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()${lock?' FOR SHARE OF d,s':''}`,[displayId,householdId])).rows[0];
   if(!row)throw new DomainError('NOT_FOUND',404);
@@ -727,7 +747,7 @@ async function writeDisplaySetupSelections(client:DbClient,householdId:string,se
 async function updateDisplayPersonGrants(client:DbClient,householdId:string,displayId:string,profileIds?:string[],birthdayIds?:string[]):Promise<void>{
   const requested=[...(profileIds??[]),...(birthdayIds??[])];
   if(requested.length){
-    const selected=await client.query(`SELECT person_id FROM display_setup_people WHERE household_id=$1 AND setup_id=(SELECT setup_id FROM displays WHERE id=$2 AND household_id=$1) AND person_id=ANY($3::uuid[])`,[householdId,displayId,requested]);
+    const selected=await client.query(`SELECT person.id AS person_id FROM persons person JOIN displays device ON device.household_id=person.household_id AND device.id=$2 WHERE person.household_id=$1 AND person.id=ANY($3::uuid[]) AND person.id=ANY(COALESCE(device.person_ids_override,ARRAY(SELECT selected.person_id FROM display_setup_people selected WHERE selected.household_id=$1 AND selected.setup_id=device.setup_id)))`,[householdId,displayId,requested]);
     if(selected.rowCount!==new Set(requested).size)throw new DomainError('VALIDATION_FAILED',400,{reason:'display_person_not_selected'});
   }
   if(profileIds){
@@ -742,6 +762,33 @@ async function updateDisplayPersonGrants(client:DbClient,householdId:string,disp
     for(const personId of birthdayIds)await client.query(`INSERT INTO display_person_grants(household_id,display_id,person_id,birthday_allowed) VALUES($1,$2,$3,true)
       ON CONFLICT(display_id,person_id) DO UPDATE SET birthday_allowed=true`,[householdId,displayId,personId]);
   }
+}
+
+async function displayContentReadiness(db:DbClient,display:DisplayContext):Promise<{calendar:'privacy'|'none_selected'|'external_disabled'|'not_shared'|'ready'}>{
+  if(display.privacyMode)return{calendar:'privacy'};
+  if(!display.externalItemsEnabled||!display.cards.includes('external_items'))return{calendar:'external_disabled'};
+  const shared=await db.query<{applicable:boolean|null;shared_count:number}>(`SELECT bool_or(source.subject_household OR EXISTS(SELECT 1 FROM calendar_source_person_subjects subject WHERE subject.household_id=source.household_id AND subject.source_id=source.id AND subject.person_id=ANY($5::uuid[]))) AS applicable,count(*)::int AS shared_count FROM calendar_sources source
+    JOIN calendar_connections calendar ON calendar.id=source.connection_id AND calendar.household_id=source.household_id
+    JOIN integration_connections connection ON connection.id=calendar.integration_connection_id AND connection.household_id=calendar.household_id AND connection.revoked_at IS NULL
+    JOIN integration_connection_display_grants permission ON permission.household_id=connection.household_id AND permission.connection_id=connection.id AND permission.display_id=$2
+    JOIN calendar_source_display_targets source_permission ON source_permission.household_id=source.household_id AND source_permission.source_id=source.id AND source_permission.display_id=$2
+    WHERE source.household_id=$1 AND source.enabled AND calendar.disconnected_at IS NULL
+      AND ($3::boolean OR source.id=ANY($4::uuid[]))`,[display.householdId,display.id,display.allSources,display.calendarSourceIds,display.selectedPersonIds]);
+  const available=shared.rows[0]!;
+  return{calendar:available.applicable?'ready':available.shared_count>0&&!display.selectedPersonIds.length?'none_selected':'not_shared'};
+}
+async function displayAdministrativeResponse(db:DbClient,householdId:string,displayId:string):Promise<Record<string,unknown>>{
+  const row=(await db.query<DisplayContextRow&{credential_hash:string|null;revoked_at:Date|null;last_seen_at:Date|null;created_at:Date}>(`SELECT d.*,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
+    d.locale AS locale_override,d.theme AS theme_override,s.locale AS setup_locale,s.theme AS setup_theme,s.name AS setup_name,
+    s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
+    FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id WHERE d.id=$1 AND d.household_id=$2`,[displayId,householdId])).rows[0];
+  if(!row)throw new DomainError('NOT_FOUND',404);
+  const context=await displayContextFromRow(row,row.credential_hash??'',false,db);
+  return{id:row.id,name:row.name,setup_id:row.setup_id,locale:row.locale,theme:row.theme,privacy_mode:row.privacy_mode,external_items_enabled:row.external_items_enabled,revoked_at:row.revoked_at,last_seen_at:row.last_seen_at,created_at:row.created_at,
+    profile_person_ids:context.profilePersonIds,birthday_person_ids:context.birthdayPersonIds,
+    credentialGeneration:row.credential_generation,birthdayMode:row.birthday_mode,personIdsOverride:row.person_ids_override,localeOverride:row.locale_override,themeOverride:row.theme_override,setupName:row.setup_name,
+    setupDefaults:{locale:row.setup_locale,theme:row.setup_theme,personIds:context.setupPersonIds},
+    effective:{locale:row.locale,theme:row.theme,personIds:context.selectedPersonIds},contentReadiness:await displayContentReadiness(db,context)};
 }
 
 async function defaultDisplaySetup(client:DbClient,householdId:string):Promise<string>{
@@ -815,8 +862,8 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
       FROM messages m WHERE t.message_id=m.id AND t.display_id=$1 AND m.id=ANY($2::uuid[])
       AND m.state='published' AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
       AND t.delivery_state IN ('queued','delivered','displayed')
-      AND EXISTS(SELECT 1 FROM displays d WHERE d.id=t.display_id AND d.revoked_at IS NULL)
-      AND (t.delivery_state='queued' OR t.delivered_revision IS DISTINCT FROM m.revision)`,[display.id,cardIds]);
+      AND EXISTS(SELECT 1 FROM displays d WHERE d.id=t.display_id AND d.revoked_at IS NULL AND d.credential_hash=$3 AND d.credential_generation=$4 AND d.credential_expires_at>clock_timestamp())
+      AND (t.delivery_state='queued' OR t.delivered_revision IS DISTINCT FROM m.revision)`,[display.id,cardIds,display.credentialHash,display.credentialGeneration]);
   }
   const hub=await displayHub(display);
   const familyProfiles=(!display.privacyMode && display.familyLayoutEnabled && display.cards.includes('family_layout') && display.profilePersonIds.length)
@@ -824,12 +871,16 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
       JOIN display_person_grants profile ON profile.household_id=p.household_id AND profile.person_id=p.id AND profile.display_id=$4 AND profile.profile_allowed
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.id=ANY($3::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,display.selectedPersonIds,display.profilePersonIds,display.id])).rows:[];
-  const birthdayPeople=(!display.privacyMode && display.familyLayoutEnabled && display.cards.includes('family_layout') && label.rows[0]?.show_upcoming_birthday && display.birthdayPersonIds.length)
-    ?(await pool.query<{id:string;display_name:string;birth_date:string}>(`SELECT p.id,p.display_name,p.birth_date::text FROM persons p
-      JOIN display_person_grants birthday ON birthday.household_id=p.household_id AND birthday.person_id=p.id AND birthday.display_id=$4 AND birthday.birthday_allowed
-      WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.id=ANY($3::uuid[]) AND p.birth_date IS NOT NULL ORDER BY p.display_name,p.id`,[display.householdId,display.selectedPersonIds,display.birthdayPersonIds,display.id])).rows:[];
+  const birthdayPeople=display.privacyMode||display.birthdayMode==='off'?[]
+    :display.birthdayMode==='all'
+      ?(await pool.query<{id:string;display_name:string;birth_date:string}>(`SELECT id,display_name,birth_date::text FROM persons WHERE household_id=$1 AND birth_date IS NOT NULL ORDER BY display_name,id`,[display.householdId])).rows
+      :display.familyLayoutEnabled&&display.cards.includes('family_layout')&&label.rows[0]?.show_upcoming_birthday&&display.birthdayPersonIds.length
+        ?(await pool.query<{id:string;display_name:string;birth_date:string}>(`SELECT p.id,p.display_name,p.birth_date::text FROM persons p
+          JOIN display_person_grants birthday ON birthday.household_id=p.household_id AND birthday.person_id=p.id AND birthday.display_id=$4 AND birthday.birthday_allowed
+          WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) AND p.id=ANY($3::uuid[]) AND p.birth_date IS NOT NULL ORDER BY p.display_name,p.id`,[display.householdId,display.selectedPersonIds,display.birthdayPersonIds,display.id])).rows:[];
   const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
-  const upcomingBirthdays=label.rows[0]?.show_upcoming_birthday?birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday):[];
+  const upcomingBirthdays=birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday);
+  const contentReadiness=await displayContentReadiness(pool,display);
   const [boardGrant,boardActions]=await Promise.all([
     pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id]),
     pool.query<{grocery_write:boolean;dinner_write:boolean;home_assistant_control:boolean}>(`SELECT grocery_write,dinner_write,home_assistant_control FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])
@@ -856,12 +907,13 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
     display: {
       id: display.id, name: label.rows[0]?.display_name, householdName: label.rows[0]?.household_name,
       timezone: label.rows[0]?.timezone, locale: display.locale, theme: display.theme,
-      privacyMode: display.privacyMode, externalItemsEnabled: display.externalItemsEnabled,setupId:display.setupId
+      privacyMode: display.privacyMode, externalItemsEnabled: display.externalItemsEnabled,setupId:display.setupId,setupName:display.setupName
     },
     setup:{cards:display.cards,cardOrder:display.cardOrder,familyLayoutEnabled:display.familyLayoutEnabled,personIds:display.privacyMode?[]:display.selectedPersonIds,
       sourceIds:display.privacyMode?[]:display.sourceIds,calendarSourceIds:display.privacyMode?[]:display.calendarSourceIds,sensorIds:display.privacyMode?[]:display.sensorIds,
       albumIds:display.albumIds,backgroundId:display.backgroundId},
-    displayGrants:{personIds:display.privacyMode?[]:display.grantedPersonIds.filter(id=>display.selectedPersonIds.includes(id)),profilePersonIds:display.privacyMode?[]:display.profilePersonIds.filter(id=>display.selectedPersonIds.includes(id)),birthdayPersonIds:display.privacyMode?[]:display.birthdayPersonIds.filter(id=>display.selectedPersonIds.includes(id))},
+    birthdays:{mode:display.birthdayMode,localDate:localToday,entries:upcomingBirthdays},contentReadiness,
+    displayGrants:{personIds:display.privacyMode?[]:display.grantedPersonIds.filter(id=>display.selectedPersonIds.includes(id)),profilePersonIds:display.privacyMode?[]:display.profilePersonIds.filter(id=>display.selectedPersonIds.includes(id)),birthdayPersonIds:display.privacyMode||display.birthdayMode!=='legacy_selected'?[]:display.birthdayPersonIds.filter(id=>display.selectedPersonIds.includes(id))},
     familyLayout:{enabled:!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout'),
       people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,colorToken:person.color_token,photo:options.preview?previewPhotoProjection(display.householdId,display.id,person.id,person.photo_revision,options.previewTag??''):displayPhotoProjection(person.id,person.photo_revision)})),
       upcomingBirthdays},
@@ -886,7 +938,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const normalizePhoto=options.photoNormalizer??normalizeProfilePhoto;
   const media=options.mediaImageNormalizer?new MediaService({normalizer:options.mediaImageNormalizer}):mediaService;
   await app.register(cookie);
-  app.addHook('onSend',async(_request,reply,payload)=>{
+  app.addHook('onSend',async(request,reply,payload)=>{
+    const displayFence=displayResponseFences.get(request);displayResponseFences.delete(request);
+    if(displayFence&&['GET','HEAD'].includes(request.method)&&reply.statusCode<400)await assertDisplayCredential(displayFence,true);
     applyBrowserSecurityHeaders(reply,responseSecurityHeaders);
     return payload;
   });
@@ -1351,7 +1405,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     if(!['96','512'].includes(variant))throw new DomainError('NOT_FOUND',404);
     const revision=Number((request.query as Record<string,unknown>).v);if(!Number.isSafeInteger(revision)||revision<1)throw new DomainError('NOT_FOUND',404);
     const selection=parsePreviewContextTag((request.query as Record<string,unknown>).s);const auth=await authForHousehold(request,householdId);requireCapability(auth.capabilities,'display.manage');
-    const device=await displayContextForManager(householdId,displayId);const candidate:DisplayContext={...device,cards:selection.cards,familyLayoutEnabled:selection.familyLayoutEnabled,allSources:selection.allSources,allSensors:selection.allSensors,selectedPersonIds:selection.personIds,sourceIds:selection.sourceIds,calendarSourceIds:selection.calendarSourceIds,sensorIds:selection.sensorIds,albumIds:selection.albumIds,backgroundId:selection.backgroundId};
+    const device=await displayContextForManager(householdId,displayId);const candidate:DisplayContext={...device,cards:selection.cards,familyLayoutEnabled:selection.familyLayoutEnabled,allSources:selection.allSources,allSensors:selection.allSensors,selectedPersonIds:device.personIdsOverride??selection.personIds,sourceIds:selection.sourceIds,calendarSourceIds:selection.calendarSourceIds,sensorIds:selection.sensorIds,albumIds:selection.albumIds,backgroundId:selection.backgroundId};
     if(!await displayPersonPhotoVisible(candidate,personId))throw new DomainError('NOT_FOUND',404);
     const requested=(await pool.query<{revision:number}>(`SELECT revision FROM person_profile_photos WHERE person_id=$1 AND household_id=$2`,[personId,householdId])).rows[0];
     if(!requested||requested.revision!==revision)throw new DomainError('NOT_FOUND',404);
@@ -1360,7 +1414,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       await recheckHouseholdAuth(client,request,auth,'display.manage');
       const currentDevice=await displayContextForManager(householdId,displayId,client,true,true);
       if(currentDevice.credentialHash!==device.credentialHash||currentDevice.privacyMode!==device.privacyMode||currentDevice.externalItemsEnabled!==device.externalItemsEnabled)throw new DomainError('NOT_FOUND',404);
-      const current:DisplayContext={...currentDevice,cards:selection.cards,familyLayoutEnabled:selection.familyLayoutEnabled,allSources:selection.allSources,allSensors:selection.allSensors,selectedPersonIds:selection.personIds,sourceIds:selection.sourceIds,calendarSourceIds:selection.calendarSourceIds,sensorIds:selection.sensorIds,albumIds:selection.albumIds,backgroundId:selection.backgroundId};
+      const current:DisplayContext={...currentDevice,cards:selection.cards,familyLayoutEnabled:selection.familyLayoutEnabled,allSources:selection.allSources,allSensors:selection.allSensors,selectedPersonIds:currentDevice.personIdsOverride??selection.personIds,sourceIds:selection.sourceIds,calendarSourceIds:selection.calendarSourceIds,sensorIds:selection.sensorIds,albumIds:selection.albumIds,backgroundId:selection.backgroundId};
       if(!await displayPersonPhotoVisible(current,personId,client,true))throw new DomainError('NOT_FOUND',404);
       const selected=(await client.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2 FOR SHARE`,[personId,householdId])).rows[0];
       if(!selected||selected.revision!==revision)throw new DomainError('NOT_FOUND',404);
@@ -2160,8 +2214,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       return input;
     });
     const device=await displayContextForManager(householdId,displayId);
-    const preview:DisplayContext={...device,setupId:source.setupId??device.setupId,cards:selectedInput.cards,cardOrder:selectedInput.cardOrder,familyLayoutEnabled:selectedInput.familyLayoutEnabled,
-      allSources:selectedInput.allSources,allSensors:selectedInput.allSensors,selectedPersonIds:selectedInput.personIds,sourceIds:selectedInput.sourceIds,calendarSourceIds:selectedInput.calendarSourceIds,sensorIds:selectedInput.sensorIds,
+    const preview:DisplayContext={...device,setupId:source.setupId??device.setupId,setupName:selectedInput.name,cards:selectedInput.cards,cardOrder:selectedInput.cardOrder,familyLayoutEnabled:selectedInput.familyLayoutEnabled,
+      allSources:selectedInput.allSources,allSensors:selectedInput.allSensors,selectedPersonIds:device.personIdsOverride??selectedInput.personIds,setupPersonIds:selectedInput.personIds,setupLocale:selectedInput.locale,setupTheme:selectedInput.theme,sourceIds:selectedInput.sourceIds,calendarSourceIds:selectedInput.calendarSourceIds,sensorIds:selectedInput.sensorIds,
       albumIds:selectedInput.albumIds,backgroundId:selectedInput.backgroundId,locale:device.localeOverride??selectedInput.locale,theme:device.themeOverride??selectedInput.theme};
     const tag=previewContextTag(preview);const mediaActorDevice={id:preview.id,householdId,setupId:preview.setupId,privacyMode:preview.privacyMode,credentialHash:preview.credentialHash};
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[householdId])).rows[0]!;
@@ -2175,8 +2229,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     ]);
     await transaction(async(client)=>{
       await recheckHouseholdAuth(client,request,auth,'display.manage');
-      const live=(await client.query<{privacy_mode:boolean;external_items_enabled:boolean}>(`SELECT privacy_mode,external_items_enabled FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId,device.credentialHash])).rows[0];
-      if(!live||live.privacy_mode!==device.privacyMode||live.external_items_enabled!==device.externalItemsEnabled)throw new DomainError('NOT_FOUND',404);
+      const live=(await client.query<{privacy_mode:boolean;external_items_enabled:boolean;birthday_mode:string;person_ids_override:string[]|null;credential_generation:number}>(`SELECT privacy_mode,external_items_enabled,birthday_mode,person_ids_override,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId,device.credentialHash])).rows[0];
+      if(!live||live.privacy_mode!==device.privacyMode||live.external_items_enabled!==device.externalItemsEnabled||live.credential_generation!==device.credentialGeneration||live.birthday_mode!==device.birthdayMode||JSON.stringify(live.person_ids_override)!==JSON.stringify(device.personIdsOverride))throw new DomainError('NOT_FOUND',404);
       const final=(await client.query<{session_id:string}>(`SELECT session.id AS session_id FROM sessions session JOIN accounts account ON account.id=session.account_id JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2 JOIN displays device ON device.id=$3 AND device.household_id=$2
         WHERE session.id=$1 AND session.account_id=$4 AND membership.id=$5 AND membership.capabilities ? 'display.manage' AND account.disabled_at IS NULL
           AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND device.credential_hash=$6 AND device.revoked_at IS NULL AND device.credential_expires_at>clock_timestamp()
@@ -2219,7 +2273,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM display_person_grants g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.profile_allowed),'[]') AS profile_person_ids,
       COALESCE((SELECT json_agg(person_id ORDER BY person_id) FROM display_person_grants g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.birthday_allowed),'[]') AS birthday_person_ids
       FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id WHERE d.household_id=$1 ORDER BY d.created_at`, [auth.householdId]);
-    return { displays: result.rows };
+    return {displays:auth.capabilities.includes('display.manage')?await Promise.all(result.rows.map((row)=>displayAdministrativeResponse(pool,auth.householdId,String(row.id)))):result.rows};
   });
 
   app.patch('/api/v1/households/:householdId/displays/:displayId', async (request) => {
@@ -2227,20 +2281,24 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'display.manage');
     const body = parse(displayUpdateSchema, request.body);
     return transaction(async(client)=>{
-      const locked=(await client.query('SELECT id FROM displays WHERE id=$1 AND household_id=$2 FOR UPDATE',[params(request).displayId,auth.householdId])).rows[0];
+      const locked=(await client.query<{id:string}>('SELECT id FROM displays WHERE id=$1 AND household_id=$2 FOR UPDATE',[params(request).displayId,auth.householdId])).rows[0];
       if(!locked)throw new DomainError('NOT_FOUND',404);
       if(body.setupId){const setup=await client.query('SELECT id FROM display_setups WHERE household_id=$1 AND id=$2 FOR SHARE',[auth.householdId,body.setupId]);if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);}
       await recheckHouseholdAuth(client,request,auth,'display.manage');
+      if(body.birthdayPersonIds!==undefined){const current=(await client.query<{birthday_mode:string}>('SELECT birthday_mode FROM displays WHERE id=$1 AND household_id=$2',[params(request).displayId,auth.householdId])).rows[0]!;if(current.birthday_mode!=='legacy_selected')throw new DomainError('VALIDATION_FAILED',400,{reason:'birthday_policy_explicit_required'});}
+      if(body.personIdsOverride?.length){
+        const people=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.personIdsOverride]);
+        if(people.rowCount!==body.personIdsOverride.length)throw new DomainError('NOT_FOUND',404);
+      }
       const result = await client.query(`UPDATE displays SET setup_id=COALESCE($10::uuid,setup_id),locale=CASE WHEN $3::boolean THEN $4::text ELSE locale END,theme=CASE WHEN $5::boolean THEN $6::text ELSE theme END,
         privacy_mode=COALESCE($7,privacy_mode),external_items_enabled=COALESCE($8,external_items_enabled),revoked_at=CASE WHEN $9::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $9::boolean IS TRUE THEN NULL ELSE credential_hash END
         WHERE id=$1 AND household_id=$2 RETURNING id`, [params(request).displayId,auth.householdId,Object.hasOwn(body,'locale'),body.locale??null,Object.hasOwn(body,'theme'),body.theme??null,body.privacyMode ?? null,body.externalItemsEnabled ?? null,body.revoked ?? null,body.setupId??null]);
       if (!result.rowCount) throw new DomainError('NOT_FOUND', 404);
+      if(Object.hasOwn(body,'birthdayMode')||Object.hasOwn(body,'personIdsOverride'))await client.query(`UPDATE displays SET birthday_mode=COALESCE($3,birthday_mode),person_ids_override=CASE WHEN $4::boolean THEN $5::uuid[] ELSE person_ids_override END WHERE id=$1 AND household_id=$2`,[params(request).displayId,auth.householdId,body.birthdayMode??null,Object.hasOwn(body,'personIdsOverride'),body.personIdsOverride??null]);
       if(Object.hasOwn(body,'profilePersonIds')||Object.hasOwn(body,'birthdayPersonIds'))await updateDisplayPersonGrants(client,auth.householdId,params(request).displayId!,body.profilePersonIds,body.birthdayPersonIds);
       if(body.revoked) await client.query(`UPDATE message_display_targets SET delivery_state='failed',failure_code='DISPLAY_REVOKED' WHERE display_id=$1 AND delivery_state='queued'`,[params(request).displayId]);
-      await audit(client,auth,body.revoked === true?'display.revoked':'display.updated','display',params(request).displayId,{privacyMode:body.privacyMode,externalItemsEnabled:body.externalItemsEnabled,profileGrantCount:body.profilePersonIds?.length,birthdayGrantCount:body.birthdayPersonIds?.length});
-      const display=(await client.query(`SELECT d.id,d.name,d.setup_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,d.privacy_mode,d.external_items_enabled,d.revoked_at
-        FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id WHERE d.id=$1 AND d.household_id=$2`,[params(request).displayId,auth.householdId])).rows[0];
-      return display;
+      await audit(client,auth,body.revoked === true?'display.revoked':'display.updated','display',params(request).displayId,{privacyMode:body.privacyMode,externalItemsEnabled:body.externalItemsEnabled,profileGrantCount:body.profilePersonIds?.length,birthdayGrantCount:body.birthdayPersonIds?.length,birthdayMode:body.birthdayMode,personOverrideCount:body.personIdsOverride===null?null:body.personIdsOverride?.length});
+      return displayAdministrativeResponse(client,auth.householdId,params(request).displayId!);
     });
   });
 
@@ -2328,6 +2386,33 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     return { approved: Boolean(row.approved_at), redeemed: Boolean(row.redeemed_at), expired: row.expires_at <= new Date(), expiresAt: row.expires_at.toISOString() };
   });
 
+  app.post('/api/v1/households/:householdId/displays/:displayId/pairing/approve',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
+    const body=parse(displayReconnectApproveSchema,request.body);
+    await durableRateLimit('pairing_approve_ip',request.ip,20,900);await durableRateLimit('pairing_approve',`${request.ip}:${body.code}`,10,900);
+    const result=await transaction(async(client)=>{
+      const pairing=(await client.query<{id:string}>(`SELECT id FROM pairing_requests WHERE code_hash=$1 AND expires_at>clock_timestamp() AND approved_at IS NULL AND redeemed_at IS NULL FOR UPDATE`,[tokenHash(body.code)])).rows[0];
+      if(!pairing)throw new DomainError('PAIRING_INVALID',404);
+      const device=(await client.query<{id:string;credential_generation:number}>(`SELECT id,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[params(request).displayId,auth.householdId])).rows[0];
+      if(!device)throw new DomainError('NOT_FOUND',404);
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      if(device.credential_generation!==body.expectedCredentialGeneration)throw new DomainError('REVISION_CONFLICT',409,{credentialGeneration:device.credential_generation});
+      const approved=await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2,expected_credential_generation=$3 WHERE id=$1 AND approved_at IS NULL AND redeemed_at IS NULL AND expires_at>clock_timestamp() RETURNING id`,[pairing.id,device.id,device.credential_generation]);
+      if(!approved.rowCount)throw new DomainError('PAIRING_EXPIRED',410);
+      await audit(client,auth,'display.reconnect_approved','display',device.id,{credentialGeneration:device.credential_generation});
+      return{displayId:device.id,credentialGeneration:device.credential_generation};
+    });
+    return reply.header('Cache-Control','no-store').send(result);
+  });
+
+  app.post('/api/v1/display/disconnect',async(request,reply)=>{
+    parse(displayDisconnectSchema,request.body);
+    const token=request.cookies[DISPLAY_COOKIE];
+    if(token)await pool.query(`UPDATE displays SET credential_hash=NULL,credential_expires_at=NULL,credential_generation=credential_generation+1 WHERE credential_hash=$1 AND revoked_at IS NULL`,[tokenHash(token)]);
+    reply.clearCookie(DISPLAY_COOKIE,{path:'/api/v1/display',sameSite:'strict',secure:runtime.secureCookies,httpOnly:true});
+    return reply.header('Cache-Control','no-store').status(204).send();
+  });
+
   app.post('/api/v1/households/:householdId/displays/pairing/approve', async (request, reply) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'display.manage');
@@ -2344,7 +2429,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);
       }else setupId=await defaultDisplaySetup(client,auth.householdId);
       const display = await client.query<{id:string}>(`INSERT INTO displays(household_id,setup_id,name,locale,theme,privacy_mode,allowed_content) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [auth.householdId,setupId,body.name,body.locale??null,body.theme??null,body.privacyMode,body.allowedContent]);
-      const approved = await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2 WHERE id=$1 AND approved_at IS NULL RETURNING id`, [pairing.rows[0]!.id,display.rows[0]!.id]);
+      const approved = await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2,expected_credential_generation=(SELECT credential_generation FROM displays WHERE id=$2) WHERE id=$1 AND approved_at IS NULL RETURNING id`, [pairing.rows[0]!.id,display.rows[0]!.id]);
       if (!approved.rowCount) throw new DomainError('CONFLICT', 409);
       await audit(client,auth,'display.pairing_approved','display',display.rows[0]!.id);
       return { displayId: display.rows[0]!.id };
@@ -2357,14 +2442,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     await durableRateLimit('pairing_redeem', request.ip, 20, 900);
     const credential = opaqueToken();
     const result = await transaction(async (client) => {
-      const pairing = await client.query<{id:string;display_id:string|null;verifier_hash:string}>(`SELECT id,display_id,verifier_hash FROM pairing_requests WHERE id=$1 AND expires_at>clock_timestamp() AND approved_at IS NOT NULL AND redeemed_at IS NULL FOR UPDATE`, [body.pairingId]);
+      const pairing = await client.query<{id:string;display_id:string|null;verifier_hash:string;expected_credential_generation:number|null}>(`SELECT id,display_id,verifier_hash,expected_credential_generation FROM pairing_requests WHERE id=$1 AND expires_at>clock_timestamp() AND approved_at IS NOT NULL AND redeemed_at IS NULL FOR UPDATE`, [body.pairingId]);
       const row = pairing.rows[0];
       if (!row || tokenHash(body.verifier) !== row.verifier_hash || !row.display_id) throw new DomainError('PAIRING_EXPIRED', 410);
-      const claimed = await client.query(`UPDATE pairing_requests SET redeemed_at=clock_timestamp() WHERE id=$1 AND redeemed_at IS NULL RETURNING id`, [row.id]);
+      const target=await client.query(`SELECT id FROM displays WHERE id=$1 AND credential_generation=$2 AND revoked_at IS NULL FOR UPDATE`,[row.display_id,row.expected_credential_generation]);
+      if(!target.rowCount)throw new DomainError('PAIRING_EXPIRED',410);
+      const claimed = await client.query(`UPDATE pairing_requests SET redeemed_at=clock_timestamp() WHERE id=$1 AND redeemed_at IS NULL AND expires_at>clock_timestamp() RETURNING id`, [row.id]);
       if (!claimed.rowCount) throw new DomainError('PAIRING_EXPIRED', 410);
-      const display = await client.query(`UPDATE displays d SET credential_hash=$2,credential_expires_at=clock_timestamp()+interval '90 days'
-        FROM display_setups s WHERE d.id=$1 AND d.setup_id=s.id AND d.household_id=s.household_id AND d.revoked_at IS NULL
-        RETURNING d.id,d.name,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,d.privacy_mode,d.external_items_enabled,d.setup_id`, [row.display_id,tokenHash(credential)]);
+      const display = await client.query(`UPDATE displays d SET credential_hash=$2,credential_expires_at=clock_timestamp()+interval '90 days',credential_generation=credential_generation+1
+        FROM display_setups s WHERE d.id=$1 AND d.setup_id=s.id AND d.household_id=s.household_id AND d.revoked_at IS NULL AND d.credential_generation=$3
+        RETURNING d.id,d.name,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,d.privacy_mode,d.external_items_enabled,d.setup_id`, [row.display_id,tokenHash(credential),row.expected_credential_generation]);
       if (!display.rowCount) throw new DomainError('PAIRING_EXPIRED', 410);
       return display.rows[0];
     });
@@ -2615,7 +2702,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const send=(event:{type:string;data:Record<string,unknown>})=>{
       if(!responseClosed)reply.raw.write(`event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`);
     };
-    const unsubscribe=projectionEvents.subscribe(display.id,display.householdId,send,()=>reply.raw.end());
+    await assertDisplayCredential(display);
+    const unsubscribe=projectionEvents.subscribe(display.id,display.householdId,send,()=>reply.raw.end(),()=>assertDisplayCredential(display));
+    try{await assertDisplayCredential(display);}catch(error){unsubscribe();throw error;}
     reply.hijack();
     const response=reply.raw;
     response.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache, no-transform','Connection':'keep-alive','X-Accel-Buffering':'no',...responseSecurityHeaders});
@@ -2625,7 +2714,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const revalidateMs=Math.max(50,Number(process.env.SAMVEV_SSE_REVALIDATE_MS ?? 15_000));
     const timer=setInterval(async()=>{
       try{
-        await displayAuth(request);
+        await assertDisplayCredential(display);
         if(authorizationCheckUnavailable){
           authorizationCheckUnavailable=false;
           if(projectionEvents.listenerConnected())send({type:'listener-restored',data:{pollingFallback:true,listenerConnected:true,refetchRequired:true}});
