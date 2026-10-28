@@ -33,6 +33,7 @@ const transport = async (url: string, init: RequestInit): Promise<Response> => {
   seenAuthorization.push(new Headers(init.headers).get('authorization'));
   seenReasoningEfforts.push(body.reasoning_effort);
   if (transportHook) { const hook = transportHook; transportHook = undefined; await hook(); }
+  if(url==='https://api.anthropic.com/v1/messages')return new Response(JSON.stringify({id:'msg_synthetic',type:'message',role:'assistant',model:'claude-haiku-5-5-20261021',stop_reason:'end_turn',content:[{type:'text',text:'OK'}],usage:{input_tokens:6,cache_read_input_tokens:2,cache_creation_input_tokens:1,output_tokens:1}}),{status:200});
   if (url.endsWith('/chat/completions')) {
     if (transportMode === 'incomplete') return new Response(JSON.stringify({
       choices: [], usage: { prompt_tokens: 7, completion_tokens: 64 }
@@ -85,6 +86,17 @@ before(async () => {
   await fs.rm(keyDir, { recursive: true, force: true });
   aiAdmin = new AiAdminService({ keyFile, transport });
   app = await buildApp({ aiKeyFile: keyFile, aiTransport: transport });
+});
+
+test('Anthropic provider configuration uses the existing encrypted admin record and logs actual usage on its own route',async()=>{
+  const f=await fixture();
+  const configured=await app.inject({method:'PATCH',url:`/api/v1/households/${f.householdId}/ai/settings`,headers:auth(f.adminToken,f.adminCsrf),payload:{enabled:true,provider:'anthropic',apiKey:'synthetic-anthropic-key-never-return-this',defaultModel:'claude-haiku-5-5',strongModel:'claude-sonnet-5-5',expectedRevision:0}});
+  assert.equal(configured.statusCode,200,configured.body);assert.equal(configured.json().provider,'anthropic');assert.equal(configured.json().activeRoute,'anthropic_api');assert.equal(configured.json().hasApiKey,true);assert.equal(configured.body.includes('synthetic-anthropic-key-never-return-this'),false);
+  const saved=(await pool.query<{api_key_ciphertext:string;revision:number}>('SELECT api_key_ciphertext,revision FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2',[f.householdId,'anthropic'])).rows[0]!;assert.ok(saved.api_key_ciphertext);assert.equal(saved.revision,1);assert.equal(saved.api_key_ciphertext.includes('synthetic-anthropic-key-never-return-this'),false);
+  const testResult=await app.inject({method:'POST',url:`/api/v1/households/${f.householdId}/ai/test`,headers:auth(f.adminToken,f.adminCsrf),payload:{modelTier:'routine'}});assert.equal(testResult.statusCode,200,testResult.body);assert.equal(testResult.json().available,true);
+  assert.equal(seenModels.at(-1),'claude-haiku-5-5');assert.equal(seenAuthorization.at(-1),'Bearer synthetic-anthropic-key-never-return-this');
+  const usage=(await pool.query<{provider:string;route:string;requested_model:string;actual_model:string;input_tokens:number;cached_input_tokens:number;cache_write_tokens:number;output_tokens:number;actual_dispatch:boolean;rate_snapshot_id:string|null;api_equivalent_rate_snapshot_id:string|null}>('SELECT provider,route,requested_model,actual_model,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,actual_dispatch,rate_snapshot_id,api_equivalent_rate_snapshot_id FROM ai_usage_events WHERE household_id=$1 ORDER BY occurred_at DESC LIMIT 1',[f.householdId])).rows[0]!;
+  assert.deepEqual(usage,{provider:'anthropic',route:'anthropic_api',requested_model:'claude-haiku-5-5',actual_model:'claude-haiku-5-5-20261021',input_tokens:9,cached_input_tokens:2,cache_write_tokens:1,output_tokens:1,actual_dispatch:true,rate_snapshot_id:null,api_equivalent_rate_snapshot_id:null});
 });
 
 after(async () => {

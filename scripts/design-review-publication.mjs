@@ -1,4 +1,4 @@
-import { validatePublicPhotoEvidence } from './design-review-assets.mjs';
+import { validatePublicAuthorizedDynamicImageEvidence } from './design-review-assets.mjs';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { readFile, readdir, rename } from 'node:fs/promises';
@@ -44,7 +44,7 @@ export async function validateStagedRound({ stage, proof }) {
   if (manifest.provenance?.runtimeFingerprint !== proof.runtimeFingerprint || manifest.provenance?.migrationFingerprint !== proof.migrationFingerprint) throw new Error('Staged manifest runtime or migrations do not match the current proof.');
   if (JSON.stringify(manifest.provenance?.distHashes) !== JSON.stringify(proof.distHashes)) throw new Error('Staged manifest bundle hashes do not match the current proof.');
   if (manifest.source?.origin !== proof.runtime.after.app.publicOrigin || manifest.source?.syntheticDemo !== true) throw new Error('Staged manifest does not identify the verified synthetic QA origin.');
-  validatePublicPhotoEvidence(manifest.provenance?.authorizedDynamicImages);
+  validatePublicAuthorizedDynamicImageEvidence(manifest.provenance?.authorizedDynamicImages);
   if (!Array.isArray(manifest.screenshots) || manifest.screenshots.length !== expectedScreens.size) throw new Error('Staged manifest must describe fourteen screenshots.');
   const seen = new Set();
   for (const screenshot of manifest.screenshots) {

@@ -142,3 +142,19 @@ provider request has been made.
 Fresh read-only public checks confirm healthy R13 source `7c61557` and schema
 037. Protected root Git still matches all 229 saved fingerprint entries. Public
 runtime and LAN dist remain unchanged; no R14 push or deployment yet.
+
+### Provider and capture checkpoint
+
+Anthropic base migration/typecheck and 14 focused synthetic tests now pass.
+Review corrections preserve pre-wire failures, reject duplicate tool results,
+and avoid unsupported forced-tool mode on Sonnet 5.5. Explicit fallback and
+admission limits are the next implementation step; failure eligibility still
+needs fail-closed tightening for malformed upstream error bodies.
+
+The coordinator independently ran the updated capture-asset/publication tests:
+11/11 passed. Protected household media now receives authorized loading proof
+with only templated routes and coarse status in public evidence; image hashes,
+IDs and bytes remain private. A same-album reselect UI bug is corrected, with
+its browser regression still pending. The isolated real-UI ICS harness is
+prepared against source `088eb00`; initial route setup was corrected before
+continuing its functional checks. None of this is a live-provider verification.

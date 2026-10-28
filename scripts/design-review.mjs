@@ -5,7 +5,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
-import { classifyVisibleImage, protectedPhotoEvidence, publicProtectedPhotoEvidence } from './design-review-assets.mjs';
+import { classifyVisibleImage, protectedPhotoEvidence, protectedMediaAssetEvidence, publicAuthorizedDynamicImageEvidence } from './design-review-assets.mjs';
 import { maskReviewPrivacy } from './design-review-privacy.mjs';
 
 const root = process.cwd();
@@ -121,13 +121,13 @@ try {
   const page = await context.newPage();
   const loadedAssets = new Set();
   const visibleStaticImages = new Set();
-  const visibleProtectedPhotoKeys = new Set();
-  const visibleProtectedPhotos = new Map();
-  const protectedPhotoChecks = [];
-  let protectedPhotoFailure;
-  const awaitProtectedPhotoChecks = async () => {
-    await Promise.all(protectedPhotoChecks.splice(0));
-    if (protectedPhotoFailure) throw protectedPhotoFailure;
+  const visibleProtectedImageKeys = new Set();
+  const visibleProtectedImages = new Map();
+  const protectedImageChecks = [];
+  let protectedImageFailure;
+  const awaitProtectedImageChecks = async () => {
+    await Promise.all(protectedImageChecks.splice(0));
+    if (protectedImageFailure) throw protectedImageFailure;
   };
   page.on('request', request => {
     const url = new URL(request.url());
@@ -136,22 +136,24 @@ try {
   page.on('response', response => {
     let image;
     try { image = classifyVisibleImage(response.url(), baseURL); } catch { return; }
-    if (image.kind !== 'protected-photo') return;
+    if (image.kind !== 'protected-photo' && image.kind !== 'protected-media-asset') return;
     const check = (async () => {
-      const evidence = protectedPhotoEvidence({ image, status: response.status(), contentType: response.headers()['content-type'], bytes: await response.body() });
-      visibleProtectedPhotos.set(image.key, evidence);
+      const evidence = image.kind === 'protected-photo'
+        ? protectedPhotoEvidence({ image, status: response.status(), contentType: response.headers()['content-type'], bytes: await response.body() })
+        : protectedMediaAssetEvidence({ image, status: response.status(), contentType: response.headers()['content-type'], bytes: await response.body() });
+      visibleProtectedImages.set(image.key, evidence);
     })();
     // Attach rejection handling immediately: a later navigation must never leave
     // a response.body() promise unobserved or silently discard failed evidence.
-    protectedPhotoChecks.push(check.catch(error => { protectedPhotoFailure ??= error; }));
+    protectedImageChecks.push(check.catch(error => { protectedImageFailure ??= error; }));
   });
   page.on('pageerror', error => errors.push(error.message));
-  await awaitProtectedPhotoChecks();
+  await awaitProtectedImageChecks();
   await page.goto('/');
   await assertFamilyHub(page, personIds, 'light');
   for (const theme of ['light', 'dark']) {
     await api('/me/preferences', 'PATCH', { locale: 'nb', theme }, { 'X-CSRF-Token': original.csrf });
-    await awaitProtectedPhotoChecks();
+    await awaitProtectedImageChecks();
     await page.reload();
     for (const [surface, width, height] of views) {
       await page.setViewportSize({ width, height });
@@ -162,7 +164,7 @@ try {
         expect(value.complete && value.width > 0, `visible image loaded: ${value.src}`).toBe(true);
         const image = classifyVisibleImage(value.src, baseURL);
         if (image.kind === 'static') visibleStaticImages.add(image.path);
-        else visibleProtectedPhotoKeys.add(image.key);
+        else visibleProtectedImageKeys.add(image.key);
       }
       const privacyRedactions = await maskReviewPrivacy(page, privacyNames);
       await page.screenshot({ path: resolve(stage, filename), fullPage: false });
@@ -176,17 +178,17 @@ try {
         expect(value.complete && value.width > 0, `visible image loaded: ${value.src}`).toBe(true);
         const image = classifyVisibleImage(value.src, baseURL);
         if (image.kind === 'static') visibleStaticImages.add(image.path);
-        else visibleProtectedPhotoKeys.add(image.key);
+        else visibleProtectedImageKeys.add(image.key);
       }
       const privacyRedactions = await maskReviewPrivacy(page, privacyNames);
       await page.screenshot({ path: resolve(stage, filename), fullPage: true });
       screenshots.push({ commitSha: sourceSha, capturedAt: new Date().toISOString(), viewport: { width, height }, theme, filename, surface: 'member-home', path: '/', locale: 'nb', fullPage: true, uiVerification: { ...verification, personIdsHash: sha256(renderedPersonIds.join('\n')) }, privacyRedactions });
     }
   }
-  await awaitProtectedPhotoChecks();
-  for (const key of visibleProtectedPhotoKeys) expect(visibleProtectedPhotos.has(key), `authorized protected photo response: ${key}`).toBe(true);
-  const privatePhotoEvidence=[...visibleProtectedPhotoKeys].map(key=>visibleProtectedPhotos.get(key));
-  await writeFile(resolve(localRoot, `protected-image-validation-${roundId}.json`), `${JSON.stringify({sourceSha,roundId,images:privatePhotoEvidence},null,2)}\n`, {mode:0o600});
+  await awaitProtectedImageChecks();
+  for (const key of visibleProtectedImageKeys) expect(visibleProtectedImages.has(key), `authorized protected image response: ${key}`).toBe(true);
+  const privateImageEvidence=[...visibleProtectedImageKeys].map(key=>visibleProtectedImages.get(key));
+  await writeFile(resolve(localRoot, `protected-image-validation-${roundId}.json`), `${JSON.stringify({sourceSha,roundId,images:privateImageEvidence},null,2)}\n`, {mode:0o600});
   const requiredLoadedAssets = new Set([...served.entryAssets, ...visibleStaticImages]);
   for (const asset of requiredLoadedAssets) {
     expect(served.allAssets, `visible/entry asset exists in dist: ${asset}`).toContain(asset);
@@ -203,7 +205,7 @@ try {
   await api('/auth/logout', 'POST', undefined, { 'X-CSRF-Token': sessionCsrf });
   sessionActive = false;
   original = undefined;
-  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort(), authorizedDynamicImages: privatePhotoEvidence.map(publicProtectedPhotoEvidence).sort((a,b) => a.route.localeCompare(b.route) || a.version - b.version) }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
+  await writeFile(resolve(stage, 'manifest.json'), `${JSON.stringify({ roundId, commitSha: sourceSha, workingTreeDirty, capturedAt: timestamp, provenance: { sourceSha: proof.sourceSha, inputFingerprint: proof.inputFingerprint, rootSourceFingerprint: proof.rootSourceFingerprint, cloneSourceFingerprint: proof.cloneSourceFingerprint, runtimeFingerprint: proof.runtimeFingerprint, migrationFingerprint: proof.migrationFingerprint, inputFileHashes: proof.inputFileHashes, distHashes: proof.distHashes, builtAt: proof.builtAt, containerId: proof.containerId, nodeVersion: proof.nodeVersion, servedAssetsVerified: [...served.allAssets].sort(), loadedAssetsVerified: [...requiredLoadedAssets].sort(), authorizedDynamicImages: privateImageEvidence.map(publicAuthorizedDynamicImageEvidence).sort((a,b) => a.route.localeCompare(b.route) || a.version - b.version) }, source: { origin: baseURL, account: 'admin@demo.invalid', uiAlias: 'admin', syntheticDemo: true }, screenshots }, null, 2)}\n`);
   completed = true;
   console.log(`Staged ${screenshots.length} verified screenshots for host publication (round ${roundId}).`);
 } catch (error) {

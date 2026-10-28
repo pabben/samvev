@@ -76,6 +76,12 @@ test('host stage validation requires the exact fourteen PNG dimensions and hashe
   manifest.provenance.authorizedDynamicImages=[{route:'/api/v1/households/:householdId/people/:personId/photo/96',version:1,status:200,contentType:'image/webp',sha256:'a'.repeat(64)}];
   await writeFile(join(stage,'manifest.json'),JSON.stringify(manifest));
   await assert.rejects(()=>validateStagedRound({stage,proof}),/private or unsupported/);
+  manifest.provenance.authorizedDynamicImages=[{route:'/api/v1/households/:householdId/media/assets/:assetId/:variant',variant:'preview',version:2,status:200,contentType:'image/webp'}];
+  await writeFile(join(stage,'manifest.json'),JSON.stringify(manifest));
+  await assert.doesNotReject(()=>validateStagedRound({stage,proof}));
+  manifest.provenance.authorizedDynamicImages[0].sha256='b'.repeat(64);
+  await writeFile(join(stage,'manifest.json'),JSON.stringify(manifest));
+  await assert.rejects(()=>validateStagedRound({stage,proof}),/private or unsupported/);
   manifest.provenance.authorizedDynamicImages=[];
   manifest.screenshots[0].sha256='0'.repeat(64);
   await writeFile(join(stage,'manifest.json'),JSON.stringify(manifest));

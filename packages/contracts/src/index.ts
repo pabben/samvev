@@ -458,7 +458,7 @@ export const calendarProviderConfigurationSchema=z.object({
 export const aiOperations = ['generate', 'extract', 'classify', 'plan'] as const;
 export const aiModelTiers = ['routine', 'strong'] as const;
 export const aiReasoningEfforts = ['none', 'low', 'medium', 'high'] as const;
-export const aiProviderIds = ['openai', 'chatgpt_subscription', 'openai_compatible', 'gemini'] as const;
+export const aiProviderIds = ['openai', 'chatgpt_subscription', 'openai_compatible', 'gemini', 'anthropic'] as const;
 export const aiUncertaintyLevels = ['low', 'medium', 'high', 'unknown'] as const;
 
 export const aiSourceEvidenceSchema = z.object({
@@ -748,6 +748,7 @@ export type ErrorCode =
   | 'AI_CONFIGURATION_INVALID' | 'AI_DISABLED' | 'AI_PROVIDER_UNAVAILABLE' | 'AI_UPSTREAM_ERROR'
   | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED'
   | 'AI_REAUTHORIZATION_REQUIRED' | 'AI_PLAN_PERMISSION_REQUIRED' | 'AI_PLAN_USAGE_LIMITED' | 'AI_PLAN_NOT_ELIGIBLE' | 'AI_STREAM_INTERRUPTED'
+  | 'AI_KEY_INVALID' | 'AI_PERMISSION_DENIED' | 'AI_BILLING_REQUIRED' | 'AI_PROVIDER_RATE_LIMITED' | 'AI_MODEL_UNAVAILABLE'
   | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'
   | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_SOURCE_REQUIRED' | 'MONITOR_SOURCE_AMBIGUOUS'
   | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_INTERPRETATION_SCHEMA_INVALID'

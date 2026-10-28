@@ -15,6 +15,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { ChatGptSubscriptionProvider } from './chatgpt-provider.ts';
 import { ChatGptOAuthService } from './chatgpt-oauth.ts';
+import { AnthropicProvider } from './anthropic-provider.ts';
 
 interface SettingsRow {
   household_id: string;
@@ -58,7 +59,8 @@ const providerCatalog = [
   { id: 'openai', runtimeAvailable: true, reasonCode: null },
   { id: 'chatgpt_subscription', runtimeAvailable: true, reasonCode: null },
   { id: 'openai_compatible', runtimeAvailable: true, reasonCode: null },
-  { id: 'gemini', runtimeAvailable: false, reasonCode: 'PROVIDER_NOT_IMPLEMENTED_M2_1' }
+  { id: 'gemini', runtimeAvailable: false, reasonCode: 'PROVIDER_NOT_IMPLEMENTED_M2_1' },
+  { id: 'anthropic', runtimeAvailable: true, reasonCode: null }
 ] as const;
 
 function emptySettings(householdId: string): SettingsRow {
@@ -95,7 +97,8 @@ export class AiAdminService {
     this.providers = {
       openai: new OpenAiProvider(options.transport),
       chatgpt_subscription: new ChatGptSubscriptionProvider(options.transport),
-      openai_compatible: new OpenAiCompatibleProvider(options.transport)
+      openai_compatible: new OpenAiCompatibleProvider(options.transport),
+      anthropic: new AnthropicProvider(options.transport)
     };
     this.vault = new AiCredentialVault(options.keyFile);
     this.chatgpt=new ChatGptOAuthService(options.transport,options.keyFile);
@@ -257,7 +260,7 @@ export class AiAdminService {
     return {provider:settings.provider,model,close:()=>wire.close(),next:async(results=[],toolChoice='auto')=>{
       const attemptId=randomUUID();turn++;pendingAttemptId=attemptId;authorized=false;wireStarted=false;
       try{const result=await wire.next(results,toolChoice);await this.finishAttempt(attemptId,true,null,result.usage,result.actualModel,result.actualServiceTier);return result;}
-      catch(error){const failure=error instanceof AiProviderFailure?error:error instanceof DomainError?new AiProviderFailure(error.code as AiFailureCode):new AiProviderFailure('AI_UPSTREAM_ERROR');if(wireStarted)await this.finishAttempt(attemptId,false,failure.code,failure.usage,failure.actualModel,failure.actualServiceTier);else if(authorized)await this.rejectAuthorizedAttempt(attemptId,failure.code);else await this.recordPreflight(householdId,settings.provider,model,task,failure.code,context,attemptId,registrationId);if(registrationId&&['AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_PLAN_PERMISSION_REQUIRED','AI_REAUTHORIZATION_REQUIRED'].includes(failure.code))await this.chatgpt.markTerminalFailure(householdId,registrationId,failure.code as 'AI_PLAN_USAGE_LIMITED'|'AI_PLAN_NOT_ELIGIBLE'|'AI_PLAN_PERMISSION_REQUIRED'|'AI_REAUTHORIZATION_REQUIRED',failure.responseReason);const status=['AI_CONFIGURATION_INVALID','AI_DISABLED','AI_REAUTHORIZATION_REQUIRED','AI_PLAN_PERMISSION_REQUIRED','AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE'].includes(failure.code)?422:failure.code==='AI_TIMEOUT'?504:502;throw new DomainError(failure.code,status,failure.responseReason?{providerResponseReason:failure.responseReason}:undefined);}
+      catch(error){const failure=error instanceof AiProviderFailure?error:error instanceof DomainError?new AiProviderFailure(error.code as AiFailureCode):new AiProviderFailure('AI_UPSTREAM_ERROR');if(wireStarted)await this.finishAttempt(attemptId,false,failure.code,failure.usage,failure.actualModel,failure.actualServiceTier);else if(authorized)await this.rejectAuthorizedAttempt(attemptId,failure.code);else await this.recordPreflight(householdId,settings.provider,model,task,failure.code,context,attemptId,registrationId);if(registrationId&&['AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_PLAN_PERMISSION_REQUIRED','AI_REAUTHORIZATION_REQUIRED'].includes(failure.code))await this.chatgpt.markTerminalFailure(householdId,registrationId,failure.code as 'AI_PLAN_USAGE_LIMITED'|'AI_PLAN_NOT_ELIGIBLE'|'AI_PLAN_PERMISSION_REQUIRED'|'AI_REAUTHORIZATION_REQUIRED',failure.responseReason);const status=['AI_CONFIGURATION_INVALID','AI_DISABLED','AI_REAUTHORIZATION_REQUIRED','AI_PLAN_PERMISSION_REQUIRED','AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_KEY_INVALID','AI_MODEL_UNAVAILABLE'].includes(failure.code)?422:failure.code==='AI_PERMISSION_DENIED'?403:failure.code==='AI_BILLING_REQUIRED'?402:failure.code==='AI_PROVIDER_RATE_LIMITED'?429:failure.code==='AI_TIMEOUT'?504:502;throw new DomainError(failure.code,status,failure.responseReason?{providerResponseReason:failure.responseReason}:undefined);}
       finally{pendingAttemptId=undefined;}
     }};
   }
@@ -371,7 +374,7 @@ export class AiAdminService {
     return outcome;
   }
 
-  private route(provider:AiProviderId){return provider==='openai'?'openai_api':provider==='chatgpt_subscription'?'chatgpt_plan':'local';}
+  private route(provider:AiProviderId){return provider==='openai'?'openai_api':provider==='chatgpt_subscription'?'chatgpt_plan':provider==='anthropic'?'anthropic_api':'local';}
   private async recordPreflight(householdId:string,provider:AiProviderId,model:string,task:AiTask,failureCode:AiFailureCode,context:AiExecutionContext,attemptId=randomUUID(),registrationId?:string){await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,requested_model,operation,purpose,success,failure_code,attempt_id,route,category,task_id,task_revision,execution_id,phase,actual_dispatch,outcome,completed_at,owner_account_id,registration_id) VALUES($1,$2,NULLIF($3,''),NULLIF($3,''),$4,$5,false,$6,$7,$8,$9,$10,$11,$12,$13,false,'preflight_rejected',clock_timestamp(),$14,$15) ON CONFLICT DO NOTHING`,[householdId,provider,model,task.operation,task.purpose,failureCode,attemptId,this.route(provider),context.category??'normal',context.taskId??null,context.taskRevision??null,context.executionId??null,context.phase??null,context.ownerAccountId??null,registrationId??null]);}
   private async rejectAuthorizedAttempt(attemptId:string,failureCode:AiFailureCode){await pool.query(`UPDATE ai_usage_events SET actual_dispatch=false,outcome='preflight_rejected',failure_code=$2,completed_at=clock_timestamp() WHERE attempt_id=$1 AND actual_dispatch IS NULL AND outcome='started'`,[attemptId,failureCode]);}
   private async finishAttempt(attemptId:string,success:boolean,failureCode:AiFailureCode|null,usage?:{inputTokens?:number;outputTokens?:number;cachedInputTokens?:number;cacheWriteTokens?:number;reasoningTokens?:number},actualModel?:string,actualServiceTier?:string){await pool.query(`UPDATE ai_usage_events u SET actual_dispatch=true,success=$2,failure_code=$3,input_tokens=$4,output_tokens=$5,cached_input_tokens=$6,cache_write_tokens=$7,reasoning_tokens=$8,outcome=$9,actual_model=NULLIF($10,''),actual_service_tier=NULLIF($11,''),completed_at=clock_timestamp(),rate_snapshot_id=(SELECT r.id FROM ai_rate_snapshots r WHERE r.route=u.route AND r.model=$10 AND r.context_variant=CASE WHEN r.context_threshold_tokens IS NOT NULL AND $4>r.context_threshold_tokens THEN 'long_context' ELSE 'standard' END AND (r.route<>'openai_api' OR r.service_tier=$11) AND ((r.effective_from IS NOT NULL AND r.effective_from<=u.occurred_at::date) OR (r.effective_from IS NULL AND r.observed_at<=u.occurred_at)) ORDER BY r.effective_from DESC NULLS LAST,r.observed_at DESC LIMIT 1),api_equivalent_rate_snapshot_id=(SELECT r.id FROM ai_rate_snapshots r WHERE u.route='chatgpt_plan' AND r.route='openai_api' AND r.model=$10 AND r.service_tier='standard' AND r.context_variant=CASE WHEN r.context_threshold_tokens IS NOT NULL AND $4>r.context_threshold_tokens THEN 'long_context' ELSE 'standard' END AND ((r.effective_from IS NOT NULL AND r.effective_from<=u.occurred_at::date) OR (r.effective_from IS NULL AND r.observed_at<=u.occurred_at)) ORDER BY r.effective_from DESC NULLS LAST,r.observed_at DESC LIMIT 1),api_equivalent_assumption=CASE WHEN u.route='chatgpt_plan' THEN 'standard_tier_no_region_exact_model' END WHERE attempt_id=$1 AND outcome='started'`,[attemptId,success,failureCode,usage?.inputTokens??null,usage?.outputTokens??null,usage?.cachedInputTokens??null,usage?.cacheWriteTokens??null,usage?.reasoningTokens??null,success?'completed':failureCode==='AI_STREAM_INTERRUPTED'?'interrupted':'failed',actualModel??null,actualServiceTier??null]);
@@ -395,7 +398,7 @@ export class AiAdminService {
         checkedAt: settings.availability_checked_revision === settings.revision ? settings.availability_checked_at?.toISOString() ?? null : null
       },
       providers: providerCatalog,
-      activeRoute:settings.provider==='openai'?'openai_api':settings.provider==='chatgpt_subscription'?'chatgpt_plan':'local',
+      activeRoute:settings.provider==='openai'?'openai_api':settings.provider==='chatgpt_subscription'?'chatgpt_plan':settings.provider==='anthropic'?'anthropic_api':'local',
       chatGptSubscription:{feasibility:'documented_preview',status:settings.active_chatgpt_registration_id?'configured':'not_configured',reasonCode:settings.active_chatgpt_registration_id?null:'CHATGPT_CONNECTION_NOT_CONFIGURED'}
     };
   }
