@@ -1,11 +1,22 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {adaptivePeopleLayout,currentItems,dayEvents,messageAvatarKey,personItems,importantItems,importantPreviewLimit,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems,personalWindowItems} from '../src/home-presentation';
+import {adaptivePeopleLayout,advanceHomeBirthdays,currentItems,dayEvents,messageAvatarKey,personItems,importantItems,importantPreviewLimit,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems,personalWindowItems} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
+import {wallInput} from '../src/time';
 const now=Date.parse('2026-03-28T23:30:00Z');
 const item:HubItem={contentLocale:'en',id:'i',kind:'event',targets:{household:false,personIds:['p']},title:'Synthetic event',body:'',entries:[],priority:'normal',publishAt:null,startsAt:'2026-03-29T00:00:00Z',endsAt:null,expiresAt:null,source:{label:'Synthetic',observedAt:new Date(now).toISOString(),uncertainty:'unknown'},metadata:{},revision:1,updatedAt:new Date(now).toISOString()};
+test('dedicated birthday snapshots advance at local midnight for all selected and newly added household people',()=>{
+ const entries=[{personId:'selected',displayName:'Synthetic selected',due:'today' as const},{personId:'unselected',displayName:'Synthetic unselected',due:'tomorrow' as const},{personId:'new',displayName:'Synthetic new person',due:'tomorrow' as const}];
+ const before=wallInput(Date.parse('2026-03-28T22:59:00Z'),'Europe/Oslo').slice(0,10);
+ const after=wallInput(Date.parse('2026-03-28T23:00:00Z'),'Europe/Oslo').slice(0,10);
+ assert.equal(before,'2026-03-28');assert.equal(after,'2026-03-29');
+ assert.deepEqual(advanceHomeBirthdays(entries,before,before),entries);
+ assert.deepEqual(advanceHomeBirthdays(entries,before,after),[{...entries[1],due:'today'},{...entries[2],due:'today'}]);
+ assert.deepEqual(advanceHomeBirthdays(entries,before,'2026-03-30'),[]);
+ assert.deepEqual(advanceHomeBirthdays([],before,after),[]);
+});
 test('larger rosters balance within the actual people panel without a lone tall fifth card',()=>{
  for(const count of [0,1,4])assert.equal(adaptivePeopleLayout(count,1100,14),null);
  assert.equal(adaptivePeopleLayout(5,0,14),null);

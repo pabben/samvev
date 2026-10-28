@@ -4,6 +4,26 @@ Status: lokalt arbeid pågår, 28. oktober 2026. Kravgrunnlaget er
 [ROUND_15_REQUIREMENTS.md](ROUND_15_REQUIREMENTS.md). Dette er en kontrollert
 mellomstatus; samlet QA, release gate og offentlig testpublisering gjenstår.
 
+## Nyeste kontrollpunkt: skjerm-UI og ekstern HA-hindring
+
+UI for #17/#18 er implementert lokalt: gjenkobling av eksisterende registrering,
+kompakte språk-/utseendevalg med arv, separate personvalg per enhet og oppsett,
+og uttrykkelig overgang fra eldre bursdagsbegrensninger. Bursdager fungerer
+uavhengig av profilroster og egne personkort. Web-typekontroll og 32 målrettede
+tester består. Hovedagentens review har likevel funnet gjenværende asynkrone
+grenseflater mellom faner; en avgrenset sterkere review følger. Dette er ikke
+godkjent nettleser-/tilgangsbevis. Ingen ekte skjerm er brukt som test.
+
+Lesende kontroll fra den eksisterende offentlige appen bekreftet en ekstern
+HA-hindring: sertifikatet på det konfigurerte målet utløp 7. april 2026 kl.
+22.00.23 UTC. Samme første DNS-mål som HA-klienten bruker ble kontrollert;
+TLS-valideringen gir CERT_HAS_EXPIRED. Sertifikatsjekken sendte verken HTTP-
+forespørsel, innlogging eller kalenderdata. Appens vanlige TLS-validering,
+HA-konfigurasjon, tilkobling og hemmeligheter er uendret. Lagret tilgangstoken
+var utløpt; ingen tokenfornyelse eller ny autorisasjon ble startet. Eieren må
+fornye sertifikatet i den eksisterende HA-/proxy-driften før ekte synk kan
+kontrolleres videre. Dette er adskilt fra Samvev-kode og blokkerer ikke resten.
+
 ## Nyeste kontrollpunkt: skjermbackend #17/#18
 
 Backend med additive migrasjoner 043/044 er implementert og kontrollert lokalt.

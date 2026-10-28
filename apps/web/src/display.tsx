@@ -11,6 +11,7 @@ import { secureUuid } from "./secure-uuid";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { api, ApiError } from "./api";
 import type { Card, Projection } from "./types";
+import { calendarReadinessMessage, familyLayoutBirthdayEntries, visibleDisplayBirthdays, type CalendarReadiness } from "./display-admin-presentation";
 import {
   Avatar,
   Brand,
@@ -27,6 +28,7 @@ import {
   type Preferences,
 } from "./ui";
 import { formatCalendarEventRange, formatDate, wallInput } from "./time";
+import { advanceHomeBirthdays } from "./home-presentation";
 import { currentDisplayActivity, displayActivityAfterFailure, displayActivityVisible, displayMessageAudienceAllowed, permittedDisplayMessageAudience, pendingDisplayMessage, snapshotDisplayActivity, type DisplayActivityScope, type DisplayActivitySnapshot, type PendingDisplayMessage, type DisplayMessageRecipients } from "./display-lifecycle";
 import {
   disconnected,
@@ -42,6 +44,8 @@ import {
   type CacheClock,
   type CachedProjection,
 } from "./display-cache";
+import { isCurrentDisplaySource, isDisplayCacheForCurrentSource, isNewerDisplaySourceEvent, publishDisplaySourceEvent, readDisplaySourceEpoch, readDisplaySourceEvent, subscribeDisplaySourceEvents } from "./display-source-session";
+import { withDisplayRedeemLock } from "./display-redeem-lock";
 const CACHE = "samvev.display.projection.v1";
 function readCache(): {
   projection: Projection;
@@ -52,6 +56,11 @@ function readCache(): {
     const raw = localStorage.getItem(CACHE);
     if (!raw) return null;
     const value = JSON.parse(raw) as CachedProjection;
+    const source = readDisplaySourceEvent();
+    if (!Number.isSafeInteger(value.sourceEpoch) || !isDisplayCacheForCurrentSource({displayId:value.projection.display.id,epoch:value.sourceEpoch as number},source) || value.sourceEpoch !== readDisplaySourceEpoch()) {
+      localStorage.removeItem(CACHE);
+      return null;
+    }
     const clock = restoreCache(value, Date.now(), performance.now());
     if (!clock) {
       localStorage.removeItem(CACHE);
@@ -91,6 +100,10 @@ function DisplayRuntime({
   const { t, locale } = useI18n();
   const [initialCache] = useState(readCache);
   const initial = useRef(initialCache);
+  const [sourceEpoch, setSourceEpoch] = useState(readDisplaySourceEpoch);
+  const sourceEpochRef = useRef(sourceEpoch);
+  const sourceIdentity = useRef(initial.current?.projection.display.id ?? null);
+  const sourceSwitching = useRef(false);
   const [projection, setProjection] = useState<Projection | null>(
     initial.current?.projection ?? null,
   );
@@ -103,6 +116,7 @@ function DisplayRuntime({
   const [streamDegraded, setStreamDegraded] = useState(false);
   const streamHealth = useRef(disconnected());
   const refreshAgain = useRef(false);
+  const refreshAuthorized = useRef(false);
   const [needsPair, setNeedsPair] = useState(false);
   const [revoked, setRevoked] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -111,6 +125,8 @@ function DisplayRuntime({
     initial.current?.lastUpdated ?? "",
   );
   const [options, setOptions] = useState(false);
+  const [disconnectBusy, setDisconnectBusy] = useState(false);
+  const [disconnectError, setDisconnectError] = useState<unknown>();
   const [layout, setLayout] = useState<"board" | "timeline">(() => {
     try {
       return localStorage.getItem("samvev.display.layout") === "timeline"
@@ -131,23 +147,37 @@ function DisplayRuntime({
     setStreamLive(false);
     setStreamDegraded(false);
   }, []);
-  const clear = useCallback(() => {
-    generation.current++;
+  const clearLocalSource = useCallback((pairAgain: boolean, increment = true) => {
+    if (increment) generation.current++;
+    refreshAgain.current = false;
     setProjection(null);
     clock.current = null;
     clearSaved();
-    setNeedsPair(true);
-    setRevoked(true);
+    setCacheExpired(false);
+    setNeedsPair(pairAgain);
+    setRevoked(pairAgain);
     onlineRef.current = false;
     setOnline(false);
     setStreamLive(false);
     loseConnection();
     acknowledged.current.clear();
     eventSource.current?.close();
+    eventSource.current = null;
+    hasPaired.current = false;
   }, [loseConnection]);
-  const refresh: () => Promise<void> = useCallback(async () => {
+  const clear = useCallback((expected?: { displayId: string|null; epoch:number; generation: number }) => {
+    if (expected && !isCurrentDisplaySource({displayId:sourceIdentity.current,epoch:sourceEpochRef.current,generation:generation.current},expected)) return;
+    const event = publishDisplaySourceEvent('revoked', sourceIdentity.current);
+    sourceEpochRef.current = event.epoch;
+    setSourceEpoch(event.epoch);
+    sourceIdentity.current = null;
+    clearLocalSource(true);
+  }, [clearLocalSource]);
+  const refresh: (authorizedSource?: boolean) => Promise<void> = useCallback(async (authorizedSource = false) => {
+    if (sourceSwitching.current) return;
     if (requestActive.current) {
       refreshAgain.current = true;
+      refreshAuthorized.current ||= authorizedSource;
       return;
     }
     requestActive.current = true;
@@ -156,6 +186,12 @@ function DisplayRuntime({
     try {
       const p = await api<Projection>("/display/projection");
       if (!mounted.current || current !== generation.current) return;
+      if (authorizedSource || sourceIdentity.current !== p.display.id) {
+        const event = publishDisplaySourceEvent('authorized', p.display.id);
+        sourceEpochRef.current = event.epoch;
+        setSourceEpoch(event.epoch);
+        sourceIdentity.current = p.display.id;
+      }
       const serverAt = Date.parse(p.serverNow);
       clock.current = {
         serverAt,
@@ -183,6 +219,7 @@ function DisplayRuntime({
             projection: p,
             savedAt: Date.now(),
             lastUpdated: p.generatedAt,
+            sourceEpoch: sourceEpochRef.current,
           }),
         );
       } catch {
@@ -192,26 +229,63 @@ function DisplayRuntime({
       if (!mounted.current || current !== generation.current) return;
       setOnline(false);
       onlineRef.current = false;
-      if ([401, 403].includes((e as ApiError).status)) {
-        if (hasPaired.current) clear();
-        else {
-          setProjection(null);
-          clock.current = null;
-          clearSaved();
-          setNeedsPair(true);
-        }
-      }
+      if ([401, 403].includes((e as ApiError).status)) clear();
     } finally {
       requestActive.current = false;
       if (mounted.current) {
         setLoading(false);
         if (refreshAgain.current) {
           refreshAgain.current = false;
-          queueMicrotask(() => void refresh());
+          const authorized = refreshAuthorized.current;
+          refreshAuthorized.current = false;
+          queueMicrotask(() => void refresh(authorized));
         }
       }
     }
   }, [clear, setPrefs]);
+  const disconnectForReconnect = useCallback(async () => {
+    if (disconnectBusy || !online || sourceSwitching.current) return;
+    sourceSwitching.current = true;
+    setDisconnectBusy(true);
+    setDisconnectError(undefined);
+    const oldDisplayId = sourceIdentity.current ?? projection?.display.id ?? null;
+    const requestGeneration = ++generation.current;
+    refreshAgain.current = false;
+    eventSource.current?.close();
+    eventSource.current = null;
+    try {
+      await api('/display/disconnect', 'POST', {});
+      if (requestGeneration !== generation.current) return;
+      const event = publishDisplaySourceEvent('revoked', oldDisplayId);
+      sourceEpochRef.current = event.epoch;
+      setSourceEpoch(event.epoch);
+      sourceIdentity.current = null;
+      sourceSwitching.current = false;
+      clearLocalSource(true, false);
+      setOptions(false);
+    } catch (cause) {
+      if (requestGeneration === generation.current) {
+        sourceSwitching.current = false;
+        generation.current++;
+        setDisconnectError(cause);
+        void refresh();
+      }
+    } finally {
+      setDisconnectBusy(false);
+    }
+  }, [disconnectBusy, online, projection?.display.id, clearLocalSource, refresh]);
+  useEffect(() => subscribeDisplaySourceEvents(event => {
+    if (!isNewerDisplaySourceEvent(sourceEpochRef.current, event)) return;
+    sourceEpochRef.current = event.epoch;
+    setSourceEpoch(event.epoch);
+    sourceSwitching.current = false;
+    sourceIdentity.current = event.kind === 'authorized' ? event.displayId : null;
+    clearLocalSource(event.kind === 'revoked');
+    if (event.kind === 'authorized') {
+      setLoading(true);
+      void refresh();
+    }
+  }), [clearLocalSource, refresh]);
   useEffect(() => {
     mounted.current = true;
     void refresh();
@@ -256,6 +330,9 @@ function DisplayRuntime({
   }, [refresh, loseConnection]);
   useEffect(() => {
     if (!projection || needsPair) return;
+    const streamDisplayId = projection.display.id;
+    const streamSourceEpoch = sourceEpochRef.current;
+    const streamGeneration = generation.current;
     const source = new EventSource("/api/v1/display/events");
     eventSource.current = source;
     const signal = (
@@ -281,7 +358,7 @@ function DisplayRuntime({
       signal("listener-restored", event),
     );
     source.addEventListener("projection-invalidated", () => void refresh());
-    source.addEventListener("authorization-revoked", clear);
+    source.addEventListener("authorization-revoked", () => clear({ displayId: streamDisplayId, epoch:streamSourceEpoch, generation: streamGeneration }));
     source.onerror = () => {
       streamHealth.current = streamSignal(streamHealth.current, "error");
       setStreamLive(false);
@@ -363,10 +440,12 @@ function DisplayRuntime({
   ]);
   const hub = projection && clock.current ? currentHub(projection, clock.current, performance.now()) : undefined;
   const selectedCards=projection?.setup?.cardOrder??[];
-  const activityScope:DisplayActivityScope|null=projection&&clock.current?{generation:JSON.stringify([projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt]),clock:clock.current,maxAgeMs:projection.maxStaleSeconds*1000}:null;
+  const activityScope:DisplayActivityScope|null=projection&&clock.current?{generation:JSON.stringify([sourceEpoch,projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt]),clock:clock.current,maxAgeMs:projection.maxStaleSeconds*1000}:null;
   const displayNow=clock.current?serverTime(clock.current,performance.now()):Number.NaN;
   const zone = projection?.display.timezone ?? "UTC";
   const displayLocalDate=new Intl.DateTimeFormat("en-CA",{timeZone:zone,year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(Number.isFinite(displayNow)?displayNow:Date.now()));
+  const birthdaySnapshotDay=projection?.birthdays?.localDate??(projection?.generatedAt?wallInput(projection.generatedAt,zone).slice(0,10):displayLocalDate);
+  const displayBirthdays=projection?visibleDisplayBirthdays(projection.birthdays?.mode,advanceHomeBirthdays(projection.birthdays?.entries??projection.familyLayout?.upcomingBirthdays??[],birthdaySnapshotDay,displayLocalDate)):[];
   const familyPeople = [...new Map([...(projection?.familyLayout?.people ?? []), ...(hub?.people ?? [])].map(person => [person.id, person])).values()];
   const duplicateFamilyPeople = selectedCards.includes("people");
   const showFamily=Boolean(projection?.setup?.cards.includes("family_layout")&&projection.setup.familyLayoutEnabled&&!projection.display.privacyMode);
@@ -377,11 +456,12 @@ function DisplayRuntime({
   ):null,[projection?.display.id,projection?.display.privacyMode,projection?.householdBoards?.readable?.groceries,projection?.householdBoards?.readable?.dinners,projection?.householdBoards?.writable?.groceries,projection?.householdBoards?.writable?.dinners,online]);
   const paired = useCallback(async () => {
     generation.current++;
-    await refresh();
+    await refresh(true);
   }, [refresh, loseConnection]);
   if (needsPair)
     return (
       <Pairing
+        key={sourceEpoch}
         prefs={prefs}
         setPrefs={setPrefs}
         revoked={revoked}
@@ -478,7 +558,7 @@ function DisplayRuntime({
         {projection && !projection.display.timezone && (
           <p className="field-hint">{t("timezoneFallback")}</p>
         )}
-        {showFamily&&<div className="display-ordered-card" style={{order:selectedCards.indexOf("family_layout")+3}}><FamilyHub key={`family:${projection!.display.id}:${projection!.setup?.id}:${projection!.display.privacyMode}`} display displayCompactPeople displaySections={{people:!duplicateFamilyPeople,today:!selectedCards.includes("today"),tomorrow:!selectedCards.includes("tomorrow"),important:!selectedCards.includes("worth_remembering"),support:!selectedCards.includes("worth_remembering"),week:false,next:false}} displayDinnersReadable={!selectedCards.includes("dinners")&&projection!.householdBoards?.readable?.dinners===true} birthdays={duplicateFamilyPeople?[]:projection!.familyLayout?.upcomingBirthdays??[]} birthdaySourceLocalDate={wallInput(projection!.generatedAt,zone).slice(0,10)} people={duplicateFamilyPeople?[]:familyPeople} items={hub?.items??[]} messages={projection!.setup?.cards.includes("household_messages")?cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision})):[]} zone={zone} householdName={projection!.display.householdName} now={displayNow} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/></div>}
+        {showFamily&&<div className="display-ordered-card" style={{order:selectedCards.indexOf("family_layout")+3}}><FamilyHub key={`family:${sourceEpoch}:${projection!.display.id}:${projection!.setup?.id}:${projection!.display.privacyMode}`} display displayCompactPeople displaySections={{people:!duplicateFamilyPeople,today:!selectedCards.includes("today"),tomorrow:!selectedCards.includes("tomorrow"),important:!selectedCards.includes("worth_remembering"),support:!selectedCards.includes("worth_remembering"),week:false,next:false}} displayDinnersReadable={!selectedCards.includes("dinners")&&projection!.householdBoards?.readable?.dinners===true} birthdays={familyLayoutBirthdayEntries(projection!.birthdays?.mode,displayBirthdays,duplicateFamilyPeople)} birthdaySourceLocalDate={displayLocalDate} people={duplicateFamilyPeople?[]:familyPeople} items={hub?.items??[]} messages={projection!.setup?.cards.includes("household_messages")?cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision})):[]} zone={zone} householdName={projection!.display.householdName} now={displayNow} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/></div>}
         {!showFamily&&projection?.setup?.cards.includes("household_messages")&&cards.length ? (
           <div className="display-cards display-ordered-card" style={{order:selectedCards.indexOf("household_messages")+3}}>
             {layout === "board"
@@ -519,32 +599,31 @@ function DisplayRuntime({
         {projection&&selectedCards.map(card=>{
           const order=selectedCards.indexOf(card)+3;
           if(projection.display.privacyMode&&["external_items","photos","home_assistant","today","tomorrow","week","next","people","worth_remembering","groceries","dinners"].includes(card))return null;
-          if(card==="new_message")return !projection.display.privacyMode&&projection.actionAvailability?.newMessage?<div className="display-ordered-card" key={card} style={{order}}><DisplayMessageComposer key={projection.display.id} recipientGeneration={JSON.stringify([projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt])} online={online} now={displayNow}/></div>:null;
+          if(card==="new_message")return !projection.display.privacyMode&&projection.actionAvailability?.newMessage?<div className="display-ordered-card" key={card} style={{order}}><DisplayMessageComposer key={`${sourceEpoch}:${projection.display.id}`} recipientGeneration={JSON.stringify([sourceEpoch,projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt])} online={online} now={displayNow}/></div>:null;
           if(card==="groceries"||card==="dinners")return displayBoardAdapter?<div className="display-ordered-card" key={card} style={{order}}><HouseholdBoardCards adapter={displayBoardAdapter} localDate={displayLocalDate} visibleCards={[card]} display/></div>:null;
           if(card==="photos")return online?<div className="display-ordered-card" key={card} style={{order}}><DisplayMediaPlayback displayId={projection.display.id} enabled/></div>:null;
           if(card==="home_assistant")return online?<div className="display-ordered-card" key={card} style={{order}}><DeviceHomeAssistantControls timezone={zone} canAct={projection.actionAvailability?.homeAssistantControl===true&&online&&!projection.display.privacyMode} compact/></div>:null;
           if(["household_messages","family_layout","new_message"].includes(card))return null;
           if(card==="today"||card==="tomorrow"){
             const localToday=displayLocalDate;const date=card==="today"?localToday:dateOffset(localToday,1);
-            return <div className="display-ordered-card" style={{order}} key={card}>{activityScope&&<DisplayDayCard scope={activityScope} date={date} zone={zone} people={familyPeople} birthdays={projection.familyLayout?.upcomingBirthdays} dinnersReadable={projection.householdBoards?.readable?.dinners===true} labelKey={card}/>}</div>
+            return <div className="display-ordered-card" style={{order}} key={card}>{activityScope&&<DisplayDayCard scope={activityScope} date={date} zone={zone} people={familyPeople} birthdays={displayBirthdays} readiness={projection.contentReadiness?.calendar} dinnersReadable={projection.householdBoards?.readable?.dinners===true} labelKey={card}/>}</div>
           }
           if(card==="week")return <div className="display-ordered-card" key={card} style={{order}}><HouseholdActivityWeek localDate={displayLocalDate} zone={zone} people={familyPeople} display now={displayNow} householdBoardsReadableDinners={projection.householdBoards?.readable?.dinners===true} showNextActivity={false}/></div>;
           if(card==="next")return <div className="display-ordered-card" key={card} style={{order}}>{activityScope&&<DisplayNextActivity scope={activityScope} zone={zone} people={familyPeople}/>}</div>;
-          if(card==="people")return <div className="display-ordered-card" style={{order}} key={card}><FamilyHub display displayCompactPeople displaySections={{people:true,today:false,tomorrow:false,important:false,messages:false,support:false,week:false,environment:false,next:false}} people={familyPeople} items={[]} messages={[]} birthdays={projection.familyLayout?.upcomingBirthdays??[]} birthdaySourceLocalDate={wallInput(projection.generatedAt,zone).slice(0,10)} zone={zone} householdName={projection.display.householdName} now={displayNow}/></div>;
+          if(card==="people")return <div className="display-ordered-card" style={{order}} key={card}><FamilyHub display displayCompactPeople displaySections={{people:true,today:false,tomorrow:false,important:false,messages:false,support:false,week:false,environment:false,next:false}} people={familyPeople} items={[]} messages={[]} birthdays={displayBirthdays} birthdaySourceLocalDate={displayLocalDate} zone={zone} householdName={projection.display.householdName} now={displayNow}/></div>;
+          if(card==="external_items"){
+            const calendarItems=hub?.items.filter(item=>item.metadata.calendar).slice(0,8)??[];
+            return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("externalItems")}</h2>{calendarItems.length?calendarItems.map(item=><article key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>):<p className="field-hint" role="status">{t(projection.contentReadiness?.calendar&&projection.contentReadiness.calendar!=="ready"?calendarReadinessMessage(projection.contentReadiness.calendar):"displayCalendarEmpty")}</p>}</section>;
+          }
           if(!hub)return null;
           if(card==="worth_remembering")return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("worthRemembering")}</h2>{hub.items.filter(item=>item.kind==="summary"||item.kind==="list").slice(0,8).map(item=><article key={item.id}><strong>{item.title}</strong>{item.body&&<p>{item.body}</p>}</article>)}</section>;
-          if(card==="external_items"){
-            const calendarItems=hub.items.filter(item=>item.metadata.calendar).slice(0,8);
-            if(!calendarItems.length)return null;
-            return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("externalItems")}</h2>{calendarItems.map(item=><article key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>)}</section>;
-          }
           return null;
         })}
       </main>
       <footer className="display-footer">
         <span>
           <Icon name="shield" />
-          {t(familyDisplay ? "hubAllowedContent" : "allowedContent")}
+          {t("displayEffectiveAccessHint")}
         </span>
         <span>
           {lastUpdated
@@ -559,6 +638,12 @@ function DisplayRuntime({
       </footer>
       {options && (
         <Dialog title={t("displayOptions")} onClose={() => setOptions(false)}>
+          {projection && <section className="display-session-details">
+            <p><strong>{t("displayConnectedAs",{name:projection.display.name})}</strong></p>
+            <p>{t("displaySetup")}: {projection.display.setupName??t("defaultDisplaySetup")}</p>
+            <p className="notice" role="status">{t(calendarReadinessMessage(projection.contentReadiness?.calendar))}</p>
+            <p className="field-hint" role="status">{t(online?streamLive?"live":"polling":"offline")}</p>
+          </section>}
           <p className="field-hint">
             {t("displayTheme")} · {t("displayLocale")}
           </p>
@@ -590,6 +675,9 @@ function DisplayRuntime({
           >
             {t("fullScreen")}
           </button>
+          <ErrorNotice error={disconnectError}/>
+          <p className="field-hint">{t("displayReconnectPhysicalHint")}</p>
+          <button className="button danger" type="button" disabled={!online||disconnectBusy||!projection} onClick={()=>void disconnectForReconnect()}>{disconnectBusy?t("displayDisconnecting"):t("displayReconnectPhysical")}</button>
         </Dialog>
       )}
     </div>
@@ -650,7 +738,7 @@ function useDisplayActivity<T>(scope:DisplayActivityScope,read:(isCurrent:()=>bo
  return{value:snapshot?.value,now,loaded:current?.loaded??false,error:current?.error,expired:Boolean(current?.snapshot&&!snapshot),retry:()=>setRetry(value=>value+1)};
 }
 
-function DisplayDayCard({scope,date,zone,people,birthdays,dinnersReadable,labelKey}:{scope:DisplayActivityScope;date:string;zone:string;people:HubPerson[];birthdays:NonNullable<Projection["familyLayout"]>["upcomingBirthdays"];dinnersReadable:boolean;labelKey:"today"|"tomorrow"}){
+function DisplayDayCard({scope,date,zone,people,birthdays,readiness,dinnersReadable,labelKey}:{scope:DisplayActivityScope;date:string;zone:string;people:HubPerson[];birthdays:NonNullable<Projection["birthdays"]>["entries"];readiness:CalendarReadiness|undefined;dinnersReadable:boolean;labelKey:"today"|"tomorrow"}){
  const {t,locale}=useI18n();
  type DayValue={activities:HouseholdTimelineActivity[];dinners:Array<{id:string;localDate:string;title:string|null;emoji:string|null;revision:number;cleared:boolean}>};
  const state=useDisplayActivity<DayValue>(scope,async isCurrent=>{
@@ -670,7 +758,7 @@ function DisplayDayCard({scope,date,zone,people,birthdays,dinnersReadable,labelK
  const entries=mergeTimelineEntries(activities,state.value?.dinners??[],zone,date,date);
  const birthdaysToday=birthdays?.filter(birthday=>birthday.due===labelKey)??[];
  const heading=t(labelKey==="today"?"hubToday":"hubTomorrow");
- return <section className="hub-panel display-selected-card" aria-label={heading} aria-busy={!state.loaded}><h2>{heading}</h2>{birthdaysToday.map(person=><p className="hub-person-birthday" key={person.personId}>🎂 {person.displayName}</p>)}{entries.map(entry=>entry.kind==="school"?<SchoolActivityCard key={entry.id} activity={entry.activity} people={people} compact now={state.now} zone={zone}/>:entry.kind==="dinner"?<article className="display-preview-item" key={entry.id}>{entry.emoji} {entry.title}</article>:<article className="display-preview-item" key={entry.id}><strong>{entry.activity.title}</strong>{calendarActivityEnded(entry.activity.startsAt,entry.activity.endsAt,Boolean(entry.activity.metadata.calendar&&entry.activity.metadata.allDay),state.now,zone)&&<small className="hub-ended-label">{t("hubEnded")}</small>}{typeof entry.activity.body==="string"&&<p>{entry.activity.body}</p>}</article>)}{Boolean(state.error||state.expired)&&<><ErrorNotice error={state.error}/>{state.expired&&<p className="field-hint" role="status">{t("cacheCleared")}</p>}<button type="button" className="text-button" onClick={state.retry}>{t("retry")}</button></>}{state.loaded&&!state.error&&!state.expired&&!entries.length&&!birthdaysToday.length&&<p className="field-hint">{t("displayDayEmpty")}</p>}{!state.loaded&&<p className="field-hint">{t("loading")}</p>}<span className="sr-only">{formatDate(`${date}T12:00:00Z`,locale,"UTC",{dateStyle:"full"})}</span></section>;
+ return <section className="hub-panel display-selected-card" aria-label={heading} aria-busy={!state.loaded}><h2>{heading}</h2>{birthdaysToday.map(person=><p className="hub-person-birthday" data-review-private="birthday-name" key={person.personId}>🎂 {person.displayName}</p>)}{entries.map(entry=>entry.kind==="school"?<SchoolActivityCard key={entry.id} activity={entry.activity} people={people} compact now={state.now} zone={zone}/>:entry.kind==="dinner"?<article className="display-preview-item" key={entry.id}>{entry.emoji} {entry.title}</article>:<article className="display-preview-item" key={entry.id}><strong>{entry.activity.title}</strong>{calendarActivityEnded(entry.activity.startsAt,entry.activity.endsAt,Boolean(entry.activity.metadata.calendar&&entry.activity.metadata.allDay),state.now,zone)&&<small className="hub-ended-label">{t("hubEnded")}</small>}{typeof entry.activity.body==="string"&&<p>{entry.activity.body}</p>}</article>)}{Boolean(state.error||state.expired)&&<><ErrorNotice error={state.error}/>{state.expired&&<p className="field-hint" role="status">{t("cacheCleared")}</p>}<button type="button" className="text-button" onClick={state.retry}>{t("retry")}</button></>}{state.loaded&&!state.error&&!state.expired&&!entries.length&&!birthdaysToday.length&&<p className="field-hint" role="status">{t(readiness&&readiness!=="ready"?calendarReadinessMessage(readiness):"displayCalendarEmpty")}</p>}{!state.loaded&&<p className="field-hint">{t("loading")}</p>}<span className="sr-only">{formatDate(`${date}T12:00:00Z`,locale,"UTC",{dateStyle:"full"})}</span></section>;
 }
 
 function DisplayNextActivity({scope,zone,people}:{scope:DisplayActivityScope;zone:string;people:HubPerson[]}){
@@ -777,6 +865,7 @@ function Pairing({
   const verifier = useRef("");
   const [expired, setExpired] = useState(false);
   const redeemActive = useRef(false);
+  const pollGeneration = useRef(0);
   const generate = () =>
     void run(async () => {
       const bytes = crypto.getRandomValues(new Uint8Array(32));
@@ -798,6 +887,8 @@ function Pairing({
     });
   useEffect(() => {
     if (!pair || expired) return;
+    const currentPoll = ++pollGeneration.current;
+    let active = true;
     const timer = setInterval(async () => {
       if (Date.now() >= Date.parse(pair.expiresAt)) {
         setExpired(true);
@@ -809,24 +900,35 @@ function Pairing({
         const status = await api<{ approved: boolean; expired: boolean }>(
           `/display/pairing/${pair.pairingId}/status`,
         );
+        if (!active || currentPoll !== pollGeneration.current) return;
         if (status.expired) {
           setExpired(true);
           verifier.current = "";
         } else if (status.approved) {
           redeemActive.current = true;
-          await api("/display/pairing/redeem", "POST", {
-            pairingId: pair.pairingId,
-            verifier: verifier.current,
-          });
-          verifier.current = "";
-          await onPaired();
+          try {
+            const redeemed = await withDisplayRedeemLock(async signal => {
+              if (!active || currentPoll !== pollGeneration.current) return false;
+              if (Date.now() >= Date.parse(pair.expiresAt)) throw new Error("pairing_expired");
+              await api("/display/pairing/redeem", "POST", {
+                pairingId: pair.pairingId,
+                verifier: verifier.current,
+              }, { signal });
+              return true;
+            });
+            if (!redeemed) return;
+            verifier.current = "";
+            await onPaired();
+          } finally {
+            redeemActive.current = false;
+          }
         }
       } catch (error) {
-        setError(error);
+        if (active && currentPoll === pollGeneration.current) setError(error);
         redeemActive.current = false;
       }
     }, 2000);
-    return () => clearInterval(timer);
+    return () => { active = false; pollGeneration.current++; clearInterval(timer); };
   }, [pair, expired, onPaired, setError]);
   return (
     <div className="public-page pairing-page">

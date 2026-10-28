@@ -3,6 +3,7 @@ export interface CachedProjection {
   projection: Projection;
   savedAt: number;
   lastUpdated: string;
+  sourceEpoch?: number;
 }
 export interface CacheClock {
   serverAt: number;

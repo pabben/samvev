@@ -14,6 +14,7 @@ import {
 } from "./ui";
 import { formatDate } from "./time";
 import { DisplaySetupsAdmin } from "./display-setups-admin";
+import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, effectiveDisplayLocale, effectiveDisplayTheme, inheritDevicePeople, noDevicePeople, selectedDevicePeople } from "./display-admin-presentation";
 type SetupChoice={id:string;name:string};
 export function DisplaysPanel({
   displays,
@@ -32,6 +33,8 @@ export function DisplaysPanel({
   const [openSetupId, setOpenSetupId] = useState<string | null>(null);
   const [openPolicyDisplayId, setOpenPolicyDisplayId] = useState<string | null>(null);
   const [previewDisplayId, setPreviewDisplayId] = useState<string | null>(null);
+  const [reconnect, setReconnect] = useState<Display | null>(null);
+  const [birthdayChoice, setBirthdayChoice] = useState<Display | null>(null);
   const [revoke, setRevoke] = useState<Display | null>(null);
   const { error, busy, run } = useAction();
   const manage = member.capabilities.includes("display.manage");
@@ -80,37 +83,44 @@ export function DisplaysPanel({
                 <details className="display-admin-section">
                   <summary>{t("displayOpenConnect")}</summary>
                   <div className="form-stack">
-                    <p className="field-hint">{t("displayOpenConnectHint")}</p>
+                    <p className="field-hint">{t("displayOpenConnectHint", { name: d.name })}</p>
                     <DisplayAddressActions />
-                    <button className="button" type="button" onClick={() => setPair(true)}>{t("displayPairAnother")}</button>
+                    <button className="button" type="button" onClick={() => setReconnect(d)}>{t("displayReconnectExisting")}</button>
                   </div>
                 </details>
                 <details className="display-admin-section" open>
                   <summary>{t("displayContentLayout")}</summary>
                   <div className="form-stack">
-                    <Field label={t("displaySetup")}><select value={d.setup_id??""} onChange={e=>void run(()=>update(d,{setupId:e.target.value}))}><option value={d.setup_id??""}>{setups.find(setup=>setup.id===d.setup_id)?.name??t("defaultDisplaySetup")}</option>{setups.filter(setup=>setup.id!==d.setup_id).map(setup=><option key={setup.id} value={setup.id}>{setup.name}</option>)}</select></Field>
+                    <p className="field-hint">{t("displayConnectedAs", { name: d.name })}</p>
+                    <Field label={t("displaySetup")}><select value={d.setup_id??""} onChange={e=>void run(()=>update(d,{setupId:e.target.value}))}><option value={d.setup_id??""}>{d.setupName ?? setups.find(setup=>setup.id===d.setup_id)?.name ?? t("defaultDisplaySetup")}</option>{setups.filter(setup=>setup.id!==d.setup_id).map(setup=><option key={setup.id} value={setup.id}>{setup.name}</option>)}</select></Field>
                     {d.setup_id && <button className="text-button" type="button" onClick={() => setOpenSetupId(d.setup_id!)}>{t("displayEditAssignedSetup")}</button>}
+                    <fieldset className="display-person-filter"><legend>{t("displayPeopleShown")}</legend>
+                      <p className="field-hint">{t("displayPersonSelectionHint")}</p>
+                      <p className="field-hint">{t("displayPeopleCount", { selected: (d.effective?.personIds ?? []).filter(id => people.some(person => person.id === id)).length, total: people.length })}</p>
+                      <div className="display-bulk-actions"><button className="button subtle" type="button" disabled={busy || !people.length} onClick={() => void run(() => update(d, selectedDevicePeople(people.map(person => person.id))))}>{t("selectAll")}</button><button className="button subtle" type="button" disabled={busy || !people.length} onClick={() => void run(() => update(d, noDevicePeople()))}>{t("clearAll")}</button><button className="text-button" type="button" disabled={busy || d.personIdsOverride === null} onClick={() => void run(() => update(d, inheritDevicePeople()))}>{t("followDisplaySetup")}</button></div>
+                      {people.map(person=><Check key={person.id} label={person.display_name} checked={(d.effective?.personIds ?? []).includes(person.id)} onChange={checked=>void run(()=>update(d,changedDevicePeople(d.personIdsOverride ?? null,d.effective?.personIds ?? [],person.id,checked)))}/>) }
+                    </fieldset>
                   </div>
                 </details>
                 <details className="display-admin-section">
-                  <summary>{t("displayAppearance")}</summary>
-                  <div className="form-grid">
-                    <Field label={t("displayLocale")}><select value={d.locale} onChange={(e) => void run(() => update(d, { locale: e.target.value }))}><option value="en">{t("en")}</option><option value="nb">{t("nb")}</option></select><button className="text-button" type="button" onClick={()=>void run(()=>update(d,{locale:null}))}>{t("inheritSetupLocale")}</button></Field>
-                    <Field label={t("displayTheme")}><select value={d.theme} onChange={(e) => void run(() => update(d, { theme: e.target.value }))}>{(["light", "dark", "system"] as const).map((v) => <option key={v} value={v}>{t(v)}</option>)}</select><button className="text-button" type="button" onClick={()=>void run(()=>update(d,{theme:null}))}>{t("inheritSetupTheme")}</button></Field>
-                  </div>
+                  {(() => { const localeValue=effectiveDisplayLocale(d.localeOverride,d.setupDefaults?.locale,d.effective?.locale??d.locale); const themeValue=effectiveDisplayTheme(d.themeOverride,d.setupDefaults?.theme,d.effective?.theme??d.theme); return <><summary>{t("displayLanguageAppearanceSummary",{language:t(localeValue),appearance:t(themeValue)})}</summary><div className="form-grid">
+                    <Field label={t("displayLocale")} hint={t(d.localeOverride==null?"displayFollowingSetup":"displayOverrideActive")}><select value={d.localeOverride??"inherit"} onChange={(e) => void run(() => update(d, { localeOverride: e.target.value === "inherit" ? null : e.target.value }))}><option value="inherit">{t("inheritSetupLocale")}</option><option value="en">{t("en")}</option><option value="nb">{t("nb")}</option></select></Field>
+                    <Field label={t("displayTheme")} hint={t(d.themeOverride==null?"displayFollowingSetup":"displayOverrideActive")}><select value={d.themeOverride??"inherit"} onChange={(e) => void run(() => update(d, { themeOverride: e.target.value === "inherit" ? null : e.target.value }))}><option value="inherit">{t("inheritSetupTheme")}</option>{(["light", "dark", "system"] as const).map((v) => <option key={v} value={v}>{t(v)}</option>)}</select></Field>
+                  </div></>; })()}
                 </details>
                 <details className="display-admin-section">
                   <summary>{t("displayAccess")}</summary>
                   <div className="form-stack">
                     <fieldset><legend>{t("displayProfileGrants")}</legend>{people.map(person=><Check key={`profile:${person.id}`} label={t("displayProfileGrant",{name:person.display_name})} checked={Boolean(d.profile_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{profilePersonIds:checked?[...new Set([...(d.profile_person_ids??[]),person.id])]:((d.profile_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
-                    <fieldset><legend>{t("displayBirthdayGrants")}</legend>{people.map(person=><Check key={`birthday:${person.id}`} label={t("displayBirthdayGrant",{name:person.display_name})} checked={Boolean(d.birthday_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{birthdayPersonIds:checked?[...new Set([...(d.birthday_person_ids??[]),person.id])]:((d.birthday_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
+                    {(() => { const mode=d.birthdayMode??"off"; const switchState=birthdayInputState(mode); return <div className="display-birthday-setting"><label className="check"><input type="checkbox" checked={switchState.checked} ref={input=>{if(input)input.indeterminate=switchState.mixed}} onChange={()=>{if(mode==="legacy_selected")setBirthdayChoice(d);else void run(()=>update(d,birthdayModePatch(mode==="all"?"off":"all")))}}/>{t("displayShowBirthdays")}</label>{mode==="legacy_selected"&&<p className="notice">{t("displayBirthdayLegacyHint")}</p>}</div>; })()}
                     <div><Check label={t("integrationExternalDisplay")} checked={Boolean(d.external_items_enabled)} onChange={(v) => void run(() => update(d, {externalItemsEnabled:v}))} /><p className="field-hint">{t("integrationExternalDisplayHint")}</p></div>
                     <Check label={t("displayPrivacy")} checked={d.privacy_mode} onChange={(v) => void run(() => update(d, { privacyMode: v }))}/>
                     <button className="button" type="button" onClick={() => setOpenPolicyDisplayId(d.id)}>{t("displayManageAccess")}</button>
                     <button className="button" type="button" onClick={() => setPreviewDisplayId(d.id)}>{t("displayPreviewThisDevice")}</button>
+                    <p className="notice" role="status">{t(calendarReadinessMessage(d.contentReadiness?.calendar))}</p>
                   </div>
                 </details>
-                <div className="display-admin-actions"><p className="scope-label"><Icon name="shield" />{t("allowedContent")}</p><button className="text-button danger-text" onClick={() => setRevoke(d)}>{t("revoke")}</button></div>
+                <div className="display-admin-actions"><p className="scope-label"><Icon name="shield" />{t("displayEffectiveAccessHint")}</p><button className="text-button danger-text" onClick={() => setRevoke(d)}>{t("revoke")}</button></div>
               </div>
             )}
           </article>
@@ -137,6 +147,15 @@ export function DisplaysPanel({
           }}
         />
       )}
+      {reconnect && <ReconnectDialog member={member} display={reconnect} onClose={() => setReconnect(null)} onApproved={refresh}/>}
+      {birthdayChoice && <Dialog title={t("displayBirthdayChoiceTitle")} onClose={() => setBirthdayChoice(null)}>
+        <p>{t("displayBirthdayChoiceBody", { name: birthdayChoice.name })}</p>
+        <ErrorNotice error={error}/>
+        <div className="form-actions">
+          <button className="button" type="button" disabled={busy} onClick={() => void run(async () => { await update(birthdayChoice,birthdayModePatch("off")); setBirthdayChoice(null); })}>{t("displayHideBirthdays")}</button>
+          <button className="button primary" type="button" disabled={busy} onClick={() => void run(async () => { await update(birthdayChoice,birthdayModePatch("all")); setBirthdayChoice(null); })}>{t("displayAllBirthdays")}</button>
+        </div>
+      </Dialog>}
       {revoke && (
         <Dialog title={t("revokeTitle")} onClose={() => setRevoke(null)}>
           <p>{t("revokeBody")}</p>
@@ -258,6 +277,24 @@ function PairDialog({
       </form>
     </Dialog>
   );
+}
+
+function ReconnectDialog({member,display,onClose,onApproved}:{member:Membership;display:Display;onClose:()=>void;onApproved:()=>Promise<void>}) {
+  const {t}=useI18n();
+  const {busy,error,run}=useAction();
+  const [approved,setApproved]=useState(false);
+  return <Dialog title={t("displayReconnectTitle",{name:display.name})} onClose={onClose}>
+    <div className="form-stack">
+      <p>{t("displayReconnectIdentity",{name:display.name,setup:display.setupName??t("defaultDisplaySetup")})}</p>
+      {approved ? <><p className="notice" role="status">{t("displayReconnectApproved")}</p><p className="field-hint">{t("displayReconnectAwaiting")}</p><button className="button" type="button" onClick={onClose}>{t("close")}</button></> : <form className="form-stack" onSubmit={event=>{event.preventDefault();const code=new FormData(event.currentTarget).get("code");if(typeof display.credentialGeneration!=="number")return;void run(async()=>{await api(`/households/${member.household_id}/displays/${display.id}/pairing/approve`,"POST",{code,expectedCredentialGeneration:display.credentialGeneration});setApproved(true);await onApproved()})}}>
+        <p>{t("displayReconnectHint")}</p>
+        <Field label={t("pairingCode")}><input name="code" inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} required autoComplete="one-time-code" className="code-input"/></Field>
+        {typeof display.credentialGeneration!=="number"&&<p className="notice" role="status">{t("displayReconnectUnavailable")}</p>}
+        <ErrorNotice error={error}/>
+        <div className="form-actions"><button className="button subtle" type="button" onClick={onClose}>{t("cancel")}</button><Submit busy={busy} label={t("displayReconnectApprove")} disabled={typeof display.credentialGeneration!=="number"}/></div>
+      </form>}
+    </div>
+  </Dialog>;
 }
 
 function DisplayAddressActions() {

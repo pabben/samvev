@@ -15,7 +15,7 @@ export async function api<T = unknown>(
   path: string,
   method = "GET",
   body?: unknown,
-  options: { timeoutMs?: number } = {},
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -23,13 +23,15 @@ export async function api<T = unknown>(
     headers["X-CSRF-Token"] = csrf;
   let response: Response;
   try {
+    const timeout = AbortSignal.timeout(options.timeoutMs ?? 12000);
+    const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
     response = await fetch(`/api/v1${path}`, {
       method,
       credentials: "same-origin",
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: "no-store",
-      signal: AbortSignal.timeout(options.timeoutMs ?? 12000),
+      signal,
     });
   } catch {
     throw new ApiError("OFFLINE");

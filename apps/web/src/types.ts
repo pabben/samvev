@@ -59,6 +59,15 @@ export interface Display {
   profile_person_ids?:string[];
   birthday_person_ids?:string[];
   external_items_enabled?: boolean;
+  credentialGeneration?: number;
+  birthdayMode?: 'off'|'all'|'legacy_selected';
+  personIdsOverride?: string[]|null;
+  localeOverride?: Locale|null;
+  themeOverride?: Theme|null;
+  setupName?: string;
+  setupDefaults?: { locale: Locale; theme: Theme; personIds: string[] };
+  effective?: { locale: Locale; theme: Theme; personIds: string[] };
+  contentReadiness?: DisplayContentReadiness;
   id: string;
   name: string;
   locale: Locale;
@@ -67,6 +76,7 @@ export interface Display {
   revoked_at: string | null;
   last_seen_at: string | null;
 }
+export interface DisplayContentReadiness { calendar: 'privacy'|'none_selected'|'external_disabled'|'not_shared'|'ready' }
 export interface Message {
   id: string;
   body: string;
@@ -153,6 +163,8 @@ export interface Projection {
   preview?: boolean;
   familyLayout?: { people?: import("./home-types").HubPerson[]; upcomingBirthdays?: import("./home-types").HomeBirthday[] };
   hub?: {people: import("./home-types").HubPerson[];items:import("./home-types").HubItem[]};
+  birthdays?: { mode:'off'|'all'|'legacy_selected'; localDate:string; entries:Array<{personId:string;displayName:string;due:'today'|'tomorrow'}> };
+  contentReadiness?: DisplayContentReadiness;
   display: {
     id: string;
     name: string;
@@ -161,6 +173,8 @@ export interface Projection {
     locale: Locale;
     theme: Theme;
     privacyMode: boolean;
+    setupId?: string|null;
+    setupName?: string;
   };
   cards: Card[];
   serverNow: string;
