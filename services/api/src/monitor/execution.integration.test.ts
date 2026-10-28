@@ -11,7 +11,7 @@ import {pool} from '../db.ts';
 import {migrate} from '../db/migrate.ts';
 import {MonitorExecutionQueue,runMonitorExecutionBatch} from './execution.ts';
 import {MonitorEngine} from './engine.ts';
-import {MonitorService} from './service.ts';
+import {MonitorService,monitorTaskDto,selectMonitorTask} from './service.ts';
 import type {MonitorActor} from './service.ts';
 import type {MonitorSourceFetcher,SourceDocument} from './source-fetcher.ts';
 import {nextMonitorCheckAt} from './schedule.ts';
@@ -38,6 +38,32 @@ async function fixture():Promise<void>{
 before(async()=>{await migrate();app=await buildApp();});after(async()=>{await app.close();await pool.end();});
 
 function auth(){return{cookie:`samvev_session=${sessionToken}`,'x-csrf-token':csrfToken};}
+
+test('task list, single-task DTO and execution polling sanitize stored diagnostics without rewriting legacy history',async()=>{
+  await fixture();
+  const base=`/api/v1/households/${actor.householdId}/monitors`;
+  const raw={validationStage:'final_schema',validationReason:'schema_mismatch',provider:'openai_compatible',prompt:'SYNTHETIC_PRIVATE_PROMPT',rawOutput:'SYNTHETIC_PRIVATE_OUTPUT',stack:'SYNTHETIC_PRIVATE_STACK',url:'https://synthetic-private.test.invalid/',extra:{token:'SYNTHETIC_PRIVATE_TOKEN'}};
+  const safe={validationStage:'final_schema',validationReason:'schema_mismatch',provider:'openai_compatible'};
+  const execution=(await pool.query<{id:string}>(`INSERT INTO monitor_executions(task_id,household_id,task_revision,kind,status,provider_snapshot,ai_settings_revision,latency_class,max_runtime_ms,expected_duration_seconds,error_details)
+    VALUES($1,$2,1,'manual','queued','openai_compatible',1,'local_complex',900000,300,$3) RETURNING id`,[taskId,actor.householdId,JSON.stringify(raw)])).rows[0]!;
+  const read=async()=>{
+    const listed=await app.inject({method:'GET',url:base,headers:auth()});assert.equal(listed.statusCode,200,listed.body);
+    const detail=monitorTaskDto((await pool.query(`${selectMonitorTask} WHERE t.id=$1 AND t.household_id=$2`,[taskId,actor.householdId])).rows[0]!);
+    const poll=await app.inject({method:'GET',url:`${base}/${taskId}/runs/${execution.id}`,headers:auth()});assert.equal(poll.statusCode,200,poll.body);
+    for(const body of [listed.body,JSON.stringify(detail),poll.body])assert.doesNotMatch(body,/SYNTHETIC_PRIVATE|synthetic-private/);
+    return{listed:listed.json().tasks.find((task:any)=>task.id===taskId),detail,poll:poll.json().run};
+  };
+  const active=await read();
+  for(const task of [active.listed,active.detail]){assert.deepEqual(task.activeExecution.errorDetails,safe);assert.deepEqual(task.latestExecution.errorDetails,safe);}
+  assert.deepEqual(active.poll.errorDetails,safe);
+  await pool.query(`UPDATE monitor_executions SET status='failed',error_code='AI_RESPONSE_INVALID',completed_at=clock_timestamp() WHERE id=$1`,[execution.id]);
+  const terminal=await read();for(const task of [terminal.listed,terminal.detail]){assert.equal(task.activeExecution,null);assert.deepEqual(task.latestExecution.errorDetails,safe);}assert.deepEqual(terminal.poll.errorDetails,safe);
+  assert.deepEqual((await pool.query<{error_details:object}>('SELECT error_details FROM monitor_executions WHERE id=$1',[execution.id])).rows[0]!.error_details,raw,'read-time filtering never rewrites stored history');
+  const unknown={validationStage:'SYNTHETIC_PRIVATE_STAGE',validationReason:'SYNTHETIC_PRIVATE_REASON',rawOutput:'SYNTHETIC_PRIVATE_OUTPUT'};
+  await pool.query('UPDATE monitor_executions SET error_details=$2 WHERE id=$1',[execution.id,JSON.stringify(unknown)]);
+  const legacy=await read();assert.equal(legacy.listed.latestExecution.errorDetails,null);assert.equal((legacy.detail.latestExecution as any).errorDetails,null);assert.equal(legacy.poll.errorDetails,null,'a legacy error code does not invent a validation cause');assert.equal(legacy.poll.errorCode,'AI_RESPONSE_INVALID');
+  assert.deepEqual((await pool.query<{error_details:object}>('SELECT error_details FROM monitor_executions WHERE id=$1',[execution.id])).rows[0]!.error_details,unknown);
+});
 
 test('daily 08:00 schedule stays on the Europe/Oslo wall clock across both DST changes',async()=>{
   const interpretedRule={version:1,resultKind:'events',summary:'Synthetic daily weather condition',eventTypes:[],keywords:[],people:[],noticeDaysBefore:0,noticeLocalTime:'08:00',checkIntervalMinutes:1440,conditionalNotification:true,tools:['weather.forecast'],schedule:{kind:'daily',localTime:'08:00',timezone:'Europe/Oslo'},weatherCondition:{operator:'or',conditions:[{kind:'rain'}]}};

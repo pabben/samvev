@@ -84,6 +84,18 @@ export function sanitizedMonitorErrorDetails(error:unknown):Record<string,unknow
   if(error.details?.weatherStage==='location'||error.details?.weatherStage==='forecast')safe.weatherStage=error.details.weatherStage;
   return Object.keys(safe).length?safe:null;
 }
+export function sanitizedStoredMonitorErrorDetails(errorCode:unknown,details:unknown):Record<string,unknown>|null{
+  if(!details||typeof details!=='object'||Array.isArray(details))return null;
+  // Legacy rows may predate the allowlist. Preserve explicit safe diagnostics,
+  // without inferring a validation stage or cause from their old error code.
+  const code=errorCode==='MONITOR_LOCATION_AMBIGUOUS'?errorCode:'MONITOR_EXECUTION_FAILED';
+  return sanitizedMonitorErrorDetails(new DomainError(code,502,details as Record<string,unknown>));
+}
+function publicStoredExecution(value:unknown):Record<string,unknown>|null{
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const execution=value as Record<string,unknown>;
+  return{...execution,errorDetails:sanitizedStoredMonitorErrorDetails(execution.errorCode,execution.errorDetails)};
+}
 function publicInterpretationError(error:unknown):unknown{if(!(error instanceof DomainError))return error;return new DomainError(error.code,error.status,sanitizedMonitorErrorDetails(error)??undefined);}
 
 export function monitorSourcePlan(instruction:string,manualSource?:string|null):{sourceUrl:string|null;tools:MonitorToolName[]}{
@@ -264,7 +276,7 @@ export function monitorTaskDto(row:Record<string,unknown>,targetAuthorized=true)
     lastCheckedAt:(row.last_checked_at as Date|null)?.toISOString()??null,nextCheckAt:(row.next_check_at as Date|null)?.toISOString()??null,lastResult:row.last_result,
     lastChangedAt:(row.last_changed_at as Date|null)?.toISOString()??null,errorCode:row.error_code,
     source:{finalUrl:publicFinalUrl,contentType:row.source_content_type,etag:row.source_etag,lastModified:row.source_last_modified,fingerprint:row.last_processed_fingerprint},
-    latestResult:row.latest_result??null,activeExecution:row.active_execution??null,latestExecution:row.latest_execution??null,events:row.events,stats:{checks:row.check_count,aiCalls:row.ai_call_count,unchanged:row.unchanged_count},lifecycle:monitorTaskLifecycle(row,targetAuthorized),createdAt:(row.created_at as Date).toISOString(),updatedAt:(row.updated_at as Date).toISOString()};
+    latestResult:row.latest_result??null,activeExecution:publicStoredExecution(row.active_execution),latestExecution:publicStoredExecution(row.latest_execution),events:row.events,stats:{checks:row.check_count,aiCalls:row.ai_call_count,unchanged:row.unchanged_count},lifecycle:monitorTaskLifecycle(row,targetAuthorized),createdAt:(row.created_at as Date).toISOString(),updatedAt:(row.updated_at as Date).toISOString()};
 }
 function derivedName(instruction:string,sourceUrl:string|null):string {const fallback=sourceUrl?`Følg med på ${new URL(sourceUrl).hostname.replace(/^www\./,'')}`:'Følg med på været';const first=instruction.split(/[.!?\n]/)[0]?.trim();return (first&&first.length<=80?first:fallback).slice(0,80);}
 

@@ -2,15 +2,22 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 import test,{after,before} from 'node:test';
 import type {FastifyInstance,LightMyRequestResponse} from 'fastify';
+import {roleCapabilityPresets} from '@samvev/contracts';
 import {tokenHash} from '@samvev/core';
 import {buildApp} from './app.ts';
 import {pool} from './db.ts';
 import {migrate} from './db/migrate.ts';
+import {localDateInTimezone} from './people/domain.ts';
+import {MonitorEngine} from './monitor/engine.ts';
+import {monitorDependencyFingerprint,type MonitorDependency} from './monitor/agent-runner.ts';
+import type {MonitorSourceFetcher,SourceDocument} from './monitor/source-fetcher.ts';
+import type {MonitorActor} from './monitor/service.ts';
 
 const origin='https://round15-next.test.invalid';
 let app:FastifyInstance,householdId:string,personId:string,ownerCookie:string,displayCookie:string,connectionId:string,sourceId:string,displayId:string;
 function cookie(response:LightMyRequestResponse){const value=response.headers['set-cookie'];return(Array.isArray(value)?value:value?[value]:[]).map((part)=>part.split(';')[0]).join('; ');}
 function hash(value:string){return createHash('sha256').update(value).digest('hex');}
+function dateOffset(value:string,days:number){const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+days);return date.toISOString().slice(0,10);}
 
 before(async()=>{
   const database=new URL(process.env.DATABASE_URL??'');
@@ -77,4 +84,58 @@ test('all Next routes filter cancellation and completed points before selection 
     assert.ok(!ids.includes(invalidAllDay),'invalid all-day civil ranges stay closed');
     const savedPoint=rows.find((row:any)=>row.id===futureEqual);assert.equal(savedPoint.startsAt,savedPoint.endsAt,'normalization does not rewrite source endpoint values');
   }
+});
+
+test('member and paired display share school Next expiry and keep authorized week history after an unchanged source check',async()=>{
+  const today=localDateInTimezone(new Date(),'Europe/Oslo');
+  const owner=(await pool.query<{account_id:string;installation_id:string;membership_id:string;capabilities:MonitorActor['capabilities']}>(`SELECT membership.account_id,account.installation_id,membership.id AS membership_id,membership.capabilities FROM memberships membership JOIN accounts account ON account.id=membership.account_id WHERE membership.household_id=$1 AND membership.person_id=$2`,[householdId,personId])).rows[0]!;
+  const readerPerson=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic school reader','adult') RETURNING id`,[householdId])).rows[0]!;
+  const readerAccount=(await pool.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'synthetic-school-reader@test.invalid','unused','en','light') RETURNING id`,[owner.installation_id])).rows[0]!;
+  await pool.query(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'member',$4)`,[householdId,readerAccount.id,readerPerson.id,JSON.stringify(roleCapabilityPresets.member)]);
+  const readerToken='synthetic-school-reader-session';await pool.query(`INSERT INTO sessions(account_id,token_hash,csrf_hash,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')`,[readerAccount.id,tokenHash(readerToken),tokenHash('synthetic-school-reader-csrf')]);
+  const readerCookie=`samvev_session=${readerToken}`;
+  const rule={version:1,resultKind:'events',summary:'Synthetic school reminders',eventTypes:[],keywords:[],people:[],noticeDaysBefore:0,noticeLocalTime:'08:00',checkIntervalMinutes:60,tools:['web.open']};
+  const source:SourceDocument={finalUrl:'https://example.com/synthetic-school',contentType:'text/html',text:`Synthetic school preparation ${today}. Bring synthetic boots.`,fingerprint:'synthetic-school-document',fetchedAt:new Date().toISOString(),httpStatus:200,evidenceKind:'web',evidenceComplete:true,evidenceDates:[today]};
+  const dependencies:MonitorDependency[]=[{tool:'web.open',url:source.finalUrl,fingerprint:source.fingerprint,contentType:source.contentType}];
+  const fingerprint=monitorDependencyFingerprint(dependencies);
+  const task=(await pool.query<{id:string}>(`INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,tool_plan,state,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier,revision,approved_revision,interpreted_rule,presentation_kind,last_processed_fingerprint,source_dependency_manifest)
+    VALUES($1,$2,'Synthetic school deadline','Keep source-backed synthetic school reminders.',$3,'["web.open"]','active',60,0,'08:00','default','routine',1,1,$4,'school',$5,$6) RETURNING id`,[householdId,owner.membership_id,source.finalUrl,JSON.stringify(rule),fingerprint,JSON.stringify(dependencies)])).rows[0]!;
+  await pool.query('INSERT INTO monitor_task_subjects(household_id,task_id,person_id) VALUES($1,$2,$3)',[householdId,task.id,personId]);
+  await pool.query('INSERT INTO monitor_task_person_targets(household_id,task_id,person_id) VALUES($1,$2,$3)',[householdId,task.id,readerPerson.id]);
+  await pool.query('INSERT INTO monitor_task_display_targets(household_id,task_id,display_id) VALUES($1,$2,$3)',[householdId,task.id,displayId]);
+  const message=(await pool.query<{id:string}>(`INSERT INTO messages(household_id,author_membership_id,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at) VALUES($1,$2,'Bring synthetic boots.','normal',false,clock_timestamp()-interval '1 minute',clock_timestamp()+interval '1 day','published','synthetic-school-deadline',clock_timestamp()) RETURNING id`,[householdId,owner.membership_id])).rows[0]!;
+  await pool.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES($1,$2,$3)',[householdId,message.id,readerPerson.id]);
+  await pool.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES($1,$2,$3)',[householdId,message.id,personId]);
+  await pool.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES($1,$2,$3,'delivered')`,[householdId,message.id,displayId]);
+  const evidence={quote:source.text,sourceUrl:source.finalUrl};
+  const producing=(await pool.query<{id:string}>(`INSERT INTO monitor_runs(task_id,task_revision,outcome,fingerprint,ai_called,run_kind,result_kind,result,source_url) VALUES($1,1,'changed',$2,false,'manual','events',$3,$4) RETURNING id`,[task.id,fingerprint,JSON.stringify({version:1,events:[{date:today,actions:['Bring synthetic boots.'],evidence}]}),source.finalUrl])).rows[0]!;
+  const event=(await pool.query<{id:string;school_expires_at:Date}>(`INSERT INTO monitor_events(household_id,task_id,event_key,event_date,event_type,description,actions,applies_to,evidence,confidence,source_fingerprint,message_id,school_expires_at,producing_run_id)
+    VALUES($1,$2,'synthetic-school-deadline',$3,'preparation','Synthetic school preparation','["Bring synthetic boots."]','[]',$4,0.9,$5,$6,clock_timestamp()+interval '2 minutes',$7) RETURNING id,school_expires_at`,[householdId,task.id,today,JSON.stringify(evidence),source.fingerprint,message.id,producing.id])).rows[0]!;
+  const nextEndpoints=[
+    {url:`/api/v1/households/${householdId}/activities/next`,cookie:readerCookie},
+    {url:`/api/v1/households/${householdId}/people/${personId}/activities/next`,cookie:readerCookie},
+    {url:'/api/v1/display/activities/next',cookie:displayCookie},
+    {url:`/api/v1/display/people/${personId}/activities/next`,cookie:displayCookie}
+  ];
+  const expectCurrent=async(current:boolean)=>{for(const endpoint of nextEndpoints){const response=await app.inject({method:'GET',url:endpoint.url,headers:{cookie:endpoint.cookie}});assert.equal(response.statusCode,200,response.body);assert.equal(response.json().activity?.id===event.id,current,endpoint.url);}};
+  await expectCurrent(true);
+  let fetched=0;const fetcher={fetch:async()=>{fetched++;return source;}} as unknown as MonitorSourceFetcher;
+  const noModel={createTaskSession:async()=>assert.fail('unchanged source verification must not call a model')} as any;
+  const actor:MonitorActor={accountId:owner.account_id,installationId:owner.installation_id,householdId,membershipId:owner.membership_id,capabilities:owner.capabilities};
+  const engine=new MonitorEngine(fetcher,noModel);
+  assert.equal((await engine.runManual(actor,task.id,1,'manual')).outcome,'unchanged');assert.equal(fetched,1);
+  assert.equal((await pool.query<{school_expires_at:Date}>('SELECT school_expires_at FROM monitor_events WHERE id=$1',[event.id])).rows[0]!.school_expires_at.toISOString(),event.school_expires_at.toISOString());
+  const deadline=(await pool.query<{school_expires_at:Date}>(`UPDATE monitor_events SET school_expires_at=clock_timestamp() WHERE id=$1 RETURNING school_expires_at`,[event.id])).rows[0]!.school_expires_at;
+  await expectCurrent(false);
+  assert.equal((await engine.runManual(actor,task.id,1,'manual')).outcome,'unchanged');assert.equal(fetched,2);
+  assert.equal((await pool.query<{school_expires_at:Date}>('SELECT school_expires_at FROM monitor_events WHERE id=$1',[event.id])).rows[0]!.school_expires_at.toISOString(),deadline.toISOString(),'unchanged source checks cannot extend or resurrect the stored deadline');
+  await expectCurrent(false);
+  for(const endpoint of [
+    {url:`/api/v1/households/${householdId}/people/${personId}/activities?from=${today}&to=${dateOffset(today,6)}&limit=50`,cookie:readerCookie},
+    {url:`/api/v1/display/people/${personId}/activities?from=${today}&to=${dateOffset(today,6)}&limit=50`,cookie:displayCookie}
+  ]){
+    const response=await app.inject({method:'GET',url:endpoint.url,headers:{cookie:endpoint.cookie}});assert.equal(response.statusCode,200,response.body);
+    const retained=response.json().activities.find((row:any)=>row.id===event.id);assert.ok(retained,endpoint.url);assert.equal(retained.expiresAt,deadline.toISOString());assert.equal(retained.freshness.state,'retained');assert.deepEqual(retained.actions,['Bring synthetic boots.']);
+  }
+  const home=await app.inject({method:'GET',url:`/api/v1/households/${householdId}/home`,headers:{cookie:readerCookie}});assert.equal(home.statusCode,200,home.body);assert.ok(!home.json().schoolActivities.some((row:any)=>row.id===event.id));
 });
