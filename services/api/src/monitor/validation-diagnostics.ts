@@ -1,7 +1,7 @@
 import { DomainError } from '@samvev/core';
 
 export const monitorValidationStages=['provider_response','final_schema','locale','required_tools','evidence_anchor','composition'] as const;
-export const monitorValidationReasons=['invalid_response','invalid_provider_response','invalid_json_body','missing_choices','missing_message','invalid_tool_calls','empty_content','invalid_turn_shape','response_too_large','upstream_http_4xx','upstream_http_5xx','upstream_http_other','upstream_invalid_json','upstream_response_too_large','upstream_context_limit','upstream_rate_limited','upstream_format_unsupported','upstream_tool_unsupported','network_error','invalid_json_or_schema','locale_mismatch','missing_required_tool','source','quote','claim','date','time','source_binding','incomplete_evidence'] as const;
+export const monitorValidationReasons=['invalid_response','invalid_provider_response','invalid_json_body','missing_choices','missing_message','invalid_tool_calls','empty_content','invalid_turn_shape','response_too_large','upstream_http_4xx','upstream_http_5xx','upstream_http_other','upstream_invalid_json','upstream_response_too_large','upstream_context_limit','upstream_rate_limited','upstream_format_unsupported','upstream_tool_unsupported','network_error','invalid_json_or_schema','invalid_json','schema_mismatch','locale_mismatch','missing_required_tool','source','quote','claim','date','time','source_binding','incomplete_evidence'] as const;
 export type MonitorValidationStage=typeof monitorValidationStages[number];
 export type MonitorValidationReason=typeof monitorValidationReasons[number];
 

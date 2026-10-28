@@ -37,7 +37,7 @@ export async function updateMonitorPresentation(actor:MonitorPresentationActor,t
     if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'monitor_presentation'});
     if(input.presentationKind==='school'){
       await client.query(`UPDATE monitor_events event SET school_expires_at=COALESCE(event.school_expires_at,
-          ((event.event_date + COALESCE($3::time,TIME '13:00')) AT TIME ZONE household.timezone))
+          ((event.event_date + GREATEST(COALESCE($3::time,TIME '13:00'),COALESCE(event.event_time,TIME '00:00'))) AT TIME ZONE household.timezone))
         FROM households household
         WHERE event.task_id=$1 AND event.household_id=$2 AND household.id=event.household_id`,[taskId,actor.householdId,input.schoolEndLocalTime]);
     }

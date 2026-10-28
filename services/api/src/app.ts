@@ -43,6 +43,8 @@ import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, birthdaysDueSoon, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
 import { assignPersonColor } from './people/person-colors.ts';
 import { normalizeProfilePhoto } from './people/photo.ts';
+import { schoolProvenanceJoins, schoolProvenanceColumns, schoolProjectionMetadata, type SchoolProvenanceRow } from './monitor/school-projection.ts';
+import { schoolHasPracticalActionsSql } from './monitor/practical-actions.ts';
 import { personMonitorSummaries, replaceMonitorSubjects, reviewMonitorResult } from './monitor/subjects.ts';
 import { monitorPresentationUpdateSchema, updateMonitorPresentation } from './monitor/presentation.ts';
 import { liveE2eAttestation, liveE2eExecutionEvidence } from './e2e/live-e2e.ts';
@@ -486,8 +488,8 @@ function decodeActivityCursor(value:unknown):ActivityCursor|undefined{
 }
 function encodeActivityCursor(cursor:ActivityCursor):string{return Buffer.from(JSON.stringify(cursor)).toString('base64url');}
 
-interface SchoolActivityRow {id:string;task_id:string;person_id:string;person_ids:string[];person_colors:Record<string,string>;event_date:string;event_time:string|null;event_type:string;description:string;actions:string[];evidence:Record<string,unknown>;confidence:number|null;uncertainty:string|null;school_expires_at:Date;source_url:string|null;recorded_at:Date|null;activity_at:Date;}
-const schoolActivitySelect=`event.id,event.task_id,subject.person_id,subject.person_ids,event.event_date::text,event.event_time::text,event.event_type,event.description,event.actions,event.evidence,event.confidence,event.uncertainty,event.school_expires_at,COALESCE(event.evidence->>'sourceUrl',run.source_url) AS source_url,run.checked_at AS recorded_at,
+interface SchoolActivityRow extends SchoolProvenanceRow {id:string;task_id:string;person_id:string;person_ids:string[];person_colors:Record<string,string>;event_date:string;event_time:string|null;event_type:string;description:string;actions:string[];evidence:Record<string,unknown>;confidence:number|null;uncertainty:string|null;school_expires_at:Date;source_url:string|null;recorded_at:Date|null;activity_at:Date;}
+const schoolActivitySelect=`event.id,event.task_id,subject.person_id,subject.person_ids,event.event_date::text,event.event_time::text,event.event_type,event.description,event.actions,event.evidence,event.confidence,event.uncertainty,event.school_expires_at,COALESCE(event.evidence->>'sourceUrl',run.source_url) AS source_url,run.checked_at AS recorded_at,${schoolProvenanceColumns},
   COALESCE((SELECT jsonb_object_agg(person.id::text,person.color_token) FROM persons person WHERE person.household_id=event.household_id AND person.id=ANY(subject.person_ids)),'{}'::jsonb) AS person_colors,
   ((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone) AS activity_at`;
 const schoolReaderAcl=`($3 OR message.audience_household OR message.author_membership_id=$4 OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id AND audience.person_id=$5))`;
@@ -504,14 +506,14 @@ async function schoolActivitiesForHome(householdId:string,viewer:{personId:strin
     JOIN LATERAL (SELECT subject.person_id,ARRAY[subject.person_id] AS person_ids FROM monitor_task_subjects subject WHERE subject.task_id=task.id AND subject.household_id=task.household_id) subject ON true
     JOIN households household ON household.id=task.household_id
     JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id AND message.state IN ('scheduled','published')
-    LEFT JOIN LATERAL (SELECT checked_at,source_url FROM monitor_runs WHERE task_id=task.id AND fingerprint=event.source_fingerprint AND run_kind IN ('scheduled','manual') AND outcome='changed' AND result_kind='events' ORDER BY checked_at DESC,id DESC LIMIT 1) run ON true
+    ${schoolProvenanceJoins}
     WHERE event.household_id=$1 AND event.event_date BETWEEN $2::date AND ($2::date+1)
-      AND event.active AND jsonb_typeof(event.actions)='array' AND jsonb_array_length(event.actions)>0
+      AND event.active AND jsonb_typeof(event.actions)='array' AND ${schoolHasPracticalActionsSql}
       AND task.presentation_kind='school' AND task.state='active' AND task.approved_revision=task.revision
       AND event.school_expires_at>clock_timestamp() AND message.expires_at>clock_timestamp()
       AND ${schoolTaskAuthorized} AND ${schoolReaderAcl}
     ORDER BY event.event_date,event.event_time NULLS FIRST,event.id LIMIT 200`,[householdId,today,canViewAll,viewer.membershipId,viewer.personId]);
-  return rows.rows.map((row)=>({type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,date:row.event_date,time:row.event_time,kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}));
+  return rows.rows.map((row)=>({type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,date:row.event_date,time:row.event_time,kind:row.event_type,title:row.description,...schoolProjectionMetadata(row),evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,expiresAt:row.school_expires_at.toISOString()}));
 }
 
 async function personActivities(input:{householdId:string;personIds:string[]|null;viewer:{personId:string;membershipId:string};canViewAll:boolean;from:string;to:string;limit:number;sourceIds?:string[];cursor?:ActivityCursor;maxDays:number;upcomingOnly?:boolean;display?:DisplayContext}):Promise<{activities:Record<string,unknown>[];nextCursor:string|null}>{
@@ -561,18 +563,19 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
     FROM monitor_events event JOIN monitor_tasks task ON task.id=event.task_id AND task.household_id=event.household_id
     JOIN LATERAL (SELECT min(subject.person_id::text)::uuid AS person_id,array_agg(subject.person_id ORDER BY subject.person_id) AS person_ids FROM monitor_task_subjects subject WHERE subject.task_id=task.id AND subject.household_id=task.household_id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2)) HAVING count(*)>0) subject ON true
     JOIN households household ON household.id=task.household_id
-    JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id AND message.state IN ('scheduled','published')
-    LEFT JOIN LATERAL (SELECT checked_at,source_url FROM monitor_runs WHERE task_id=task.id AND fingerprint=event.source_fingerprint AND run_kind IN ('scheduled','manual') AND outcome='changed' AND result_kind='events' ORDER BY checked_at DESC,id DESC LIMIT 1) run ON true
+    JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id AND message.state IN ('scheduled','published','expired')
+    ${schoolProvenanceJoins}
     WHERE event.household_id=$1 AND event.event_date BETWEEN $3::date AND $4::date AND ($8::uuid[] IS NULL OR $13::uuid IS NOT NULL)
-      AND event.active AND jsonb_typeof(event.actions)='array' AND jsonb_array_length(event.actions)>0
+      AND event.active AND jsonb_typeof(event.actions)='array'
+      ${input.upcomingOnly?`AND ${schoolHasPracticalActionsSql}`:''}
       AND task.presentation_kind='school' AND task.state='active' AND task.approved_revision=task.revision
-      AND event.school_expires_at>clock_timestamp() AND message.expires_at>clock_timestamp()
+      ${input.upcomingOnly?`AND event.school_expires_at>clock_timestamp() AND message.expires_at>clock_timestamp() AND message.state IN ('scheduled','published')`:''}
       AND ${schoolTaskAuthorized} AND ${schoolReader}
       ${schoolCursor}
     ORDER BY activity_at,event.id LIMIT $9`,[householdId,personIds,from,to,canViewAll,viewer.membershipId,viewer.personId,sourceIds??null,limit+1,cursor?.at??null,cursor?.rank??0,cursor?.id??null,display?.id??null]);
   const merged=[
     ...calendar.rows.map((row)=>({rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',personId:row.activity_person_id,...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds:row.activity_person_ids,personColors:row.activity_person_colors}})),
-    ...school.rows.map((row)=>({rank:1 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'school',personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,id:row.id,taskId:row.task_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at.toISOString()}}))
+    ...school.rows.map((row)=>({rank:1 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'school',personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,id:row.id,taskId:row.task_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,...schoolProjectionMetadata(row),evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,expiresAt:row.school_expires_at.toISOString()}}))
   ].filter((row)=>!cursor||row.at>cursor.at||(row.at===cursor.at&&(row.rank>cursor.rank||(row.rank===cursor.rank&&row.id>cursor.id))))
     .sort((left,right)=>left.at.localeCompare(right.at)||left.rank-right.rank||left.id.localeCompare(right.id));
   const page=merged.slice(0,limit);const more=merged.length>limit;
@@ -1790,11 +1793,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       JOIN LATERAL (SELECT subject.person_id,ARRAY[subject.person_id] AS person_ids FROM monitor_task_subjects subject WHERE subject.task_id=task.id AND subject.household_id=task.household_id AND subject.person_id=$2) subject ON true
       JOIN households household ON household.id=task.household_id
       JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id
-      LEFT JOIN LATERAL (SELECT checked_at,source_url FROM monitor_runs WHERE task_id=task.id AND fingerprint=event.source_fingerprint AND run_kind IN ('scheduled','manual') AND outcome='changed' AND result_kind='events' ORDER BY checked_at DESC,id DESC LIMIT 1) run ON true
+      ${schoolProvenanceJoins}
       WHERE event.id=$1 AND event.household_id=$3 AND task.presentation_kind='school' AND event.actions IS NOT NULL
         AND ${schoolTaskAuthorized} AND ($4 OR message.audience_household OR message.author_membership_id=$5 OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id AND audience.person_id=$6))`, [eventId,personId,auth.householdId,auth.capabilities.includes('household.manage'),auth.membershipId,auth.personId])).rows[0];
     if(!row)throw new DomainError('NOT_FOUND',404);
-    return{type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at?.toISOString()??null};
+    return{type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,kind:row.event_type,title:row.description,...schoolProjectionMetadata(row),evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,expiresAt:row.school_expires_at?.toISOString()??null};
   });
 
   app.get('/api/v1/households/:householdId/events',async(request,reply)=>{
@@ -2561,15 +2564,15 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       JOIN households household ON household.id=task.household_id
       JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id
       JOIN message_display_targets target ON target.household_id=message.household_id AND target.message_id=message.id AND target.display_id=$4 AND target.delivery_state IN ('queued','delivered','displayed')
-      LEFT JOIN LATERAL (SELECT checked_at,source_url FROM monitor_runs WHERE task_id=task.id AND fingerprint=event.source_fingerprint AND run_kind IN ('scheduled','manual') AND outcome='changed' AND result_kind='events' ORDER BY checked_at DESC,id DESC LIMIT 1) run ON true
+      ${schoolProvenanceJoins}
       WHERE event.id=$1 AND event.household_id=$3 AND event.active AND event.actions IS NOT NULL AND task.presentation_kind='school' AND task.state='active' AND task.approved_revision=task.revision
-        AND event.school_expires_at>clock_timestamp() AND jsonb_typeof(event.actions)='array' AND jsonb_array_length(event.actions)>0
+        AND event.school_expires_at>clock_timestamp() AND jsonb_typeof(event.actions)='array' AND ${schoolHasPracticalActionsSql}
         AND message.state='published' AND message.publish_at<=clock_timestamp() AND message.expires_at>clock_timestamp()
         AND ${schoolTaskAuthorized}
         AND (message.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id)
           OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id AND audience.person_id=ANY($5::uuid[])))`,[eventId,personId,display.householdId,display.id,display.selectedPersonIds])).rows[0];
     if(!row)throw new DomainError('NOT_FOUND',404);
-    return{type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,actions:row.actions,evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,recordedAt:row.recorded_at?.toISOString()??null,expiresAt:row.school_expires_at?.toISOString()??null};
+    return{type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,...schoolProjectionMetadata(row),evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,expiresAt:row.school_expires_at?.toISOString()??null};
   });
 
   app.post('/api/v1/display/render-ack', async (request, reply) => {

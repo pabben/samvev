@@ -1,4 +1,5 @@
 import { DomainError } from '@samvev/core';
+import { sanitizedMonitorErrorDetails } from './service.ts';
 import { transaction, type DbClient } from '../db.ts';
 
 interface SubjectActor {accountId:string;installationId:string;householdId:string;membershipId:string;}
@@ -43,7 +44,7 @@ export async function personMonitorSummaries(client:DbClient,householdId:string,
   const rows=await client.query<Record<string,unknown>>(`
     SELECT t.id,t.name,t.state,t.revision,t.subjects_revision,t.last_checked_at,t.next_check_at,
       active.status AS active_status,active.at AS active_at,
-      latest.logical_id AS last_logical_id,latest.run_id AS last_result_run_id,latest.outcome AS last_outcome,latest.checked_at AS last_run_at,latest.error_code AS last_error_code,latest.result_kind AS last_result_kind,latest.result AS last_run_result,
+      latest.logical_id AS last_logical_id,latest.run_id AS last_result_run_id,latest.outcome AS last_outcome,latest.checked_at AS last_run_at,latest.error_code AS last_error_code,latest.error_details AS last_error_details,latest.result_kind AS last_result_kind,latest.result AS last_run_result,
       success.id AS result_run_id,success.task_revision AS result_task_revision,success.result AS stored_result,success.result_kind AS stored_result_kind,success.source_url AS result_source_url,success.checked_at AS result_recorded_at,
       review.disposition AS result_disposition,COALESCE(review.revision,0) AS result_review_revision
     FROM monitor_task_subjects s JOIN monitor_tasks t ON t.id=s.task_id AND t.household_id=s.household_id
@@ -53,17 +54,17 @@ export async function personMonitorSummaries(client:DbClient,householdId:string,
       ORDER BY CASE e.status WHEN 'running' THEN 0 ELSE 1 END,COALESCE(e.started_at,e.queued_at) DESC,e.id DESC LIMIT 1
     ) active ON true
     LEFT JOIN LATERAL (
-      SELECT attempt.logical_id,attempt.run_id,attempt.outcome,attempt.checked_at,attempt.error_code,attempt.result_kind,attempt.result
+      SELECT attempt.logical_id,attempt.run_id,attempt.outcome,attempt.checked_at,attempt.error_code,attempt.error_details,attempt.result_kind,attempt.result
       FROM (
         SELECT e.id::text logical_id,r.id run_id,
           CASE WHEN e.status IN ('failed','superseded') THEN e.status ELSE r.outcome END outcome,
           CASE WHEN e.status IN ('failed','superseded') THEN COALESCE(e.completed_at,e.updated_at) ELSE COALESCE(r.checked_at,e.completed_at,e.updated_at) END checked_at,
-          CASE WHEN e.status IN ('failed','superseded') THEN e.error_code ELSE COALESCE(r.error_code,e.error_code) END error_code,r.result_kind,r.result
+          CASE WHEN e.status IN ('failed','superseded') THEN e.error_code ELSE COALESCE(r.error_code,e.error_code) END error_code,CASE WHEN e.status IN ('failed','superseded') THEN e.error_details ELSE COALESCE(r.error_details,e.error_details) END error_details,r.result_kind,r.result
         FROM monitor_executions e
         LEFT JOIN monitor_runs r ON r.execution_id=e.id AND r.task_id=e.task_id AND r.task_revision=e.task_revision AND r.run_kind=e.kind
         WHERE e.task_id=t.id AND e.task_revision=t.revision AND e.kind IN ('scheduled','manual') AND e.status IN ('succeeded','failed','superseded')
         UNION ALL
-        SELECT 'run:'||r.id::text,r.id,r.outcome,r.checked_at,r.error_code,r.result_kind,r.result
+        SELECT 'run:'||r.id::text,r.id,r.outcome,r.checked_at,r.error_code,r.error_details,r.result_kind,r.result
         FROM monitor_runs r
         WHERE r.task_id=t.id AND r.task_revision=t.revision AND r.run_kind IN ('scheduled','manual') AND r.execution_id IS NULL
       ) attempt WHERE attempt.outcome IS NOT NULL
@@ -79,7 +80,7 @@ export async function personMonitorSummaries(client:DbClient,householdId:string,
     nextRunAt:row.next_check_at instanceof Date?row.next_check_at.toISOString():null,
     lastCheckedAt:row.last_checked_at instanceof Date?row.last_checked_at.toISOString():null,
     result:row.result_run_id&&resultHasFindings(row.stored_result_kind,row.stored_result)?{runId:row.result_run_id,kind:row.stored_result_kind,value:row.stored_result,sourceUrl:row.result_source_url,recordedAt:row.result_recorded_at instanceof Date?row.result_recorded_at.toISOString():null,state:row.result_disposition??'unreviewed',reviewRevision:Number(row.result_review_revision),historical:Number(row.result_task_revision)!==Number(row.revision)||Boolean(row.active_status)||Boolean(row.last_logical_id&&(row.last_result_run_id!==row.result_run_id||row.last_outcome==='failed'||row.last_outcome==='superseded'))}:null,
-    latestAttempt:row.active_status?{outcome:row.active_status,at:row.active_at instanceof Date?row.active_at.toISOString():null,errorCode:null}:{outcome:row.last_outcome??null,at:row.last_run_at instanceof Date?row.last_run_at.toISOString():null,errorCode:safeAttemptError(row)},
+    latestAttempt:row.active_status?{outcome:row.active_status,at:row.active_at instanceof Date?row.active_at.toISOString():null,errorCode:null,errorDetails:null}:{outcome:row.last_outcome??null,at:row.last_run_at instanceof Date?row.last_run_at.toISOString():null,errorCode:safeAttemptError(row),errorDetails:row.last_outcome==='failed'?sanitizedMonitorErrorDetails(new DomainError(safeAttemptError(row)??'MONITOR_EXECUTION_FAILED',502,row.last_error_details as Record<string,unknown>|undefined)):null},
     errorCode:row.active_status?null:safeAttemptError(row)
   }));
 }
