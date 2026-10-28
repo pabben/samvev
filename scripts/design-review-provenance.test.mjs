@@ -75,3 +75,10 @@ test('verifies real Git blob bytes and rejects an edited tracked input', async t
 test('activated proof binds the exact staged builder manifest and immutable image',()=>{
  const stageHash='c'.repeat(64),imageId=`sha256:${'d'.repeat(64)}`;const activated={...runtime,transition:'qa-app-command-only-recreate',activation:{stageManifestSha256:stageHash},after:{app:{imageId}}};const staged={...proof,stageManifestSha256:stageHash,builderImageId:imageId};assert.doesNotThrow(()=>requireMatchingProof(staged,inputs,assets,activated));assert.throws(()=>requireMatchingProof({...staged,stageManifestSha256:'e'.repeat(64)},inputs,assets,activated),/staged builder/);assert.throws(()=>requireMatchingProof({...staged,builderImageId:`sha256:${'f'.repeat(64)}`},inputs,assets,activated),/staged builder/);
 });
+
+test('explicit recreation transition permits only tag to captured digest normalization',()=>{
+ const imageId=`sha256:${'b'.repeat(64)}`,service={containerId:'old',imageId,configFingerprint:'old',recreationInvariantFingerprint:'unchanged',startedAt:'before',publicOrigin:'http://192.168.0.220:4173'};
+ const before={app:{...service,imageReference:'samvev-m1/workspace:local'},worker:{...service},db:{containerId:'db',startedAt:'db-start',restartCount:0},syntheticDatabase:{fingerprint:'synthetic'}};
+ const after={app:{...before.app,containerId:'new',configFingerprint:'new',imageReference:imageId,startupCommand:['npm','run','dev:api'],startedAt:'after'},worker:{...before.worker,startedAt:'after'},db:{...before.db},syntheticDatabase:{...before.syntheticDatabase}};
+ assert.doesNotThrow(()=>requireRuntimeTransition(before,after,{appRecreated:true}));assert.throws(()=>requireRuntimeTransition(before,after),/configuration changed/);assert.throws(()=>requireRuntimeTransition(before,{...after,app:{...after.app,imageReference:'samvev-m1/workspace:local'}},{appRecreated:true}),/approved no-build/);assert.throws(()=>requireRuntimeTransition(before,{...after,app:{...after.app,imageId:`sha256:${'c'.repeat(64)}`}},{appRecreated:true}),/approved no-build/);
+});

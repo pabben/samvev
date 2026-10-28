@@ -30,7 +30,7 @@ export function composeFiles(raw,base=root){
  return {files,recoverStdin};
 }
 
-export function activationOverride(raw){return {services:{'qa-app':{image:raw.Config.Image,command:directApiCommand,hostname:raw.Config.Hostname}}};}
+export function activationOverride(raw){return {services:{'qa-app':{image:raw.Image,command:directApiCommand,hostname:raw.Config.Hostname}}};}
 export function recoveredStdinOverride(raw,baseConfig){
  const c={...activationOverride(raw).services['qa-app'],environment:env(raw.Config.Env),user:raw.Config.User,working_dir:raw.Config.WorkingDir,entrypoint:raw.Config.Entrypoint,init:Boolean(raw.HostConfig.Init),restart:raw.HostConfig.RestartPolicy?.Name??'no',read_only:Boolean(raw.HostConfig.ReadonlyRootfs),privileged:Boolean(raw.HostConfig.Privileged)};
  c.labels=Object.fromEntries(Object.entries(raw.Config.Labels??{}).filter(([name])=>!name.startsWith('com.docker.compose.')));
@@ -48,7 +48,7 @@ export function requireComposeApp(config,raw,image){
  const expectedEnv={...env(image.Config.Env),...(appConfig.environment??{})};
  requireSameBytes(expectedEnv,env(raw.Config.Env),'Resolved QA environment differs from active environment.');
  requireSameBytes(appConfig.command,directApiCommand,'Resolved QA command can build.');
- for(const [actual,expected,label] of [[appConfig.image,raw.Config.Image,'image'],[String(appConfig.user??image.Config.User??''),String(raw.Config.User??''),'user'],[appConfig.hostname,raw.Config.Hostname,'hostname'],[appConfig.working_dir??image.Config.WorkingDir,raw.Config.WorkingDir,'working directory'],[Boolean(appConfig.read_only),Boolean(raw.HostConfig.ReadonlyRootfs),'read-only mode'],[Boolean(appConfig.privileged),Boolean(raw.HostConfig.Privileged),'privileged mode'],[Boolean(appConfig.init),Boolean(raw.HostConfig.Init),'init'],[appConfig.restart??'no',raw.HostConfig.RestartPolicy?.Name??'no','restart policy']])if(actual!==expected)throw new Error(`Resolved QA ${label} changed.`);
+ for(const [actual,expected,label] of [[appConfig.image,raw.Image,'image'],[String(appConfig.user??image.Config.User??''),String(raw.Config.User??''),'user'],[appConfig.hostname,raw.Config.Hostname,'hostname'],[appConfig.working_dir??image.Config.WorkingDir,raw.Config.WorkingDir,'working directory'],[Boolean(appConfig.read_only),Boolean(raw.HostConfig.ReadonlyRootfs),'read-only mode'],[Boolean(appConfig.privileged),Boolean(raw.HostConfig.Privileged),'privileged mode'],[Boolean(appConfig.init),Boolean(raw.HostConfig.Init),'init'],[appConfig.restart??'no',raw.HostConfig.RestartPolicy?.Name??'no','restart policy']])if(actual!==expected)throw new Error(`Resolved QA ${label} changed.`);
  requireSameBytes(appConfig.entrypoint??image.Config.Entrypoint??[],raw.Config.Entrypoint??[],'Resolved QA entrypoint changed.');
  const mounts=(appConfig.volumes??[]).map(m=>{if(typeof m!=='object')throw new Error('Unresolved short mount syntax.');return [m.type,m.type==='bind'?resolve(m.source):(config.volumes?.[m.source]?.name??m.source),m.target,!m.read_only];}).sort((a,b)=>a[2].localeCompare(b[2]));
  const actualMounts=raw.Mounts.map(m=>[m.Type,m.Type==='bind'?m.Source:m.Name,m.Destination,m.RW]).sort((a,b)=>a[2].localeCompare(b[2]));requireSameBytes(mounts,actualMounts,'Resolved QA mounts differ.');

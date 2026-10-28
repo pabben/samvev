@@ -103,6 +103,9 @@ function leafProcess(container, sourceFile) {
 export const directApiCommand = ['npm', 'run', 'dev:api'];
 export function recreationInvariant(value) {
   const config=structuredClone(value.Config);
+  // Reference normalization is bounded by requireAppRecreation: the new
+  // reference must be exactly the already captured immutable image ID.
+  config.Image=value.Image;
   delete config.Cmd;
   for(const key of ['com.docker.compose.config-hash','com.docker.compose.project.config_files','com.docker.compose.replace'])delete config.Labels?.[key];
   const networks=Object.fromEntries(Object.entries(value.NetworkSettings?.Networks??{}).map(([name,item])=>[name,{aliases:[...(item.Aliases??[])].sort(),ipam:item.IPAMConfig??null}]));
@@ -110,6 +113,7 @@ export function recreationInvariant(value) {
 }
 export function requireAppRecreation(before,after) {
   if(before.Id===after.Id)throw new Error('QA app was not recreated.');
+  if(after.Image!==before.Image||after.Config?.Image!==before.Image)throw new Error('QA app recreation must use the captured immutable image digest.');
   const old=before.Config?.Cmd;
   if(stable(old)!==stable(directApiCommand)&&stable(old)!==stable(['sh','-c','npm run build && npm run dev:api']))throw new Error('Unrecognized previous QA app startup command.');
   if(stable(after.Config?.Cmd)!==stable(directApiCommand))throw new Error('QA app startup must not build.');
@@ -146,7 +150,7 @@ export function requireMatchingRuntimeProof(proof, current, inputs, migrations) 
 export function requireRuntimeTransition(before, after, {appRecreated=false}={}) {
   for (const key of ['app', 'worker']) {
     if(key==='app'&&appRecreated){
-      if(before.app.containerId===after.app.containerId||before.app.imageId!==after.app.imageId||!before.app.recreationInvariantFingerprint||before.app.recreationInvariantFingerprint!==after.app.recreationInvariantFingerprint||stable(after.app.startupCommand)!==stable(directApiCommand))throw new Error('QA app recreation is not the approved no-build transition.');
+      if(before.app.containerId===after.app.containerId||before.app.imageId!==after.app.imageId||after.app.imageReference!==before.app.imageId||!before.app.recreationInvariantFingerprint||before.app.recreationInvariantFingerprint!==after.app.recreationInvariantFingerprint||stable(after.app.startupCommand)!==stable(directApiCommand))throw new Error('QA app recreation is not the approved no-build transition.');
     }else if (before[key].containerId !== after[key].containerId || before[key].imageId !== after[key].imageId || before[key].configFingerprint !== after[key].configFingerprint) throw new Error(`QA ${key} container configuration changed during restart.`);
     if (before[key].startedAt === after[key].startedAt) throw new Error(`QA ${key} was not restarted.`);
   }
