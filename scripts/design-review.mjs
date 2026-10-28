@@ -61,6 +61,8 @@ async function assertFamilyHub(page, personIds, theme) {
   await expect(page.locator('.hub-hero')).toBeVisible();
   await expect(page.locator('.hub-today')).toBeVisible();
   await expect(page.locator('.hub-tomorrow')).toBeVisible();
+  // Home mounts independently loaded modules; capture their settled UI, not spinners.
+  await expect(page.locator('.family-hub .loading:visible')).toHaveCount(0);
   const renderedIds = await page.locator('[data-hub-detail-kind="person"][data-person-id]').evaluateAll(nodes => [...new Set(nodes.filter(node => node.checkVisibility()).map(node => node.getAttribute('data-person-id')).filter(Boolean))].sort());
   expect(renderedIds, 'visible semantic person controls must represent every actual Home person and no unknown identity').toEqual([...personIds].sort());
   await expect(page.locator('input[type="password"], .notice.error, [role="alert"]')).toHaveCount(0);
