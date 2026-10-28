@@ -4,6 +4,25 @@ Status: lokalt arbeid pågår, 28. oktober 2026. Kravgrunnlaget er
 [ROUND_15_REQUIREMENTS.md](ROUND_15_REQUIREMENTS.md). Dette er en kontrollert
 mellomstatus; samlet QA, release gate og offentlig testpublisering gjenstår.
 
+## Nyeste kontrollpunkt: leverandørlogoer #19
+
+Offisielle, uendrede lokale ressurser for Google Kalender, Outlook, Spond og
+Home Assistant brukes i eksisterende kalenderflyt. Spond/HA-kortet har begge
+merkene; ICS beholder generisk ikon. Synlige navn og dekorative bilder er
+separate, uten eksterne bildekall. Kilde-/rettighetskontekst og SHA-256 står i
+`apps/web/src/assets/calendar-providers/PROVENANCE.md`.
+
+31 målrettede tester og web-typekontroll bestod. Etter hovedreview ble en
+CSS-spesifisitetsfeil i lys Spond-variant rettet. Faktisk Chromium-komponenttest
+med React-markup, originale bilder og appens CSS bekrefter én synlig variant i
+begge temaer; to ressurs-/tilgjengelighetstester og ny typekontroll består.
+Dette er komponentbevis, ikke visuell godkjenning av de ferdige appsidene.
+
+Resterende asynkrone skjermfunn er bekreftet av sterkere review: kjente lokale
+referanser alene beskytter ikke mot en nyere felles nettleserkobling. Neste
+avgrensede skriver retter koordinering av innløsning, eksplisitt frakobling,
+publisering av kildeidentitet og sene svar. Ingen runtime er oppdatert ennå.
+
 ## Nyeste kontrollpunkt: skjerm-UI og ekstern HA-hindring
 
 UI for #17/#18 er implementert lokalt: gjenkobling av eksisterende registrering,

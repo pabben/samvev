@@ -5,7 +5,7 @@ import {renderToStaticMarkup} from 'react-dom/server';
 import {registerHooks} from 'node:module';
 import {dayEvents,personalPreviewItems,personalWindowItems,upcomingEvents,eventDateGroups,wasteEvents,temperatureItems,temperatureReading,temperatureIsStale,dayKey} from '../src/home-presentation';
 import type {HubItem} from '../src/home-types';
-registerHooks({load(url,context,nextLoad){return url.endsWith('.webp')?{format:'module',source:'export default "synthetic-avatar.webp"',shortCircuit:true}:nextLoad(url,context)}});
+registerHooks({load(url,context,nextLoad){return /\.(webp|svg|png)$/.test(url)?{format:'module',source:`export default ${JSON.stringify(url.split('/').at(-1))}`,shortCircuit:true}:nextLoad(url,context)}});
 const {FamilyHub,UpcomingActivities}=await import('../src/family-hub');
 const {HomeEnvironment}=await import('../src/home-environment');
 const {LocaleProvider}=await import('../src/ui');

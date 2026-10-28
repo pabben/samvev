@@ -3,6 +3,7 @@ import {api,ApiError} from './api';
 import {Dialog,ErrorNotice,Field,Loading,useAction,useI18n} from './ui';
 import {calendarProviderKey,registrationStateKey,parseGoogleOAuthConfiguration,GOOGLE_CONFIGURATION_MAX_BYTES,validateCalendarRegistrationPayload,type CalendarProviderRegistration,type RegisteredCalendarProvider} from './calendar-provider-config';
 import {googleBrandingUrls} from './calendar-branding';
+import {CalendarProviderLogo} from './calendar-provider-logos';
 
 type Registrations=Record<RegisteredCalendarProvider,CalendarProviderRegistration>;
 type PublicContact={operatorName:string;postalAddress:string;contactEmail:string};
@@ -12,7 +13,7 @@ export function CalendarProviderAdmin({installationId,selected,onSelect,onChange
  const load=useCallback(async()=>{try{const result=await api<{providers:Registrations}>(base);setProviders(result.providers)}catch(error){if(error instanceof ApiError&&[401,403,404].includes(error.status)){setProviders(undefined);onSelect(undefined)}throw error}},[base]);
  useEffect(()=>{void run(load)},[load]);
  return <section className="surface-card calendar-provider-admin" aria-labelledby="calendar-admin-title"><div className="section-heading"><div><p className="eyebrow">{t('calendarInstallationAdmin')}</p><h2 id="calendar-admin-title">{t('calendarRegistrationTitle')}</h2><p>{t('calendarRegistrationSeparate')}</p></div></div><ErrorNotice error={error}/>{saved&&<p className="notice" role="status">{t('calendarRegistrationSaved')}</p>}
- {!providers?<><Loading/>{Boolean(error)&&<button className="button" onClick={()=>void run(load)}>{t('retry')}</button>}</>:<ul className="calendar-registration-list">{(['google','microsoft','home_assistant'] as const).map(provider=><li key={provider}><div><strong>{t(calendarProviderKey(provider))}</strong><span>{t(registrationStateKey(providers[provider].state))}</span></div><button className="button" onClick={()=>{setSaved(false);onSelect(provider)}}>{t('calendarConfigure')}</button></li>)}</ul>}
+ {!providers ? <><Loading/>{Boolean(error)&&<button className="button" onClick={()=>void run(load)}>{t('retry')}</button>}</> : <ul className="calendar-registration-list">{(['google','microsoft','home_assistant'] as const).map(provider=><li key={provider}><div><strong className="calendar-registration-provider"><CalendarProviderLogo provider={provider}/><span>{t(calendarProviderKey(provider))}</span></strong><span>{t(registrationStateKey(providers[provider].state))}</span></div><button className="button" onClick={()=>{setSaved(false);onSelect(provider)}}>{t('calendarConfigure')}</button></li>)}</ul>}
  {selected&&providers&&<RegistrationDialog key={`${selected}-${providers[selected].revision}`} provider={selected} registration={providers[selected]} onClose={()=>onSelect(undefined)} onSave={async payload=>{await api(`${base}/${selected}`,'PUT',validateCalendarRegistrationPayload(payload));onSelect(undefined);setSaved(true);await load();await onChanged()}}/>}
  </section>;
 }
@@ -23,7 +24,7 @@ function RegistrationDialog({provider,registration,onClose,onSave}:{provider:Reg
  useEffect(()=>{if(provider!=='google')return;let active=true;void api<{contact:PublicContact|null}>('/public/contact').then(result=>{if(active)setPublicContact(result.contact)}).catch(()=>{if(active)setPublicContact(null)});return()=>{active=false}},[provider]);
  const branding=provider==='google'?googleBrandingUrls(registration.redirectUri):null;
  const submit=async()=>{await onSave({expectedRevision:registration.revision,status:'active',...(isHa?{origin}:provider==='google'&&mode==='file'?{googleOAuthJson:file}:{clientId,clientSecret:secret,...(provider==='microsoft'?{tenant}:{})})});setSecret('');setFile(undefined)};
- return <Dialog title={`${t('calendarConfigure')} · ${t(calendarProviderKey(provider))}`} onClose={onClose}><form className="form-stack calendar-registration-editor" onSubmit={e=>{e.preventDefault();void run(submit)}}>
+ return <Dialog title={`${t('calendarConfigure')} · ${t(calendarProviderKey(provider))}`} onClose={onClose}><form className="form-stack calendar-registration-editor" onSubmit={e=>{e.preventDefault();void run(submit)}}><CalendarProviderLogo provider={provider}/>
  <p className="status">{t(registrationStateKey(registration.state))}</p><p>{t(isHa?'calendarHaAdminIntro':'calendarRegistrationOnce')}</p>
  {registration.source==='legacy_environment'&&<p className="notice">{t('calendarLegacyConfiguration')}</p>}
  {registration.clientIdHint&&!isHa&&<p className="field-hint">{t('calendarRegisteredClient')}: <code>{registration.clientIdHint}</code></p>}

@@ -6,7 +6,7 @@ import {ApiError} from '../src/api';
 import {parseGoogleOAuthConfiguration,GOOGLE_CONFIGURATION_MAX_BYTES,validateCalendarRegistrationPayload,calendarParticipationKey,registrationStateKey,calendarSetupSelection} from '../src/calendar-provider-config';
 import {registerHooks} from 'node:module';
 // Node's unit runner does not load Vite image modules; substitute only the asset URL.
-registerHooks({load(url,context,nextLoad){return url.endsWith('.webp')?{format:'module',source:'export default "synthetic-avatar.webp"',shortCircuit:true}:nextLoad(url,context)}});
+registerHooks({load(url,context,nextLoad){return /\.(webp|svg|png)$/.test(url)?{format:'module',source:`export default ${JSON.stringify(url.split('/').at(-1))}`,shortCircuit:true}:nextLoad(url,context)}});
 const {IntegrationsPanel}=await import('../src/integrations');
 const {LocaleProvider}=await import('../src/ui');
 import type {Membership} from '../src/types';
@@ -66,6 +66,13 @@ test('documented Google legacy web downloads import without allowing arbitrary O
 
 const {calendarMemberAccess,calendarCanDiscoverSources}=await import('../src/calendar-provider-config');
 const {CalendarSourcesEmpty,CalendarConnections}=await import('../src/calendar-connections');
+test('calendar picker and Spond setup show local decorative provider marks beside visible names',()=>{
+ Object.defineProperty(globalThis,'location',{value:new URL('https://samvev.invalid/?tab=integrations&setup=spond'),configurable:true});
+ const markup=renderToStaticMarkup(createElement(LocaleProvider,{locale:'en',children:createElement(CalendarConnections,{member,displays:[],people:[],installationId:'synthetic-installation',accountId:'synthetic-account'})}));
+ assert.ok(markup.includes('Google Calendar'));assert.ok(markup.includes('Outlook / Microsoft 365'));assert.ok(markup.includes('Spond / Home Assistant'));
+ assert.match(markup,/calendar-provider-mark-google/);assert.match(markup,/calendar-provider-mark-microsoft/);assert.match(markup,/calendar-provider-mark-spond/);assert.match(markup,/calendar-provider-mark-home_assistant/);
+ assert.match(markup,/aria-hidden="true"/);assert.match(markup,/alt=""/);assert.doesNotMatch(markup,/<img[^>]+src="https?:/);
+});
 test('explicit calendar access denial and child age override elevated capabilities while generic integrations retain their own rights',()=>{
  const elevated={...member,capabilities:['household.view','household.manage','installation.manage']};
  for(const denied of [{...elevated,calendar_access:false},{...elevated,age_group:'child'},{...elevated,age_group:'teen'}]){
