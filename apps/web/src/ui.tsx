@@ -410,7 +410,8 @@ export function Avatar({ name, index = 0, avatarKey, personId, colorToken, photo
   const image = source && source!==failed ? source : avatarKey ? avatarImages[avatarKey] : undefined;
   const accent=personId||avatarKey?personAccent(personId,avatarKey):Math.max(0,index)%6;
   const token=personColorToken(personId,colorToken,avatarKey);
-  return <span className={`avatar accent-${accent} ${image ? "avatar-illustrated" : ""}`} data-color-token={personId||colorToken?token:undefined} aria-hidden="true">
+  const semanticIdentity=Boolean(personId||colorToken);
+  return <span className={`avatar ${semanticIdentity ? "" : `accent-${accent}`} ${image ? "avatar-illustrated" : ""}`} data-color-token={semanticIdentity?token:undefined} aria-hidden="true">
     {image ? <img src={image} alt="" draggable={false} onError={()=>setFailed(image)}/> : name.trim().slice(0, 1).toLocaleUpperCase()}
   </span>;
 }

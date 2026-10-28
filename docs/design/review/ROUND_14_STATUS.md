@@ -116,3 +116,29 @@ or design acceptance is claimed. ICS/Anthropic remain pending.
   Fixtures remain synthetic, provider transports absent and no physical actions.
 - Anthropic remains pending. Public runtime/LAN dist remain unchanged; no push,
   public release or final acceptance has occurred.
+
+### Third visual iteration — 2026-10-28
+
+The second source candidate `dcf3496` was rejected after actual captures showed
+legacy grid rules overlapping cards and avatar colors ignoring persisted tokens.
+A bounded stronger frontend agent scoped the legacy display layout separately,
+restored mobile actions and corrected shared identities. Coordinator and UX
+opened the actual Home/Calendar images against the primary reference. The new
+composition is substantially closer, with four primary columns, compact family
+identities and a message/landscape-photo row.
+
+Local isolated web typecheck/build and 149 tests pass. Prototype browser checks
+cover Home/Calendar at 1920, 1280, 820 and 390 pixels in both themes; four Home
+accessibility scans report no violations. These are development-prototype
+results, not final immutable-source screenshots or public acceptance. Image
+loading stability and complete changed-surface capture remain pending.
+
+ICS focused integration tests now pass 6/6 with authenticated permission and
+recurrence coverage. Anthropic base tests pass 11/11, but independent review
+found protocol and failure-classification defects; corrections, explicit
+fallback, daily admission limits and administrator UI remain pending. No real
+provider request has been made.
+
+Fresh read-only public checks confirm healthy R13 source `7c61557` and schema
+037. Protected root Git still matches all 229 saved fingerprint entries. Public
+runtime and LAN dist remain unchanged; no R14 push or deployment yet.

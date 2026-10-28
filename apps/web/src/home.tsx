@@ -25,16 +25,12 @@ export function Home({householdId,member,onCompose,onSessionChange,onManagePeopl
   return()=>{active=false;request++;stream.close();clearInterval(timer)};
  },[householdId,onSessionChange]);
  const localDate=home?.household.localDate??new Intl.DateTimeFormat('en-CA',{timeZone:home?.household.timezone??'UTC',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
- return <><ErrorNotice error={error}/>{home?<div className="home-background-surface"><HouseholdBackgroundLayer householdId={householdId}/><div className="home-background-content"><FamilyHub householdId={householdId} localDate={localDate} birthdays={home.upcomingBirthdays??[]} schoolActivities={home.schoolActivities??[]} taskAccess={taskAccess} onEditPhoto={onEditPhoto} editablePhotoIds={editablePhotoIds} people={home.people} items={home.items} messages={home.messages} zone={home.household.timezone} householdName={home.household.name} onCompose={onCompose} onManagePeople={onManagePeople} connection={t(live?'live':'polling')} homeModules={<HomeModules householdId={householdId} localDate={localDate} member={member}/>}/><MediaLibraryPanel householdId={householdId} people={people} displays={displays} canManageHousehold={canManageHousehold} canManageDisplays={canManageDisplays}/></div></div>:!error?<Loading/>:null}</>;
+ return <><ErrorNotice error={error}/>{home?<div className="home-background-surface"><HouseholdBackgroundLayer householdId={householdId}/><div className="home-background-content"><FamilyHub householdId={householdId} localDate={localDate} birthdays={home.upcomingBirthdays??[]} schoolActivities={home.schoolActivities??[]} taskAccess={taskAccess} onEditPhoto={onEditPhoto} editablePhotoIds={editablePhotoIds} people={home.people} items={home.items} messages={home.messages} zone={home.household.timezone} householdName={home.household.name} onCompose={onCompose} onManagePeople={onManagePeople} connection={t(live?'live':'polling')} homeModules={<HomeModules householdId={householdId} localDate={localDate}/>} homeSmartHome={<HouseholdHomeAssistantControls householdId={householdId} member={member} compact/>} homePhoto={<HomePhotoPreview key={householdId} householdId={householdId}/>}/><MediaLibraryPanel householdId={householdId} people={people} displays={displays} canManageHousehold={canManageHousehold} canManageDisplays={canManageDisplays}/></div></div>:!error?<Loading/>:null}</>;
 }
 
-function HomeModules({householdId,localDate,member}:{householdId:string;localDate:string;member:Membership}){
+function HomeModules({householdId,localDate}:{householdId:string;localDate:string}){
  const adapter=useMemo(()=>memberHouseholdBoardAdapter(householdId),[householdId]);
- return <div className="hub-home-modules">
-  <HouseholdBoardCards adapter={adapter} localDate={localDate} visibleCards={['groceries','dinners']} display={false} compact/>
-  <HouseholdHomeAssistantControls householdId={householdId} member={member} compact/>
-  <HomePhotoPreview key={householdId} householdId={householdId}/>
- </div>;
+ return <HouseholdBoardCards adapter={adapter} localDate={localDate} visibleCards={['groceries','dinners']} display={false} compact/>;
 }
 
 function HomePhotoPreview({householdId}:{householdId:string}){

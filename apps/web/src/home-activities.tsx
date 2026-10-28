@@ -217,7 +217,7 @@ function TimelineRow({ row, people, family, zone, locale }: { row: TimelineEntry
   return <div className={rowClass} data-review-private={row.kind==='dinner'?'dinner-event':'week-activity'} data-item-id={row.kind==='calendar'?row.activity.id:undefined} data-event-id={row.kind==='dinner'?row.id:undefined} style={{'--activity-stripe':stripe} as CSSProperties} onKeyDown={event=>{if(event.key==='Escape'&&open){event.preventDefault();event.stopPropagation();setOpen(false);trigger.current?.focus();}}}>
     <button ref={trigger} id={buttonId} className={`hub-week-row-button ${status?'has-status':''}`} type="button" aria-expanded={open} aria-controls={detailsId} aria-label={accessibleLabel} onClick={()=>setOpen(value=>!value)}>
       <time dateTime={row.kind==='calendar'?row.activity.startsAt??date:date}>{time}</time>
-      {status&&<span className="hub-week-row-status">{status}</span>}
+      {status&&<span className="hub-week-row-status" aria-hidden="true" title={status}>{rawStatus==='cancelled'?'×':rawStatus==='tentative'?'?':'!'}</span>}
       <strong lang={row.kind==='calendar'?row.activity.contentLocale??undefined:undefined}>{title}</strong>
     </button>
     {open&&<div id={detailsId} className="hub-week-row-details" role="region" aria-labelledby={buttonId}>
