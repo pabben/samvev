@@ -4,6 +4,31 @@ Status: lokalt arbeid pågår, 28. oktober 2026. Kravgrunnlaget er
 [ROUND_15_REQUIREMENTS.md](ROUND_15_REQUIREMENTS.md). Dette er en kontrollert
 mellomstatus; samlet QA, release gate og offentlig testpublisering gjenstår.
 
+## Nyeste kontrollpunkt: kalenderfeil #16
+
+Samme pågående runde omfatter nå #16–#19. Kalenderrettingen er implementert
+lokalt og gjennomgått av hovedagenten. webcal/HTTPS bruker samme pinnede
+SSRF- og omdirigeringsvern. Historiske avtaler utenfor vinduet fyller ikke
+forekomstgrensen; parsing har egne avgrensede arbeidstråder. Den fulle lagrede
+ICS-adressen kan leses og endres av husstandsadministrator, med kryptering,
+aktiv økt-/rettighetskontroll og revisjons-/generasjonsvern. Deltakere og
+skjermer mottar ikke adressen. Kalenderlenker som havner i AI-overvåking får
+egen, lagringsbestandig veiledning før modellarbeid starter.
+
+Målrettet lokal kontroll: 36 parser-/kildetester, 33 monitoragenttester,
+6 kalender-API-tester, 4 kalenderflyttester, 9 feilpresentasjonstester og
+1 faktisk Chromium-test av skjermbildemaskering bestått. API- og webtypekontroll
+bestått. FotMob-eksemplet ble hentet gjennom standardtransport/parser med både
+webcal og HTTPS: 29 179 byte og 26 hendelser i begge tilfeller. Dette beviser
+ikke årsaken til en utilgjengelig privat kalenderfeil. Køgrensen er testet;
+utløst parserfrist og faktisk heap-uttømming er ikke testet.
+
+Skjermbackend #17/#18 er neste sekvensielle skriveoppgave, deretter UI og
+leverandørlogoer. Samlet QA, faktiske syntetiske før-/etterbilder, ny restore-gate
+for 041→044 og offentlig publisering gjenstår. Offentlig source er fortsatt R14.
+Ingen skjermregistrering, reell kalender, tidsplan eller tillatelse er endret
+som test.
+
 ## Kilde og publisert utgangspunkt
 
 - Offentlig testmiljø står fortsatt på R14-kilden

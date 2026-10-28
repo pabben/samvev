@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { AiModelTier, AiProviderId, AiProviderTurn, AiTask, AiToolResult, MonitorProviderPolicy, MonitorToolName } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
 import type { AiAdminService, AiExecutionContext } from '../ai/admin-service.ts';
-import { MonitorSourceFetcher, normalizeMonitorUrl, type SourceDocument } from './source-fetcher.ts';
+import { isCalendarSubscriptionUrl, MonitorSourceFetcher, normalizeMonitorUrl, type SourceDocument } from './source-fetcher.ts';
 import { monitorToolRegistry, monitorWebTool, webOpenArgsSchema, type ApprovedWeatherScope } from './tool-registry.ts';
 import { MET_PUBLIC_FORECAST_URL, MetWeatherClient, norwegianWeatherDate, weatherEvidenceText, type WeatherForecast, type WeatherForecastArgs } from './weather.ts';
 import { sanitizedValidationDetails, validationError } from './validation-diagnostics.ts';
@@ -136,7 +136,7 @@ export class MonitorAgentRunner {
     householdId:string;task:AiTask;policy:MonitorProviderPolicy;rootUrl?:string;toolNames?:MonitorToolName[];requiredTools?:MonitorToolName[];expectedProvider?:AiProviderId;approvedWeatherScope?:ApprovedWeatherScope;
     seedDocuments?:SourceDocument[];preloadSeedDocuments?:boolean;signal?:AbortSignal;requireTool?:boolean;maxTurns?:number;maxToolExecutions?:number;observer?:MonitorExecutionObserver;executionContext?:AiExecutionContext;
   }):Promise<MonitorAgentResult>{
-    const rootUrl=input.rootUrl?canonical(input.rootUrl):undefined;const toolNames=input.toolNames??(rootUrl?['web.open']:[]);if(!toolNames.length)fail('MONITOR_TOOL_INVALID',422);if(toolNames.includes('web.open')&&!rootUrl)fail('MONITOR_TOOL_INVALID',422);const contracts=monitorToolRegistry.select(toolNames);if(contracts.length!==new Set(toolNames).size)fail('MONITOR_TOOL_INVALID',422);const requiredTools=new Set(input.requiredTools??(input.requireTool?toolNames:[]));
+    const rootUrl=input.rootUrl?canonical(input.rootUrl):undefined;const toolNames=input.toolNames??(rootUrl?['web.open']:[]);if(!toolNames.length)fail('MONITOR_TOOL_INVALID',422);if(toolNames.includes('web.open')&&!rootUrl)fail('MONITOR_TOOL_INVALID',422);if(rootUrl&&toolNames.includes('web.open')&&isCalendarSubscriptionUrl(new URL(rootUrl)))throw new DomainError('CALENDAR_SOURCE_USE_ICS',422);const contracts=monitorToolRegistry.select(toolNames);if(contracts.length!==new Set(toolNames).size)fail('MONITOR_TOOL_INVALID',422);const requiredTools=new Set(input.requiredTools??(input.requireTool?toolNames:[]));
     const controller=new AbortController();const abort=()=>controller.abort();if(input.signal?.aborted)controller.abort();else input.signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(abort,this.deadlineMs);
     const documents=new Map<string,SourceDocument>();const cache=new Map<string,SourceDocument>();const completedCalls=new Map<string,{tool:MonitorToolName;requested:string}>();
     for(const source of input.seedDocuments??[]){cache.set(canonical(source.finalUrl),source);}

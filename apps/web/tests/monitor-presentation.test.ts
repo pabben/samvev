@@ -14,6 +14,8 @@ test('weather and location failures have dedicated NB/EN recovery copy', () => {
     assert.notEqual(en[key], nb[key]);
   }
   assert.equal(taskErrorKey('MONITOR_SOURCE_TIMEOUT'), 'monitorErrorSourceTimeout');
+  assert.equal(taskErrorKey(new ApiError('CALENDAR_SOURCE_USE_ICS',422)), 'calendarSourceUseIcs', 'the persisted calendar-specific code retains ICS guidance without unsafe URL details');
+  assert.match(en.calendarSourceUseIcs,/Integrations.*ICS/);assert.match(nb.calendarSourceUseIcs,/Integrasjoner.*ICS/);
   assert.equal(taskErrorKey('REVISION_CONFLICT'), 'monitorErrorConflict');
 });
 

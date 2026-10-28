@@ -17,7 +17,7 @@ import {
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
   integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
-  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarSyncScheduleSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,
+  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarSyncScheduleSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,calendarIcsUrlUpdateSchema,
   temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
   homeAssistantControlDiscoverySchema,homeAssistantControlSelectSchema,homeAssistantControlGrantSchema,homeAssistantControlRevisionSchema,homeAssistantControlDispatchSchema,
   groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,dinnerOptionCreateSchema,dinnerOptionUpdateSchema,dinnerAssignmentSchema,displayBoardReadGrantSchema,
@@ -1962,6 +1962,12 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   });
   app.post('/api/v1/households/:householdId/calendar-connections',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_connection_create',{account:12,household:30,ip:24,windowSeconds:3600});const body=parse(calendarConnectionCreateSchema,request.body);return reply.status(201).send({connection:await calendars.create(auth,body)});
+  });
+  app.get('/api/v1/households/:householdId/calendar-connections/:connectionId/ics-subscription',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');reply.header('Cache-Control','private, no-store').header('Pragma','no-cache').header('Referrer-Policy','no-referrer');return calendars.getIcsSubscriptionUrl(auth,params(request).connectionId!);
+  });
+  app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/ics-subscription',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');await operationRateLimit(request,auth,'calendar_ics_subscription_update',{account:20,household:50,ip:40,windowSeconds:3600});const body=parse(calendarIcsUrlUpdateSchema,request.body);reply.header('Cache-Control','private, no-store').header('Pragma','no-cache').header('Referrer-Policy','no-referrer');return calendars.updateIcsSubscriptionUrl(auth,params(request).connectionId!,body);
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/oauth/start',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_oauth_start',{account:20,household:60,ip:40,windowSeconds:3600});return calendars.startOAuth(auth,params(request).connectionId!,runtime.publicOrigin);

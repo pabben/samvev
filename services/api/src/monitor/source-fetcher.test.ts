@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MonitorSourceFetcher, SecretSubscriptionFetcher, isBlockedMonitorAddress, normalizeMonitorUrl, normalizeSecretSubscriptionUrl, selectRelevantSource, sourceUrlFromInstruction } from './source-fetcher.ts';
+import { MAX_SUBSCRIPTION_BYTES, MonitorSourceFetcher, SecretSubscriptionFetcher, isBlockedMonitorAddress, isCalendarSubscriptionUrl, isGoogleCalendarViewUrl, normalizeMonitorUrl, normalizeSecretSubscriptionUrl, selectRelevantSource, sourceUrlFromInstruction } from './source-fetcher.ts';
 
 const resolver=async()=>[{address:'93.184.216.34',family:4 as const}];
 const response=(body:string|Buffer,type:string,status=200,location?:string)=>({status,headers:{'content-type':type,location,etag:undefined,'last-modified':undefined},body:Buffer.isBuffer(body)?body:Buffer.from(body)});
@@ -126,6 +126,7 @@ test('agent link fetches reject cross-origin redirects before following them',as
 
 test('secret calendar URLs preserve opaque query credentials but keep the pinned SSRF boundary',async()=>{
   assert.equal(normalizeSecretSubscriptionUrl('https://calendar.example/feed.ics?token=opaque#ignored'),'https://calendar.example/feed.ics?token=opaque');
+  assert.equal(normalizeSecretSubscriptionUrl('webcal://calendar.example/feed.ics?token=opaque'),'https://calendar.example/feed.ics?token=opaque');
   for(const url of ['http://calendar.example/feed.ics','https://user:secret@calendar.example/feed.ics','https://127.0.0.1/feed.ics','https://metadata.google.internal/feed.ics'])assert.throws(()=>normalizeSecretSubscriptionUrl(url),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
   let calls=0;const fetcher=new SecretSubscriptionFetcher(resolver,async()=>{calls++;return response('', 'text/calendar',302,'https://10.0.0.8/private.ics');});
   await assert.rejects(()=>fetcher.fetch('https://calendar.example/feed.ics?token=opaque'),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');assert.equal(calls,1);
@@ -135,5 +136,48 @@ test('secret calendar responses require bounded calendar content',async()=>{
   const valid=new SecretSubscriptionFetcher(resolver,async()=>response('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n','text/calendar'));
   assert.match(await valid.fetch('https://calendar.example/feed.ics?token=opaque'),/BEGIN:VCALENDAR/);
   const invalid=new SecretSubscriptionFetcher(resolver,async()=>response('<html>not a calendar</html>','text/html'));
-  await assert.rejects(()=>invalid.fetch('https://calendar.example/feed.ics'),(error:any)=>error.code==='MONITOR_SOURCE_UNSUPPORTED');
+  await assert.rejects(()=>invalid.fetch('https://calendar.example/feed.ics'),(error:any)=>error.code==='CALENDAR_ICS_UNSUPPORTED'&&error.details.reason==='calendar_ics_media_type_unsupported');
+});
+
+test('ICS fetch selects calendar media types without changing monitor transport defaults',async()=>{
+  let icsOptions:unknown,monitorOptions:unknown;
+  const ics=new SecretSubscriptionFetcher(resolver,async(_url,_target,_signal,options)=>{icsOptions=options;return response('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n','text/calendar');});
+  await ics.fetch('https://calendar.example/feed.ics');
+  assert.deepEqual(icsOptions,{maxBytes:MAX_SUBSCRIPTION_BYTES,tooLargeCode:'CALENDAR_ICS_TOO_LARGE',accept:'text/calendar, text/plain, application/octet-stream'});
+  const monitor=new MonitorSourceFetcher(resolver,async(_url,_target,_signal,options)=>{monitorOptions=options;return response('<main>synthetic page</main>','text/html');});
+  await monitor.fetch('https://example.com/page');
+  assert.equal(monitorOptions,undefined);
+});
+
+test('ICS transport keeps its byte, redirect and request-time limits',async()=>{
+  const tooLarge=new SecretSubscriptionFetcher(resolver,async()=>response(Buffer.alloc(MAX_SUBSCRIPTION_BYTES+1),'text/calendar'));
+  await assert.rejects(()=>tooLarge.fetch('https://calendar.example/feed.ics'),(error:any)=>error.code==='CALENDAR_ICS_TOO_LARGE'&&error.details.reason==='calendar_ics_response_too_large'&&error.details.maxBytes===MAX_SUBSCRIPTION_BYTES);
+  let redirects=0;const redirected=new SecretSubscriptionFetcher(resolver,async(url)=>{redirects++;return response('', 'text/calendar',302,`${url.protocol}//${url.hostname}/next.ics`);});
+  await assert.rejects(()=>redirected.fetch('https://calendar.example/feed.ics'),(error:any)=>error.code==='CALENDAR_ICS_HTTP_ERROR'&&error.details.reason==='calendar_ics_redirect_limit');assert.equal(redirects,4);
+  const timeout=new SecretSubscriptionFetcher(resolver,async(_url,_target,signal)=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})),20);
+  await assert.rejects(()=>timeout.fetch('https://calendar.example/feed.ics'),(error:any)=>error.code==='CALENDAR_ICS_TIMEOUT'&&error.details.reason==='calendar_ics_request_timeout');
+});
+
+test('webcal subscriptions are fetched over HTTPS and every redirect stays HTTPS and pinned',async()=>{
+  const urls:string[]=[];const seenAddresses:string[]=[];let calls=0;
+  const fetcher=new SecretSubscriptionFetcher(async(hostname)=>{seenAddresses.push(hostname);return resolver();},async(url)=>{urls.push(url.toString());calls++;return calls===1?response('', 'text/calendar',302,'webcal://cdn.example/feed.ics'):response('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n','text/calendar');});
+  await fetcher.fetch('webcal://pub.fotmob.com/prod/pub/api/v2/calendar/team/8463.ics');
+  assert.deepEqual(urls,['https://pub.fotmob.com/prod/pub/api/v2/calendar/team/8463.ics','https://cdn.example/feed.ics']);
+  assert.deepEqual(seenAddresses,['pub.fotmob.com','cdn.example']);
+});
+
+test('Google calendar view links get ICS guidance while real ICS and ordinary pages keep their routes',async()=>{
+  const view=new URL('https://calendar.google.com/calendar/u/0/r/week');
+  const queryView=new URL('https://calendar.google.com/calendar/u/0?cid=synthetic-calendar-id');
+  const simpleQueryView=new URL('https://calendar.google.com/calendar?cid=synthetic-calendar-id');
+  const ical=new URL('https://calendar.google.com/calendar/ical/public/calendar.ics');
+  assert.equal(isGoogleCalendarViewUrl(view),true);assert.equal(isCalendarSubscriptionUrl(view),true);assert.equal(isGoogleCalendarViewUrl(queryView),true);assert.equal(isGoogleCalendarViewUrl(simpleQueryView),true);
+  assert.equal(isGoogleCalendarViewUrl(ical),false);assert.equal(isCalendarSubscriptionUrl(ical),true);
+  let calls=0;const monitor=new MonitorSourceFetcher(resolver,async()=>{calls++;return response('<main>ordinary page</main>','text/html');});
+  await assert.rejects(()=>monitor.fetch(view.toString()),(error:any)=>error.code==='CALENDAR_SOURCE_USE_ICS'&&error.status===422);
+  assert.equal((await monitor.fetch('https://www.google.com/search?q=calendar')).contentType,'text/html');
+  assert.equal(calls,1);
+  const icsFetcher=new SecretSubscriptionFetcher(resolver,async()=>response('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n','text/calendar'));
+  assert.match(await icsFetcher.fetch(ical.toString()),/BEGIN:VCALENDAR/);
+  await assert.rejects(()=>new SecretSubscriptionFetcher(resolver,async()=>response('<html>Google Calendar</html>','text/html')).fetch(view.toString()),(error:any)=>error.code==='CALENDAR_ICS_GOOGLE_VIEW_URL');
 });

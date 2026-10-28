@@ -40,6 +40,7 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'AI_PLAN_USAGE_LIMITED') return 'aiPlanLimited';
   if (code === 'MONITOR_SOURCE_REQUIRED') return 'monitorErrorSourceRequired';
   if (code === 'MONITOR_SOURCE_AMBIGUOUS') return 'monitorErrorSourceAmbiguous';
+  if (code === 'CALENDAR_SOURCE_USE_ICS') return 'calendarSourceUseIcs';
   if (code === 'AI_ENDPOINT_BLOCKED' || code === 'AI_ENDPOINT_INVALID') return 'monitorErrorSourceBlocked';
   if (code === 'MONITOR_SOURCE_UNSUPPORTED' || code === 'MONITOR_SOURCE_TOO_LARGE') return error instanceof ApiError && error.details?.weatherStage === 'location' ? 'monitorErrorLocationInvalid' : error instanceof ApiError && error.details?.weatherStage === 'forecast' ? 'monitorErrorWeatherInvalid' : 'monitorErrorSourceFormat';
   if (code === 'MONITOR_SOURCE_UNAVAILABLE') return 'monitorErrorSourceUnavailable';

@@ -26,6 +26,17 @@ test('runner accepts a normal final turn without inventing a tool call',async()=
   assert.equal(result.output,'Synthetic final');assert.equal(result.aiCalls,1);assert.equal(result.documents.length,0);assert.equal(h.fetches,0);assert.deepEqual(h.choices,['auto']);
 });
 
+test('calendar subscriptions fail with localized ICS guidance before the runner opens an AI session',async()=>{
+  let aiSessions=0,fetches=0;
+  const ai={createTaskSession:async()=>{aiSessions++;throw new Error('AI session must not be created for a calendar URL');}} as unknown as AiAdminService;
+  const fetcher={fetch:async()=>{fetches++;throw new Error('Source fetch must not run for a calendar URL');}} as unknown as MonitorSourceFetcher;
+  const runner=new MonitorAgentRunner(ai,fetcher,1000);
+  for(const rootUrl of ['https://public.example/calendar.ics','https://calendar.google.com/calendar/u/0?cid=synthetic-calendar-id']){
+    await assert.rejects(()=>runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='CALENDAR_SOURCE_USE_ICS'&&error.status===422);
+  }
+  assert.equal(aiSessions,0);assert.equal(fetches,0);
+});
+
 test('runner tags an invalid provider response with sanitized diagnostics',async()=>{
   const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_RESPONSE_INVALID',502,{rawOutput:'must not escape'});}})} as unknown as AiAdminService;
   await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='invalid_provider_response'&&error.details?.aiCalls===1&&!('rawOutput' in (error.details??{})));

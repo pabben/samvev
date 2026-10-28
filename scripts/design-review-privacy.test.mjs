@@ -18,6 +18,8 @@ test('capture masking hides protected photos and name-free private content witho
       <section class="hub-waste"><button><span data-item-id="waste-private"><strong>Confidential waste route</strong><time>24 October</time></span></button></section>
       <article class="hub-temperature" data-item-id="temperature-private"><strong>Private bedroom sensor</strong><span class="hub-temperature-value">−3.5 °C</span><details open><summary>Source time</summary><p>Private source timestamp</p></details></article>
       <section class="household-boards"><span data-review-private="grocery-label">Private grocery item</span><span data-review-private="dinner-option">Private dinner plan</span></section>
+      <section data-review-private="calendar-ics-address"><label>Calendar link (ICS)<input type="url" value="https://calendar.example.invalid/feed.ics?token=synthetic"></label></section>
+      <span data-review-private="calendar-ics-address"><a href="https://calendar.example.invalid/feed.ics?token=synthetic">Open calendar link</a></span>
       </main>`);
     await page.locator('#protected-photo').evaluate(image=>image.decode());
     const geometry=()=>page.locator('.hub-person,.hub-message,.hub-timeline,.hub-reminder,.hub-support-preview,#protected-photo').evaluateAll(nodes=>nodes.map(node=>{const {x,y,width,height}=node.getBoundingClientRect();return{x,y,width,height}}));
@@ -25,7 +27,7 @@ test('capture masking hides protected photos and name-free private content witho
     assert.equal(await page.locator('#protected-photo').evaluate(node=>getComputedStyle(node).visibility),'visible');
     const redactions=await maskReviewPrivacy(page,['private fixture']);
     assert.deepEqual(await geometry(),before);
-    for(const kind of ['runtimeIdentity','messageBody','protectedPhoto','dynamicItem','personalActivity','provenance','homeEnvironment','grocery-label','dinner-option'])assert.ok(redactions.includes(kind),kind);
+    for(const kind of ['runtimeIdentity','messageBody','protectedPhoto','dynamicItem','personalActivity','provenance','homeEnvironment','grocery-label','dinner-option','calendar-ics-address'])assert.ok(redactions.includes(kind),kind);
     assert.equal(await page.locator('#protected-photo').evaluate(node=>getComputedStyle(node).visibility),'hidden');
     assert.equal(await page.locator('.avatar').evaluate(node=>getComputedStyle(node).visibility),'hidden');
     const privateText='.hub-person-name strong,.combined,.hub-person-activity,.display-card-body,.display-card-body b,.hub-message-meta time,.hub-timeline time,.hub-timeline strong,.hub-timeline small,.hub-reminder strong,.hub-support-preview strong,.hub-support-preview p,.hub-provenance summary,.hub-provenance a,.hub-waste strong,.hub-waste time,.hub-temperature strong,.hub-temperature-value,.hub-temperature p,[data-review-private]';
@@ -34,6 +36,7 @@ test('capture masking hides protected photos and name-free private content witho
     }
     assert.equal(await page.locator('.hub-timeline strong').textContent(),'Private appointment without a person name');
     assert.equal(await page.locator('.hub-temperature').evaluate(node=>getComputedStyle(node).color),'rgba(0, 0, 0, 0)');
+    const icsAddressRegions=page.locator('[data-review-private="calendar-ics-address"]');assert.equal(await icsAddressRegions.count(),2);for(const state of await icsAddressRegions.evaluateAll(nodes=>nodes.map(node=>({marked:node.hasAttribute('data-review-redact'),visibility:getComputedStyle(node.firstElementChild).visibility})))){assert.equal(state.marked,true);assert.equal(state.visibility,'hidden');}
     // New polling content must also be redacted without requiring its names.
     await page.locator('.hub-support-preview').evaluate(node=>{const p=document.createElement('p');p.id='late-private';p.textContent='Private asynchronously refreshed result';node.append(p)});
     await page.waitForFunction(()=>document.querySelector('#late-private')?.hasAttribute('data-review-redact'));

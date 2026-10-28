@@ -6,7 +6,8 @@ import { isIP } from 'node:net';
 import { DomainError } from '@samvev/core';
 import { createPinnedLookup } from '../pinned-lookup.ts';
 
-const MAX_BYTES = 5 * 1024 * 1024;
+export const MAX_SUBSCRIPTION_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = MAX_SUBSCRIPTION_BYTES;
 const MAX_TEXT = 250_000;
 const MAX_AI_TEXT = 20_000;
 const MAX_REDIRECTS = 3;
@@ -106,11 +107,15 @@ const defaultResolver:MonitorResolver=async(hostname)=>{
   return (await lookup(hostname,{all:true,verbatim:true})).map((row)=>({address:row.address,family:row.family as 4|6}));
 };
 
-function fetchPinned(url:URL,target:{address:string;family:4|6},signal:AbortSignal):Promise<{status:number;headers:Record<string,string|undefined>;body:Buffer}>{
+type PinnedResponse={status:number;headers:Record<string,string|undefined>;body:Buffer};
+type PinnedFetchOptions={maxBytes:number;tooLargeCode:string;accept?:string};
+type PinnedTransport=(url:URL,target:{address:string;family:4|6},signal:AbortSignal,options?:PinnedFetchOptions)=>Promise<PinnedResponse>;
+function fetchPinned(url:URL,target:{address:string;family:4|6},signal:AbortSignal,limits?:PinnedFetchOptions):Promise<PinnedResponse>{
   return new Promise((resolve,reject)=>{
     const fn=url.protocol==='https:'?httpsRequest:httpRequest;
-    const options:RequestOptions={method:'GET',headers:{accept:'text/html,application/xhtml+xml,application/pdf;q=0.9','user-agent':'Samvev-Monitor/1.0'},signal,lookup:createPinnedLookup(target)};
-    const req=fn(url,options,(res)=>{const chunks:Buffer[]=[];let size=0;res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>MAX_BYTES)res.destroy(new DomainError('MONITOR_SOURCE_TOO_LARGE',413));else chunks.push(chunk);});res.on('error',reject);res.on('end',()=>resolve({status:res.statusCode??502,headers:{location:res.headers.location,'content-type':res.headers['content-type'],'etag':res.headers.etag,'last-modified':res.headers['last-modified']},body:Buffer.concat(chunks)}));});
+    const options:RequestOptions={method:'GET',headers:{accept:limits?.accept??'text/html,application/xhtml+xml,application/pdf;q=0.9','user-agent':'Samvev-Monitor/1.0'},signal,lookup:createPinnedLookup(target)};
+    const maxBytes=limits?.maxBytes??MAX_BYTES,tooLargeCode=limits?.tooLargeCode??'MONITOR_SOURCE_TOO_LARGE';
+    const req=fn(url,options,(res)=>{const chunks:Buffer[]=[];let size=0;res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>maxBytes)res.destroy(new DomainError(tooLargeCode,413,{reason:tooLargeCode==='CALENDAR_ICS_TOO_LARGE'?'calendar_ics_response_too_large':'source_response_too_large',observedBytes:size,maxBytes}));else chunks.push(chunk);});res.on('error',reject);res.on('end',()=>resolve({status:res.statusCode??502,headers:{location:res.headers.location,'content-type':res.headers['content-type'],'etag':res.headers.etag,'last-modified':res.headers['last-modified']},body:Buffer.concat(chunks)}));});
     req.on('error',reject);req.end();
   });
 }
@@ -159,6 +164,7 @@ export class MonitorSourceFetcher {
   async fetch(rawUrl:string,options:{followLinkedPdf?:boolean;signal?:AbortSignal;redirectOrigin?:string}={}):Promise<SourceDocument>{
     const controller=new AbortController();const abort=()=>controller.abort();if(options.signal?.aborted)controller.abort();else options.signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(()=>controller.abort(),this.timeoutMs);
     try{
+    try{if(isCalendarSubscriptionUrl(new URL(rawUrl)))throw new DomainError('CALENDAR_SOURCE_USE_ICS',422);}catch(error){if(error instanceof DomainError)throw error;}
       let url=new URL(normalizeMonitorUrl(rawUrl));let response:Awaited<ReturnType<typeof fetchPinned>>|undefined;
       for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){
         const target=await resolvePublic(url,this.resolver,controller.signal);response=await this.transport(url,target,controller.signal);if(response.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);
@@ -190,26 +196,41 @@ export class MonitorSourceFetcher {
  * They use the same DNS/IP pinning and redirect checks as monitor fetches, but
  * are never returned in projections or logs. */
 export function normalizeSecretSubscriptionUrl(value:string):string{
-  let url:URL;try{url=new URL(value);}catch{throw new DomainError('VALIDATION_FAILED',400);}
+  let url:URL;try{const normalized=value.trim().replace(/^webcal:/i,'https:');url=new URL(normalized);}catch{throw new DomainError('VALIDATION_FAILED',400);}
   const hostname=url.hostname.replace(/^\[|\]$/g,'').toLowerCase();
   if(url.protocol!=='https:'||!hostname||url.username||url.password||hostname.includes('%')||blockedNames.has(hostname)||hostname.endsWith('.metadata.google.internal'))throw new DomainError('AI_ENDPOINT_BLOCKED',422);
   if(isIP(hostname)&&isBlockedMonitorAddress(hostname))throw new DomainError('AI_ENDPOINT_BLOCKED',422);url.hash='';return url.toString();
 }
 
 export class SecretSubscriptionFetcher{
-  constructor(private readonly resolver:MonitorResolver=defaultResolver,private readonly transport=fetchPinned,private readonly timeoutMs=TIMEOUT_MS){}
+  constructor(private readonly resolver:MonitorResolver=defaultResolver,private readonly transport:PinnedTransport=fetchPinned,private readonly timeoutMs=TIMEOUT_MS){}
   async fetch(rawUrl:string):Promise<string>{
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),this.timeoutMs);
     try{
       let url=new URL(normalizeSecretSubscriptionUrl(rawUrl));let response:Awaited<ReturnType<typeof fetchPinned>>|undefined;
       for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){
-        const target=await resolvePublic(url,this.resolver,controller.signal);response=await this.transport(url,target,controller.signal);
-        if(response.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);
-        if(response.status>=300&&response.status<400&&response.headers.location){if(redirects===MAX_REDIRECTS)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);url=new URL(normalizeSecretSubscriptionUrl(new URL(response.headers.location,url).toString()));continue;}break;
+        if(isGoogleCalendarViewUrl(url))throw new DomainError('CALENDAR_ICS_GOOGLE_VIEW_URL',422,{reason:'calendar_google_view_url_not_ics'});
+        const target=await resolvePublic(url,this.resolver,controller.signal);response=await this.transport(url,target,controller.signal,{maxBytes:MAX_SUBSCRIPTION_BYTES,tooLargeCode:'CALENDAR_ICS_TOO_LARGE',accept:'text/calendar, text/plain, application/octet-stream'});
+        if(response.body.length>MAX_BYTES)throw new DomainError('CALENDAR_ICS_TOO_LARGE',413,{reason:'calendar_ics_response_too_large',observedBytes:response.body.length,maxBytes:MAX_SUBSCRIPTION_BYTES});
+        if(response.status>=300&&response.status<400){if(!response.headers.location)throw new DomainError('CALENDAR_ICS_HTTP_ERROR',502,{reason:'calendar_ics_redirect_invalid',httpStatus:response.status});if(redirects===MAX_REDIRECTS)throw new DomainError('CALENDAR_ICS_HTTP_ERROR',502,{reason:'calendar_ics_redirect_limit',httpStatus:response.status});url=new URL(normalizeSecretSubscriptionUrl(new URL(response.headers.location,url).toString()));continue;}break;
       }
-      if(!response||response.status<200||response.status>=300)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);
-      const type=(response.headers['content-type']??'').split(';')[0]!.trim().toLowerCase();if(type&&!['text/calendar','text/plain','application/octet-stream'].includes(type))throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
-      const text=response.body.toString('utf8');if(!/^BEGIN:VCALENDAR\r?$/m.test(text)||!/^END:VCALENDAR\r?$/m.test(text))throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);return text;
-    }catch(error){if(controller.signal.aborted)throw new DomainError('MONITOR_SOURCE_TIMEOUT',504);if(error instanceof DomainError)throw error;throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);}finally{clearTimeout(timeout);}
+      if(!response)throw new DomainError('CALENDAR_ICS_NETWORK_ERROR',502,{reason:'calendar_ics_response_missing'});
+      if(response.status===401||response.status===403)throw new DomainError('CALENDAR_ICS_ACCESS_DENIED',502,{reason:'calendar_ics_access_denied',httpStatus:response.status});
+      if(response.status<200||response.status>=300)throw new DomainError('CALENDAR_ICS_HTTP_ERROR',502,{reason:'calendar_ics_http_error',httpStatus:response.status});
+      const type=(response.headers['content-type']??'').split(';')[0]!.trim().toLowerCase();if(type&&!['text/calendar','text/plain','application/octet-stream'].includes(type))throw new DomainError('CALENDAR_ICS_UNSUPPORTED',422,{reason:'calendar_ics_media_type_unsupported'});
+      const text=response.body.toString('utf8');if(!/^BEGIN:VCALENDAR\r?$/m.test(text)||!/^END:VCALENDAR\r?$/m.test(text))throw new DomainError('CALENDAR_ICS_INVALID',422,{reason:'calendar_ics_format_invalid'});return text;
+    }catch(error){if(controller.signal.aborted)throw new DomainError('CALENDAR_ICS_TIMEOUT',504,{reason:'calendar_ics_request_timeout'});if(error instanceof DomainError)throw error;throw new DomainError('CALENDAR_ICS_NETWORK_ERROR',502,{reason:'calendar_ics_network_error'});}finally{clearTimeout(timeout);}
   }
+}
+
+export function isGoogleCalendarViewUrl(url:URL):boolean{
+  if(url.hostname.toLowerCase()!=='calendar.google.com')return false;
+  const path=url.pathname.toLowerCase();
+  if(path.includes('/calendar/ical/'))return false;
+  if(url.searchParams.has('cid')&&/^\/calendar(?:\/u\/\d+)?\/?$/.test(path))return true;
+  return /\/calendar\/(?:u\/\d+\/)?(?:r|embed|render)(?:\/|$)/.test(path)||path==='/calendar/embed'||path==='/calendar/render';
+}
+
+export function isCalendarSubscriptionUrl(url:URL):boolean{
+  return url.pathname.toLowerCase().endsWith('.ics')||isGoogleCalendarViewUrl(url);
 }

@@ -6,7 +6,7 @@ Samvev leser Google Kalender, Outlook/Microsoft 365 og HTTPS-baserte ICS-abonnem
 
 Åpne **Mer → Integrasjoner** (eller `/?tab=integrations`). Velg Google Kalender, Outlook eller Kalenderlenke (ICS). Hvis appregistreringen mangler, vises dette før ekstern innlogging. En installasjonsadministrator må først fullføre appregistreringen i GUI-veiviseren; det er ikke en feil ved din kalenderkonto.
 
-1. Koble din egen konto med leverandørens samtykke, eller legg inn en privat HTTPS-abonnementslenke. Ikke send kalenderlenker, passord eller tokens i chat.
+1. Koble din egen konto med leverandørens samtykke, eller legg inn en ICS-abonnementslenke. `webcal://` normaliseres til HTTPS med samme sikkerhetskontroller. Ikke send private kalenderlenker, passord eller tokens i chat.
 2. Velg kalender og **Gjelder hvem?**. Velg deretter separat hvem som kan lese innholdet og hvilke skjermer som kan vise det. En personkobling er ikke en leserettighet.
 3. Åpne forhåndsvisning. Dette henter kalenderdata, men publiserer ingen avtaler. Kontroller tidspunkt, heldagshendelser, kilde og personvalg.
 4. Aktiver abonnementet. Status viser siste vellykkede synk, pågående synk, feil eller behov for ny innlogging. Oppdater henter på nytt uten AI.
@@ -20,6 +20,26 @@ sekund avvises før ekspansjon; daglige/ukentlige/månedlige/årlige gjentakelse
 støttes innenfor vinduet og forekomstgrensen. For store svar gir en synlig feil
 og beholder siste gyldige innhold. Maksimalt 12 aktive kalenderforbindelser per
 husstand og varige konto-/husstands-/IP-grenser beskytter tunge operasjoner.
+
+ICS laster hele svaret innenfor **5 MiB**, **15 sekunder** og høyst **tre
+omdirigeringer**. Forekomstvinduet reduserer ikke nedlastingsstørrelsen.
+Historiske enkeltavtaler utenfor vinduet bruker ikke forekomstgrensen på 10 000.
+Gjentakelser beholder opprinnelig start, COUNT, unntak og flyttede forekomster.
+Parsing skjer i høyst to arbeidstråder, med fire ventende jobber; nye jobber
+utover dette avvises som opptatt. Hver arbeidstråd har fem sekunders frist og
+128 MiB grense for V8s gamle heap, i tillegg til 16 MiB for den unge heapen.
+Dette er ikke en total RSS-grense for hele appen. Siste gyldige kalender beholdes
+ved hente- eller parserfeil. Feiltypene skiller tilgang, feil lenketype, ugyldig
+kalender, nettverk, nedlastingsfrist, parserfrist, minne og importgrenser.
+
+En husstandsadministrator kan åpne **Kalenderlenke (ICS)** på en lagret
+ICS-forbindelse for å lese, kopiere, åpne eller redigere hele adressen.
+Adressen lagres fortsatt kryptert og returneres bare fra et separat,
+administratorbeskyttet endepunkt uten mellomlagring. Den følger ikke med i
+vanlige forbindelseslister, deltaker- eller skjermprojeksjoner. Endring av
+adressen bevarer delingsvalg og siste gyldige innhold, markerer dette som
+utdatert og avskjærer eldre pågående synkronisering. Skjermbilder fra
+review-rutinen maskerer adressefeltet; administrasjonsvisningen gjør det ikke.
 
 ## Spond via kalender – alternativ
 

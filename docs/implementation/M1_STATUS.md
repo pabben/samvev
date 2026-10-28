@@ -1,6 +1,6 @@
 # M1 implementation status
 
-R15 nyeste lokale status: Home er implementert og hele webpakken består 164/164. Visuell kontroll og offentlig R15-utrulling gjenstår; offentlig source er fortsatt R14 `971913e`. Se `docs/design/review/ROUND_15_STATUS.md`.
+R15 nyeste lokale status: forrige kandidat bestod 546 tester; etterfølgende lokal #16-retting har bestått målrettede parser-/transport-, tilgangs-, presentasjons- og Chromium-maskeringstester. #17–#19, samlet slutt-QA, visuell kontroll og offentlig R15-utrulling gjenstår. Offentlig source er fortsatt R14 `971913e`. Se `docs/design/review/ROUND_15_STATUS.md` for gjeldende bevis og begrensninger; eldre kontrollpunkter nedenfor er historikk.
 
 ## Round 15 active checkpoint — 2026-10-28
 

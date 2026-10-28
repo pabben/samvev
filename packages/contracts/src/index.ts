@@ -370,7 +370,7 @@ export const integrationCredentialRevokeSchema = z.object({ expectedRevision: z.
 
 export const calendarProviders = ['google','microsoft','ics','home_assistant'] as const;
 export const calendarBridgeKinds = ['direct','spond_calendar','spond_home_assistant'] as const;
-const calendarSecretUrlSchema=z.string().url().max(4096).refine((value)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password&&!url.hash;}catch{return false;}},'https_calendar_url_required');
+const calendarSecretUrlSchema=z.string().url().max(4096).transform((value)=>new URL(value.replace(/^webcal:/i,'https:')).toString()).refine((value)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password&&!url.hash;}catch{return false;}},'https_calendar_url_required');
 export const calendarConnectionCreateSchema=z.object({
   provider:z.enum(calendarProviders),
   name:nameSchema,
@@ -387,6 +387,7 @@ export const calendarConnectionCreateSchema=z.object({
   if(value.replacesConnectionId&&value.provider!=='microsoft')ctx.addIssue({code:'custom',path:['replacesConnectionId'],message:'replacement_requires_microsoft'});
   if(value.provider!=='ics'&&value.syncIntervalMinutes!==undefined)ctx.addIssue({code:'custom',path:['syncIntervalMinutes'],message:'sync_interval_requires_ics'});
 });
+export const calendarIcsUrlUpdateSchema=z.object({expectedRevision:z.number().int().positive(),icsUrl:calendarSecretUrlSchema}).strict();
 export const calendarSourceUpdateSchema=z.object({
   expectedRevision:z.number().int().positive(),
   enabled:z.boolean(),
@@ -753,6 +754,12 @@ export type ErrorCode =
   | 'AI_KEY_INVALID' | 'AI_PERMISSION_DENIED' | 'AI_BILLING_REQUIRED' | 'AI_PROVIDER_RATE_LIMITED' | 'AI_MODEL_UNAVAILABLE'
   | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'
   | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_SOURCE_REQUIRED' | 'MONITOR_SOURCE_AMBIGUOUS'
+  | 'CALENDAR_SOURCE_USE_ICS'
+  | 'CALENDAR_ICS_ACCESS_DENIED' | 'CALENDAR_ICS_BUSY' | 'CALENDAR_ICS_GOOGLE_VIEW_URL'
+  | 'CALENDAR_ICS_HTTP_ERROR' | 'CALENDAR_ICS_INVALID' | 'CALENDAR_ICS_NETWORK_ERROR'
+  | 'CALENDAR_ICS_PARSE_FAILED' | 'CALENDAR_ICS_PARSE_LIMIT' | 'CALENDAR_ICS_PARSE_TIMEOUT'
+  | 'CALENDAR_ICS_TIMEOUT' | 'CALENDAR_ICS_TOO_LARGE' | 'CALENDAR_ICS_UNSUPPORTED'
+  | 'CALENDAR_ICS_URL_CHANGED'
   | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_INTERPRETATION_SCHEMA_INVALID'
   | 'MONITOR_INTERPRETATION_SOURCE_REFUSAL' | 'MONITOR_OWNER_UNAUTHORIZED' | 'MONITOR_RUNNING'
   | 'MONITOR_WORKER_INTERRUPTED'

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test,{afterEach,beforeEach} from 'node:test';
 import {CalendarService,DefaultCalendarTransport,parseIcsEvents,uniqueCalendarProviderEvents,type CalendarEvent,type CalendarProviderEvent} from './service.ts';
+import {canonicalCalendarEvent} from './ics-parser-core.ts';
 import {parseHomeAssistantCalendarEvents} from './home-assistant-client.ts';
 import {normalizeHomeAssistantOrigin} from './provider-config.ts';
 
@@ -119,9 +120,38 @@ test('provider JSON is streamed under byte, item and string bounds',async()=>{
   await assert.rejects(()=>new DefaultCalendarTransport().listCalendars('google','access'),(error:any)=>error.code==='MONITOR_SOURCE_TOO_LARGE');
 });
 
-test('ICS expansion rejects unsafe high-frequency recurrences before materializing them',()=>{
+test('ICS expansion rejects unsafe high-frequency recurrences before materializing them',async()=>{
   const malicious='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:fast\r\nDTSTART:20261001T000000Z\r\nDTEND:20261001T000001Z\r\nRRULE:FREQ=SECONDLY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
-  assert.throws(()=>parseIcsEvents(malicious,{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'}),(error:any)=>error.code==='MONITOR_SOURCE_UNSUPPORTED'&&error.details.reason==='calendar_recurrence_frequency_unsupported');
+  await assert.rejects(()=>parseIcsEvents(malicious,{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'}),(error:any)=>error.code==='CALENDAR_ICS_UNSUPPORTED'&&error.details.reason==='calendar_ics_recurrence_frequency_unsupported');
+});
+
+test('provider event validation keeps provider errors while malformed ICS events become ICS errors',async()=>{
+  assert.throws(()=>canonicalCalendarEvent({uid:'',instanceId:'single',title:'Synthetic provider event',start:'2026-10-01T09:00:00Z',end:'2026-10-01T10:00:00Z',allDay:false,cancelled:false} as CalendarEvent),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE'&&error.details.reason==='calendar_provider_response_invalid');
+  const malformed='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:\r\nDTSTART:20261001T090000Z\r\nDTEND:20261001T100000Z\r\nSUMMARY:Synthetic event\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+  await assert.rejects(()=>parseIcsEvents(malformed,{from:'2026-10-01T00:00:00Z',to:'2026-10-02T00:00:00Z'}),(error:any)=>error.code==='CALENDAR_ICS_INVALID'&&error.details.reason==='calendar_ics_content_invalid');
+});
+
+test('ICS parser applies its event window before historical single-event limits',async()=>{
+  const events=Array.from({length:10_001},(_,index)=>`BEGIN:VEVENT\r\nUID:historic-${index}\r\nDTSTART:19900101T000000Z\r\nDTEND:19900101T010000Z\r\nSUMMARY:Old appointment\r\nEND:VEVENT\r\n`).join('');
+  const calendar=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${events}END:VCALENDAR\r\n`;
+  const parsed=await parseIcsEvents(calendar,{from:'2026-10-01T00:00:00Z',to:'2027-04-01T00:00:00Z'});
+  assert.deepEqual(parsed,[]);
+});
+
+test('ICS parser preserves old counted recurrence, EXDATE, moved override and window overlap',async()=>{
+  const calendar='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:old-daily\r\nDTSTART:19800101T090000Z\r\nDTEND:19800101T100000Z\r\nRRULE:FREQ=DAILY;COUNT=20000\r\nEXDATE:20261002T090000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:overlap\r\nDTSTART:20260930T230000Z\r\nDTEND:20261001T020000Z\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:old-daily\r\nRECURRENCE-ID:20261003T090000Z\r\nDTSTART:20261004T120000Z\r\nDTEND:20261004T130000Z\r\nSUMMARY:Moved appointment\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+  const parsed=await parseIcsEvents(calendar,{from:'2026-10-01T00:00:00Z',to:'2026-10-06T00:00:00Z'});
+  assert.ok(parsed.some((event)=>event.uid==='old-daily'&&event.start==='2026-10-01T09:00:00.000Z'));
+  assert.ok(!parsed.some((event)=>event.uid==='old-daily'&&event.start==='2026-10-02T09:00:00.000Z'));
+  assert.ok(parsed.some((event)=>event.uid==='old-daily'&&event.start==='2026-10-04T12:00:00.000Z'&&event.title==='Moved appointment'));
+  assert.ok(parsed.some((event)=>event.uid==='overlap'&&event.start==='2026-09-30T23:00:00.000Z'));
+});
+
+test('ICS worker pool caps active parses and rejects work beyond its bounded queue',async()=>{
+  const calendar='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n',window={from:'2026-10-01T00:00:00Z',to:'2026-10-02T00:00:00Z'};
+  const results=await Promise.allSettled(Array.from({length:7},()=>parseIcsEvents(calendar,window)));
+  assert.equal(results.filter((result)=>result.status==='fulfilled').length,6);
+  assert.equal(results.filter((result)=>result.status==='rejected'&&result.reason.code==='CALENDAR_ICS_BUSY').length,1);
 });
 
 test('refresh persists rotated provider tokens and Google revoke is explicit',async()=>{

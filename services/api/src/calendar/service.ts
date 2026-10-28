@@ -1,12 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
-import ical from 'node-ical';
 import { DomainError, opaqueToken, tokenHash } from '@samvev/core';
 import { AiCredentialVault } from '../ai/credential-vault.ts';
 import { createOAuthAttempt } from '../ai/oauth-primitives.ts';
 import { pool, transaction, type DbClient } from '../db.ts';
-import { SecretSubscriptionFetcher } from '../monitor/source-fetcher.ts';
+import { MAX_SUBSCRIPTION_BYTES,normalizeSecretSubscriptionUrl,SecretSubscriptionFetcher } from '../monitor/source-fetcher.ts';
 import { CalendarProviderConfigurationService,calendarCallbackUri,type ProviderRuntimeConfig,type RegisteredCalendarProvider } from './provider-config.ts';
 import { HomeAssistantClient,type HomeAssistantTemperatureCandidate,type HomeAssistantTemperatureObservation } from './home-assistant-client.ts';
+import {canonicalCalendarEvent,SNAPSHOT_MAX_ITEMS} from './ics-parser-core.ts';
+import {parseIcsEvents} from './ics-parser.ts';
+export {parseIcsEvents} from './ics-parser.ts';
 
 export type CalendarProvider='google'|'microsoft'|'ics'|'home_assistant';
 export interface CalendarActor{accountId:string;sessionId:string;installationId:string;householdId:string;membershipId:string;personId?:string;capabilities:string[];}
@@ -62,7 +64,6 @@ const PROVIDER_JSON_MAX_BYTES=1024*1024;
 const PROVIDER_TOKEN_MAX_BYTES=256*1024;
 const PROVIDER_IDENTITY_MAX_BYTES=64*1024;
 const PROVIDER_PAGE_MAX_ITEMS=3000;
-const SNAPSHOT_MAX_ITEMS=10_000;
 const SNAPSHOT_MAX_BYTES=8*1024*1024;
 const CALENDAR_LIST_MAX_ITEMS=500;
 
@@ -162,13 +163,13 @@ export class DefaultCalendarTransport implements CalendarTransport{
 }
 
 interface StoredCredential{accessToken?:string;refreshToken?:string;expiresAt?:string;providerSubject?:string;url?:string;}
-interface ConnectionRow{id:string;household_id:string;installation_id:string;integration_connection_id:string;owner_account_id:string;provider:CalendarProvider;bridge_kind:string;name:string;state:string;credential_ciphertext:string|null;revision:number;sync_generation:number;sync_interval_minutes:5|15|30;lease_token:string|null;provider_config_revision:number;provider_client_id_hash:string|null;home_assistant_origin_hash:string|null;replacement_required:boolean;last_error_code:string|null;}
+interface ConnectionRow{id:string;household_id:string;installation_id:string;integration_connection_id:string;owner_account_id:string;provider:CalendarProvider;bridge_kind:string;name:string;state:string;credential_ciphertext:string|null;revision:number;sync_generation:number;sync_interval_minutes:5|15|30;lease_token:string|null;provider_config_revision:number;provider_client_id_hash:string|null;home_assistant_origin_hash:string|null;replacement_required:boolean;last_error_code:string|null;disconnected_at:Date|null;}
 const sha=(value:string)=>createHash('sha256').update(value).digest('hex');
 const calendarAad=(householdId:string,connectionId:string,accountId:string)=>`${householdId}:calendar:${connectionId}:account:${accountId}`;
 const windowFor=(now=new Date(),pastDays=7,futureDays=180)=>({from:new Date(now.getTime()-pastDays*86400_000).toISOString(),to:new Date(now.getTime()+futureDays*86400_000).toISOString()});
 const requiredCalendarScopes=(provider:Exclude<CalendarProvider,'ics'>,runtime?:ProviderRuntimeConfig)=>provider==='home_assistant'?['home_assistant_instance_token']:providerConfig(provider,runtime).scopes.filter((scope)=>scope.includes('calendar')||scope==='Calendars.ReadBasic');
 function requireCalendarScopes(provider:Exclude<CalendarProvider,'ics'>,scopes:string[],reauthorization=false,runtime?:ProviderRuntimeConfig):void{if(requiredCalendarScopes(provider,runtime).some((scope)=>!scopes.includes(scope)))throw new DomainError(reauthorization?'CONFLICT':'FORBIDDEN',reauthorization?409:403,{reason:reauthorization?'calendar_reauthorization_required':'calendar_scopes_missing'});}
-function calendarFailureCode(error:unknown):'CALENDAR_REAUTHORIZATION_REQUIRED'|'CALENDAR_CLIENT_CONFIGURATION_INVALID'|'CALENDAR_SYNC_FAILED'{const reason=error instanceof DomainError?error.details?.reason:undefined;return reason==='calendar_reauthorization_required'?'CALENDAR_REAUTHORIZATION_REQUIRED':reason==='calendar_client_configuration_invalid'?'CALENDAR_CLIENT_CONFIGURATION_INVALID':'CALENDAR_SYNC_FAILED';}
+function calendarFailureCode(error:unknown):string{const reason=error instanceof DomainError?error.details?.reason:undefined;if(reason==='calendar_reauthorization_required')return'CALENDAR_REAUTHORIZATION_REQUIRED';if(reason==='calendar_client_configuration_invalid')return'CALENDAR_CLIENT_CONFIGURATION_INVALID';if(error instanceof DomainError&&error.code.startsWith('CALENDAR_ICS_'))return error.code;return'CALENDAR_SYNC_FAILED';}
 function calendarItemMetadata(current:unknown,connection:Pick<ConnectionRow,'provider'>,source:{id:string;bridge_kind:string;subject_household:boolean;purpose?:string;display_name?:string|null;last_complete_window_from?:Date|null;last_complete_window_to?:Date|null;last_sync_succeeded_at?:Date|null},event?:CalendarEvent):Record<string,unknown>{
   const metadata=current&&typeof current==='object'&&!Array.isArray(current)?{...(current as Record<string,unknown>)}:{};
   const calendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?{...(metadata.calendar as Record<string,unknown>)}:{};
@@ -177,48 +178,6 @@ function calendarItemMetadata(current:unknown,connection:Pick<ConnectionRow,'pro
   if(event){metadata.category='activity';metadata.allDay=event.allDay;if(event.location)metadata.location=event.location;else delete metadata.location;}
   return metadata;
 }
-function canonicalEvent(event:CalendarEvent){
-  const uid=boundedString(event.uid,2048),instanceId=boundedString(event.instanceId,2048),title=boundedString(event.title,2048),location=boundedString(event.location,1024,{optional:true});
-  if(typeof event.allDay!=='boolean'||typeof event.cancelled!=='boolean'||event.status!==undefined&&!['confirmed','tentative','declined','unanswered','cancelled'].includes(event.status))throw invalidProviderResponse();
-  let start:string,end:string|null;try{const rawStart=boundedString(event.start,100)!,rawEnd=boundedString(event.end,100,{optional:true}),validCivil=(raw:string)=>{const [year,month,day]=raw.slice(0,10).split('-').map(Number),date=new Date(Date.UTC(year!,month!-1,day));if(date.getUTCFullYear()!==year||date.getUTCMonth()!==month!-1||date.getUTCDate()!==day)throw new Error('invalid civil date');},civil=(raw:string)=>{validCivil(raw);return`${raw}T00:00:00.000Z`;},instant=(raw:string)=>{if(!/^\d{4}-\d{2}-\d{2}T/.test(raw))throw new Error('invalid instant');validCivil(raw);return new Date(raw).toISOString();},startCivil=/^\d{4}-\d{2}-\d{2}$/.test(rawStart),endCivil=Boolean(rawEnd&&/^\d{4}-\d{2}-\d{2}$/.test(rawEnd));if(event.allDay!==startCivil||rawEnd&&endCivil!==startCivil)throw new Error('mixed date kinds');start=startCivil?civil(rawStart):instant(rawStart);end=rawEnd?(endCivil?civil(rawEnd):instant(rawEnd)):null;}catch{throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422,{reason:'calendar_event_time_invalid'});}
-  if(end&&end<=start)throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422,{reason:'calendar_event_time_invalid'});return{...event,uid:uid!,instanceId:instanceId!,start,end,title:title!.normalize('NFKC').trim().slice(0,160)||'Untitled event',location:location?.normalize('NFKC').trim().slice(0,160)};
-}
-export function parseIcsEvents(text:string,window:{from:string;to:string}):CalendarEvent[]{
-  const parsed=ical.sync.parseICS(text),from=new Date(window.from),to=new Date(window.to),events:CalendarEvent[]=[];
-  if(Object.keys(parsed).length>SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});
-  const push=(event:CalendarEvent)=>{if(events.length>=SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});events.push(event);};
-  const stamp=(value:Date)=>value.toISOString();
-  for(const item of Object.values(parsed)){
-    if(item.type!=='VEVENT')continue;
-    const event=item as ical.VEvent;
-    if(event.rrule&&event.start){
-      if(event.rrule.options.freq>3)throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422,{reason:'calendar_recurrence_frequency_unsupported'});
-      const overrides=new Map<string,ical.VEvent>();
-      for(const [key,override] of Object.entries(event.recurrences??{})){
-        const original=override.recurrenceid instanceof Date?stamp(override.recurrenceid):key;
-        overrides.set(original,override);
-      }
-      const excluded=new Set<string>();
-      for(const [key,date] of Object.entries(event.exdate??{}))excluded.add(date instanceof Date?stamp(date):key);
-      const baseDuration=Math.max(0,(event.end?.getTime()??event.start.getTime())-event.start.getTime());
-      const remaining=SNAPSHOT_MAX_ITEMS-events.length;let exceeded=false;
-      const occurrences=event.rrule.between(from,to,true,(_date,length)=>{if(length>=remaining){exceeded=true;return false;}return true;});
-      if(exceeded)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});
-      for(const original of occurrences){
-        const identity=stamp(original),override=overrides.get(identity);
-        if(excluded.has(identity)&&!override)continue;
-        const start=override?.start??original;
-        const duration=override?.start&&override.end?Math.max(0,override.end.getTime()-override.start.getTime()):baseDuration;
-        const allDay=(override?.datetype??event.datetype)==='date',end=duration?new Date(start.getTime()+duration):null;
-        push({uid:String(event.uid),instanceId:identity,title:String(override?.summary??event.summary??'Untitled event'),start:allDay?start.toISOString().slice(0,10):stamp(start),end:end?(allDay?end.toISOString().slice(0,10):stamp(end)):null,allDay,cancelled:String(override?.status??event.status??'').toUpperCase()==='CANCELLED',location:String(override?.location??event.location??'')||undefined});
-      }
-    }else if(event.start&&event.start<to&&(event.end??event.start)>=from){
-      const allDay=event.datetype==='date';push({uid:String(event.uid),instanceId:event.recurrenceid?.toISOString()??event.start.toISOString(),title:String(event.summary??'Untitled event'),start:allDay?event.start.toISOString().slice(0,10):event.start.toISOString(),end:event.end?(allDay?event.end.toISOString().slice(0,10):event.end.toISOString()):null,allDay,cancelled:String(event.status??'').toUpperCase()==='CANCELLED',location:String(event.location??'')||undefined});
-    }
-  }
-  return events.map(canonicalEvent);
-}
-
 export class CalendarService{
   private readonly providers:CalendarProviderConfigurationService;
   constructor(private readonly transport:CalendarTransport=new DefaultCalendarTransport(),private readonly vault=new AiCredentialVault(),private readonly now:()=>Date=()=>new Date(),providers?:CalendarProviderConfigurationService){this.providers=providers??new CalendarProviderConfigurationService(vault);}
@@ -236,6 +195,7 @@ export class CalendarService{
   }
   async create(actor:CalendarActor,input:{provider:CalendarProvider;name:string;bridgeKind:'direct'|'spond_calendar'|'spond_home_assistant';icsUrl?:string;syncIntervalMinutes?:5|15|30;replacesConnectionId?:string}){
     await this.authorize(actor);
+    const normalizedIcsUrl=input.provider==='ics'&&input.icsUrl?normalizeSecretSubscriptionUrl(input.icsUrl):undefined;
     let runtime:ProviderRuntimeConfig|undefined;if(input.provider!=='ics')runtime=await this.providers.resolve(actor.installationId,input.provider);
     return transaction(async(client)=>{
       await this.authorize(actor,undefined,client);
@@ -251,7 +211,7 @@ export class CalendarService{
       const state=input.provider==='ics'?'connected':'setup';
       const connection=(await client.query<{id:string}>(`INSERT INTO calendar_connections(household_id,integration_connection_id,owner_account_id,provider,bridge_kind,name,state,provider_config_revision,provider_client_id_hash,home_assistant_origin_hash,replaces_connection_id,sync_interval_minutes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,[actor.householdId,integration.id,actor.accountId,input.provider,input.bridgeKind,input.name,state,runtime?.revision??0,runtime?.clientIdHash??null,runtime?.provider==='home_assistant'&&runtime.origin?sha(runtime.origin):null,input.replacesConnectionId??null,input.syncIntervalMinutes??15])).rows[0]!;
       if(input.provider==='ics'){
-        const cipher=await this.vault.encrypt(calendarAad(actor.householdId,connection.id,actor.accountId),JSON.stringify({url:input.icsUrl}));
+        const cipher=await this.vault.encrypt(calendarAad(actor.householdId,connection.id,actor.accountId),JSON.stringify({url:normalizedIcsUrl}));
         await client.query('UPDATE calendar_connections SET credential_ciphertext=$2 WHERE id=$1',[connection.id,cipher]);
         await client.query(`INSERT INTO calendar_sources(household_id,connection_id,external_id,name) VALUES($1,$2,'ics-primary',$3)`,[actor.householdId,connection.id,input.name]);
       }
@@ -482,10 +442,10 @@ export class CalendarService{
     if(row.provider==='ics'){
       const credential=JSON.parse(await this.vault.decrypt(aad,row.credential_ciphertext!)) as StoredCredential;
       if(!credential.url)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
-      events=parseIcsEvents(await this.transport.fetchIcs(credential.url),window);pageCount=1;
+      events=await parseIcsEvents(await this.transport.fetchIcs(credential.url),window);pageCount=1;
     }else{
       const pages=await this.withConnectionCredential(row,(accessToken,runtime)=>this.allPages((token)=>this.transport.listEvents(row.provider,accessToken,source.external_id,window,token,runtime)));
-      events=pages.items.filter((event):event is CalendarEvent=>!isCalendarCancellationMarker(event)).map(canonicalEvent);pageCount=pages.pageCount;
+      events=pages.items.filter((event):event is CalendarEvent=>!isCalendarCancellationMarker(event)).map(canonicalCalendarEvent);pageCount=pages.pageCount;
     }
     await this.assertPreviewFence(actor,row,sourceId,source.revision);
     return{sourceId,sourceRevision:source.revision,window,pageCount,totalCount:events.length,events:events.sort((a,b)=>a.start.localeCompare(b.start)).slice(0,25).map((event)=>({title:event.title,start:event.start,end:event.end,allDay:event.allDay,status:event.cancelled?'cancelled':event.status??'unknown',location:event.location??null}))};
@@ -559,7 +519,7 @@ export class CalendarService{
       const eventMap=new Map<string,{events:CalendarProviderEvent[];window:{from:string;to:string}}>(),failedSources=new Map<string,string>(),aad=calendarAad(row.household_id,row.id,row.owner_account_id);let snapshotBytes=0;
       if(row.provider==='ics'){
         const secret=JSON.parse(await this.vault.decrypt(aad,row.credential_ciphertext!)) as StoredCredential;if(!secret.url)throw new DomainError('CONFLICT',409,{reason:'calendar_reauthorization_required'});
-        const text=await this.transport.fetchIcs(secret.url);snapshotBytes=Buffer.byteLength(text);if(snapshotBytes>SNAPSHOT_MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});if(sources[0]){const snapshotWindow=windowFor(this.now(),sources[0].sync_past_days,sources[0].sync_future_days);eventMap.set(sources[0].id,{events:parseIcsEvents(text,snapshotWindow),window:snapshotWindow});}pageCount=1;
+        const text=await this.transport.fetchIcs(secret.url);snapshotBytes=Buffer.byteLength(text);if(snapshotBytes>MAX_SUBSCRIPTION_BYTES)throw new DomainError('CALENDAR_ICS_TOO_LARGE',413,{reason:'calendar_ics_response_too_large',observedBytes:snapshotBytes,maxBytes:MAX_SUBSCRIPTION_BYTES});if(sources[0]){const snapshotWindow=windowFor(this.now(),sources[0].sync_past_days,sources[0].sync_future_days);eventMap.set(sources[0].id,{events:await parseIcsEvents(text,snapshotWindow),window:snapshotWindow});}pageCount=1;
       }else{
         const runtime=await this.runtimeFor(row);
         let secret=JSON.parse(await this.vault.decrypt(aad,row.credential_ciphertext!)) as StoredCredential;
@@ -570,7 +530,7 @@ export class CalendarService{
           const persisted=await pool.query('UPDATE calendar_connections SET credential_ciphertext=$2,access_expires_at=$3 WHERE id=$1 AND lease_token=$4 AND disconnected_at IS NULL RETURNING id',[row.id,await this.vault.encrypt(aad,JSON.stringify(secret)),refreshed.expiresAt,lease]);
           if(!persisted.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_sync_superseded'});
         }
-        for(const source of sources){const snapshotWindow=windowFor(this.now(),source.sync_past_days,source.sync_future_days);try{const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,secret.accessToken!,source.external_id,snapshotWindow,token,runtime));snapshotBytes+=pages.byteCount;if(snapshotBytes>SNAPSHOT_MAX_BYTES||eventCount+pages.items.length>SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});const canonical=pages.items.map((entry)=>isCalendarCancellationMarker(entry)?entry:canonicalEvent(entry));eventMap.set(source.id,{events:canonical,window:snapshotWindow});pageCount+=pages.pageCount;eventCount+=canonical.length;}catch(error){const reason=error instanceof DomainError?error.details?.reason:undefined,isGlobal=reason==='calendar_reauthorization_required'||reason==='calendar_client_configuration_invalid'||error instanceof DomainError&&error.status===413;if(row.provider!=='home_assistant'||isGlobal)throw error;failedSources.set(source.id,'CALENDAR_SOURCE_SYNC_FAILED');}}
+        for(const source of sources){const snapshotWindow=windowFor(this.now(),source.sync_past_days,source.sync_future_days);try{const pages=await this.allPages((token)=>this.transport.listEvents(row.provider,secret.accessToken!,source.external_id,snapshotWindow,token,runtime));snapshotBytes+=pages.byteCount;if(snapshotBytes>SNAPSHOT_MAX_BYTES||eventCount+pages.items.length>SNAPSHOT_MAX_ITEMS)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});const canonical=pages.items.map((entry)=>isCalendarCancellationMarker(entry)?entry:canonicalCalendarEvent(entry));eventMap.set(source.id,{events:canonical,window:snapshotWindow});pageCount+=pages.pageCount;eventCount+=canonical.length;}catch(error){const reason=error instanceof DomainError?error.details?.reason:undefined,isGlobal=reason==='calendar_reauthorization_required'||reason==='calendar_client_configuration_invalid'||error instanceof DomainError&&error.status===413;if(row.provider!=='home_assistant'||isGlobal)throw error;failedSources.set(source.id,'CALENDAR_SOURCE_SYNC_FAILED');}}
       }
       if(row.provider==='ics')for(const values of eventMap.values())eventCount+=values.events.length;
       await transaction(async(client)=>{
@@ -603,6 +563,40 @@ export class CalendarService{
     const connectionErrorCode=row.owner_authorized?row.last_error_code:'CALENDAR_AUTHORIZATION_UNAVAILABLE';
     const connectionMakesSourcesStale=!row.owner_authorized||Boolean(row.disconnected_at)||!(['connected','syncing'].includes(row.state)||(row.state==='error'&&row.last_error_code==='CALENDAR_PARTIAL_SYNC_FAILED'));
     return{id:row.id,provider:row.provider,bridgeKind:row.bridge_kind,name:row.name,state:row.owner_authorized?row.state:'expired',accountLabel:row.account_label,grantedScopes:row.granted_scopes,revision:row.revision,syncIntervalMinutes:row.sync_interval_minutes??15,ownerAccountId:row.owner_account_id,canShare,replacementRequired:Boolean(row.replacement_required),replacesConnectionId:row.replaces_connection_id??null,lastSyncStartedAt:row.last_sync_started_at?.toISOString()??null,lastSyncSucceededAt:row.last_sync_succeeded_at?.toISOString()??null,nextSyncAt:row.owner_authorized?row.next_sync_at?.toISOString()??null:null,errorCode:connectionErrorCode,disconnectedAt:row.disconnected_at?.toISOString()??null,sources:sources.rows.map((source:any)=>({id:source.id,externalId:source.external_id,name:source.name,displayName:source.display_name,enabled:source.enabled,bridgeKind:source.bridge_kind,sourceIdentityKind:source.source_provenance?.identityKind??(row.provider==='home_assistant'?'entity':'provider'),purpose:source.purpose,available:source.available,freshness:connectionMakesSourcesStale||!source.available||source.last_error_code?'stale':source.last_sync_succeeded_at?'current':'pending',lastDiscoveredAt:source.last_discovered_at?.toISOString()??null,lastSyncSucceededAt:source.last_sync_succeeded_at?.toISOString()??null,errorCode:source.last_error_code??(connectionMakesSourcesStale?connectionErrorCode:null),lastCompleteWindow:source.last_complete_window_from&&source.last_complete_window_to?{from:source.last_complete_window_from.toISOString(),to:source.last_complete_window_to.toISOString()}:null,syncWindowDays:{past:source.sync_past_days,future:source.sync_future_days},sourceProvenance:source.source_provenance,sourceWarning:source.source_provenance?.warning??null,appliesTo:{household:source.subject_household,personIds:source.subject_person_ids},visibility:{household:source.target_household,personIds:source.reader_person_ids,displayIds:source.display_ids},revision:source.revision})),temperatureSensors:sensors.rows.map((sensor:any)=>({id:sensor.id,externalId:sensor.external_id,entityId:sensor.entity_id,identityKind:sensor.identity_kind,name:sensor.name,displayName:sensor.display_name,enabled:sensor.enabled,order:sensor.display_order,available:sensor.available,validatedAt:sensor.last_validated_at?.toISOString()??null,value:sensor.last_value===null||sensor.last_successful_poll_at===null?null:Number(sensor.last_value),unit:sensor.last_successful_poll_at===null?sensor.native_unit:sensor.last_unit??sensor.native_unit,status:sensor.status,freshness:sensor.status==='current'?'current':sensor.status==='inactive'?'inactive':'stale',lastReportedAt:sensor.last_reported_at?.toISOString()??null,lastUpdatedAt:sensor.last_updated_at?.toISOString()??null,lastFetchedAt:sensor.last_fetched_at?.toISOString()??null,lastSuccessfulPollAt:sensor.last_successful_poll_at?.toISOString()??null,errorCode:sensor.last_error_code,visibility:{household:sensor.target_household,personIds:sensor.reader_person_ids,displayIds:sensor.display_ids},revision:sensor.revision}))};
+  }
+  async getIcsSubscriptionUrl(actor:CalendarActor,id:string):Promise<{icsUrl:string;revision:number}>{
+    const row=await this.row(actor,id),manager=await this.authorize(actor,row);
+    if(!manager)throw new DomainError('FORBIDDEN',403);
+    if(row.provider!=='ics'||!row.credential_ciphertext||row.disconnected_at)throw new DomainError('NOT_FOUND',404);
+    const credential=JSON.parse(await this.vault.decrypt(calendarAad(row.household_id,row.id,row.owner_account_id),row.credential_ciphertext)) as StoredCredential;
+    if(typeof credential.url!=='string')throw new DomainError('CONFLICT',409,{reason:'calendar_ics_url_unavailable'});
+    await transaction(async(client)=>{
+      const current=(await client.query<ConnectionRow>(`SELECT connection.*,household.installation_id FROM calendar_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1 AND connection.household_id=$2 AND connection.disconnected_at IS NULL FOR SHARE OF connection`,[id,actor.householdId])).rows[0];
+      if(!current||current.revision!==row.revision||current.sync_generation!==row.sync_generation||current.credential_ciphertext!==row.credential_ciphertext)throw new DomainError('REVISION_CONFLICT',409);
+      await this.assertCalendarManagerFence(client,actor,current);
+    });
+    return{icsUrl:normalizeSecretSubscriptionUrl(credential.url),revision:row.revision};
+  }
+  async updateIcsSubscriptionUrl(actor:CalendarActor,id:string,input:{expectedRevision:number;icsUrl:string}){
+    const normalizedUrl=normalizeSecretSubscriptionUrl(input.icsUrl);
+    const revision=await transaction(async(client)=>{
+      const current=(await client.query<ConnectionRow>(`SELECT connection.*,household.installation_id FROM calendar_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1 AND connection.household_id=$2 AND connection.disconnected_at IS NULL FOR UPDATE OF connection`,[id,actor.householdId])).rows[0];
+      if(!current)throw new DomainError('NOT_FOUND',404);
+      const manager=await this.authorize(actor,current,client);if(!manager)throw new DomainError('FORBIDDEN',403);
+      if(current.provider!=='ics')throw new DomainError('NOT_FOUND',404);
+      if(current.revision!==input.expectedRevision)throw new DomainError('REVISION_CONFLICT',409);
+      await this.assertCalendarManagerFence(client,actor,current);
+      const encrypted=await this.vault.encrypt(calendarAad(current.household_id,current.id,current.owner_account_id),JSON.stringify({url:normalizedUrl}));
+      const next=current.revision+1;
+      const changed=await client.query(`UPDATE calendar_connections SET credential_ciphertext=$3,state='error',revision=$4,sync_generation=sync_generation+1,next_sync_at=CASE WHEN EXISTS(SELECT 1 FROM calendar_sources WHERE connection_id=$1 AND enabled) THEN clock_timestamp()+make_interval(mins=>GREATEST(15,sync_interval_minutes)) ELSE NULL END,last_error_code='CALENDAR_ICS_URL_CHANGED',lease_token=NULL,lease_expires_at=NULL,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$5 AND provider='ics' AND disconnected_at IS NULL RETURNING revision`,[id,actor.householdId,encrypted,next,input.expectedRevision]);
+      if(!changed.rowCount)throw new DomainError('REVISION_CONFLICT',409);
+      await client.query(`UPDATE calendar_sources SET last_error_code='CALENDAR_ICS_URL_CHANGED',updated_at=clock_timestamp() WHERE connection_id=$1 AND enabled`,[id]);
+      await client.query(`UPDATE integration_items SET metadata=jsonb_set(jsonb_set(metadata,'{calendar,freshness}','"stale"'::jsonb,true),'{calendar,freshnessReason}','"subscription_changed"'::jsonb,true),revision=revision+1,updated_at=clock_timestamp() WHERE connection_id=(SELECT integration_connection_id FROM calendar_connections WHERE id=$1) AND status='active' AND metadata ? 'calendar' AND (metadata #>> '{calendar,freshness}' IS DISTINCT FROM 'stale' OR metadata #>> '{calendar,freshnessReason}' IS DISTINCT FROM 'subscription_changed')`,[id]);
+      await client.query(`UPDATE calendar_sync_attempts SET outcome='failed',error_code='CALENDAR_SYNC_SUPERSEDED',completed_at=clock_timestamp() WHERE connection_id=$1 AND outcome='started'`,[id]);
+      await this.audit(client,actor,'calendar.ics_subscription_updated',id,{provider:'ics',urlChanged:true});
+      return Number(changed.rows[0]!.revision);
+    });
+    return{connection:await this.get(actor,id),revision};
   }
   async list(actor:CalendarActor){const canShare=await this.authorize(actor);const ids=await pool.query<{id:string}>(`SELECT id FROM calendar_connections WHERE household_id=$1 AND ($2::boolean OR owner_account_id=$3) ORDER BY created_at,id`,[actor.householdId,canShare,actor.accountId]);return Promise.all(ids.rows.map((row)=>this.get(actor,row.id)));}
   private async row(actor:CalendarActor,id:string,client:DbClient=pool){const row=(await client.query<ConnectionRow>('SELECT connection.*,household.installation_id FROM calendar_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1 AND connection.household_id=$2',[id,actor.householdId])).rows[0];if(!row)throw new DomainError('NOT_FOUND',404);return row;}
@@ -672,6 +666,10 @@ export class CalendarService{
   }
   private async assertInteractiveFence(client:DbClient,actor:CalendarActor,row:ConnectionRow,reason:string,allowedState:'connected'|'syncing'|'temperature'):Promise<void>{
     const current=await client.query(`SELECT 1 FROM calendar_connections connection JOIN households household ON household.id=connection.household_id JOIN integration_connections authority ON authority.id=connection.integration_connection_id AND authority.household_id=connection.household_id AND authority.revoked_at IS NULL JOIN memberships owner_membership ON owner_membership.account_id=connection.owner_account_id AND owner_membership.household_id=connection.household_id AND owner_membership.capabilities ? 'household.view' JOIN persons owner_person ON owner_person.id=owner_membership.person_id AND owner_person.household_id=owner_membership.household_id AND owner_person.age_group='adult' JOIN accounts owner_account ON owner_account.id=connection.owner_account_id AND owner_account.disabled_at IS NULL JOIN sessions actor_session ON actor_session.id=$9 AND actor_session.account_id=$10 AND actor_session.revoked_at IS NULL AND actor_session.expires_at>clock_timestamp() JOIN memberships actor_membership ON actor_membership.id=$11 AND actor_membership.account_id=actor_session.account_id AND actor_membership.household_id=$12 AND actor_membership.capabilities ? 'household.view' JOIN persons actor_person ON actor_person.id=actor_membership.person_id AND actor_person.household_id=actor_membership.household_id AND actor_person.age_group='adult' JOIN accounts actor_account ON actor_account.id=actor_session.account_id AND actor_account.disabled_at IS NULL WHERE connection.id=$1 AND connection.household_id=$2 AND connection.owner_account_id=$3 AND connection.revision=$4 AND connection.sync_generation=$5 AND connection.provider_config_revision=$6 AND connection.provider_client_id_hash IS NOT DISTINCT FROM $7 AND connection.credential_ciphertext IS NOT NULL AND connection.disconnected_at IS NULL AND (actor_session.account_id=connection.owner_account_id OR actor_membership.capabilities ? 'household.manage') AND (($8='syncing' AND connection.state='syncing') OR ($8='temperature' AND connection.state IN ('connected','error')) OR ($8='connected' AND (connection.state='connected' OR (connection.state='error' AND connection.last_error_code='CALENDAR_PARTIAL_SYNC_FAILED')))) AND (EXISTS(SELECT 1 FROM installation_calendar_provider_configs provider WHERE provider.installation_id=household.installation_id AND provider.provider=connection.provider AND provider.status='active' AND provider.revision=connection.provider_config_revision AND provider.client_id_hash=connection.provider_client_id_hash) OR (connection.provider_config_revision=0 AND NOT EXISTS(SELECT 1 FROM installation_calendar_provider_configs provider WHERE provider.installation_id=household.installation_id AND provider.provider=connection.provider))) FOR SHARE OF connection,authority,owner_membership,owner_person,owner_account,actor_session,actor_membership,actor_person,actor_account`,[row.id,row.household_id,row.owner_account_id,row.revision,row.sync_generation,row.provider_config_revision,row.provider_client_id_hash,allowedState,actor.sessionId,actor.accountId,actor.membershipId,actor.householdId]);if(!current.rowCount)throw new DomainError('CONFLICT',409,{reason});
+  }
+  private async assertCalendarManagerFence(client:DbClient,actor:CalendarActor,row:ConnectionRow):Promise<void>{
+    const current=await client.query(`SELECT 1 FROM calendar_connections connection JOIN households household ON household.id=connection.household_id JOIN integration_connections authority ON authority.id=connection.integration_connection_id AND authority.household_id=connection.household_id AND authority.revoked_at IS NULL JOIN memberships owner_membership ON owner_membership.account_id=connection.owner_account_id AND owner_membership.household_id=connection.household_id AND owner_membership.capabilities ? 'household.view' JOIN persons owner_person ON owner_person.id=owner_membership.person_id AND owner_person.household_id=owner_membership.household_id AND owner_person.age_group='adult' JOIN accounts owner_account ON owner_account.id=connection.owner_account_id AND owner_account.disabled_at IS NULL JOIN sessions actor_session ON actor_session.id=$5 AND actor_session.account_id=$6 AND actor_session.revoked_at IS NULL AND actor_session.expires_at>clock_timestamp() JOIN memberships actor_membership ON actor_membership.id=$7 AND actor_membership.account_id=actor_session.account_id AND actor_membership.household_id=$8 AND actor_membership.capabilities ? 'household.manage' JOIN persons actor_person ON actor_person.id=actor_membership.person_id AND actor_person.household_id=actor_membership.household_id AND actor_person.age_group='adult' JOIN accounts actor_account ON actor_account.id=actor_session.account_id AND actor_account.disabled_at IS NULL WHERE connection.id=$1 AND connection.household_id=$2 AND connection.revision=$3 AND connection.sync_generation=$4 AND connection.provider='ics' AND connection.disconnected_at IS NULL FOR SHARE OF connection,authority,owner_membership,owner_person,owner_account,actor_session,actor_membership,actor_person,actor_account`,[row.id,row.household_id,row.revision,row.sync_generation,actor.sessionId,actor.accountId,actor.membershipId,actor.householdId]);
+    if(!current.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_manager_authorization_superseded'});
   }
   private async assertPreviewFence(actor:CalendarActor,row:ConnectionRow,sourceId:string,sourceRevision:number):Promise<void>{await transaction(async(client)=>{await this.assertInteractiveFence(client,actor,row,'calendar_preview_superseded','connected');const current=await client.query(`SELECT 1 FROM calendar_sources source WHERE source.id=$1 AND source.connection_id=$2 AND source.household_id=$3 AND source.revision=$4 FOR SHARE`,[sourceId,row.id,row.household_id,sourceRevision]);if(!current.rowCount)throw new DomainError('CONFLICT',409,{reason:'calendar_preview_superseded'});});}
   private async allPages<T>(fn:(token?:string)=>Promise<CalendarPage<T>>,maxItems=SNAPSHOT_MAX_ITEMS):Promise<{items:T[];pageCount:number;byteCount:number}>{const items:T[]=[];let token:string|undefined,pageCount=0,byteCount=0;const seen=new Set<string>();do{const page=await fn(token);if(!Array.isArray(page.items))throw invalidProviderResponse();pageCount++;byteCount+=page.responseBytes??Buffer.byteLength(JSON.stringify(page.items));if(items.length+page.items.length>maxItems||byteCount>SNAPSHOT_MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});items.push(...page.items);token=page.nextPageToken;if(token){if(pageCount>=100)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413,{reason:'calendar_snapshot_too_large'});if(typeof token!=='string'||token.length>8192||seen.has(token))throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502,{reason:'calendar_provider_response_invalid'});seen.add(token);}}while(token);return{items,pageCount,byteCount};}
