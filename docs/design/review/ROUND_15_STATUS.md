@@ -63,3 +63,7 @@ eller hemmeligheter er lagt til i kilde- eller dokumentasjonsfilene.
 ## Nyeste lokale checkpoint
 
 Skjerm-/ICS-flyten er integrert i `d4490a5`, Next/historikk i `cd53080`, og skjermforhåndsvisningens kontekst i `e21e1b8`. Sikkerhetsreview av Next-rettingen er PASS. Home-komposisjon, tomme seksjoner og skoleferskhet er nå implementert; 19 målrettede tester og web-typekontroll bestod. Hovedagenten kjørte hele webpakken etter integrasjon: 164/164, ingen feil/skips. Faktisk geometri, før/etterbilder, samlet slutt-QA, backup/restore og offentlig R15-publisering gjenstår. Offentlig drift er fortsatt R14.
+
+## Pågående utvidelse 16–19
+
+Brukeren utvidet samme mål etter at tidligere utviklingspakke var implementert og 546 tester bestod. Nye issues 16–19 er lest; krav og ansvar er lagt til i samme matrise. Pågående capture-/opsforberedelser bevares, men er ikke sluttgodkjent for den utvidede kandidaten. Offentlig drift er fortsatt R14, uendret. Skrivearbeid fortsetter sekvensielt: A ICS, B skjermbackend, C skjerm-UI, D logoressurser; fagreview og lokalt QA følger integrasjon. R14-fallback må erstattes med ny policykompatibel gjenoppretting før 043/044 tas i drift.
