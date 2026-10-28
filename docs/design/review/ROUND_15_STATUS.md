@@ -4,6 +4,31 @@ Status: lokalt arbeid pågår, 28. oktober 2026. Kravgrunnlaget er
 [ROUND_15_REQUIREMENTS.md](ROUND_15_REQUIREMENTS.md). Dette er en kontrollert
 mellomstatus; samlet QA, release gate og offentlig testpublisering gjenstår.
 
+## Nyeste kontrollpunkt: asynkron skjermtilgang rettet
+
+Den avgrensede sterkere rettingen er implementert. Innløsning, eksplisitt
+frakobling, felles kildeidentitet og cacheendringer koordineres gjennom samme
+nettleserlås. Gamle svar, ACK-er og alle SSE-callbacks kontrollerer både lokal
+generasjon og gjeldende felles kilde. Vellykket innløsning publiserer skjerm-ID
+før låsen frigjøres; en ventende gammel frakobling sender ikke POST mot ny
+legitimasjon. Forsinkede hendelser kan ikke bare slette en nyere cache.
+
+Kjent tilgangsendring under henting (409) skjuler gammelt innhold med én
+avgrenset straksretry, uten ny paring. Anonym førstegangs-401 klassifiseres
+som ukoblet, ikke som bekreftet tilbakekalling. Nettverks-/kroppslesefeil blir
+status-0-feil; HTTP-status og tap av låseierskap beholdes separat. Disse
+påstandene er lokalt testet mot produksjonskoordinatoren med syntetiske data;
+faktisk flertab-/to-nettleserbevis gjenstår. Ingen absolutt garanti gis ved
+frosset/krasjet nettleser eller allerede levert Set-Cookie.
+
+Hovedagenten har kontrollert fullutskrifter, exit-koder og kildehasher:
+**389 API-tester og 199 webtester består**, uten skips. API-ens 170 oppføringers
+kildemanifest var likt før/etter og er fortsatt identisk etter frontendendringene.
+Web-typekontroll og fokuserte koordinator-/responsfeiltester består. Dette er
+ikke en samlet releasegodkjenning; faktiske appbilder, fagreview, gjenoppretting
+og offentlig publisering gjenstår. API- og webkodens verifiserte deltrær kan
+gjenbrukes uten ny fullkjøring dersom de ikke endres.
+
 ## Nyeste kontrollpunkt: leverandørlogoer #19
 
 Offisielle, uendrede lokale ressurser for Google Kalender, Outlook, Spond og

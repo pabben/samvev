@@ -1,6 +1,6 @@
 # M1 implementation status
 
-R15 nyeste lokale status: #16 og #17/#18 er implementert lokalt. Backend har 388 API-tester før siste klarstatusretting og 8 policytester etter den; UI har 32 målrettede tester og typekontroll. Sterkere asynkron tilgangsreview, #19, samlet slutt-QA, faktisk visuell kontroll, restore og offentlig R15-utrulling gjenstår. Offentlig source er fortsatt R14 `971913e`. Eksisterende HA-synk er eksternt hindret av et bekreftet utløpt sertifikat; runtimevernet er bevart. Se `docs/design/review/ROUND_15_STATUS.md` for bevis og begrensninger; eldre kontrollpunkter nedenfor er historikk.
+R15 nyeste lokale status: #16–#19 er implementert lokalt, inkludert rettinger etter sterkere asynkron klientreview. 389 API-tester, 199 webtester og web-typekontroll består; hovedagenten har verifisert logger og kildehasher. Faktisk flertab-/to-nettleser-QA, appbilder/visuell iterasjon, fagreview, 041→044 restore-gate og offentlig R15-publisering gjenstår. Offentlig source er fortsatt R14 `971913e`. Eksisterende HA-synk er eksternt hindret av et bekreftet utløpt sertifikat; runtimevernet er bevart. Se `docs/design/review/ROUND_15_STATUS.md` for bevis og begrensninger; eldre kontrollpunkter nedenfor er historikk.
 
 ## Round 15 active checkpoint — 2026-10-28
 

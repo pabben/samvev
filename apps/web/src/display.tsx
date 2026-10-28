@@ -44,42 +44,37 @@ import {
   type CacheClock,
   type CachedProjection,
 } from "./display-cache";
-import { isCurrentDisplaySource, isDisplayCacheForCurrentSource, isNewerDisplaySourceEvent, publishDisplaySourceEvent, readDisplaySourceEpoch, readDisplaySourceEvent, subscribeDisplaySourceEvents } from "./display-source-session";
-import { withDisplayRedeemLock } from "./display-redeem-lock";
-const CACHE = "samvev.display.projection.v1";
+import { isCurrentDisplaySource, isCurrentDisplayCallback, displayCredentialLossKnown, canCompleteDisplayPairing, isDisplayCacheForCurrentSource, sameDisplaySourceEvent, readDisplaySourceEvent, subscribeDisplaySourceEvents, type DisplaySourceEvent } from "./display-source-session";
+import { displaySourceCoordinator, DISPLAY_CACHE_KEY } from "./display-source-coordinator";
+const CACHE = DISPLAY_CACHE_KEY;
+type RuntimeSourceToken={displayId:string|null;epoch:number;generation:number;canonical:DisplaySourceEvent|null};
 function readCache(): {
   projection: Projection;
   clock: CacheClock;
   lastUpdated: string;
+  cacheValue:string;
+  sourceEvent:DisplaySourceEvent;
 } | null {
   try {
     const raw = localStorage.getItem(CACHE);
     if (!raw) return null;
     const value = JSON.parse(raw) as CachedProjection;
-    const source = readDisplaySourceEvent();
-    if (!Number.isSafeInteger(value.sourceEpoch) || !isDisplayCacheForCurrentSource({displayId:value.projection.display.id,epoch:value.sourceEpoch as number},source) || value.sourceEpoch !== readDisplaySourceEpoch()) {
-      localStorage.removeItem(CACHE);
+    const source = displaySourceCoordinator.read();
+    if (!Number.isSafeInteger(value.sourceEpoch) || !isDisplayCacheForCurrentSource({displayId:value.projection.display.id,epoch:value.sourceEpoch as number},source) || !sameDisplaySourceEvent(source,displaySourceCoordinator.read())) {
       return null;
     }
     const clock = restoreCache(value, Date.now(), performance.now());
     if (!clock) {
-      localStorage.removeItem(CACHE);
       return null;
     }
     return {
       projection: value.projection,
       clock,
       lastUpdated: value.lastUpdated,
+      cacheValue:raw,sourceEvent:source!,
     };
   } catch {
     return null;
-  }
-}
-function clearSaved() {
-  try {
-    localStorage.removeItem(CACHE);
-  } catch {
-    /* In-memory state is still cleared. */
   }
 }
 export function DisplayApp() {
@@ -100,8 +95,16 @@ function DisplayRuntime({
   const { t, locale } = useI18n();
   const [initialCache] = useState(readCache);
   const initial = useRef(initialCache);
-  const [sourceEpoch, setSourceEpoch] = useState(readDisplaySourceEpoch);
+  const initialSource=useRef(readDisplaySourceEvent());
+  if(initial.current&&!sameDisplaySourceEvent(initial.current.sourceEvent,initialSource.current))initial.current=null;
+  const [sourceEpoch, setSourceEpoch] = useState(initialSource.current?.epoch??0);
   const sourceEpochRef = useRef(sourceEpoch);
+  const sourceStateRef=useRef<DisplaySourceEvent|null>(initialSource.current);
+  const cacheReceipt=useRef<string|null>(initial.current?.cacheValue??null);
+  const refreshRef=useRef<(policyRetries?:number)=>Promise<void>>(async()=>{});
+  const refreshRetryBudget=useRef(1);
+  const [policyError,setPolicyError]=useState<unknown>();
+  const [coordinationError,setCoordinationError]=useState<unknown>();
   const sourceIdentity = useRef(initial.current?.projection.display.id ?? null);
   const sourceSwitching = useRef(false);
   const [projection, setProjection] = useState<Projection | null>(
@@ -116,7 +119,6 @@ function DisplayRuntime({
   const [streamDegraded, setStreamDegraded] = useState(false);
   const streamHealth = useRef(disconnected());
   const refreshAgain = useRef(false);
-  const refreshAuthorized = useRef(false);
   const [needsPair, setNeedsPair] = useState(false);
   const [revoked, setRevoked] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -147,145 +149,109 @@ function DisplayRuntime({
     setStreamLive(false);
     setStreamDegraded(false);
   }, []);
-  const clearLocalSource = useCallback((pairAgain: boolean, increment = true) => {
+  const captureSource=useCallback(():RuntimeSourceToken=>({displayId:sourceIdentity.current,epoch:sourceEpochRef.current,generation:generation.current,canonical:sourceStateRef.current}),[]);
+  const localCurrent=useCallback((expected:RuntimeSourceToken)=>mounted.current&&isCurrentDisplaySource({displayId:sourceIdentity.current,epoch:sourceEpochRef.current,generation:generation.current},expected)&&sameDisplaySourceEvent(sourceStateRef.current,expected.canonical),[]);
+  const clearLocalSource = useCallback((pairAgain: boolean,knownLoss=false,increment=true) => {
     if (increment) generation.current++;
-    refreshAgain.current = false;
-    setProjection(null);
-    clock.current = null;
-    clearSaved();
-    setCacheExpired(false);
-    setNeedsPair(pairAgain);
-    setRevoked(pairAgain);
-    onlineRef.current = false;
-    setOnline(false);
-    setStreamLive(false);
-    loseConnection();
-    acknowledged.current.clear();
-    eventSource.current?.close();
-    eventSource.current = null;
-    hasPaired.current = false;
+    refreshAgain.current = false;refreshRetryBudget.current=1;
+    setProjection(null);clock.current=null;cacheReceipt.current=null;
+    setCacheExpired(false);setNeedsPair(pairAgain);setRevoked(knownLoss);
+    onlineRef.current=false;setOnline(false);setStreamLive(false);loseConnection();
+    acknowledged.current.clear();eventSource.current?.close();eventSource.current=null;
+    hasPaired.current=false;
   }, [loseConnection]);
-  const clear = useCallback((expected?: { displayId: string|null; epoch:number; generation: number }) => {
-    if (expected && !isCurrentDisplaySource({displayId:sourceIdentity.current,epoch:sourceEpochRef.current,generation:generation.current},expected)) return;
-    const event = publishDisplaySourceEvent('revoked', sourceIdentity.current);
-    sourceEpochRef.current = event.epoch;
-    setSourceEpoch(event.epoch);
-    sourceIdentity.current = null;
-    clearLocalSource(true);
-  }, [clearLocalSource]);
-  const refresh: (authorizedSource?: boolean) => Promise<void> = useCallback(async (authorizedSource = false) => {
-    if (sourceSwitching.current) return;
-    if (requestActive.current) {
-      refreshAgain.current = true;
-      refreshAuthorized.current ||= authorizedSource;
-      return;
-    }
-    requestActive.current = true;
-    const current = generation.current;
-    const requestEpoch = streamHealth.current.epoch;
-    try {
-      const p = await api<Projection>("/display/projection");
-      if (!mounted.current || current !== generation.current) return;
-      if (authorizedSource || sourceIdentity.current !== p.display.id) {
-        const event = publishDisplaySourceEvent('authorized', p.display.id);
-        sourceEpochRef.current = event.epoch;
-        setSourceEpoch(event.epoch);
-        sourceIdentity.current = p.display.id;
+  const coordinationFailed=useCallback((cause:unknown,knownLoss=false)=>{
+    sourceSwitching.current=false;setCoordinationError(cause);clearLocalSource(true,knownLoss);setLoading(false);
+  },[clearLocalSource]);
+  const isSourceCurrent=useCallback((expected:RuntimeSourceToken)=>{
+    if(!localCurrent(expected))return false;
+    try{return isCurrentDisplayCallback(captureSource(),expected,displaySourceCoordinator.read());}catch(cause){coordinationFailed(cause);return false;}
+  },[localCurrent,captureSource,coordinationFailed]);
+  const adoptCanonical=useCallback((event:DisplaySourceEvent|null)=>{
+    if(sameDisplaySourceEvent(event,sourceStateRef.current))return false;
+    sourceStateRef.current=event;sourceEpochRef.current=event?.epoch??0;setSourceEpoch(event?.epoch??0);
+    sourceIdentity.current=event?.kind==='authorized'?event.displayId:null;sourceSwitching.current=false;
+    if(event?.kind==='revoked'&&!event.displayId)setCoordinationError(new Error('display_source_uncertain'));
+    clearLocalSource(event?.kind==='revoked',event?.kind==='revoked'&&Boolean(event.displayId));
+    setLoading(event?.kind==='authorized');return true;
+  },[clearLocalSource]);
+  const reconcileSource=useCallback(()=>{
+    try{const current=displaySourceCoordinator.read();adoptCanonical(current);return current;}
+    catch(cause){coordinationFailed(cause);return undefined;}
+  },[adoptCanonical,coordinationFailed]);
+  const clear = useCallback(async(expected:RuntimeSourceToken)=>{
+    if(!localCurrent(expected))return;
+    const knownLoss=displayCredentialLossKnown(expected.canonical,hasPaired.current);
+    try{
+      const result=await displaySourceCoordinator.revoke(expected.canonical,()=>localCurrent(expected));
+      if(!localCurrent(expected))return;
+      if(!result.applied){adoptCanonical(result.event);if(result.event?.kind==='authorized')void refreshRef.current();return;}
+      sourceStateRef.current=result.event;sourceEpochRef.current=result.event?.epoch??0;setSourceEpoch(result.event?.epoch??0);sourceIdentity.current=null;
+      clearLocalSource(true,knownLoss);setLoading(false);
+    }catch(cause){coordinationFailed(cause,knownLoss);}
+  },[localCurrent,adoptCanonical,clearLocalSource,coordinationFailed]);
+  const refresh:(policyRetries?:number)=>Promise<void>=useCallback(async(policyRetries=1)=>{
+    if(sourceSwitching.current)return;
+    if(requestActive.current){refreshAgain.current=true;refreshRetryBudget.current=Math.min(refreshRetryBudget.current,policyRetries);return;}
+    if(reconcileSource()===undefined)return;
+    requestActive.current=true;
+    const expected=captureSource(),requestEpoch=streamHealth.current.epoch;
+    try{
+      const p=await api<Projection>('/display/projection');
+      const receivedAt=Date.now(),receivedMonotonic=performance.now();
+      if(!isSourceCurrent(expected)){if(localCurrent(expected)){const event=reconcileSource();refreshAgain.current=event?.kind==='authorized';}return;}
+      const committed=await displaySourceCoordinator.saveProjection(expected.canonical,{projection:p,savedAt:receivedAt,lastUpdated:p.generatedAt},()=>localCurrent(expected));
+      if(!localCurrent(expected))return;
+      if(!committed.applied||!displaySourceCoordinator.current(committed.event)){adoptCanonical(displaySourceCoordinator.read());refreshAgain.current=true;return;}
+      if(!sameDisplaySourceEvent(committed.event,sourceStateRef.current))adoptCanonical(committed.event);
+      if(committed.event?.kind==='authorized')sourceIdentity.current=committed.event.displayId;
+      const serverAt=Date.parse(p.serverNow);
+      const nextClock={serverAt,monotonicAt:receivedMonotonic,deadline:Math.min(Date.parse(p.cacheUntil),serverAt+900000)};
+      if(!Number.isFinite(serverAt)||!Number.isFinite(nextClock.deadline)||serverTime(nextClock,performance.now())>=nextClock.deadline){setCacheExpired(true);setLoading(false);return;}
+      clock.current=nextClock;cacheReceipt.current=committed.cacheValue??null;hasPaired.current=true;
+      setProjection(p);setCacheExpired(false);setCoordinationError(undefined);setPolicyError(undefined);
+      streamHealth.current=projectionRecovered(streamHealth.current,requestEpoch);setStreamLive(streamHealth.current.phase==='live');
+      setPrefs({locale:p.display.locale,theme:p.display.theme});setLastUpdated(p.generatedAt);
+      setOnline(true);onlineRef.current=true;setNeedsPair(false);setRevoked(false);
+    }catch(cause){
+      if(!localCurrent(expected))return;
+      if(!isSourceCurrent(expected)){const event=reconcileSource();refreshAgain.current=event?.kind==='authorized';return;}
+      setOnline(false);onlineRef.current=false;
+      if((cause as ApiError).status===409){
+        const invalidCache=cacheReceipt.current;clearLocalSource(false,false);const policyGeneration=generation.current;
+        try{
+          const result=await displaySourceCoordinator.policyChanged(expected.canonical,invalidCache,policyRetries,()=>mounted.current&&generation.current===policyGeneration);
+          if(!mounted.current||generation.current!==policyGeneration)return;
+          if(!result.applied){adoptCanonical(result.event);refreshAgain.current=result.event?.kind==='authorized';return;}
+          if(result.retryBudget!==null){refreshAgain.current=true;refreshRetryBudget.current=result.retryBudget;setLoading(true);}
+          else{refreshAgain.current=false;refreshRetryBudget.current=1;setPolicyError(new Error('display_policy_changed'));}
+        }catch(failure){if(mounted.current&&generation.current===policyGeneration)setPolicyError(failure);}
       }
-      const serverAt = Date.parse(p.serverNow);
-      clock.current = {
-        serverAt,
-        monotonicAt: performance.now(),
-        deadline: Math.min(Date.parse(p.cacheUntil), serverAt + 900000),
-      };
-      hasPaired.current = true;
-      setProjection(p);
-      setCacheExpired(false);
-      streamHealth.current = projectionRecovered(
-        streamHealth.current,
-        requestEpoch,
-      );
-      setStreamLive(streamHealth.current.phase === "live");
-      setPrefs({ locale: p.display.locale, theme: p.display.theme });
-      setLastUpdated(p.generatedAt);
-      setOnline(true);
-      onlineRef.current = true;
-      setNeedsPair(false);
-      setRevoked(false);
-      try {
-        localStorage.setItem(
-          CACHE,
-          JSON.stringify({
-            projection: p,
-            savedAt: Date.now(),
-            lastUpdated: p.generatedAt,
-            sourceEpoch: sourceEpochRef.current,
-          }),
-        );
-      } catch {
-        /* Storage may be disabled; runtime cache remains bounded. */
-      }
-    } catch (e) {
-      if (!mounted.current || current !== generation.current) return;
-      setOnline(false);
-      onlineRef.current = false;
-      if ([401, 403].includes((e as ApiError).status)) clear();
-    } finally {
-      requestActive.current = false;
-      if (mounted.current) {
-        setLoading(false);
-        if (refreshAgain.current) {
-          refreshAgain.current = false;
-          const authorized = refreshAuthorized.current;
-          refreshAuthorized.current = false;
-          queueMicrotask(() => void refresh(authorized));
-        }
-      }
+      else if([401,403].includes((cause as ApiError).status))await clear(expected);
+      else if(!(cause instanceof ApiError))coordinationFailed(cause);
+    }finally{
+      requestActive.current=false;
+      if(mounted.current){setLoading(false);if(refreshAgain.current){refreshAgain.current=false;const budget=refreshRetryBudget.current;refreshRetryBudget.current=1;queueMicrotask(()=>void refreshRef.current(budget));}}
     }
-  }, [clear, setPrefs]);
-  const disconnectForReconnect = useCallback(async () => {
-    if (disconnectBusy || !online || sourceSwitching.current) return;
-    sourceSwitching.current = true;
-    setDisconnectBusy(true);
-    setDisconnectError(undefined);
-    const oldDisplayId = sourceIdentity.current ?? projection?.display.id ?? null;
-    const requestGeneration = ++generation.current;
-    refreshAgain.current = false;
-    eventSource.current?.close();
-    eventSource.current = null;
-    try {
-      await api('/display/disconnect', 'POST', {});
-      if (requestGeneration !== generation.current) return;
-      const event = publishDisplaySourceEvent('revoked', oldDisplayId);
-      sourceEpochRef.current = event.epoch;
-      setSourceEpoch(event.epoch);
-      sourceIdentity.current = null;
-      sourceSwitching.current = false;
-      clearLocalSource(true, false);
-      setOptions(false);
-    } catch (cause) {
-      if (requestGeneration === generation.current) {
-        sourceSwitching.current = false;
-        generation.current++;
-        setDisconnectError(cause);
-        void refresh();
-      }
-    } finally {
-      setDisconnectBusy(false);
-    }
-  }, [disconnectBusy, online, projection?.display.id, clearLocalSource, refresh]);
-  useEffect(() => subscribeDisplaySourceEvents(event => {
-    if (!isNewerDisplaySourceEvent(sourceEpochRef.current, event)) return;
-    sourceEpochRef.current = event.epoch;
-    setSourceEpoch(event.epoch);
-    sourceSwitching.current = false;
-    sourceIdentity.current = event.kind === 'authorized' ? event.displayId : null;
-    clearLocalSource(event.kind === 'revoked');
-    if (event.kind === 'authorized') {
-      setLoading(true);
-      void refresh();
-    }
-  }), [clearLocalSource, refresh]);
+  },[captureSource,localCurrent,isSourceCurrent,reconcileSource,adoptCanonical,clear,clearLocalSource,coordinationFailed,setPrefs]);
+  refreshRef.current=refresh;
+  const disconnectForReconnect=useCallback(async()=>{
+    if(disconnectBusy||!online||sourceSwitching.current)return;
+    sourceSwitching.current=true;setDisconnectBusy(true);setDisconnectError(undefined);
+    clearLocalSource(false,false);const expected=captureSource();
+    try{
+      const result=await displaySourceCoordinator.disconnect(expected.canonical,signal=>api('/display/disconnect','POST',{}, {signal}),()=>localCurrent(expected));
+      if(!localCurrent(expected))return;
+      sourceSwitching.current=false;
+      if(!result.applied){adoptCanonical(result.event);if(result.event?.kind==='authorized')void refreshRef.current();return;}
+      sourceStateRef.current=result.event;sourceEpochRef.current=result.event?.epoch??0;setSourceEpoch(result.event?.epoch??0);sourceIdentity.current=null;
+      clearLocalSource(true,Boolean(expected.canonical?.displayId));setOptions(false);
+    }catch(cause){if(localCurrent(expected)){sourceSwitching.current=false;setDisconnectError(cause);if(cause instanceof ApiError)void refreshRef.current();else coordinationFailed(cause);}}
+    finally{setDisconnectBusy(false);}
+  },[disconnectBusy,online,clearLocalSource,captureSource,localCurrent,adoptCanonical,coordinationFailed]);
+  useEffect(()=>subscribeDisplaySourceEvents(()=>{
+    const event=reconcileSource();if(event?.kind==='authorized')void refreshRef.current();
+  }),[reconcileSource]);
   useEffect(() => {
     mounted.current = true;
     void refresh();
@@ -300,7 +266,8 @@ function DisplayRuntime({
       ) {
         setProjection(null);
         clock.current = null;
-        clearSaved();
+        const expiredCache=cacheReceipt.current;cacheReceipt.current=null;
+        if(expiredCache)void displaySourceCoordinator.removeCache(sourceStateRef.current,expiredCache).catch(cause=>coordinationFailed(cause));
         setCacheExpired(true);
         setOnline(false);
         onlineRef.current = false;
@@ -311,7 +278,7 @@ function DisplayRuntime({
       onlineRef.current = false;
       setOnline(false);
       loseConnection();
-      eventSource.current?.close();
+      eventSource.current?.close();eventSource.current=null;
     };
     const online = () => {
       loseConnection();
@@ -330,16 +297,15 @@ function DisplayRuntime({
   }, [refresh, loseConnection]);
   useEffect(() => {
     if (!projection || needsPair) return;
-    const streamDisplayId = projection.display.id;
-    const streamSourceEpoch = sourceEpochRef.current;
-    const streamGeneration = generation.current;
+    const expected=captureSource();
     const source = new EventSource("/api/v1/display/events");
     eventSource.current = source;
+    const currentStream=()=>eventSource.current===source&&isSourceCurrent(expected);
     const signal = (
       kind: "ready" | "heartbeat" | "listener-degraded" | "listener-restored",
       event: Event,
     ) => {
-      if (eventSource.current !== source) return;
+      if (!currentStream()) return;
       let payload: StreamSignal = {};
       try {
         payload = JSON.parse((event as MessageEvent).data);
@@ -357,17 +323,17 @@ function DisplayRuntime({
     source.addEventListener("listener-restored", (event) =>
       signal("listener-restored", event),
     );
-    source.addEventListener("projection-invalidated", () => void refresh());
-    source.addEventListener("authorization-revoked", () => clear({ displayId: streamDisplayId, epoch:streamSourceEpoch, generation: streamGeneration }));
+    source.addEventListener("projection-invalidated", () => {if(currentStream())void refresh();});
+    source.addEventListener("authorization-revoked", () => {if(currentStream())void clear(expected);});
     source.onerror = () => {
+      if(!currentStream())return;
       streamHealth.current = streamSignal(streamHealth.current, "error");
       setStreamLive(false);
       void refresh();
     };
     return () => {
       source.close();
-      loseConnection();
-      eventSource.current = null;
+      if(eventSource.current===source){loseConnection();eventSource.current=null;}
     };
   }, [
     projection?.display.id,
@@ -375,7 +341,7 @@ function DisplayRuntime({
     clear,
     refresh,
     loseConnection,
-    streamEpoch,
+    streamEpoch,sourceEpoch,captureSource,isSourceCurrent,
   ]);
   const cards =
     projection && clock.current
@@ -389,10 +355,11 @@ function DisplayRuntime({
   useEffect(() => {
     if (!online || !projection || !clock.current) return;
     let cancelled = false;
+    const expected=captureSource(),ackClock=clock.current;
     const frame = requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         if (
-          cancelled ||
+          cancelled || !isSourceCurrent(expected) ||
           !onlineRef.current ||
           document.visibilityState !== "visible"
         )
@@ -419,11 +386,12 @@ function DisplayRuntime({
             cardId: card.id,
             revision: card.revision,
             renderedAt: new Date(
-              serverTime(clock.current!, performance.now()),
+              serverTime(ackClock, performance.now()),
             ).toISOString(),
           }).catch((e) => {
+            if(!isSourceCurrent(expected))return;
             acknowledged.current.delete(key);
-            if ((e as ApiError).status === 401) clear();
+            if ([401,403].includes((e as ApiError).status))void clear(expected);
           });
         }
       });
@@ -436,7 +404,7 @@ function DisplayRuntime({
     cards.map((c) => `${c.id}:${c.revision}`).join(","),
     online,
     projection?.display.id,
-    tick,
+    tick,sourceEpoch,captureSource,isSourceCurrent,clear,
   ]);
   const hub = projection && clock.current ? currentHub(projection, clock.current, performance.now()) : undefined;
   const selectedCards=projection?.setup?.cardOrder??[];
@@ -454,10 +422,10 @@ function DisplayRuntime({
     {groceries:projection.householdBoards?.readable?.groceries===true,dinners:projection.householdBoards?.readable?.dinners===true},
     {groceries:online&&!projection.display.privacyMode&&projection.householdBoards?.writable?.groceries===true,dinners:online&&!projection.display.privacyMode&&projection.householdBoards?.writable?.dinners===true}
   ):null,[projection?.display.id,projection?.display.privacyMode,projection?.householdBoards?.readable?.groceries,projection?.householdBoards?.readable?.dinners,projection?.householdBoards?.writable?.groceries,projection?.householdBoards?.writable?.dinners,online]);
-  const paired = useCallback(async () => {
-    generation.current++;
-    await refresh(true);
-  }, [refresh, loseConnection]);
+  const paired=useCallback(async(event:DisplaySourceEvent)=>{
+    try{if(!displaySourceCoordinator.current(event))return;adoptCanonical(event);setNeedsPair(false);setLoading(true);await refreshRef.current();}
+    catch(cause){coordinationFailed(cause);}
+  },[adoptCanonical,coordinationFailed]);
   if (needsPair)
     return (
       <Pairing
@@ -466,6 +434,8 @@ function DisplayRuntime({
         setPrefs={setPrefs}
         revoked={revoked}
         onPaired={paired}
+        sourceEvent={sourceStateRef.current}
+        sourceError={coordinationError}
       />
     );
   if (loading && !projection)
@@ -517,6 +487,7 @@ function DisplayRuntime({
         </button>
       </header>
       <main className="display-main">
+        {Boolean(policyError)&&<div><ErrorNotice error={policyError}/><button className="text-button" type="button" onClick={()=>void refreshRef.current()}>{t("retry")}</button></div>}
         {!familyDisplay && !hub && <div className="display-section-title">
           <div>
             <p className="eyebrow">{t("displayNow")}</p>
@@ -675,7 +646,7 @@ function DisplayRuntime({
           >
             {t("fullScreen")}
           </button>
-          <ErrorNotice error={disconnectError}/>
+          <ErrorNotice error={disconnectError??coordinationError}/>
           <p className="field-hint">{t("displayReconnectPhysicalHint")}</p>
           <button className="button danger" type="button" disabled={!online||disconnectBusy||!projection} onClick={()=>void disconnectForReconnect()}>{disconnectBusy?t("displayDisconnecting"):t("displayReconnectPhysical")}</button>
         </Dialog>
@@ -848,12 +819,13 @@ function Pairing({
   prefs,
   setPrefs,
   revoked,
-  onPaired,
+  onPaired,sourceEvent,sourceError,
 }: {
   prefs: Preferences;
   setPrefs: (p: Preferences) => void;
   revoked: boolean;
-  onPaired: () => Promise<void>;
+  onPaired: (event:DisplaySourceEvent) => Promise<void>;
+  sourceEvent:DisplaySourceEvent|null;sourceError:unknown;
 }) {
   const { t, locale } = useI18n();
   const { error, busy, run, setError } = useAction();
@@ -866,14 +838,17 @@ function Pairing({
   const [expired, setExpired] = useState(false);
   const redeemActive = useRef(false);
   const pollGeneration = useRef(0);
+  const startGeneration=useRef(0),pairMounted=useRef(true);
+  useEffect(()=>{pairMounted.current=true;return()=>{pairMounted.current=false;startGeneration.current++;};},[]);
   const generate = () =>
     void run(async () => {
+      const start=++startGeneration.current;
       const bytes = crypto.getRandomValues(new Uint8Array(32));
-      verifier.current = btoa(String.fromCharCode(...bytes))
+      const nextVerifier = btoa(String.fromCharCode(...bytes))
         .replaceAll("+", "-")
         .replaceAll("/", "_")
         .replaceAll("=", "");
-      const hash = sha256(new TextEncoder().encode(verifier.current));
+      const hash = sha256(new TextEncoder().encode(nextVerifier));
       const verifierHash = Array.from(hash, (b) =>
         b.toString(16).padStart(2, "0"),
       ).join("");
@@ -882,7 +857,8 @@ function Pairing({
         code: string;
         expiresAt: string;
       }>("/display/pairing/start", "POST", { verifierHash });
-      setPair(next);
+      if(!pairMounted.current||start!==startGeneration.current)return;
+      verifier.current=nextVerifier;setPair(next);
       setExpired(false);
     });
   useEffect(() => {
@@ -907,18 +883,12 @@ function Pairing({
         } else if (status.approved) {
           redeemActive.current = true;
           try {
-            const redeemed = await withDisplayRedeemLock(async signal => {
-              if (!active || currentPoll !== pollGeneration.current) return false;
-              if (Date.now() >= Date.parse(pair.expiresAt)) throw new Error("pairing_expired");
-              await api("/display/pairing/redeem", "POST", {
-                pairingId: pair.pairingId,
-                verifier: verifier.current,
-              }, { signal });
-              return true;
-            });
-            if (!redeemed) return;
-            verifier.current = "";
-            await onPaired();
+            const redeemed=await displaySourceCoordinator.redeem(sourceEvent,async signal=>{
+              if(Date.now()>=Date.parse(pair.expiresAt))throw new Error('pairing_expired');
+              return api<{id:string}>('/display/pairing/redeem','POST',{pairingId:pair.pairingId,verifier:verifier.current},{signal});
+            },()=>active&&pairMounted.current&&currentPoll===pollGeneration.current);
+            if(!redeemed.applied||!redeemed.event||!canCompleteDisplayPairing(redeemed.event,displaySourceCoordinator.read(),active&&pairMounted.current&&currentPoll===pollGeneration.current))return;
+            verifier.current='';await onPaired(redeemed.event);
           } finally {
             redeemActive.current = false;
           }
@@ -929,7 +899,7 @@ function Pairing({
       }
     }, 2000);
     return () => { active = false; pollGeneration.current++; clearInterval(timer); };
-  }, [pair, expired, onPaired, setError]);
+  }, [pair, expired, onPaired, setError,sourceEvent]);
   return (
     <div className="public-page pairing-page">
       <header className="public-header">
@@ -981,7 +951,7 @@ function Pairing({
             </button>
           </>
         )}
-        <ErrorNotice error={error} />
+        <ErrorNotice error={sourceError??error} />
         <p className="restricted-note">
           <Icon name="shield" />
           {t("restrictedNotice")}

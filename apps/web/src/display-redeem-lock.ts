@@ -5,6 +5,7 @@ const LEASE_MS = 45_000;
 const WAIT_MS = 120_000;
 const RENEW_MS = 10_000;
 let localQueue: Promise<void> = Promise.resolve();
+export type DisplayLockWork<T>=(signal:AbortSignal,assertOwned:()=>Promise<void>)=>Promise<T>;
 
 export interface DisplayRedeemLeaseStore {
   acquire(name: string, token: string, now: number, expiresAt: number): Promise<boolean>;
@@ -63,8 +64,8 @@ function createIndexedDbLeaseStore(db: IDBDatabase): DisplayRedeemLeaseStore {
         const store = tx.objectStore(STORE_NAME);
         const request = store.get(name);
         request.onsuccess = () => {
-          const current = request.result as { token?: string }|undefined;
-          if (current?.token === token) {
+          const current = request.result as { token?: string;expiresAt?:number }|undefined;
+          if (current?.token === token && typeof current.expiresAt==='number' && current.expiresAt>Date.now()) {
             store.put({ name, token, expiresAt });
             renewed = true;
           }
@@ -97,7 +98,7 @@ function createIndexedDbLeaseStore(db: IDBDatabase): DisplayRedeemLeaseStore {
 export function createDisplayRedeemLeaseRunner(store: DisplayRedeemLeaseStore, settings: { leaseMs?:number; waitMs?:number; renewMs?:number; pollMs?:number } = {}) {
   const leaseMs=settings.leaseMs??LEASE_MS, waitMs=settings.waitMs??WAIT_MS, renewMs=settings.renewMs??RENEW_MS, pollMs=settings.pollMs??125;
   let queue: Promise<void> = Promise.resolve();
-  return async function withLease<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  return async function withLease<T>(work: DisplayLockWork<T>): Promise<T> {
     let releaseLocal!: () => void;
     const previous = queue;
     queue = new Promise<void>(resolve => { releaseLocal = resolve; });
@@ -117,6 +118,11 @@ export function createDisplayRedeemLeaseRunner(store: DisplayRedeemLeaseStore, s
       }
       if (!acquired) throw new Error("display_redeem_lock_timeout");
       let lost = false;
+      const assertOwned=async()=>{
+        if(lost||controller.signal.aborted)throw new Error('display_redeem_lock_lost');
+        const valid=await store.renew(LOCK_NAME,token,Date.now()+leaseMs).catch(()=>false);
+        if(!valid){lost=true;controller.abort(new Error('display_redeem_lock_lost'));throw new Error('display_redeem_lock_lost');}
+      };
       heartbeat = setInterval(() => {
         if (lost) return;
         renewal = renewal.then(async () => {
@@ -126,7 +132,7 @@ export function createDisplayRedeemLeaseRunner(store: DisplayRedeemLeaseStore, s
           return valid;
         });
       }, renewMs);
-      const value = await work(controller.signal);
+      const value = await work(controller.signal,assertOwned);
       await renewal;
       if (lost || controller.signal.aborted) throw new Error("display_redeem_lock_lost");
       return value;
@@ -140,14 +146,14 @@ export function createDisplayRedeemLeaseRunner(store: DisplayRedeemLeaseStore, s
 }
 
 /** Web Locks is preferred; HTTP-LAN clients use IndexedDB's atomic read/write lease. */
-export async function withDisplayRedeemLock<T>(work: (signal: AbortSignal) => Promise<T>): Promise<T> {
+export async function withDisplayRedeemLock<T>(work: DisplayLockWork<T>): Promise<T> {
   let release!: () => void;
   const previous = localQueue;
   localQueue = new Promise<void>(resolve => { release = resolve; });
   await previous;
   try {
     const locks = typeof navigator !== "undefined" ? navigator.locks : undefined;
-    if (locks) return await locks.request(LOCK_NAME, { mode: "exclusive" }, () => work(new AbortController().signal));
+    if (locks) return await locks.request(LOCK_NAME, { mode: "exclusive" }, () => work(new AbortController().signal,async()=>{}));
     const db = await openLeaseDatabase();
     try { return await createDisplayRedeemLeaseRunner(createIndexedDbLeaseStore(db))(work); }
     finally { db.close(); }

@@ -3,6 +3,7 @@ export type DisplaySourceEvent = {
   epoch: number;
   displayId: string | null;
 };
+export type DisplaySourceToken={displayId:string|null;epoch:number;generation:number;canonical:DisplaySourceEvent|null};
 
 const SOURCE_STATE_KEY = 'samvev.display.source.v1';
 const SOURCE_CHANNEL = 'samvev.display.source';
@@ -23,6 +24,18 @@ export function isNewerDisplaySourceEvent(currentEpoch: number, event: DisplaySo
 export function isCurrentDisplaySource(current: { displayId: string|null; epoch: number; generation: number }, callback: { displayId: string|null; epoch: number; generation: number }): boolean {
   return current.displayId === callback.displayId && current.epoch === callback.epoch && current.generation === callback.generation;
 }
+export function sameDisplaySourceEvent(left:DisplaySourceEvent|null,right:DisplaySourceEvent|null):boolean{
+  return left===right||Boolean(left&&right&&left.kind===right.kind&&left.displayId===right.displayId&&left.epoch===right.epoch);
+}
+export function isCurrentDisplayCallback(current:DisplaySourceToken,callback:DisplaySourceToken,canonical:DisplaySourceEvent|null):boolean{
+  return isCurrentDisplaySource(current,callback)&&sameDisplaySourceEvent(current.canonical,callback.canonical)&&sameDisplaySourceEvent(canonical,callback.canonical);
+}
+export function displayCredentialLossKnown(event:DisplaySourceEvent|null,previouslyPaired:boolean):boolean{
+  return Boolean(event?.displayId)||previouslyPaired;
+}
+export function canCompleteDisplayPairing(event:DisplaySourceEvent|null,canonical:DisplaySourceEvent|null,active:boolean):boolean{
+  return active&&event?.kind==='authorized'&&sameDisplaySourceEvent(event,canonical);
+}
 
 export function isDisplayCacheForCurrentSource(cache: { displayId: string; epoch: number }, event: DisplaySourceEvent|null): boolean {
   return Boolean(event && event.kind === 'authorized' && event.displayId === cache.displayId && event.epoch === cache.epoch);
@@ -36,14 +49,6 @@ export function readDisplaySourceEvent(): DisplaySourceEvent | null {
 
 export function readDisplaySourceEpoch(): number {
   return readDisplaySourceEvent()?.epoch ?? 0;
-}
-
-export function publishDisplaySourceEvent(kind: DisplaySourceEvent['kind'], displayId: string | null): DisplaySourceEvent {
-  const previous = readDisplaySourceEpoch();
-  const event: DisplaySourceEvent = { kind, displayId, epoch: previous < Number.MAX_SAFE_INTEGER ? previous + 1 : 1 };
-  try { window.localStorage.setItem(SOURCE_STATE_KEY, JSON.stringify(event)); } catch { /* BroadcastChannel can still notify open tabs. */ }
-  try { const channel = new BroadcastChannel(SOURCE_CHANNEL); channel.postMessage(event); channel.close(); } catch { /* Storage events are the fallback. */ }
-  return event;
 }
 
 export function subscribeDisplaySourceEvents(listener: (event: DisplaySourceEvent) => void): () => void {
