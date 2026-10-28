@@ -1,6 +1,27 @@
-# Round 14 resumable status — 2026-10-27
+# Round 14 resumable status — 2026-10-28
 
-## Current checkpoint
+## Authoritative final delivery — 2026-10-28 03:59 UTC
+
+Public test deployment and scoped HTTPS verification **PASS** at https://samvev.pabben.org/. Source/deploy `971913e321dd82f491214fdbda81d08f8123a891`; image `sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`. Round `20261028032511-971913e3-046fbbb8`. Final local 526 tests, UX/security/readiness gate, fresh pre-cutover restore and postdeployment restore passed. Owner authorization/key/private-calendar/school actions remain separate. Public People color editing was not authorized for the synthetic smoke account; isolated editing tests passed. All lower checkpoint/pending statements are retained historical records, not current status.
+
+
+## Final candidate checkpoint
+
+**Status: final local candidate; UX review PASS. Public deployment and HTTPS
+post-deployment smoke remain pending.** The candidate source is
+`971913e321dd82f491214fdbda81d08f8123a891`; candidate image is
+`sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`.
+The final source passed five workspace typechecks and 526 tests (web 153,
+contracts 5, core 3, API 365). The isolated visual evidence contains 70 primary
+screenshots plus seven supplements. See the [visual evidence index](round-14/README.md),
+[sanitized manifest](round-14/manifest.json), [test evidence](ROUND_14_TEST_EVIDENCE.json),
+and [delivery report](ROUND_14_REPORT.md).
+
+No real Anthropic/model request, private calendar verification, or physical Home
+Assistant command was made. The active public site remains on its prior release
+until a separately authorized deployment and smoke check.
+
+## Historical work log (superseded by the final candidate checkpoint above)
 
 **Status: implementation in progress; no R14 public release yet.** R14 includes
 all three owner issues and proceeds sequentially: supplied-reference review and

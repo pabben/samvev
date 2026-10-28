@@ -1,0 +1,10 @@
+# Runde 14 – konkrete eierhandlinger
+
+Disse handlingene er adskilt fra utviklingsleveransen. Ikke send kalenderlenker, API-nøkler eller passord i chat. Oppgi dem bare i riktig Samvev-/leverandørskjema.
+
+1. **Kalender med lenke:** Åpne [Integrasjoner](https://samvev.pabben.org/?tab=integrations), velg **Annen kalender · ICS**, og lim inn en privat abonnementslenke. Forhåndsvis, velg hvem kalenderen gjelder og separat hvem/skjermer som får lese, aktiver og kontroller faktisk siste vellykkede henting. Ikke gjør Google-kalenderen offentlig for dette. Velg 5/15/30 minutter etter behov; leverandørforsinkelse kommer i tillegg.
+2. **Claude:** Åpne [AI](https://samvev.pabben.org/?tab=ai) → **Tilkobling / oppsett** → Claude. Lagre egen API-nøkkel og ønsket modell. Reserveleverandør er valgfri og må velges eksplisitt; døgngrensen teller forespørsler, ikke kroner. En ekte forbindelsestest er en bevisst handling med syntetisk innhold og eventuell API-kostnad. Den er ikke utført av utviklingstestene. Kontroller gjeldende kreditter/fakturering i egen Anthropic-organisasjon.
+3. **Google eller Microsoft OAuth:** Bruk [Google-veiviseren](https://samvev.pabben.org/?tab=integrations&setup=google) eller [Microsoft-veiviseren](https://samvev.pabben.org/?tab=integrations&setup=microsoft). Fullfør eventuell appregistrering, kontoinnlogging og samtykke hos leverandøren, velg kalender og separate delinger, forhåndsvis og aktiver. Utfylt oppsett er ikke bevis på faktisk synk. ICS kan brukes uavhengig av OAuth og Home Assistant.
+4. **Eksisterende skolevisning:** Følg [R13-listen](ROUND_13_OWNER_ACTIONS.md#aktiver-visning-av-lagrede-skoleoppgaver) i riktig autorisert husstandsadministratorøkt via [Oppdrag](https://samvev.pabben.org/?tab=monitors). Aktiver visningsmetadata på eksisterende oppdrag. Ikke kopier, endre instruksjon/godkjenning/tidsplan eller start en modellkjøring for å aktivere presentasjonen.
+
+Eksisterende Spond/Home Assistant-koblinger bevares. Ingen ny installasjon, offentlig eksponering av HA eller fysisk lys-/garasjetest er nødvendig for denne leveransen. Fysisk kontroll kan eventuelt gjøres senere som en egen bevisst eierhandling.

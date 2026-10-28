@@ -1,0 +1,1505 @@
+{
+  "artifactType": "Round 14 public visual evidence index",
+  "candidate": {
+    "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+    "sourceTreeStatus": "published",
+    "roundId": "20261028032511-971913e3-046fbbb8",
+    "candidateImageSha256": "4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342"
+  },
+  "status": {
+    "uxReview": "PASS",
+    "publicDeployment": "PASS",
+    "publicHttpsSmoke": "PASS with scope documented in ROUND_14_REPORT.md"
+  },
+  "capture": {
+    "locale": "nb",
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "viewports": [
+      {
+        "name": "desktop",
+        "width": 1920,
+        "height": 1080
+      },
+      {
+        "name": "mobile",
+        "width": 390,
+        "height": 844
+      },
+      {
+        "name": "tablet-portrait",
+        "width": 768,
+        "height": 1024
+      }
+    ],
+    "screenshotCount": 77,
+    "primaryMatrixCount": 70,
+    "supplementCount": 7,
+    "files": [
+      {
+        "filename": "home-desktop-light.png",
+        "surface": "home",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "6d50439d09959acf3762bb8430100051a0e4f3678618db43a29855dc5989e76c",
+        "bytes": 1548278,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 2153
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:00.719Z"
+      },
+      {
+        "filename": "people-desktop-light.png",
+        "surface": "people",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "26c96096b4eeb23629301af0e5a99354263c24d9e697567600a26e8c93fd166e",
+        "bytes": 1024740,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1392
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:02.011Z"
+      },
+      {
+        "filename": "messages-desktop-light.png",
+        "surface": "messages",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "d21e97df9370823b436670888e96e57167ea839b8aa4beec006cf0eeef0a08d2",
+        "bytes": 640204,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1212
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:02.855Z"
+      },
+      {
+        "filename": "displays-desktop-light.png",
+        "surface": "displays",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "3bfe9494d1d0ef319770bd460335d4e90a386e2b003b2a3572b59faa7f5cc4b3",
+        "bytes": 2867156,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 6524
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:05.420Z"
+      },
+      {
+        "filename": "integrations-desktop-light.png",
+        "surface": "integrations",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "7d719ded4e2f09737d4b3060cb38d418df37d6b4a33199109abf7b037da94924",
+        "bytes": 1708446,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 3503
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:07.290Z"
+      },
+      {
+        "filename": "monitors-desktop-light.png",
+        "surface": "monitors",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "fac9086db4146e2543b5659a871fe0ea36429296f0a632e32de8f5415aa25e25",
+        "bytes": 482619,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:07.940Z"
+      },
+      {
+        "filename": "settings-desktop-light.png",
+        "surface": "settings",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "c6c705d8fe412715987c06fdbfee18444a47ad740ea1919197a24c3dd88af4b1",
+        "bytes": 974800,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 2076
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:10.408Z"
+      },
+      {
+        "filename": "calendar-week-desktop-light.png",
+        "surface": "calendar-week",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "aa0abc4d49a8fc82b9f8d358468fe6ab77f56e76cefcdb7cdba5476521bac7c5",
+        "bytes": 213140,
+        "imageDimensions": {
+          "width": 1440,
+          "height": 635
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:11.720Z"
+      },
+      {
+        "filename": "media-admin-desktop-light.png",
+        "surface": "media-admin",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "edb813025977233db1bd9d5464f9522655c5fff61213647fb9a6571bbf47c0b5",
+        "bytes": 2266720,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 4220
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:15.039Z"
+      },
+      {
+        "filename": "calendar-desktop-light.png",
+        "surface": "calendar",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "00ddce27f494cc046c54d3a6b48a8dab5fe868f1b56fdd008a2bc092ce34e0d6",
+        "bytes": 419442,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:15.738Z"
+      },
+      {
+        "filename": "ai-desktop-light.png",
+        "surface": "ai",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "69a2d05ef7384aa65e3389f40c98b90a31720f3ed220dec9ce69d73a15faa9d4",
+        "bytes": 604162,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1221
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:16.720Z"
+      },
+      {
+        "filename": "home-desktop-dark.png",
+        "surface": "home",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "28de8d004d505ac616ec6ea5693a18582aa4dd7e92958786d2c12270f9ea18e7",
+        "bytes": 1367142,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 2165
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:21.326Z"
+      },
+      {
+        "filename": "people-desktop-dark.png",
+        "surface": "people",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "6eebedf8502718c25028020e73c2625f11673fc02164dd99c94f90728565d83b",
+        "bytes": 651786,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1392
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:22.519Z"
+      },
+      {
+        "filename": "messages-desktop-dark.png",
+        "surface": "messages",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "c3b6083f19b6509a3c1c1c9e8457db2a0e7079db47f4a2663462a16e310cf061",
+        "bytes": 491521,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1212
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:23.479Z"
+      },
+      {
+        "filename": "displays-desktop-dark.png",
+        "surface": "displays",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "56e28cdf5b5074bdbc0a232be084178ed67f93468cf786e9fae8392d14f349e9",
+        "bytes": 1980313,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 6524
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:26.153Z"
+      },
+      {
+        "filename": "integrations-desktop-dark.png",
+        "surface": "integrations",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "bee52f9e7047554c01e9c8a63b3786919b8a39040ce0422e90b85c78cc57aedc",
+        "bytes": 1239353,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 3503
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:28.116Z"
+      },
+      {
+        "filename": "monitors-desktop-dark.png",
+        "surface": "monitors",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "5ae66c5c457d14be4f952fd9b5bdfcd36283b17be9718592e4eb26edc64290b6",
+        "bytes": 295268,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:28.911Z"
+      },
+      {
+        "filename": "settings-desktop-dark.png",
+        "surface": "settings",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "12d8e3f14e591af9eb14ceebad244d9d5b219b7013c319ccd424758296ed242e",
+        "bytes": 994945,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 2165
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:32.937Z"
+      },
+      {
+        "filename": "calendar-week-desktop-dark.png",
+        "surface": "calendar-week",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "ab3e90bcfce8c5fb470a91828e697cb9fba933f3d00db82dd34b58bcc1a8e1ba",
+        "bytes": 235025,
+        "imageDimensions": {
+          "width": 1440,
+          "height": 636
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:34.980Z"
+      },
+      {
+        "filename": "media-admin-desktop-dark.png",
+        "surface": "media-admin",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "076699d91a255b08bbbbca95816b510ffb6b9c44aa584e33a8e526c5e35836f9",
+        "bytes": 2029288,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 4232
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:38.615Z"
+      },
+      {
+        "filename": "calendar-desktop-dark.png",
+        "surface": "calendar",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "8e56a7a3937ff3dbaa18daf861eff69823b3c98045e3e02c22be43a57178ca21",
+        "bytes": 217194,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1080
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:39.279Z"
+      },
+      {
+        "filename": "ai-desktop-dark.png",
+        "surface": "ai",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "9002a02e82a64382580eac4c9992c539f07758fdf990de493ce941311bc6d881",
+        "bytes": 330859,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 1221
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:40.347Z"
+      },
+      {
+        "filename": "home-mobile-light.png",
+        "surface": "home",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "2f46396bd8bd4b5e623f523da189e206e262b79f8751af5fa11b9a79ad932a9b",
+        "bytes": 673892,
+        "imageDimensions": {
+          "width": 390,
+          "height": 3794
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:42.096Z"
+      },
+      {
+        "filename": "people-mobile-light.png",
+        "surface": "people",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "5535202af1ab10349ccee0774b8f9e779efbc4cf7eda03d026e23e6a70926a73",
+        "bytes": 539279,
+        "imageDimensions": {
+          "width": 390,
+          "height": 2878
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:42.977Z"
+      },
+      {
+        "filename": "messages-mobile-light.png",
+        "surface": "messages",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "c917f871a18768dbca97398f6fb15d5f384d235c0366bafa77d391e37f968ece",
+        "bytes": 289480,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1514
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:43.589Z"
+      },
+      {
+        "filename": "displays-mobile-light.png",
+        "surface": "displays",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "9a3a72c0b057b7973c0e1059a0d233494297aa4e29d550d5563ef1f0ec40984f",
+        "bytes": 2144797,
+        "imageDimensions": {
+          "width": 390,
+          "height": 11832
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:45.749Z"
+      },
+      {
+        "filename": "integrations-mobile-light.png",
+        "surface": "integrations",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "3e3f8444c624b68ba94fb43943becdb4fb0e68b4f31f1258e4ed55e7295c17e9",
+        "bytes": 988189,
+        "imageDimensions": {
+          "width": 390,
+          "height": 5168
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:46.929Z"
+      },
+      {
+        "filename": "monitors-mobile-light.png",
+        "surface": "monitors",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "00affdcfc2ce150460a43f20691ee10dcf67d71956172eebd66fa8a6c76febf0",
+        "bytes": 186564,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1175
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:47.490Z"
+      },
+      {
+        "filename": "settings-mobile-light.png",
+        "surface": "settings",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "7cd87926ec89984e145f325440a372809ba30b507dbdb9991f56f4eb9dcc27db",
+        "bytes": 635185,
+        "imageDimensions": {
+          "width": 390,
+          "height": 3794
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:48.729Z"
+      },
+      {
+        "filename": "calendar-week-mobile-light.png",
+        "surface": "calendar-week",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "e20f688bf5b2045cf1f1e155b267d2ae09d3d43c5bb27ca66dd27d849979ee94",
+        "bytes": 108537,
+        "imageDimensions": {
+          "width": 358,
+          "height": 1204
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:49.716Z"
+      },
+      {
+        "filename": "media-admin-mobile-light.png",
+        "surface": "media-admin",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "ab5a1d6c9ce30704ac57d0d971b79701f0cfa56b8d853f2af003cc502f0f278b",
+        "bytes": 959709,
+        "imageDimensions": {
+          "width": 390,
+          "height": 5740
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:51.592Z"
+      },
+      {
+        "filename": "calendar-mobile-light.png",
+        "surface": "calendar",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "983340ff506087e3f39be0969e8294ff8a7881f42333561d44d38649f790a8e3",
+        "bytes": 180344,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1549
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:52.101Z"
+      },
+      {
+        "filename": "ai-mobile-light.png",
+        "surface": "ai",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "5d7c54a5b1b62242ce6f5c8ac884d6eff9417d3e24016931d2597c124b5890bd",
+        "bytes": 200889,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1276
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:52.574Z"
+      },
+      {
+        "filename": "home-mobile-dark.png",
+        "surface": "home",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "1bbcf2ef6f3df16988df32e25403cb2313ee7556191cdfc9e8c9cac19af1a74a",
+        "bytes": 703975,
+        "imageDimensions": {
+          "width": 390,
+          "height": 4085
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:54.668Z"
+      },
+      {
+        "filename": "people-mobile-dark.png",
+        "surface": "people",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "f37ef1b33376b407ac463a31e4a4bee22274877c879dc3edf640b26ca257cc2a",
+        "bytes": 462459,
+        "imageDimensions": {
+          "width": 390,
+          "height": 2878
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:55.522Z"
+      },
+      {
+        "filename": "messages-mobile-dark.png",
+        "surface": "messages",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "3c3e3fb7fee6464ce9a8379615405d2544fd6205c8f8cf181810326aa234cca3",
+        "bytes": 292696,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1514
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:56.132Z"
+      },
+      {
+        "filename": "displays-mobile-dark.png",
+        "surface": "displays",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "1dae36ad757972c2e81ad20b0b2096f43460dfe179175d3a3f7c3d9d6621f00b",
+        "bytes": 2012321,
+        "imageDimensions": {
+          "width": 390,
+          "height": 12556
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:58.340Z"
+      },
+      {
+        "filename": "integrations-mobile-dark.png",
+        "surface": "integrations",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "25497f9af818b5e01b43a3aabc2f6dfa9834af169c65b5314017b0f54d8b34a2",
+        "bytes": 866205,
+        "imageDimensions": {
+          "width": 390,
+          "height": 5168
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:35:59.543Z"
+      },
+      {
+        "filename": "monitors-mobile-dark.png",
+        "surface": "monitors",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "744343d2bf24a1df37a2fa71b91413df88b3a7ea62feb78e5510847901fcaa3a",
+        "bytes": 143420,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1175
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:00.027Z"
+      },
+      {
+        "filename": "settings-mobile-dark.png",
+        "surface": "settings",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "829ebb65c80b9bf1ab0cde634d103338f45b78aca811a1bbccde0585de39667c",
+        "bytes": 702026,
+        "imageDimensions": {
+          "width": 390,
+          "height": 4085
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:01.590Z"
+      },
+      {
+        "filename": "calendar-week-mobile-dark.png",
+        "surface": "calendar-week",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "046ed949e7e434e7b8147a6316141f30ac46e38d3ff2f304c92c73ebfb95a302",
+        "bytes": 123682,
+        "imageDimensions": {
+          "width": 358,
+          "height": 1204
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:02.699Z"
+      },
+      {
+        "filename": "media-admin-mobile-dark.png",
+        "surface": "media-admin",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "6092e524a9ad6709f6b2e92ad10e8b386dbb9b87c405f47bcb0997fe1c35e7f5",
+        "bytes": 977274,
+        "imageDimensions": {
+          "width": 390,
+          "height": 6032
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:04.809Z"
+      },
+      {
+        "filename": "calendar-mobile-dark.png",
+        "surface": "calendar",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "ef4c7f88d5760c3a58976ee2f026f461d366d5f816d59fe30298b490754847c3",
+        "bytes": 136657,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1549
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:05.348Z"
+      },
+      {
+        "filename": "ai-mobile-dark.png",
+        "surface": "ai",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "8ab4b515009a29f6e30a3d52bc73fea4ad43f3694fd2afa31311c2e50a458769",
+        "bytes": 159233,
+        "imageDimensions": {
+          "width": 390,
+          "height": 1276
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:05.881Z"
+      },
+      {
+        "filename": "home-tablet-portrait-light.png",
+        "surface": "home",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "c53e348ac919e06336f83a865470c00d5a38e74165c47129a3b6f0bd782c0c4a",
+        "bytes": 927954,
+        "imageDimensions": {
+          "width": 768,
+          "height": 2907
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:08.636Z"
+      },
+      {
+        "filename": "people-tablet-portrait-light.png",
+        "surface": "people",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "a7f0ff9b2539aadbddca227349fff2f55dfe7e6a7f4008268f5edf57579b3a53",
+        "bytes": 804155,
+        "imageDimensions": {
+          "width": 768,
+          "height": 2061
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:09.594Z"
+      },
+      {
+        "filename": "messages-tablet-portrait-light.png",
+        "surface": "messages",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "a9749e5b29ca29f9c32354b662b340590c7fe30ee641ae05d04c0f40996c6c59",
+        "bytes": 403734,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1312
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:10.280Z"
+      },
+      {
+        "filename": "displays-tablet-portrait-light.png",
+        "surface": "displays",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "286a54fe6925bd9403b26ee2e798b006687d7a3252477f33763af8f2f87243a8",
+        "bytes": 3112693,
+        "imageDimensions": {
+          "width": 768,
+          "height": 11489
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:12.896Z"
+      },
+      {
+        "filename": "integrations-tablet-portrait-light.png",
+        "surface": "integrations",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "c90a049349c1a2d768c18e054b3ad8365cf9464fc8374ffcd05aeda034df0203",
+        "bytes": 1368232,
+        "imageDimensions": {
+          "width": 768,
+          "height": 4585
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:14.413Z"
+      },
+      {
+        "filename": "monitors-tablet-portrait-light.png",
+        "surface": "monitors",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "de78e42c6ccf98e83381c01e6e63dac799178a459185e86ce8cc9798861b418a",
+        "bytes": 297980,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1108
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:14.988Z"
+      },
+      {
+        "filename": "settings-tablet-portrait-light.png",
+        "surface": "settings",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "563985ef4998283e078bf4a8a3830ad3c693522ff6e5296d24f1dff142259a2d",
+        "bytes": 758526,
+        "imageDimensions": {
+          "width": 768,
+          "height": 2907
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:16.779Z"
+      },
+      {
+        "filename": "calendar-week-tablet-portrait-light.png",
+        "surface": "calendar-week",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "e325809c4551bce059c9166b0ee3051ceae33e8527c3bf53c1c343042c658625",
+        "bytes": 138763,
+        "imageDimensions": {
+          "width": 728,
+          "height": 823
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:17.849Z"
+      },
+      {
+        "filename": "media-admin-tablet-portrait-light.png",
+        "surface": "media-admin",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "b892a101af322cfc62b55dfd65f8687c5ec980fa3066cda6eeb39a4ad5159b5d",
+        "bytes": 1528437,
+        "imageDimensions": {
+          "width": 768,
+          "height": 4932
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:20.399Z"
+      },
+      {
+        "filename": "calendar-tablet-portrait-light.png",
+        "surface": "calendar",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "3c40bb8192d5830f8e3bb452f7bf245a2fdd6f2a0672935f2c20b2ebf3d609c9",
+        "bytes": 240502,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1167
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:21.122Z"
+      },
+      {
+        "filename": "ai-tablet-portrait-light.png",
+        "surface": "ai",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "1d5267240cc1b5c58663cfa0f3d856d411e0fef8f945f9ffa13b6115c61e949d",
+        "bytes": 344610,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1316
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:21.741Z"
+      },
+      {
+        "filename": "home-tablet-portrait-dark.png",
+        "surface": "home",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "acddc6c20c6ba00a3c20853cc3a5eca20e40ff90004580da01b59b3eaa181beb",
+        "bytes": 858924,
+        "imageDimensions": {
+          "width": 768,
+          "height": 2907
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:24.703Z"
+      },
+      {
+        "filename": "people-tablet-portrait-dark.png",
+        "surface": "people",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "2fc058f8a00e85f0b8c140e589ea6b6bb2e23a37599f5915c65bf0e85941c5ab",
+        "bytes": 605429,
+        "imageDimensions": {
+          "width": 768,
+          "height": 2061
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:25.723Z"
+      },
+      {
+        "filename": "messages-tablet-portrait-dark.png",
+        "surface": "messages",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "540c793d9b76bd634826bfd207948965f89ea177b67a41ba46b3ab932a7cce76",
+        "bytes": 356455,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1312
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:26.483Z"
+      },
+      {
+        "filename": "displays-tablet-portrait-dark.png",
+        "surface": "displays",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "c49f4365be558d3b23a97121aa7b9b8b35cd09e45a8f9057ad1e2d2338a5ea41",
+        "bytes": 2755849,
+        "imageDimensions": {
+          "width": 768,
+          "height": 12029
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:29.446Z"
+      },
+      {
+        "filename": "integrations-tablet-portrait-dark.png",
+        "surface": "integrations",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "85084f4708b94b0db08fff9b6c69acac440320c5ec80ae0fa31ba8d72e453ee7",
+        "bytes": 1191171,
+        "imageDimensions": {
+          "width": 768,
+          "height": 4585
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:31.175Z"
+      },
+      {
+        "filename": "monitors-tablet-portrait-dark.png",
+        "surface": "monitors",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "a3a99f7e58b7bf356017a59fa5bbbfad89a7104abd8bf5200367e6c325900d50",
+        "bytes": 205706,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1108
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:31.883Z"
+      },
+      {
+        "filename": "settings-tablet-portrait-dark.png",
+        "surface": "settings",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "46de40a6b458ecabd567aae2f9e1d03804a53192f74f31e65117e4f6cbdc22f4",
+        "bytes": 785062,
+        "imageDimensions": {
+          "width": 768,
+          "height": 2907
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:34.159Z"
+      },
+      {
+        "filename": "calendar-week-tablet-portrait-dark.png",
+        "surface": "calendar-week",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "7ebf9c040f941425e7a29b36c51b2356378b9a4b216c4388ac882b0cb93754eb",
+        "bytes": 172096,
+        "imageDimensions": {
+          "width": 728,
+          "height": 823
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:36.031Z"
+      },
+      {
+        "filename": "media-admin-tablet-portrait-dark.png",
+        "surface": "media-admin",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "76684773b69143e97fc42c4221f62d0a32c4615fd186629c70419b4a4140927f",
+        "bytes": 1450376,
+        "imageDimensions": {
+          "width": 768,
+          "height": 4932
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:38.852Z"
+      },
+      {
+        "filename": "calendar-tablet-portrait-dark.png",
+        "surface": "calendar",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "abad6673bb8a4dbbfd33923b847c4d5489fb4daae4cfd186e419cf67b70ac17f",
+        "bytes": 167375,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1167
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:39.387Z"
+      },
+      {
+        "filename": "ai-tablet-portrait-dark.png",
+        "surface": "ai",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "b6d888a0e27b67e87dddb50e3724f5da00832a3c2a76fbb95dc800c1800046fb",
+        "bytes": 258572,
+        "imageDimensions": {
+          "width": 768,
+          "height": 1316
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:40.037Z"
+      },
+      {
+        "filename": "display-shelly-light-1280x752.png",
+        "surface": "display-shelly-light-1280x752",
+        "viewport": null,
+        "theme": null,
+        "sha256": "d975b1fd9471694e14b3bf05af1892bd61a9eb9014d490ecaf426c64bad967a8",
+        "bytes": 314062,
+        "imageDimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:43.734Z"
+      },
+      {
+        "filename": "display-shelly-populated-light-1280x752.png",
+        "surface": "display-shelly-populated-light-1280x752",
+        "viewport": null,
+        "theme": null,
+        "sha256": "a3522c061ee104e4e2ca54e8eb67f00e512427df1b6613a795c59576d7c4b416",
+        "bytes": 498063,
+        "imageDimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:44.966Z"
+      },
+      {
+        "filename": "display-shelly-dark-1280x752.png",
+        "surface": "display-shelly-dark-1280x752",
+        "viewport": null,
+        "theme": null,
+        "sha256": "8a05b243a98088c72a44ded61354869cd92f3224ee3396fd2f39f352a227d817",
+        "bytes": 658896,
+        "imageDimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:48.056Z"
+      },
+      {
+        "filename": "display-shelly-populated-dark-1280x752.png",
+        "surface": "display-shelly-populated-dark-1280x752",
+        "viewport": null,
+        "theme": null,
+        "sha256": "5613d642c17b6f72db8b60a03e962cdc5ad04664d1fcd849facd198bc488b523",
+        "bytes": 755445,
+        "imageDimensions": {
+          "width": 1280,
+          "height": 752
+        },
+        "captureKind": "primary-matrix",
+        "sourceFileMtimeUtc": "2026-10-28T03:36:49.294Z"
+      },
+      {
+        "filename": "ai-setup-desktop-light.png",
+        "surface": "Anthropic setup",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "light",
+        "sha256": "8280b73c2253fc550d7e3b760e766343d55090f138895838eb2b02c8a2d89e41",
+        "bytes": 1419885,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 3140
+        },
+        "captureKind": "supplement",
+        "sourceFileMtimeUtc": "2026-10-28T03:41:09.710Z"
+      },
+      {
+        "filename": "ai-setup-desktop-dark.png",
+        "surface": "Anthropic setup",
+        "viewport": {
+          "name": "desktop",
+          "width": 1920,
+          "height": 1080
+        },
+        "theme": "dark",
+        "sha256": "10cc8feedf9da0951e16a089b9efa7b423e8e68a1bb7c56e6e4e248e8181b4ed",
+        "bytes": 1078546,
+        "imageDimensions": {
+          "width": 1920,
+          "height": 3140
+        },
+        "captureKind": "supplement",
+        "sourceFileMtimeUtc": "2026-10-28T03:41:12.915Z"
+      },
+      {
+        "filename": "ai-setup-mobile-light.png",
+        "surface": "Anthropic setup",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "light",
+        "sha256": "22d9a26382fb276dc17fe2fc2767771843e8df104d1416d9b92a40861e249aac",
+        "bytes": 774198,
+        "imageDimensions": {
+          "width": 390,
+          "height": 4115
+        },
+        "captureKind": "supplement",
+        "sourceFileMtimeUtc": "2026-10-28T03:41:14.500Z"
+      },
+      {
+        "filename": "ai-setup-mobile-dark.png",
+        "surface": "Anthropic setup",
+        "viewport": {
+          "name": "mobile",
+          "width": 390,
+          "height": 844
+        },
+        "theme": "dark",
+        "sha256": "9cae97d902fe5db6bfb368a8bd2d66b9afe97b645affb22ef40bd3f62df7b578",
+        "bytes": 695001,
+        "imageDimensions": {
+          "width": 390,
+          "height": 4115
+        },
+        "captureKind": "supplement",
+        "sourceFileMtimeUtc": "2026-10-28T03:41:16.089Z"
+      },
+      {
+        "filename": "ai-setup-tablet-portrait-light.png",
+        "surface": "Anthropic setup",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "light",
+        "sha256": "767f8ed9b7e7efa2a1507d3b8553828d2238bbcab0194d13c71a3dc5cb7939f2",
+        "bytes": 971272,
+        "imageDimensions": {
+          "width": 768,
+          "height": 3360
+        },
+        "captureKind": "supplement",
+        "sourceFileMtimeUtc": "2026-10-28T03:41:18.045Z"
+      },
+      {
+        "filename": "ai-setup-tablet-portrait-dark.png",
+        "surface": "Anthropic setup",
+        "viewport": {
+          "name": "tablet-portrait",
+          "width": 768,
+          "height": 1024
+        },
+        "theme": "dark",
+        "sha256": "dcd89d8263be96a9943b1e5a6a858dbc3b2fa84ebd2e7cb2d8cc6d64363d841e",
+        "bytes": 897342,
+        "imageDimensions": {
+          "width": 768,
+          "height": 3360
+        },
+        "captureKind": "supplement",
+        "sourceFileMtimeUtc": "2026-10-28T03:41:20.253Z"
+      },
+      {
+        "filename": "ics-last-good-stale-error.png",
+        "surface": "ICS stale/error status",
+        "viewport": null,
+        "theme": null,
+        "sha256": "128926da89e58ad7855b0a72f697ddd8b30e928b822d9822354d7005ac9582d6",
+        "bytes": 156429,
+        "imageDimensions": {
+          "width": 639,
+          "height": 729
+        },
+        "captureKind": "supplement",
+        "sourceFileMtimeUtc": "2026-10-28T03:41:22.722Z"
+      }
+    ],
+    "capturedAt": null,
+    "timestampLimitation": "The capture producer manifest has no capture timestamp. Per-file source filesystem mtimes are recorded as file metadata only, not asserted as capture times.",
+    "basePath": "screenshots/"
+  },
+  "safeChecks": {
+    "typecheckWorkspaces": 5,
+    "typechecksExitCode": 0,
+    "workspaceTests": {
+      "web": 153,
+      "contracts": 5,
+      "core": 3,
+      "api": 365,
+      "worker": 0,
+      "totalPassed": 526,
+      "exitCode": 0
+    },
+    "reviewHelperTestsPassed": 32,
+    "privacyBrowserChecksPassed": 1,
+    "restoreSchemaFixturesPassed": 19,
+    "tabletNavigationGeometryChecksPassed": 56,
+    "sparsePopulatedHomeGeometryChecksPassed": 20,
+    "syntheticOnly": true,
+    "noRealProviderCalls": true,
+    "noRealModelCalls": true,
+    "noPhysicalHomeAssistantCommands": true,
+    "syntheticIcsUi": {
+      "previewAndSeparateAudienceReadersDisplays": true,
+      "activationAndSchedulePersistence": true,
+      "manualRefresh": true,
+      "transientFailureKeepsLastGoodState": 1,
+      "staleErrorUiShown": true,
+      "manualRetryRecovered": true,
+      "syntheticTransportOnly": true
+    },
+    "anthropicUi": {
+      "sixSetupViewsCaptured": true,
+      "allSixSetupWidthsExactlyFit": true,
+      "savedKeyInputAlwaysEmpty": true,
+      "noAiTransportCalls": true,
+      "syntheticTransportTestsOnly": true
+    },
+    "pairedDisplayLayout": {
+      "sixSyntheticProfilesFit": true,
+      "emptyExternalHeadingAbsent": true
+    }
+  },
+  "reference": {
+    "filename": "ChatGPT Image 24. sep. 2026, 23_52_06 (4).png",
+    "sha256": "092a4ad005c214a3f0dc25a2446a6818e507936e3e99f3bb7b99e92b9fd10e98",
+    "bytes": 1796364,
+    "filenameDateText": "24 Sep 2026 23:52:06"
+  },
+  "comparison": {
+    "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+    "beforeSourceSha": "0f808404e1152e3849d7fabacc4081bcb8f9dcf1",
+    "beforeSourceDescription": "Pinned archive; app code matches public R13 source per coordinator verification. It is not a screenshot captured from the live public site.",
+    "beforeScreenshotTimestamp": null,
+    "beforeTimestampLimitation": "The source manifest contains no capture timestamp and does not enumerate/hash these dark PNGs; direct PNG hashes and filesystem mtimes are retained in private provenance.",
+    "afterScreenshotTimestamp": null,
+    "afterTimestampLimitation": "The final capture manifest contains no capture timestamp; source-image filesystem mtimes are retained in private provenance.",
+    "panels": [
+      {
+        "filename": "home-desktop-dark-panel.png",
+        "sha256": "adca907a06934385b3b872af1c56ae01ccc7338e8ca50db6aa749e4f2bb7bf59",
+        "bytes": 596788,
+        "dimensions": {
+          "width": 1968,
+          "height": 489
+        },
+        "artifactType": "comparison composite, not app screenshot"
+      },
+      {
+        "filename": "home-mobile-dark-panel.png",
+        "sha256": "392c541c9777c2dc893b156955d1e830b09d891b9db6464d19f438b6573ef54b",
+        "bytes": 652168,
+        "dimensions": {
+          "width": 1218,
+          "height": 973
+        },
+        "artifactType": "comparison composite, not app screenshot"
+      }
+    ],
+    "crops": {
+      "desktop": "Design board desktop crop plus top 1920x1080 viewport crops from each app image.",
+      "mobile": "Design board iPhone crop plus top 390x844 viewport crops from each app image."
+    },
+    "label": "These panels are comparison composites, not application screenshots."
+  },
+  "privacy": {
+    "containsSessionData": false,
+    "containsCredentialData": false,
+    "containsHouseholdIdentifiers": false,
+    "containsPrivateHelperPaths": false,
+    "containsPrivateRuntimePaths": false,
+    "allScreenshotContentSynthetic": true
+  },
+  "note": "Screenshots are source-bound synthetic local captures; public deployment and HTTPS checks are separately documented in ROUND_14_TEST_EVIDENCE.json."
+}

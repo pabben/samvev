@@ -1,20 +1,29 @@
 # M1 implementation status
 
+## Authoritative final delivery — 2026-10-28 03:59 UTC
+
+Public test deployment and scoped HTTPS verification **PASS** at https://samvev.pabben.org/. Source/deploy `971913e321dd82f491214fdbda81d08f8123a891`; image `sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`. Round `20261028032511-971913e3-046fbbb8`. Final local 526 tests, UX/security/readiness gate, fresh pre-cutover restore and postdeployment restore passed. Owner authorization/key/private-calendar/school actions remain separate. Public People color editing was not authorized for the synthetic smoke account; isolated editing tests passed. All lower checkpoint/pending statements are retained historical records, not current status.
+
+
 ## Round 14 current status — 2026-10-28
 
-R14 implementation is in local review, not publicly released. Home and Calendar
-now use the reference-led composition and persisted person colors. ICS exposes
-separate subjects/readers/screens, preview/activation and durable 5/15/30-minute
-schedules. Anthropic uses encrypted existing provider configuration, with an
-explicit opt-in reserve and UTC daily physical-request admission limit.
+R14 final local candidate is `971913e321dd82f491214fdbda81d08f8123a891`
+(image `sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`).
+UX review passed. Home and Calendar use the reference-led composition and
+persisted person colors. ICS exposes separate subjects/readers/screens,
+preview/activation and durable 5/15/30-minute schedules. Anthropic uses encrypted
+provider configuration, with an explicit opt-in reserve and UTC daily
+physical-request admission limit.
 
-Evidence and remaining gates: [R14 status](../design/review/ROUND_14_STATUS.md)
-and [requirements](../design/review/ROUND_14_REQUIREMENTS.md). Local focused
-backend, frontend and capture-privacy tests pass; integrated browser testing,
-complete immutable screenshots, security/UX review, full QA, restore gate and
-public release remain pending. No live Anthropic or private ICS verification is
-claimed. Google/Microsoft and existing school activation remain separate owner
-actions. No real model or physical HA calls have been made.
+The final source passed five workspace typechecks and 526 tests (web 153,
+contracts 5, core 3, API 365). Final visual evidence is the 70-image desktop,
+mobile and tablet matrix plus seven supplements. See [R14 status](../design/review/ROUND_14_STATUS.md),
+[delivery report](../design/review/ROUND_14_REPORT.md), [visual evidence index](../design/review/round-14/README.md),
+and [sanitized visual manifest](../design/review/round-14/manifest.json). Public
+deployment and HTTPS post-deployment smoke remain pending. No live Anthropic or
+private ICS verification is claimed. Google/Microsoft and existing school
+activation remain separate owner actions. No real model or physical HA calls
+have been made.
 
 The public baseline was freshly rechecked: source `7c61557`, healthy app/worker
 and schema 037. LAN data/dist remain preserved. Root Git matches all 229 saved
