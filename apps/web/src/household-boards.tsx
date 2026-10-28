@@ -3,6 +3,7 @@ import { Icon, useI18n } from "./ui";
 import { dateOffset, memberHouseholdBoardAdapter, sevenDayWindow, type BoardCard, type DinnerAssignment, type DinnerOption, type GroceryItem, type HouseholdBoardAdapter } from "./household-board-adapters";
 import { mayApplyBoardRead, mutationFailure, reconcileBoardSnapshot, type BoardReadResult, type BoardSnapshot } from "./household-board-state";
 import { secureUuid } from "./secure-uuid";
+import { todayDinnerSummary } from "./household-board-summary";
 function requestKey(): string { return secureUuid(); }
 function readResult<T>(promise: Promise<T>): Promise<BoardReadResult<T>> { return promise.then(value => ({ value }), error => ({ error })); }
 export function MemberHouseholdBoards({ householdId, localDate }: { householdId: string; localDate: string }) {
@@ -157,7 +158,7 @@ function HouseholdBoardCardsForScope({ adapter, localDate, visibleCards, display
   const canGroceries = showGroceries && adapter.writable.groceries && !currentWriteDenied.includes("groceries");
   const canDinners = showDinners && adapter.writable.dinners && !currentWriteDenied.includes("dinners");
   const selectedAssignment = assignments.find(row => row.localDate === selectedDate);
-  const todayAssignment = assignments.find(row => row.localDate === localDate);
+  const todayDinner = todayDinnerSummary(assignments,localDate,freshness.assignments.state==="fresh");
   const selectedOption = selectedAssignment?.title ? options.find(option => option.title === selectedAssignment.title && option.emoji === selectedAssignment.emoji) : undefined;
   const selectedDinnerValue = selectedOption?.id ?? (selectedAssignment?.title ? "__saved_snapshot__" : "");
   const dateLabel = (date: string, weekday: "short" | "long" = "short") => new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday, day: "numeric", month: "short" }).format(new Date(`${date}T12:00:00Z`));
@@ -170,7 +171,7 @@ function HouseholdBoardCardsForScope({ adapter, localDate, visibleCards, display
     <header className="hub-panel-title"><h2><Icon name="list"/>{t("boardsTitle")}</h2></header>
     {error?.view===viewKey&&<p className="household-board-error" role="status">{t(error.key as "boardChangedRefresh"|"boardLoadError"|"boardPermissionLost"|"boardSaveError")}</p>}
     {showGroceries&&<section aria-labelledby="home-grocery-summary"><h3 id="home-grocery-summary">{t("boardGroceries")}</h3>{groceries.length?<><ul className="board-summary-list">{groceries.slice(0,3).map(item=><li className={item.checked?"is-checked":""} key={item.id}><span aria-hidden="true">{item.checked?"✓":"•"}</span><span data-review-private="grocery-label">{item.label}</span></li>)}</ul>{groceries.length>3&&<p className="field-hint">{t("boardMoreItems",{count:groceries.length-3})}</p>}</>:freshness.groceries.state==="fresh"&&<p className="field-hint">{t("boardGroceriesEmpty")}</p>}</section>}
-    {showDinners&&<section aria-labelledby="home-dinner-summary"><h3 id="home-dinner-summary">{t("boardDinners")}</h3>{todayAssignment?.title?<p className="board-summary-dinner"><span aria-hidden="true">{todayAssignment.emoji??"🍽️"}</span><strong data-review-private="dinner-current">{todayAssignment.title}</strong></p>:freshness.assignments.state==="fresh"&&<p className="field-hint">{t("boardDinnerEmpty")}</p>}</section>}
+    {showDinners&&<section aria-labelledby="home-dinner-summary"><h3 id="home-dinner-summary">{t("boardDinners")}</h3>{todayDinner.kind==='planned'?<p className="board-summary-dinner"><span aria-hidden="true">{todayDinner.assignment.emoji??"🍽️"}</span><strong data-review-private="dinner-current">{todayDinner.assignment.title}</strong></p>:todayDinner.kind==='empty'&&<p className="field-hint">{t("boardDinnerTodayEmpty")}</p>}</section>}
     <details className="household-board-edit-disclosure" onToggle={event=>setEditOpen(event.currentTarget.open)}>
       <summary>{t("boardEditFromHome")}</summary>
       {editOpen&&<HouseholdBoardCards adapter={adapter} localDate={localDate} visibleCards={requestedCards} display={display}/>}

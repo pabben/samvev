@@ -1,3 +1,4 @@
+import { classifiedHttpFailure } from './http-failure.ts';
 import {
   aiProviderTurnSchema, aiResultSchema, aiTaskSchema,
   type AiProviderTurn, type AiResult, type AiTask, type AiToolDefinition, type AiToolResult
@@ -160,18 +161,18 @@ class OpenAiResponsesSession implements AiProviderSession {
 
   async next(toolResults: AiToolResult[] = [], toolChoice:AiToolChoice='auto'): Promise<AiProviderTurn> {
     if(this.closed)throw new AiProviderFailure('AI_RESPONSE_INVALID');
-    if (this.pending.size !== toolResults.length || toolResults.some((result) => this.pending.get(result.callId) !== result.name)){this.close();throw new AiProviderFailure('AI_RESPONSE_INVALID');}
+    if (new Set(toolResults.map(result=>result.callId)).size!==toolResults.length || this.pending.size !== toolResults.length || toolResults.some((result) => this.pending.get(result.callId) !== result.name)){this.close();throw new AiProviderFailure('AI_RESPONSE_INVALID');}
     if (toolResults.length) {
       this.input.push(...toolResults.map((result) => ({ type: 'function_call_output', call_id: result.callId, output: result.output })));
       this.pending.clear();
     }
     const active = combinedSignal(this.externalSignal, this.timeoutMs);
-    let rejectAbort:(error:Error)=>void=()=>{};const onAbort=()=>rejectAbort(new DOMException('aborted','AbortError'));let aborted:Promise<never>|undefined;
+    let rejectAbort:(error:Error)=>void=()=>{};const onAbort=()=>rejectAbort(new DOMException('aborted','AbortError'));let aborted:Promise<never>|undefined;let wireStarted=false;
     try {
       if(active.signal.aborted)throw new DOMException('aborted','AbortError');
       await this.configuration.beforeDispatch?.();
       if(active.signal.aborted)throw new DOMException('aborted','AbortError');
-      this.configuration.onWireStart?.();
+      this.configuration.onWireStart?.();wireStarted=true;
       aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=reject;active.signal.addEventListener('abort',onAbort,{once:true});});
       const response = await Promise.race([this.transport(OPENAI_RESPONSES_URL, {
         method: 'POST', headers: { authorization: `Bearer ${this.configuration.apiKey}`, 'content-type': 'application/json' },
@@ -180,12 +181,12 @@ class OpenAiResponsesSession implements AiProviderSession {
           ...(this.aliases.wireTools.length===0&&this.pending.size===0&&this.task.responseSchema?{text:{format:{type:'json_schema',name:this.task.responseSchema.name,strict:true,schema:openAiStrictResponseSchema(this.task.responseSchema.schema)}}}:{}),
           ...(this.aliases.wireTools.length ? { tools: responseTools(this.aliases.wireTools), tool_choice:toolChoice, include:['reasoning.encrypted_content'] } : {})
         }), signal: active.signal
-      }),aborted]);
+      }).catch(error=>{if(error instanceof TypeError)throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error',undefined,undefined,'network_error');throw error;}),aborted]);
       const text = await Promise.race([boundedText(response),aborted]); let parsed: unknown;
       try { parsed = JSON.parse(text); } catch { throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR'); }
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new AiProviderFailure(response.ok ? 'AI_RESPONSE_INVALID' : 'AI_UPSTREAM_ERROR');
       const payload = parsed as OpenAiPayload; const usage = normalizedResponsesUsage(payload.usage);
-      if (!response.ok) throw new AiProviderFailure('AI_UPSTREAM_ERROR', usage);
+      if (!response.ok){const failure=classifiedHttpFailure(response.status,payload);throw new AiProviderFailure(failure.code,usage,failure.responseReason,undefined,undefined,failure.fallbackReason);}
       let turn = internalizeAiProviderTurn(responsesTurn(payload),this.aliases);
       if(turn.output&&this.aliases.wireTools.length===0&&this.task.responseSchema)turn={...turn,output:normalizeOpenAiStrictOutput(turn.output,this.task.responseSchema.schema)};
       // Opaque reasoning/function-call items live only in this request-scoped adapter.
@@ -195,6 +196,7 @@ class OpenAiResponsesSession implements AiProviderSession {
     } catch (error) {
       const timedOut=active.signal.aborted;this.close();if (timedOut) throw new AiProviderFailure('AI_TIMEOUT');
       if (error instanceof AiProviderFailure) throw error;
+      if(!wireStarted)throw error;
       throw new AiProviderFailure('AI_UPSTREAM_ERROR');
     } finally { if(aborted)active.signal.removeEventListener('abort',onAbort);active.close(); }
   }

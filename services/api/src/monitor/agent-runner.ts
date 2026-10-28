@@ -203,15 +203,16 @@ export class MonitorAgentRunner {
         if(controller.signal.aborted)throw new DomainError('AI_TIMEOUT',504);
         const sourceRequired=[...requiredTools].some((name)=>!usedTools.has(name));
         await input.observer?.progress('analyzing');aiCalls++;const providerStarted=Date.now();let turn:AiProviderTurn;
-        try{turn=await (async()=>{try{return await session.next(results,sourceRequired?'required':'auto');}finally{input.observer?.providerTurn(Date.now()-providerStarted);}})();}
+        const dispatchedBefore=session.physicalAttempts??0;
+        try{turn=await (async()=>{try{return await session.next(results,sourceRequired?'required':'auto');}finally{aiCalls+=session.physicalAttempts===undefined?0:Math.max(0,session.physicalAttempts-dispatchedBefore)-1;input.observer?.providerTurn(Date.now()-providerStarted);}})();}
         catch(error){
-          const provider=session.provider;const canRepair=error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&!sourceRequired&&requiredTools.size>1&&evidenceDocuments.size>1&&!terminalRepairAttempted&&!input.preloadSeedDocuments&&turnNumber<maxTurns&&Boolean(input.task.responseSchema);
+          const provider=session.provider;const canRepair=error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&!sourceRequired&&requiredTools.size>1&&evidenceDocuments.size>1&&!terminalRepairAttempted&&!input.preloadSeedDocuments&&turnNumber<maxTurns&&Boolean(input.task.responseSchema)&&!session.usedFallback;
           if(!canRepair)throw error;
           terminalRepairAttempted=true;session.close();results=[];
           const repairTask={...input.task,input:boundedRepairInput(input.task.input,verifiedEvidenceContext(evidenceDocuments.values()))};
           session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair',input.executionContext);
           if(session.provider!==provider||(input.expectedProvider&&session.provider!==input.expectedProvider)){session.close();throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);}
-          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();try{turn=await session.next([],'auto');}finally{input.observer?.providerTurn(Date.now()-repairStarted);}
+          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();const repairDispatchedBefore=session.physicalAttempts??0;try{turn=await session.next([],'auto');}finally{aiCalls+=session.physicalAttempts===undefined?0:Math.max(0,session.physicalAttempts-repairDispatchedBefore)-1;input.observer?.providerTurn(Date.now()-repairStarted);}
         }
         results=[];
         if(turn.output){if(sourceRequired)throw validationError('AI_RESPONSE_INVALID',502,'required_tools','missing_required_tool');return {output:turn.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};}
@@ -277,14 +278,14 @@ export class MonitorAgentRunner {
         // window. Finalize from the complete server-held evidence in a fresh,
         // tool-free structured session. This avoids carrying provider-specific
         // tool protocol state and a duplicated source window into another turn.
-        if(preopenApprovedRoot&&!terminalRepairAttempted&&turnNumber<maxTurns&&
+        if(preopenApprovedRoot&&!session.usedFallback&&!terminalRepairAttempted&&turnNumber<maxTurns&&
           [...requiredTools].every((name)=>usedTools.has(name))&&evidenceDocuments.size>1){
           terminalRepairAttempted=true;const provider=session.provider;session.close();results=[];
           const repairTask={...input.task,input:boundedRepairInput(input.task.input,verifiedEvidenceContext(evidenceDocuments.values()))};
           session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair',input.executionContext);
           if(session.provider!==provider||(input.expectedProvider&&session.provider!==input.expectedProvider)){session.close();throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);}
-          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();let repaired:AiProviderTurn;
-          try{repaired=await session.next([],'auto');}finally{input.observer?.providerTurn(Date.now()-repairStarted);}
+          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();const repairDispatchedBefore=session.physicalAttempts??0;let repaired:AiProviderTurn;
+          try{repaired=await session.next([],'auto');}finally{aiCalls+=session.physicalAttempts===undefined?0:Math.max(0,session.physicalAttempts-repairDispatchedBefore)-1;input.observer?.providerTurn(Date.now()-repairStarted);}
           if(!repaired.output||repaired.toolCalls.length)throw validationError('AI_RESPONSE_INVALID',502,'provider_response','invalid_turn_shape');
           return{output:repaired.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};
         }

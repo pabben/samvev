@@ -231,7 +231,7 @@ test('queued interpretation, manual and scheduled work recheck the real AI bindi
       while(Date.now()<waitDeadline&&wireCalls===0){
         waiter=(await pool.query<{pid:number;query:string}>(`SELECT pid,query FROM pg_stat_activity
           WHERE datname=current_database() AND state='active' AND $1=ANY(pg_blocking_pids(pid))
-          AND query ILIKE '%FROM ai_settings WHERE household_id=$1 FOR SHARE%'
+          AND query ILIKE '%FROM ai_settings WHERE household_id=$1 FOR UPDATE%'
           ORDER BY pid LIMIT 1`,[blockerIdentity.pid])).rows[0];
         if(waiter)break;
         await new Promise((resolve)=>setTimeout(resolve,5));
@@ -239,7 +239,7 @@ test('queued interpretation, manual and scheduled work recheck the real AI bindi
       const debug=(await pool.query(`SELECT status,error_code,error_details FROM monitor_executions WHERE task_id=$1`,[taskId])).rows;
       const fenceDebug={kind,databaseName:blockerIdentity.database_name,blockerPid:blockerIdentity.pid,heldRows:held.rowCount,waiterPid:waiter?.pid??null,waiterQuery:waiter?.query??null,wireCalls,debug};
       assert.equal(wireCalls,0,`provider transport was reached before the final AI settings fence: ${JSON.stringify(fenceDebug)}`);
-      assert.ok(waiter,`real AiAdmin settings authorization did not reach the held FOR SHARE fence: ${JSON.stringify(fenceDebug)}`);
+      assert.ok(waiter,`real AiAdmin settings authorization did not reach the held FOR UPDATE reservation fence: ${JSON.stringify(fenceDebug)}`);
       assert.notEqual(waiter.pid,blockerIdentity.pid);
       await blocker.query('UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1',[actor.householdId]);
       await blocker.query('COMMIT');blockerFinalized=true;

@@ -1,24 +1,26 @@
 # M1 implementation status
 
-## Round 14 current status — 2026-10-27
+## Round 14 current status — 2026-10-28
 
-R14 scope is registered, not implemented. The active sequence is reference-led
-design and compact calendar (#15), ICS link onboarding (#14), then Anthropic
-provider support (#13). See [requirements and evidence](../design/review/ROUND_14_REQUIREMENTS.md),
-[resumable status](../design/review/ROUND_14_STATUS.md), and the
-[request ledger](../design/review/REQUEST_LEDGER.md). No R14 acceptance evidence
-is claimed.
+R14 implementation is in local review, not publicly released. Home and Calendar
+now use the reference-led composition and persisted person colors. ICS exposes
+separate subjects/readers/screens, preview/activation and durable 5/15/30-minute
+schedules. Anthropic uses encrypted existing provider configuration, with an
+explicit opt-in reserve and UTC daily physical-request admission limit.
 
-Root source inputs reportedly match publisher `0f808404…`; the public
-application is source `7c61557`, image `a0668cc…`, and reported healthy. QA is
-reported healthy but carries stale provenance metadata, so it is not fresh-source
-R14 evidence. Preserve existing user data, vault, integrations, AI tasks and
-schedules, protected Git metadata, and runtime. No code, provider credentials,
-AI requests, schedule changes, or public changes were made during registration.
-Use synthetic data and local runners; a real Anthropic call requires explicit
-owner action. Initial design inspection found no member Calendar route; canceled
-events and collision-safe persisted person-color assignment also remain open.
-Keep R13 owner actions separate and nonblocking.
+Evidence and remaining gates: [R14 status](../design/review/ROUND_14_STATUS.md)
+and [requirements](../design/review/ROUND_14_REQUIREMENTS.md). Local focused
+backend, frontend and capture-privacy tests pass; integrated browser testing,
+complete immutable screenshots, security/UX review, full QA, restore gate and
+public release remain pending. No live Anthropic or private ICS verification is
+claimed. Google/Microsoft and existing school activation remain separate owner
+actions. No real model or physical HA calls have been made.
+
+The public baseline was freshly rechecked: source `7c61557`, healthy app/worker
+and schema 037. LAN data/dist remain preserved. Root Git matches all 229 saved
+fingerprints; authoritative commits are in `.local/design-review-publish` on
+`feat/m3-family-hub`. Never infer candidate provenance from protected root HEAD.
+Existing data, vault, integrations, permissions and task schedules are preserved.
 
 ## Historical Round 13 status — 2026-10-16
 

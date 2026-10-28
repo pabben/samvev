@@ -68,7 +68,7 @@ test('Anthropic failures normalize safe key, billing, rate and model errors with
     [500,{type:'api_error',message:'synthetic upstream private body'},'AI_UPSTREAM_ERROR','upstream_http_5xx',true,'transient']
   ];
   for(const [status,error,code,reason,hasRetryAfter,fallbackReason] of cases){const provider=new AnthropicProvider(async()=>response({error},status,hasRetryAfter?{'retry-after':'2'}:{}));await assert.rejects(provider.execute(task,config),(failure:unknown)=>failure instanceof AiProviderFailure&&failure.code===code&&failure.responseReason===reason&&failure.fallbackReason===fallbackReason&&!failure.message.includes('synthetic upstream'));}
-  await assert.rejects(new AnthropicProvider(async()=>{throw new Error('private network detail');}).execute(task,config),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'&&!error.message.includes('private network'));
+  await assert.rejects(new AnthropicProvider(async()=>{throw new TypeError('private network detail');}).execute(task,config),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'&&!error.message.includes('private network'));
 });
 
 test('Anthropic pre-dispatch rejections are preserved and never reach transport',async()=>{
@@ -78,13 +78,15 @@ test('Anthropic pre-dispatch rejections are preserved and never reach transport'
   await assert.rejects(session.next(),(error:unknown)=>error instanceof DomainError&&error.code==='AI_CONFIGURATION_INVALID');assert.equal(calls,0);
 });
 
-test('Anthropic Sonnet 5.5 required-tool calls use auto with local required-tool enforcement',async()=>{
-  const sent:Record<string,unknown>[]=[];
-  const provider=new AnthropicProvider(async(_url,init)=>{const body=JSON.parse(String(init.body));sent.push(body);return response({model:'claude-sonnet-5-5',stop_reason:'end_turn',content:[{type:'text',text:'I will answer directly'}]});});
+test('Anthropic required tools fail closed for every model; only verified Haiku 5.5 uses forced choice',async()=>{
   const tool={name:'web.open',description:'Open a source',inputSchema:{type:'object',properties:{url:{type:'string'}},required:['url'],additionalProperties:false}};
-  const session=provider.createSession(task,{...config,model:'claude-sonnet-5-5'},[tool]);
-  await assert.rejects(session.next([], 'required'),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID'&&error.responseReason==='invalid_tool_calls');
-  assert.deepEqual(sent[0]!.tool_choice,{type:'auto'});assert.equal(sent[0]!.system,undefined);
+  for(const model of ['claude-sonnet-5-5','claude-opus-5-5','claude-fable-5-1','claude-mythos-5-1','unknown-future-model','claude-haiku-5-5']){
+    let sent:Record<string,unknown>|undefined;
+    const provider=new AnthropicProvider(async(_url,init)=>{sent=JSON.parse(String(init.body));return response({model,stop_reason:'end_turn',content:[{type:'text',text:'I will answer directly'}]});});
+    const session=provider.createSession(task,{...config,model},[tool]);
+    await assert.rejects(session.next([], 'required'),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID'&&error.responseReason==='invalid_tool_calls');
+    assert.deepEqual(sent!.tool_choice,{type:model==='claude-haiku-5-5'?'any':'auto'});assert.equal(sent!.system,undefined);session.close();
+  }
 });
 
 test('Anthropic cache token normalization is bounded and does not invent totals when base input is absent',()=>{

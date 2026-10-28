@@ -3,11 +3,19 @@ import test from "node:test";
 import { dateOffset, displayHouseholdBoardAdapter, memberHouseholdBoardAdapter, sevenDayWindow } from "../src/household-board-adapters.ts";
 import { mayApplyBoardRead, mutationFailure, reconcileBoardSnapshot } from "../src/household-board-state.ts";
 import { secureUuid } from "../src/secure-uuid.ts";
+import { todayDinnerSummary } from "../src/household-board-summary.ts";
 
 test("dinner windows preserve calendar dates across month, leap day, and year boundaries", () => {
   assert.equal(dateOffset("2028-02-28", 1), "2028-02-29");
   assert.deepEqual(sevenDayWindow("2028-02-27"), { from: "2028-02-27", to: "2028-03-04" });
   assert.equal(dateOffset("2026-12-31", 1), "2027-01-01");
+});
+
+test("compact Home dinner preview describes today without contradicting a planned dinner tomorrow",()=>{
+ const assignments=[{id:"tomorrow",localDate:"2026-10-29",title:"Fiskegrateng",emoji:"🐟",revision:1,cleared:false}];
+ assert.equal(todayDinnerSummary(assignments,"2026-10-28",true).kind,"empty");
+ assert.equal(todayDinnerSummary(assignments,"2026-10-28",false).kind,"unavailable");
+ assert.equal(todayDinnerSummary(assignments,"2026-10-29",true).kind,"planned");
 });
 
 test("member board adapter uses only household endpoints and passes the revision/idempotency contract", async () => {

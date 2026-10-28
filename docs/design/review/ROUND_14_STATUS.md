@@ -158,3 +158,33 @@ IDs and bytes remain private. A same-album reselect UI bug is corrected, with
 its browser regression still pending. The isolated real-UI ICS harness is
 prepared against source `088eb00`; initial route setup was corrected before
 continuing its functional checks. None of this is a live-provider verification.
+
+### Integrated AI policy and UI checkpoint
+
+Explicit reserve configuration, queue-time revision pins, mandatory task/worker
+leases, UTC daily physical-request admission and per-attempt usage metadata are
+implemented. The coordinator reviewed admission, preservation and counter paths;
+a zero-dispatch counter defect was returned to the writing agent and corrected.
+The 63-case focused group passed before that last correction; a targeted retest
+is running. Existing provider fixture expectations were updated for typed key
+and rate-limit failures, retaining no-fallback assertions.
+
+Administrator UI includes named Claude models, explicit reserve selection,
+request-count limits and actual route/usage details. Web typecheck and targeted
+tests passed. Coordinator review corrected copy that confused configured support
+with live availability and clarified conditional Console/API credits. No live
+provider request was made. ICS browser work is continuing on isolated source
+`088eb00`; its test account's normal login throttle is respected, not bypassed.
+All complete-release gates remain pending.
+
+Final backend checkpoint: API typecheck and 65 targeted fallback/provider/agent
+tests pass, including zero physical requests after pre-wire refusal. The prior
+affected integration group passed 63/63; its unchanged OAuth/queued-execution
+coverage remains relevant. These are isolated synthetic tests, not live calls.
+
+The actual ICS UI flow passed after normal test-account throttle expiry:
+preview, distinct subject/reader/display, activation, 15→5→30-minute schedule,
+reload persistence and manual refresh. API/database relationships and three
+synthetic transport fetches were checked; zero unexpected transports. The saved
+runner still needs its onboarding/resume/text-selector corrections persisted,
+and final-candidate repeat plus browser-error assertions remain pending.

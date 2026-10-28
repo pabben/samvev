@@ -534,6 +534,8 @@ export const aiProviderTurnSchema = z.object({
 });
 
 export const aiSettingsUpdateSchema = z.object({
+  fallbackProvider:z.enum(['openai','anthropic','openai_compatible']).nullable().optional(),
+  dailyDispatchLimit:z.number().int().min(1).max(1000000).nullable().optional(),
   enabled: z.boolean().optional(),
   provider: z.enum(aiProviderIds).optional(),
   apiKey: z.string().min(1).max(512).nullable().optional(),

@@ -12,6 +12,18 @@ R14 implementation or acceptance evidence is claimed.
 | R14-03 Anthropic provider (#13) | Use the existing provider-neutral AI architecture. Encrypted server-side key handling; mask key; model selection by understandable name (at least an economical routine model and Sonnet); default provider and explicit opt-in fallback; separate connection test; job provider/model metadata; usage/error handling and locally enforceable limits where supported. Preserve other providers. Document separate API billing and subscription-included credits without hard-coding plan billing as a technical condition. | R13 explicitly did not live-verify external ChatGPT/AI provider behavior. No R14 Anthropic adapter, credential, or live request is verified by this registration. | Inspect current provider architecture first. Implement adapter/configuration and synthetic transport coverage for success, invalid key, empty credit/limit, rate limit, transient/model/network failures, fallback, secret redaction and usage metadata; provide localized, clear Norwegian errors. No real API call or key entry until explicit owner action; never claim synthetic tests as provider verification. |
 | R14-04 Preservation and delivery | Preserve user data, vault, existing integrations, AI tasks/schedules, protected Git metadata and runtime. No AI or schedule mutation. Synthetic fixtures and local runners; final review and restore before any authorized public publish; feature-only DCO delivery. | R13 reports source `7c61557` publicly deployed, healthy runtime, and preserved data/runtime at that checkpoint. This is a historical baseline, not a fresh R14 backup/restore or source verification. | Reconfirm exact source/runtime and preservation before any operation that could affect them. Record fresh R14 QA, screenshots, backup/restore and publish evidence. Keep R13 saved-school/provider owner actions separate and nonblocking. |
 
+## Latest implementation matrix — 2026-10-28
+
+This matrix supersedes the initial baseline cells above; all public checks below
+remain pending for R14.
+
+| Scope | Implemented / local evidence | Still required |
+|---|---|---|
+| Design / #15 | Revised shared layout, Calendar entry, compact detail-opening rows, cancellation handling and persisted editable colors. 149 web tests and prototype visual/keyboard/geometry checks passed. Six defaults are distinct; the 12-token palette deterministically reuses colors after exhaustion. | Immutable captures of all changed surfaces, complete visual/ACL regression and public verification. |
+| #14 ICS | Existing engine/UI reused; independent subjects/readers/displays, preview and activation, 15-minute default with 5/30 choices, success/next/stale status. Focused API 6/6 and transport 10/10 passed. | Actual isolated UI flow now passed; persist the corrected runner and repeat on final candidate, then public UI checks. Owner private subscription/live sync remains separate. |
+| #13 Claude | Encrypted provider settings, model choices, typed errors, usage, explicit reserve and UTC request admission limits. API check, 63 affected integration tests and final 65 targeted tests passed. | Integrated full QA, browser setup/usage checks, security review and publication. Real key/explicit provider call remains owner-controlled. |
+| Preservation / delivery | Fresh public baseline health/schema check; protected Git 229 files unchanged; local DCO checkpoints only. Protected media proof tests 11/11. | Full QA, canonical14, backup/isolated restore, release gate, feature push and authorized public cutover/HTTPS validation. |
+
 ## Evidence boundaries
 
 - R13 evidence is a prior-round baseline only; it does not satisfy R14 criteria.

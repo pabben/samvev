@@ -28,3 +28,5 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0022](0022-person-assets-calendar-and-task-subjects.md) | Protected person photos, read-only calendar snapshots and independent task subjects | Accepted for M3 R9 test candidate |
 | [0023](0023-calendar-registration-and-home-assistant.md) | Installation calendar GUI registration, adult private sources and optional HA Spond snapshots | Accepted for authorized test candidate |
 | [0024](0024-home-assistant-calendar-snapshots-and-temperature.md) | General HA calendar snapshots, waste purposes and selected temperature observations | Accepted for authorized test candidate |
+
+- [0025: Explicit AI reserve and UTC dispatch limit](0025-opt-in-ai-fallback-and-dispatch-limits.md)

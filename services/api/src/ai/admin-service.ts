@@ -10,7 +10,7 @@ import { normalizeOpenAiCompatibleBaseUrl, OpenAiCompatibleProvider } from './op
 import { OpenAiProvider, type AiHttpTransport } from './openai-provider.ts';
 import {
   AiProviderFailure, aiProviderRequirements, validateAiProviderConfiguration,
-  type AiFailureCode, type AiProvider
+  type AiFailureCode, type AiProviderFallbackReason, type AiProviderSession, type AiProvider
 } from './provider.ts';
 import { randomUUID } from 'node:crypto';
 import { ChatGptSubscriptionProvider } from './chatgpt-provider.ts';
@@ -33,6 +33,10 @@ interface SettingsRow {
   availability_checked_at: Date | null;
   availability_checked_revision: number | null;
   active_chatgpt_registration_id: string | null;
+  fallback_provider: AiProviderId | null;
+  fallback_configuration_revision: number | null;
+  daily_dispatch_limit: number | null;
+  configuration_revision?: number;
 }
 
 export interface AiSettingsPatch {
@@ -45,11 +49,16 @@ export interface AiSettingsPatch {
   defaultReasoningEffort?: AiReasoningEffort;
   strongReasoningEffort?: AiReasoningEffort;
   expectedRevision: number;
+  fallbackProvider?: 'openai'|'anthropic'|'openai_compatible'|null;
+  dailyDispatchLimit?: number|null;
 }
 
 export type AiSessionMode='analysis'|'format_repair';
 export interface AiExecutionContext{
   ownerAccountId?:string;ownerMembershipId?:string;taskId?:string;taskRevision?:number;
+  taskLeaseToken?:string;workerLeaseToken?:string;
+  expectedConfigurationRevision?:number;expectedFallbackProvider?:AiProviderId|null;expectedFallbackConfigurationRevision?:number|null;
+  fallbackFromProvider?:AiProviderId;fallbackReason?:AiProviderFallbackReason;
   executionId?:string;phase?:string;category?:'normal'|'setup'|'test';
   expectedProvider?:AiProviderId;expectedSettingsRevision?:number;expectedRegistrationId?:string;expectedRegistrationGeneration?:number;
 }
@@ -69,7 +78,7 @@ function emptySettings(householdId: string): SettingsRow {
     default_model: '', strong_model: '', default_reasoning_effort: 'none', strong_reasoning_effort: 'medium',
     revision: 0, availability_status: 'not_tested',
     availability_error_code: null, availability_checked_at: null, availability_checked_revision: null,
-    active_chatgpt_registration_id:null
+    fallback_provider:null,fallback_configuration_revision:null,daily_dispatch_limit:null,active_chatgpt_registration_id:null
   };
 }
 
@@ -105,14 +114,14 @@ export class AiAdminService {
   }
 
   async settings(householdId: string,actor?:{installationId:string;accountId:string;membershipId:string}): Promise<Record<string, unknown>> {
-    const settings=this.settingsDto(await this.rawSettings(householdId));
+    const settings=await this.settingsDto(await this.rawSettings(householdId));
     const saved=await pool.query<{provider:AiProviderId;api_key_ciphertext:string|null;base_url:string|null;default_model:string;strong_model:string;default_reasoning_effort:AiReasoningEffort;strong_reasoning_effort:AiReasoningEffort;revision:number}>('SELECT provider,api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort,revision FROM ai_provider_configurations WHERE household_id=$1 ORDER BY provider',[householdId]);
-    const savedProviders=saved.rows.map((row)=>({provider:row.provider,hasApiKey:Boolean(row.api_key_ciphertext),baseUrl:row.base_url,defaultModel:row.default_model,strongModel:row.strong_model,defaultReasoningEffort:row.default_reasoning_effort,strongReasoningEffort:row.strong_reasoning_effort,revision:row.revision}));
+    const savedProviders=saved.rows.map((row)=>({provider:row.provider,hasApiKey:Boolean(row.api_key_ciphertext),baseUrl:row.base_url,defaultModel:row.default_model,strongModel:row.strong_model,defaultReasoningEffort:row.default_reasoning_effort,strongReasoningEffort:row.strong_reasoning_effort,revision:row.revision,configured:hasStoredProviderConfiguration({...emptySettings(householdId),...row}),runtimeAvailable:Boolean(this.providers[row.provider])}));
     return actor?{...settings,savedProviders,chatgpt:await this.chatgpt.list({householdId,...actor})}:{...settings,savedProviders};
   }
 
   /** A sanitized queue-time fence. It deliberately contains no endpoint, model or credential. */
-  async executionProfile(householdId:string,policy:MonitorProviderPolicy='default',context:AiExecutionContext={}):Promise<{provider:AiProviderId;settingsRevision:number;registrationId?:string;registrationGeneration?:number}> {
+  async executionProfile(householdId:string,policy:MonitorProviderPolicy='default',context:AiExecutionContext={}):Promise<{provider:AiProviderId;settingsRevision:number;configurationRevision?:number;fallbackProvider?:AiProviderId|null;fallbackConfigurationRevision?:number|null;registrationId?:string;registrationGeneration?:number}> {
     const settings=await this.rawSettings(householdId);
     if((policy==='local'&&settings.provider!=='openai_compatible')||(policy==='openai'&&settings.provider!=='openai'))throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
     if(!settings.enabled)throw new DomainError('AI_DISABLED',422);
@@ -123,7 +132,7 @@ export class AiAdminService {
       return{provider:settings.provider,settingsRevision:settings.revision,registrationId:settings.active_chatgpt_registration_id,registrationGeneration:token.generation};
     }
     if(!hasStoredProviderConfiguration(settings))throw new DomainError('AI_CONFIGURATION_INVALID',422);
-    return{provider:settings.provider,settingsRevision:settings.revision};
+    return{provider:settings.provider,settingsRevision:settings.revision,configurationRevision:settings.configuration_revision,fallbackProvider:settings.fallback_provider,fallbackConfigurationRevision:settings.fallback_configuration_revision};
   }
 
   async updateSettings(householdId: string, patch: AiSettingsPatch,actor?:AiSettingsActor): Promise<Record<string, unknown>> {
@@ -161,7 +170,7 @@ export class AiAdminService {
         ]);
         if (!inserted.rowCount) throw new DomainError('REVISION_CONFLICT', 409);
         if(provider!=='chatgpt_subscription')await client.query(`INSERT INTO ai_provider_configurations(household_id,provider,api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort) VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(household_id,provider) DO UPDATE SET api_key_ciphertext=EXCLUDED.api_key_ciphertext,base_url=EXCLUDED.base_url,default_model=EXCLUDED.default_model,strong_model=EXCLUDED.strong_model,default_reasoning_effort=EXCLUDED.default_reasoning_effort,strong_reasoning_effort=EXCLUDED.strong_reasoning_effort,revision=ai_provider_configurations.revision+1,updated_at=clock_timestamp()`,[householdId,provider,inserted.rows[0]!.api_key_ciphertext,inserted.rows[0]!.base_url,inserted.rows[0]!.default_model,inserted.rows[0]!.strong_model,inserted.rows[0]!.default_reasoning_effort,inserted.rows[0]!.strong_reasoning_effort]);
-        return inserted.rows[0]!;
+        return this.savePolicy(client,householdId,inserted.rows[0]!,patch);
       }
       if (existing.revision !== patch.expectedRevision) throw new DomainError('REVISION_CONFLICT', 409);
       const provider = patch.provider ?? existing.provider;
@@ -193,7 +202,7 @@ export class AiAdminService {
           patch.expectedRevision
         ]);
       if (!result.rowCount) throw new DomainError('REVISION_CONFLICT', 409);
-      return result.rows[0]!;
+      return this.savePolicy(client,householdId,result.rows[0]!,patch);
     });
     return this.settingsDto(updated);
   }
@@ -230,38 +239,59 @@ export class AiAdminService {
   async createTaskSession(
     householdId:string,rawTask:AiTask,policy:MonitorProviderPolicy='default',
     tools:AiToolDefinition[]=[],signal?:AbortSignal,mode:AiSessionMode='analysis',context:AiExecutionContext={}
-  ):Promise<{provider:AiProviderId;model:string;next:(results?:AiToolResult[],toolChoice?:'auto'|'required')=>Promise<AiProviderTurn>;close:()=>void}>{
+  ):Promise<{provider:AiProviderId;model:string;physicalAttempts:number;usedFallback:boolean;next:(results?:AiToolResult[],toolChoice?:'auto'|'required')=>Promise<AiProviderTurn>;close:()=>void}>{
     const task=aiTaskSchema.parse(rawTask);const settings=await this.rawSettings(householdId);
     this.requireExpectedProfile(settings,context);
     if((policy==='local'&&settings.provider!=='openai_compatible')||(policy==='openai'&&settings.provider!=='openai'))throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
     const model=task.modelTier==='strong'?settings.strong_model:settings.default_model;
     if(!settings.enabled){await this.recordPreflight(householdId,settings.provider,model,task,'AI_DISABLED',context);throw new DomainError('AI_DISABLED',422);}
     const provider=this.providers[settings.provider];if(!provider)throw new DomainError('AI_PROVIDER_UNAVAILABLE',502);
-    let apiKey:string|undefined;const registrationId=settings.active_chatgpt_registration_id??undefined;let registrationGeneration:number|undefined;
-    if(settings.provider==='chatgpt_subscription'){
-      if(!context.ownerAccountId||!context.ownerMembershipId||!settings.active_chatgpt_registration_id)throw new DomainError('MONITOR_OWNER_UNAUTHORIZED',403);
-      const access=await this.chatgpt.accessToken({householdId,installationId:'',accountId:context.ownerAccountId,membershipId:context.ownerMembershipId},settings.active_chatgpt_registration_id);apiKey=access.token;registrationGeneration=access.generation;
-    }else if(settings.api_key_ciphertext){try{apiKey=await this.vault.decrypt(householdId,settings.api_key_ciphertext);}catch{throw new DomainError('AI_CONFIGURATION_INVALID',422);}}
-    // A bounded format-only repair has already received server-verified evidence
-    // and performs no semantic planning or tool selection. Minimal reasoning
-    // preserves the chosen model/policy while reserving output tokens for the
-    // required JSON instead of an unobservable reasoning trace.
-    const configuredReasoning=task.modelTier==='strong'?settings.strong_reasoning_effort:settings.default_reasoning_effort;
-    let pendingAttemptId:string|undefined;let authorized=false;let wireStarted=false;let turn=0;
-    const configuration={provider:settings.provider,model,apiKey,baseUrl:settings.base_url??undefined,reasoningEffort:settings.provider==='chatgpt_subscription'?(mode==='format_repair'?'low':configuredReasoning==='none'?'low':configuredReasoning):mode==='format_repair'?'none':configuredReasoning,beforeDispatch:async()=>{
-      if(authorized||wireStarted||!pendingAttemptId)throw new AiProviderFailure('AI_RESPONSE_INVALID');
-      if(settings.provider==='chatgpt_subscription'&&registrationId){
-        const access=await this.chatgpt.accessToken({householdId,installationId:'',accountId:context.ownerAccountId!,membershipId:context.ownerMembershipId!},registrationId);if(access.generation!==registrationGeneration)throw new AiProviderFailure('AI_REAUTHORIZATION_REQUIRED');configuration.apiKey=access.token;
+    let active=settings;let activeProvider=provider;let wire:AiProviderSession|undefined;let closed=false;
+    const registrationId=settings.active_chatgpt_registration_id??undefined;let registrationGeneration:number|undefined;
+    let reserve:SettingsRow|undefined;
+    if(settings.fallback_provider&&policy==='default'&&mode==='analysis'&&settings.provider!=='chatgpt_subscription'){
+      const row=(await pool.query<any>('SELECT api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort,revision AS configuration_revision FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2',[householdId,settings.fallback_provider])).rows[0];
+      if(!row||row.configuration_revision!==settings.fallback_configuration_revision)throw new DomainError('AI_CONFIGURATION_INVALID',422);
+      reserve={...settings,...row,provider:settings.fallback_provider};
+    }
+    let pendingAttemptId:string|undefined;let authorized=false;let wireStarted=false;let turn=0;let physicalAttempts=0;let successfulTurns=0;let usedFallback=false;let fallbackReason:AiProviderFallbackReason|undefined;
+    const actualModel=()=>task.modelTier==='strong'?active.strong_model:active.default_model;
+    const open=async()=>{
+      let apiKey:string|undefined;
+      if(active.provider==='chatgpt_subscription'){
+        if(!context.ownerAccountId||!context.ownerMembershipId||!registrationId)throw new DomainError('MONITOR_OWNER_UNAUTHORIZED',403);
+        const access=await this.chatgpt.accessToken({householdId,installationId:'',accountId:context.ownerAccountId,membershipId:context.ownerMembershipId},registrationId);apiKey=access.token;registrationGeneration=access.generation;
+      }else if(active.api_key_ciphertext){try{apiKey=await this.vault.decrypt(householdId,active.api_key_ciphertext);}catch{throw new DomainError('AI_CONFIGURATION_INVALID',422);}}
+      const configuredReasoning=task.modelTier==='strong'?active.strong_reasoning_effort:active.default_reasoning_effort;
+      const configuration={provider:active.provider,model:actualModel(),apiKey,baseUrl:active.base_url??undefined,reasoningEffort:active.provider==='chatgpt_subscription'?(mode==='format_repair'?'low':configuredReasoning==='none'?'low':configuredReasoning):mode==='format_repair'?'none':configuredReasoning,beforeDispatch:async()=>{
+        if(closed||authorized||wireStarted||!pendingAttemptId)throw new AiProviderFailure('AI_RESPONSE_INVALID');
+        if(active.provider==='chatgpt_subscription'&&registrationId){const access=await this.chatgpt.accessToken({householdId,installationId:'',accountId:context.ownerAccountId!,membershipId:context.ownerMembershipId!},registrationId);if(access.generation!==registrationGeneration)throw new AiProviderFailure('AI_REAUTHORIZATION_REQUIRED');configuration.apiKey=access.token;}
+        await this.authorizeAndCreateAttempt(pendingAttemptId,householdId,active,actualModel(),task,turn,{...context,...(usedFallback?{fallbackFromProvider:settings.provider,fallbackReason}:{})},true,registrationId,registrationGeneration,settings);authorized=true;
+      },onWireStart:()=>{if(closed||!authorized||wireStarted||!pendingAttemptId)throw new AiProviderFailure('AI_RESPONSE_INVALID');wireStarted=true;physicalAttempts++;}};
+      validateAiProviderConfiguration(configuration);wire=activeProvider.createSession(task,configuration,tools,signal);
+    };
+    try{await open();}catch(error){throw new DomainError(error instanceof AiProviderFailure?error.code:error instanceof DomainError?error.code:'AI_CONFIGURATION_INVALID',422);}
+    return {get provider(){return active.provider;},get model(){return actualModel();},get physicalAttempts(){return physicalAttempts;},get usedFallback(){return usedFallback;},close:()=>{closed=true;wire?.close();},next:async(results=[],toolChoice='auto')=>{
+      if(closed)throw new DomainError('AI_RESPONSE_INVALID',502);
+      turn++;
+      for(;;){
+        const attemptId=randomUUID();pendingAttemptId=attemptId;authorized=false;wireStarted=false;
+        try{const result=await wire!.next(results,toolChoice);await this.finishAttempt(attemptId,true,null,result.usage,result.actualModel,result.actualServiceTier);successfulTurns++;return result;}
+        catch(error){
+          const failure=error instanceof AiProviderFailure?error:error instanceof DomainError?new AiProviderFailure(error.code as AiFailureCode):new AiProviderFailure('AI_UPSTREAM_ERROR');
+          if(wireStarted)await this.finishAttempt(attemptId,false,failure.code,failure.usage,failure.actualModel,failure.actualServiceTier);else if(authorized)await this.rejectAuthorizedAttempt(attemptId,failure.code);else await this.recordPreflight(householdId,active.provider,actualModel(),task,failure.code,{...context,...(usedFallback?{fallbackFromProvider:settings.provider,fallbackReason}:{})},attemptId,registrationId);
+          if(registrationId&&['AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_PLAN_PERMISSION_REQUIRED','AI_REAUTHORIZATION_REQUIRED'].includes(failure.code))await this.chatgpt.markTerminalFailure(householdId,registrationId,failure.code as 'AI_PLAN_USAGE_LIMITED'|'AI_PLAN_NOT_ELIGIBLE'|'AI_PLAN_PERMISSION_REQUIRED'|'AI_REAUTHORIZATION_REQUIRED',failure.responseReason);
+          if(wireStarted&&['AI_UPSTREAM_ERROR','AI_PROVIDER_RATE_LIMITED','AI_TIMEOUT'].includes(failure.code)&&failure.fallbackReason&&reserve&&!usedFallback&&turn===1&&successfulTurns===0&&results.length===0&&!signal?.aborted&&!closed){wire?.close();usedFallback=true;fallbackReason=failure.fallbackReason;active=reserve;activeProvider=this.providers[active.provider]!;
+            try{await open();}catch(openError){
+              const openCode=openError instanceof AiProviderFailure||openError instanceof DomainError?openError.code as AiFailureCode:'AI_CONFIGURATION_INVALID';
+              await this.recordPreflight(householdId,active.provider,actualModel(),task,openCode,{...context,fallbackFromProvider:settings.provider,fallbackReason});
+              throw new DomainError(openCode,422,{provider:active.provider,actualDispatch:false,fallbackFromProvider:settings.provider,fallbackReason});
+            }
+            continue;}
+          const status=['AI_CONFIGURATION_INVALID','AI_DISABLED','AI_REAUTHORIZATION_REQUIRED','AI_PLAN_PERMISSION_REQUIRED','AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_KEY_INVALID','AI_MODEL_UNAVAILABLE'].includes(failure.code)?422:failure.code==='AI_PERMISSION_DENIED'?403:failure.code==='AI_BILLING_REQUIRED'?402:['AI_PROVIDER_RATE_LIMITED','AI_DAILY_DISPATCH_LIMIT'].includes(failure.code)?429:failure.code==='AI_TIMEOUT'?504:502;
+          throw new DomainError(failure.code,status,{provider:active.provider,actualDispatch:wireStarted,model:actualModel(),...(usedFallback?{fallbackFromProvider:settings.provider,fallbackReason}:{}),...(failure.responseReason?{providerResponseReason:failure.responseReason}:{})});
+        }finally{pendingAttemptId=undefined;}
       }
-      await this.authorizeAndCreateAttempt(pendingAttemptId,householdId,settings,model,task,turn,context,true,registrationId,registrationGeneration);authorized=true;
-    },onWireStart:()=>{if(!authorized||wireStarted||!pendingAttemptId)throw new AiProviderFailure('AI_RESPONSE_INVALID');wireStarted=true;}};
-    try{validateAiProviderConfiguration(configuration);}catch(error){throw new DomainError(error instanceof AiProviderFailure?error.code:'AI_CONFIGURATION_INVALID',422);}
-    const wire=provider.createSession(task,configuration,tools,signal);
-    return {provider:settings.provider,model,close:()=>wire.close(),next:async(results=[],toolChoice='auto')=>{
-      const attemptId=randomUUID();turn++;pendingAttemptId=attemptId;authorized=false;wireStarted=false;
-      try{const result=await wire.next(results,toolChoice);await this.finishAttempt(attemptId,true,null,result.usage,result.actualModel,result.actualServiceTier);return result;}
-      catch(error){const failure=error instanceof AiProviderFailure?error:error instanceof DomainError?new AiProviderFailure(error.code as AiFailureCode):new AiProviderFailure('AI_UPSTREAM_ERROR');if(wireStarted)await this.finishAttempt(attemptId,false,failure.code,failure.usage,failure.actualModel,failure.actualServiceTier);else if(authorized)await this.rejectAuthorizedAttempt(attemptId,failure.code);else await this.recordPreflight(householdId,settings.provider,model,task,failure.code,context,attemptId,registrationId);if(registrationId&&['AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_PLAN_PERMISSION_REQUIRED','AI_REAUTHORIZATION_REQUIRED'].includes(failure.code))await this.chatgpt.markTerminalFailure(householdId,registrationId,failure.code as 'AI_PLAN_USAGE_LIMITED'|'AI_PLAN_NOT_ELIGIBLE'|'AI_PLAN_PERMISSION_REQUIRED'|'AI_REAUTHORIZATION_REQUIRED',failure.responseReason);const status=['AI_CONFIGURATION_INVALID','AI_DISABLED','AI_REAUTHORIZATION_REQUIRED','AI_PLAN_PERMISSION_REQUIRED','AI_PLAN_USAGE_LIMITED','AI_PLAN_NOT_ELIGIBLE','AI_KEY_INVALID','AI_MODEL_UNAVAILABLE'].includes(failure.code)?422:failure.code==='AI_PERMISSION_DENIED'?403:failure.code==='AI_BILLING_REQUIRED'?402:failure.code==='AI_PROVIDER_RATE_LIMITED'?429:failure.code==='AI_TIMEOUT'?504:502;throw new DomainError(failure.code,status,failure.responseReason?{providerResponseReason:failure.responseReason}:undefined);}
-      finally{pendingAttemptId=undefined;}
     }};
   }
 
@@ -286,7 +316,7 @@ export class AiAdminService {
     const normal=`COALESCE(u.category,CASE WHEN u.purpose='connection_test' THEN 'test' ELSE 'normal' END)='normal'`;
     const [summary,recent,byDay,byModel,byPurpose,planCost,apiCost,coverage,planForecast,apiForecast]=await Promise.all([
       pool.query<{requests:number;successes:number;failures:number;preflight_rejections:number;pending_attempts:number;legacy_unknown:number;input_tokens:string;output_tokens:string;unknown_usage:number}>(`SELECT count(*) FILTER(WHERE actual_dispatch)::int requests,count(*) FILTER(WHERE actual_dispatch AND outcome='completed')::int successes,count(*) FILTER(WHERE actual_dispatch AND outcome IN ('failed','interrupted'))::int failures,count(*) FILTER(WHERE actual_dispatch=false AND outcome='preflight_rejected')::int preflight_rejections,count(*) FILTER(WHERE actual_dispatch IS NULL AND outcome='started')::int pending_attempts,count(*) FILTER(WHERE actual_dispatch IS NULL AND outcome IS NULL)::int legacy_unknown,LEAST(COALESCE(sum(input_tokens),0),9007199254740991)::bigint input_tokens,LEAST(COALESCE(sum(output_tokens),0),9007199254740991)::bigint output_tokens,count(*) FILTER(WHERE actual_dispatch AND (input_tokens IS NULL OR output_tokens IS NULL))::int unknown_usage FROM ai_usage_events WHERE household_id=$1 AND ($3::uuid IS NULL OR owner_account_id=$3) AND occurred_at>=CURRENT_DATE-($2::int-1)*interval '1 day'`,owner),
-      pool.query<{provider:AiProviderId;route:string|null;requested_model:string|null;actual_model:string|null;actual_service_tier:string|null;purpose:string;category:string|null;success:boolean;failure_code:string|null;actual_dispatch:boolean|null;outcome:string|null;input_tokens:number|null;output_tokens:number|null;occurred_at:Date}>(`SELECT provider,route,requested_model,actual_model,actual_service_tier,purpose,category,success,failure_code,actual_dispatch,outcome,input_tokens,output_tokens,occurred_at FROM ai_usage_events WHERE household_id=$1 AND ($3::uuid IS NULL OR owner_account_id=$3) AND occurred_at>=CURRENT_DATE-($2::int-1)*interval '1 day' ORDER BY occurred_at DESC,id DESC LIMIT 20`,owner),
+      pool.query<{provider:AiProviderId;route:string|null;requested_model:string|null;actual_model:string|null;actual_service_tier:string|null;purpose:string;category:string|null;success:boolean;failure_code:string|null;actual_dispatch:boolean|null;outcome:string|null;input_tokens:number|null;output_tokens:number|null;occurred_at:Date}>(`SELECT provider,route,requested_model,actual_model,actual_service_tier,purpose,category,success,failure_code,actual_dispatch,outcome,input_tokens,output_tokens,occurred_at,fallback_from_provider,fallback_reason,configuration_revision FROM ai_usage_events WHERE household_id=$1 AND ($3::uuid IS NULL OR owner_account_id=$3) AND occurred_at>=CURRENT_DATE-($2::int-1)*interval '1 day' ORDER BY occurred_at DESC,id DESC LIMIT 20`,owner),
       pool.query<{day:string;calls:number;input_tokens:string;output_tokens:string;unknown_usage:number}>(`SELECT d::date::text AS "day",count(u.id) FILTER(WHERE u.actual_dispatch)::int calls,COALESCE(sum(u.input_tokens),0)::bigint input_tokens,COALESCE(sum(u.output_tokens),0)::bigint output_tokens,count(u.id) FILTER(WHERE u.actual_dispatch AND (u.input_tokens IS NULL OR u.output_tokens IS NULL))::int unknown_usage FROM generate_series(CURRENT_DATE-($2::int-1)*interval '1 day',CURRENT_DATE,interval '1 day') d LEFT JOIN ai_usage_events u ON u.household_id=$1 AND ($3::uuid IS NULL OR u.owner_account_id=$3) AND u.occurred_at>=d AND u.occurred_at<d+interval '1 day' GROUP BY d ORDER BY d`,owner),
       pool.query<{model:string;route:string;calls:number;input_tokens:string;output_tokens:string}>(`SELECT COALESCE(actual_model,'unreported') model,COALESCE(route,'unknown') route,count(*) FILTER(WHERE actual_dispatch)::int calls,COALESCE(sum(input_tokens),0)::bigint input_tokens,COALESCE(sum(output_tokens),0)::bigint output_tokens FROM ai_usage_events WHERE household_id=$1 AND ($3::uuid IS NULL OR owner_account_id=$3) AND occurred_at>=CURRENT_DATE-($2::int-1)*interval '1 day' GROUP BY actual_model,route ORDER BY calls DESC,model`,owner),
       pool.query<{purpose:string;category:string;calls:number;input_tokens:string;output_tokens:string}>(`SELECT purpose,COALESCE(category,CASE WHEN purpose='connection_test' THEN 'test' ELSE 'normal' END) category,count(*) FILTER(WHERE actual_dispatch)::int calls,COALESCE(sum(input_tokens),0)::bigint input_tokens,COALESCE(sum(output_tokens),0)::bigint output_tokens FROM ai_usage_events WHERE household_id=$1 AND ($3::uuid IS NULL OR owner_account_id=$3) AND occurred_at>=CURRENT_DATE-($2::int-1)*interval '1 day' GROUP BY purpose,category ORDER BY calls DESC,purpose`,owner),
@@ -300,30 +330,50 @@ export class AiAdminService {
     const tracking=coverage.rows[0]?.tracking_started_at;const completeThrough=new Date();completeThrough.setUTCDate(completeThrough.getUTCDate()-1);const completeFrom=new Date(completeThrough);completeFrom.setUTCDate(completeFrom.getUTCDate()-6);const sevenDayTracking=Boolean(tracking&&tracking.getTime()<=Date.UTC(completeFrom.getUTCFullYear(),completeFrom.getUTCMonth(),completeFrom.getUTCDate()));
     const forecast=(row:{amount:string;known_calls:number;total_calls:number;unresolved_calls:number}|undefined,kind:'credits'|'usd')=>{const complete=sevenDayTracking?7:0;if(!sevenDayTracking)return{status:'preliminary' as const,reason:'partial_calendar_history',completeCalendarDays:complete,from:completeFrom.toISOString().slice(0,10),to:completeThrough.toISOString().slice(0,10),totalCalls:row?.total_calls??0,knownCalls:row?.known_calls??0,monthlyAmount:null,unit:kind==='credits'?'credits':'USD'};if(!(row?.total_calls??0))return{status:'preliminary' as const,reason:'insufficient_history',completeCalendarDays:7,from:completeFrom.toISOString().slice(0,10),to:completeThrough.toISOString().slice(0,10),totalCalls:0,knownCalls:0,monthlyAmount:null,unit:kind==='credits'?'credits':'USD'};if((row?.unresolved_calls??0)>0)return{status:'preliminary' as const,reason:'unresolved_dispatch',completeCalendarDays:7,from:completeFrom.toISOString().slice(0,10),to:completeThrough.toISOString().slice(0,10),totalCalls:row!.total_calls,knownCalls:row!.known_calls,monthlyAmount:null,unit:kind==='credits'?'credits':'USD'};if(row!.known_calls!==row!.total_calls)return{status:'preliminary' as const,reason:'unknown_pricing',completeCalendarDays:7,from:completeFrom.toISOString().slice(0,10),to:completeThrough.toISOString().slice(0,10),totalCalls:row!.total_calls,knownCalls:row!.known_calls,monthlyAmount:null,unit:kind==='credits'?'credits':'USD'};return{status:'available' as const,reason:null,completeCalendarDays:7,from:completeFrom.toISOString().slice(0,10),to:completeThrough.toISOString().slice(0,10),totalCalls:row!.total_calls,knownCalls:row!.known_calls,normalCalls30Days:((row!.total_calls/7)*30).toFixed(2),monthlyAmount:row!.amount,unit:kind==='credits'?'credits':'USD'};};
     const plan=planCost.rows[0],api=apiCost.rows[0];
-    return{period:{days,from:byDay.rows[0]?.day??null,to:byDay.rows.at(-1)?.day??null},summary:{requests:total.requests,successes:total.successes,failures:total.failures,inputTokens:Number(total.input_tokens),outputTokens:Number(total.output_tokens),unknownUsageCount:total.unknown_usage,preflightRejections:total.preflight_rejections,pendingAttempts:total.pending_attempts,legacyUnknownAttempts:total.legacy_unknown},byDay:byDay.rows.map(row=>({date:row.day,calls:row.calls,inputTokens:Number(row.input_tokens),outputTokens:Number(row.output_tokens),unknownUsageCount:row.unknown_usage})),byModel:byModel.rows.map(row=>({model:row.model,route:row.route,calls:row.calls,inputTokens:Number(row.input_tokens),outputTokens:Number(row.output_tokens)})),byPurpose:byPurpose.rows.map(row=>({purpose:row.purpose,category:row.category,calls:row.calls,inputTokens:Number(row.input_tokens),outputTokens:Number(row.output_tokens)})),forecast:{chatGptCredits:forecast(planForecast.rows[0],'credits'),apiUsd:forecast(apiForecast.rows[0],'usd'),calendarDaysIncludeZeroUse:true,setupAndTestsExcluded:true},chatGptCredits:{status:(plan?.known_calls??0)>0?'estimated_recorded_usage':'unavailable',estimatedCredits:(plan?.known_calls??0)>0?plan!.amount:null,knownCalls:plan?.known_calls??0,unknownPricedAttempts:Math.max(0,(plan?.total_calls??0)-(plan?.known_calls??0)),usageUrl:'https://chatgpt.com/settings/usage',balance:null,pricePerCredit:null,sourceUrl:plan?.source_url??'https://learn.chatgpt.com/docs/pricing',effectiveFrom:plan?.effective_from??null,observedAt:plan?.observed_at?.toISOString()??null,note:'Recorded normal Samvev ChatGPT-plan usage estimate only; setup/tests, included-plan coverage, other apps, remaining balance and USD per credit are unknown.'},apiEquivalent:{currency:'USD',amount:(api?.known_calls??0)>0?api!.amount:null,status:(api?.known_calls??0)>0?'partial':'unavailable',knownCalls:api?.known_calls??0,unknownPricedAttempts:Math.max(0,(api?.total_calls??0)-(api?.known_calls??0)),scenarioOnly:true,assumption:'Pinned Standard-tier, no-region API comparison for ChatGPT-plan attempts; direct API attempts use their reported tier and pinned rate.',sourceUrl:api?.source_url??'https://developers.openai.com/api/docs/pricing',effectiveFrom:api?.effective_from??null,observedAt:api?.observed_at?.toISOString()??null,note:'Known normal-use events with immutable matching rate snapshots only; setup/tests and local models are excluded.'},recent:recent.rows.map(row=>({provider:row.provider,route:row.route,model:row.actual_model,actualModel:row.actual_model,requestedModel:row.requested_model,actualServiceTier:row.actual_service_tier,purpose:row.purpose,category:row.category,success:row.success,actualDispatch:row.actual_dispatch,outcome:row.outcome??(row.actual_dispatch===null?'legacy_unknown':row.success?'completed':'failed'),errorCode:row.failure_code,inputTokens:row.input_tokens,outputTokens:row.output_tokens,occurredAt:row.occurred_at.toISOString()}))};
+    return{period:{days,from:byDay.rows[0]?.day??null,to:byDay.rows.at(-1)?.day??null},summary:{requests:total.requests,successes:total.successes,failures:total.failures,inputTokens:Number(total.input_tokens),outputTokens:Number(total.output_tokens),unknownUsageCount:total.unknown_usage,preflightRejections:total.preflight_rejections,pendingAttempts:total.pending_attempts,legacyUnknownAttempts:total.legacy_unknown},byDay:byDay.rows.map(row=>({date:row.day,calls:row.calls,inputTokens:Number(row.input_tokens),outputTokens:Number(row.output_tokens),unknownUsageCount:row.unknown_usage})),byModel:byModel.rows.map(row=>({model:row.model,route:row.route,calls:row.calls,inputTokens:Number(row.input_tokens),outputTokens:Number(row.output_tokens)})),byPurpose:byPurpose.rows.map(row=>({purpose:row.purpose,category:row.category,calls:row.calls,inputTokens:Number(row.input_tokens),outputTokens:Number(row.output_tokens)})),forecast:{chatGptCredits:forecast(planForecast.rows[0],'credits'),apiUsd:forecast(apiForecast.rows[0],'usd'),calendarDaysIncludeZeroUse:true,setupAndTestsExcluded:true},chatGptCredits:{status:(plan?.known_calls??0)>0?'estimated_recorded_usage':'unavailable',estimatedCredits:(plan?.known_calls??0)>0?plan!.amount:null,knownCalls:plan?.known_calls??0,unknownPricedAttempts:Math.max(0,(plan?.total_calls??0)-(plan?.known_calls??0)),usageUrl:'https://chatgpt.com/settings/usage',balance:null,pricePerCredit:null,sourceUrl:plan?.source_url??'https://learn.chatgpt.com/docs/pricing',effectiveFrom:plan?.effective_from??null,observedAt:plan?.observed_at?.toISOString()??null,note:'Recorded normal Samvev ChatGPT-plan usage estimate only; setup/tests, included-plan coverage, other apps, remaining balance and USD per credit are unknown.'},apiEquivalent:{currency:'USD',amount:(api?.known_calls??0)>0?api!.amount:null,status:(api?.known_calls??0)>0?'partial':'unavailable',knownCalls:api?.known_calls??0,unknownPricedAttempts:Math.max(0,(api?.total_calls??0)-(api?.known_calls??0)),scenarioOnly:true,assumption:'Pinned Standard-tier, no-region API comparison for ChatGPT-plan attempts; direct API attempts use their reported tier and pinned rate.',sourceUrl:api?.source_url??'https://developers.openai.com/api/docs/pricing',effectiveFrom:api?.effective_from??null,observedAt:api?.observed_at?.toISOString()??null,note:'Known normal-use events with immutable matching rate snapshots only; setup/tests and local models are excluded.'},recent:recent.rows.map(row=>({provider:row.provider,route:row.route,model:row.actual_model,actualModel:row.actual_model,requestedModel:row.requested_model,actualServiceTier:row.actual_service_tier,purpose:row.purpose,category:row.category,success:row.success,actualDispatch:row.actual_dispatch,outcome:row.outcome??(row.actual_dispatch===null?'legacy_unknown':row.success?'completed':'failed'),errorCode:row.failure_code,inputTokens:row.input_tokens,outputTokens:row.output_tokens,fallbackFromProvider:(row as any).fallback_from_provider??null,fallbackReason:(row as any).fallback_reason??null,configurationRevision:(row as any).configuration_revision??null,occurredAt:row.occurred_at.toISOString()}))};
+  }
+
+  private async savePolicy(client:import('../db.ts').DbClient,householdId:string,settings:SettingsRow,patch:AiSettingsPatch):Promise<SettingsRow>{
+    const reserve=patch.fallbackProvider===undefined?settings.fallback_provider:patch.fallbackProvider;
+    let revision:number|null=null;
+    if(reserve){
+      if(reserve===settings.provider||settings.provider==='chatgpt_subscription'||!['openai','anthropic','openai_compatible'].includes(reserve))throw new DomainError('AI_CONFIGURATION_INVALID',422);
+      const row=(await client.query<any>('SELECT *,revision AS configuration_revision FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2 FOR SHARE',[householdId,reserve])).rows[0];
+      if(!row||!this.providers[reserve]||!hasStoredProviderConfiguration(row))throw new DomainError('AI_CONFIGURATION_INVALID',422);
+      revision=row.configuration_revision;
+    }
+    return(await client.query<SettingsRow>('UPDATE ai_settings SET fallback_provider=$2,fallback_configuration_revision=$3,daily_dispatch_limit=$4 WHERE household_id=$1 RETURNING *',[householdId,reserve??null,revision,patch.dailyDispatchLimit===undefined?settings.daily_dispatch_limit:patch.dailyDispatchLimit])).rows[0]!;
   }
 
   private async rawSettings(householdId: string): Promise<SettingsRow> {
     const settings=(await pool.query<SettingsRow>('SELECT * FROM ai_settings WHERE household_id=$1',[householdId])).rows[0];if(!settings)return emptySettings(householdId);
     if(settings.provider==='chatgpt_subscription')return settings;
-    const saved=(await pool.query<Pick<SettingsRow,'api_key_ciphertext'|'base_url'|'default_model'|'strong_model'|'default_reasoning_effort'|'strong_reasoning_effort'>>('SELECT api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2',[householdId,settings.provider])).rows[0];return saved?{...settings,...saved}:settings;
+    const saved=(await pool.query<Pick<SettingsRow,'api_key_ciphertext'|'base_url'|'default_model'|'strong_model'|'default_reasoning_effort'|'strong_reasoning_effort'|'configuration_revision'>>('SELECT api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort,revision AS configuration_revision FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2',[householdId,settings.provider])).rows[0];return saved?{...settings,...saved}:settings;
   }
 
   private requireExpectedProfile(settings:SettingsRow,context:AiExecutionContext):void{
+    if(context.expectedConfigurationRevision!==undefined&&settings.configuration_revision!==context.expectedConfigurationRevision)throw new DomainError('AI_CONFIGURATION_INVALID',422);
+    if(context.expectedFallbackProvider!==undefined&&settings.fallback_provider!==context.expectedFallbackProvider)throw new DomainError('AI_CONFIGURATION_INVALID',422);
+    if(context.expectedFallbackConfigurationRevision!==undefined&&settings.fallback_configuration_revision!==context.expectedFallbackConfigurationRevision)throw new DomainError('AI_CONFIGURATION_INVALID',422);
     if(context.expectedProvider!==undefined&&settings.provider!==context.expectedProvider)throw new DomainError('AI_CONFIGURATION_INVALID',422);
     if(context.expectedSettingsRevision!==undefined&&settings.revision!==context.expectedSettingsRevision)throw new DomainError('AI_CONFIGURATION_INVALID',422);
     if(context.expectedRegistrationId!==undefined&&settings.active_chatgpt_registration_id!==context.expectedRegistrationId)throw new DomainError('AI_CONFIGURATION_INVALID',422);
   }
 
-  private async authorizeAndCreateAttempt(attemptId:string,householdId:string,settings:SettingsRow,model:string,task:AiTask,turn:number,context:AiExecutionContext,requireEnabled:boolean,registrationId?:string,registrationGeneration?:number):Promise<void>{
+  private async authorizeAndCreateAttempt(attemptId:string,householdId:string,settings:SettingsRow,model:string,task:AiTask,turn:number,context:AiExecutionContext,requireEnabled:boolean,registrationId?:string,registrationGeneration?:number,selectedSettings:SettingsRow=settings):Promise<void>{
     await transaction(async(client)=>{
       if(context.taskId){
-        const row=(await client.query<{revision:number;approved_revision:number|null;approved_ai_provider:AiProviderId|null;approved_ai_registration_id:string|null;approved_ai_registration_generation:number|null}>(`SELECT revision,approved_revision,approved_ai_provider,approved_ai_registration_id,approved_ai_registration_generation FROM monitor_tasks WHERE id=$1 AND household_id=$2 FOR SHARE`,[context.taskId,householdId])).rows[0];
-        if(!row||row.revision!==context.taskRevision)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
-        if(context.category==='normal'&&(row.approved_revision!==row.revision||(settings.provider==='chatgpt_subscription'&&(row.approved_ai_provider!=='chatgpt_subscription'||row.approved_ai_registration_id!==registrationId||row.approved_ai_registration_generation!==registrationGeneration))))throw new AiProviderFailure(settings.provider==='chatgpt_subscription'?'AI_REAUTHORIZATION_REQUIRED':'AI_CONFIGURATION_INVALID');
+        const row=(await client.query<{revision:number;approved_revision:number|null;approved_ai_provider:AiProviderId|null;approved_ai_registration_id:string|null;approved_ai_registration_generation:number|null;lease_token:string|null;lease_expires_at:Date|null;lease_active:boolean}>(`SELECT revision,approved_revision,approved_ai_provider,approved_ai_registration_id,approved_ai_registration_generation,lease_token,lease_expires_at,(lease_expires_at>clock_timestamp()) lease_active FROM monitor_tasks WHERE id=$1 AND household_id=$2 FOR SHARE`,[context.taskId,householdId])).rows[0];
+        if(!row||row.revision!==context.taskRevision||!context.taskLeaseToken||row.lease_token!==context.taskLeaseToken||!row.lease_active)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
+        if((context.category??'normal')==='normal'&&(row.approved_revision!==row.revision||(settings.provider==='chatgpt_subscription'&&(row.approved_ai_provider!=='chatgpt_subscription'||row.approved_ai_registration_id!==registrationId||row.approved_ai_registration_generation!==registrationGeneration))))throw new AiProviderFailure(settings.provider==='chatgpt_subscription'?'AI_REAUTHORIZATION_REQUIRED':'AI_CONFIGURATION_INVALID');
       }
-      const current=(await client.query<{enabled:boolean;provider:AiProviderId;revision:number;active_chatgpt_registration_id:string|null}>('SELECT enabled,provider,revision,active_chatgpt_registration_id FROM ai_settings WHERE household_id=$1 FOR SHARE',[householdId])).rows[0];
-      if(!current||current.provider!==settings.provider||current.revision!==settings.revision||(requireEnabled&&!current.enabled)||(settings.provider==='chatgpt_subscription'&&current.active_chatgpt_registration_id!==registrationId))throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
+      const current=(await client.query<SettingsRow>('SELECT * FROM ai_settings WHERE household_id=$1 FOR UPDATE',[householdId])).rows[0];
+      if(!current||current.provider!==selectedSettings.provider||current.revision!==selectedSettings.revision||(requireEnabled&&!current.enabled)||(settings.provider==='chatgpt_subscription'&&current.active_chatgpt_registration_id!==registrationId))throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
+      this.requireExpectedProfile({...current!,configuration_revision:selectedSettings.configuration_revision},context);
+      if(settings.provider!==selectedSettings.provider&&(current?.fallback_provider!==settings.provider||current.fallback_configuration_revision!==settings.configuration_revision))throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
+      if(current.fallback_provider){const pinnedReserve=await client.query('SELECT 1 FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2 AND revision=$3 FOR SHARE',[householdId,current.fallback_provider,current.fallback_configuration_revision]);if(!pinnedReserve.rowCount)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');}
+      if(settings.configuration_revision!==undefined){const pinned=await client.query('SELECT 1 FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2 AND revision=$3 FOR SHARE',[householdId,settings.provider,settings.configuration_revision]);if(!pinned.rowCount)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');}
+      if(context.executionId){if(!context.workerLeaseToken||!(await client.query(`SELECT 1 FROM monitor_executions WHERE id=$1 AND household_id=$2 AND task_id=$3 AND task_revision=$4 AND status='running' AND worker_lease_token=$5 AND worker_lease_expires_at>clock_timestamp() FOR SHARE`,[context.executionId,householdId,context.taskId,context.taskRevision,context.workerLeaseToken])).rowCount)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');}
       if(context.expectedProvider!==undefined&&current.provider!==context.expectedProvider||context.expectedSettingsRevision!==undefined&&current.revision!==context.expectedSettingsRevision)throw new AiProviderFailure('AI_CONFIGURATION_INVALID');
       if(context.ownerAccountId||context.ownerMembershipId){if(!context.ownerAccountId||!context.ownerMembershipId||!(await client.query(`SELECT 1 FROM memberships m JOIN accounts a ON a.id=m.account_id AND a.disabled_at IS NULL WHERE m.id=$1 AND m.account_id=$2 AND m.household_id=$3 AND m.capabilities ? 'household.manage' FOR SHARE OF m,a`,[context.ownerMembershipId,context.ownerAccountId,householdId])).rowCount)throw new AiProviderFailure('AI_REAUTHORIZATION_REQUIRED');}
       if(settings.provider==='chatgpt_subscription'){
@@ -332,7 +382,9 @@ export class AiAdminService {
         const connected=await client.query(`SELECT 1 FROM ai_chatgpt_registrations r JOIN memberships m ON m.id=r.owner_membership_id AND m.account_id=r.owner_account_id AND m.household_id=r.household_id AND m.capabilities ? 'household.manage' JOIN accounts a ON a.id=r.owner_account_id AND a.disabled_at IS NULL WHERE r.id=$1 AND r.household_id=$2 AND r.owner_account_id=$3 AND r.owner_membership_id=$4 AND r.generation=$5 AND r.status='connected' AND r.credential_ciphertext IS NOT NULL FOR SHARE OF r,m,a`,[registrationId,householdId,context.ownerAccountId,context.ownerMembershipId,registrationGeneration]);
         if(!connected.rowCount||context.expectedRegistrationId!==undefined&&context.expectedRegistrationId!==registrationId||context.expectedRegistrationGeneration!==undefined&&context.expectedRegistrationGeneration!==registrationGeneration)throw new AiProviderFailure('AI_REAUTHORIZATION_REQUIRED');
       }
+      if(current.daily_dispatch_limit!==null){const count=(await client.query<{count:number}>(`SELECT count(*)::int count FROM ai_usage_events WHERE household_id=$1 AND occurred_at>=date_trunc('day',clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC' AND actual_dispatch IS DISTINCT FROM false`,[householdId])).rows[0]!.count;if(count>=current.daily_dispatch_limit)throw new AiProviderFailure('AI_DAILY_DISPATCH_LIMIT');}
       await client.query(`INSERT INTO ai_usage_events(household_id,provider,model,requested_model,operation,purpose,success,failure_code,attempt_id,route,category,task_id,task_revision,execution_id,turn,phase,actual_dispatch,outcome,owner_account_id,registration_id) VALUES($1,$2,NULLIF($3,''),NULLIF($3,''),$4,$5,false,NULL,$6,$7,$8,$9,$10,$11,$12,$13,NULL,'started',$14,$15) ON CONFLICT DO NOTHING`,[householdId,settings.provider,model,task.operation,task.purpose,attemptId,this.route(settings.provider),context.category??(task.purpose==='connection_test'?'test':'normal'),context.taskId??null,context.taskRevision??null,context.executionId??null,turn,context.phase??null,context.ownerAccountId??null,registrationId??null]);
+      await client.query('UPDATE ai_usage_events SET configuration_revision=$2,fallback_from_provider=$3,fallback_reason=$4 WHERE attempt_id=$1',[attemptId,settings.configuration_revision??null,context.fallbackFromProvider??null,context.fallbackReason??null]);
     });
   }
 
@@ -375,12 +427,13 @@ export class AiAdminService {
   }
 
   private route(provider:AiProviderId){return provider==='openai'?'openai_api':provider==='chatgpt_subscription'?'chatgpt_plan':provider==='anthropic'?'anthropic_api':'local';}
-  private async recordPreflight(householdId:string,provider:AiProviderId,model:string,task:AiTask,failureCode:AiFailureCode,context:AiExecutionContext,attemptId=randomUUID(),registrationId?:string){await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,requested_model,operation,purpose,success,failure_code,attempt_id,route,category,task_id,task_revision,execution_id,phase,actual_dispatch,outcome,completed_at,owner_account_id,registration_id) VALUES($1,$2,NULLIF($3,''),NULLIF($3,''),$4,$5,false,$6,$7,$8,$9,$10,$11,$12,$13,false,'preflight_rejected',clock_timestamp(),$14,$15) ON CONFLICT DO NOTHING`,[householdId,provider,model,task.operation,task.purpose,failureCode,attemptId,this.route(provider),context.category??'normal',context.taskId??null,context.taskRevision??null,context.executionId??null,context.phase??null,context.ownerAccountId??null,registrationId??null]);}
+  private async recordPreflight(householdId:string,provider:AiProviderId,model:string,task:AiTask,failureCode:AiFailureCode,context:AiExecutionContext,attemptId=randomUUID(),registrationId?:string){await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,requested_model,operation,purpose,success,failure_code,attempt_id,route,category,task_id,task_revision,execution_id,phase,actual_dispatch,outcome,completed_at,owner_account_id,registration_id) VALUES($1,$2,NULLIF($3,''),NULLIF($3,''),$4,$5,false,$6,$7,$8,$9,$10,$11,$12,$13,false,'preflight_rejected',clock_timestamp(),$14,$15) ON CONFLICT DO NOTHING`,[householdId,provider,model,task.operation,task.purpose,failureCode,attemptId,this.route(provider),context.category??'normal',context.taskId??null,context.taskRevision??null,context.executionId??null,context.phase??null,context.ownerAccountId??null,registrationId??null]);await pool.query('UPDATE ai_usage_events SET fallback_from_provider=$2,fallback_reason=$3 WHERE attempt_id=$1',[attemptId,context.fallbackFromProvider??null,context.fallbackReason??null]);}
   private async rejectAuthorizedAttempt(attemptId:string,failureCode:AiFailureCode){await pool.query(`UPDATE ai_usage_events SET actual_dispatch=false,outcome='preflight_rejected',failure_code=$2,completed_at=clock_timestamp() WHERE attempt_id=$1 AND actual_dispatch IS NULL AND outcome='started'`,[attemptId,failureCode]);}
   private async finishAttempt(attemptId:string,success:boolean,failureCode:AiFailureCode|null,usage?:{inputTokens?:number;outputTokens?:number;cachedInputTokens?:number;cacheWriteTokens?:number;reasoningTokens?:number},actualModel?:string,actualServiceTier?:string){await pool.query(`UPDATE ai_usage_events u SET actual_dispatch=true,success=$2,failure_code=$3,input_tokens=$4,output_tokens=$5,cached_input_tokens=$6,cache_write_tokens=$7,reasoning_tokens=$8,outcome=$9,actual_model=NULLIF($10,''),actual_service_tier=NULLIF($11,''),completed_at=clock_timestamp(),rate_snapshot_id=(SELECT r.id FROM ai_rate_snapshots r WHERE r.route=u.route AND r.model=$10 AND r.context_variant=CASE WHEN r.context_threshold_tokens IS NOT NULL AND $4>r.context_threshold_tokens THEN 'long_context' ELSE 'standard' END AND (r.route<>'openai_api' OR r.service_tier=$11) AND ((r.effective_from IS NOT NULL AND r.effective_from<=u.occurred_at::date) OR (r.effective_from IS NULL AND r.observed_at<=u.occurred_at)) ORDER BY r.effective_from DESC NULLS LAST,r.observed_at DESC LIMIT 1),api_equivalent_rate_snapshot_id=(SELECT r.id FROM ai_rate_snapshots r WHERE u.route='chatgpt_plan' AND r.route='openai_api' AND r.model=$10 AND r.service_tier='standard' AND r.context_variant=CASE WHEN r.context_threshold_tokens IS NOT NULL AND $4>r.context_threshold_tokens THEN 'long_context' ELSE 'standard' END AND ((r.effective_from IS NOT NULL AND r.effective_from<=u.occurred_at::date) OR (r.effective_from IS NULL AND r.observed_at<=u.occurred_at)) ORDER BY r.effective_from DESC NULLS LAST,r.observed_at DESC LIMIT 1),api_equivalent_assumption=CASE WHEN u.route='chatgpt_plan' THEN 'standard_tier_no_region_exact_model' END WHERE attempt_id=$1 AND outcome='started'`,[attemptId,success,failureCode,usage?.inputTokens??null,usage?.outputTokens??null,usage?.cachedInputTokens??null,usage?.cacheWriteTokens??null,usage?.reasoningTokens??null,success?'completed':failureCode==='AI_STREAM_INTERRUPTED'?'interrupted':'failed',actualModel??null,actualServiceTier??null]);
   }
 
-  private settingsDto(settings: SettingsRow): Record<string, unknown> {
+  private async settingsDto(settings: SettingsRow): Promise<Record<string, unknown>> {
+    const usage=(await pool.query<{utc_date:string;count:number}>(`SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC','YYYY-MM-DD') utc_date,count(*) FILTER(WHERE actual_dispatch IS DISTINCT FROM false)::int count FROM ai_usage_events WHERE household_id=$1 AND occurred_at>=date_trunc('day',clock_timestamp() AT TIME ZONE 'UTC') AT TIME ZONE 'UTC'`,[settings.household_id])).rows[0]!;
     const runtimeSupported = Boolean(this.providers[settings.provider]);
     const hasCompleteConfig = settings.provider==='chatgpt_subscription'?Boolean(settings.active_chatgpt_registration_id&&settings.default_model&&settings.strong_model):hasStoredProviderConfiguration(settings);
     let status: 'not_tested' | 'not_configured' | 'available' | 'unavailable' | 'error' =
@@ -389,6 +442,7 @@ export class AiAdminService {
     if (!runtimeSupported) { status = 'unavailable'; errorCode = providerCatalog.find((item) => item.id === settings.provider)?.reasonCode ?? 'AI_PROVIDER_UNAVAILABLE'; }
     else if (!hasCompleteConfig) { status = 'not_configured'; errorCode = 'AI_CONFIGURATION_INVALID'; }
     return {
+      fallbackProvider:settings.fallback_provider,fallbackConfigurationRevision:settings.fallback_configuration_revision,dailyDispatchLimit:settings.daily_dispatch_limit,dailyDispatchUsage:{utcDate:usage.utc_date,reservedDispatches:usage.count,remainingDispatches:settings.daily_dispatch_limit===null?null:Math.max(0,settings.daily_dispatch_limit-usage.count)},
       enabled: settings.enabled, provider: settings.provider, hasApiKey: Boolean(settings.api_key_ciphertext),
       baseUrl: settings.base_url, defaultModel: settings.default_model, strongModel: settings.strong_model,
       defaultReasoningEffort: settings.default_reasoning_effort, strongReasoningEffort: settings.strong_reasoning_effort,

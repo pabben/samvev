@@ -38,7 +38,7 @@ function mapHttpFailure(status:number,body:unknown,retryAfter=false):AiProviderF
   if(type==='not_found_error'||status===404||/model.{0,30}(not found|does not exist|unavailable)/.test(message))return new AiProviderFailure('AI_MODEL_UNAVAILABLE',undefined,'upstream_http_4xx');
   if(type==='rate_limit_error')return new AiProviderFailure('AI_PROVIDER_RATE_LIMITED',undefined,'upstream_rate_limited',undefined,undefined,retryAfter? 'provider_rate_limited':undefined);
   if(status===429)return new AiProviderFailure('AI_PROVIDER_RATE_LIMITED',undefined,'upstream_http_other');
-  if(type==='overloaded_error'||status===408||status===504||status>=500)return new AiProviderFailure(status===408||status===504?'AI_TIMEOUT':'AI_UPSTREAM_ERROR',undefined,status>=500?'upstream_http_5xx':'upstream_http_other',undefined,undefined,'transient');
+  if(['api_error','overloaded_error','timeout_error'].includes(type)&&(status===408||status>=500))return new AiProviderFailure(status===408||status===504?'AI_TIMEOUT':'AI_UPSTREAM_ERROR',undefined,status>=500?'upstream_http_5xx':'upstream_http_other',undefined,undefined,'transient');
   if(status>=400&&status<500)return new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'upstream_http_4xx');
   return new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'upstream_http_other');
 }
@@ -125,20 +125,22 @@ class AnthropicSession implements AiProviderSession{
       if(active.signal.aborted)throw new DOMException('aborted','AbortError');
       await this.beforeDispatch?.();if(active.signal.aborted)throw new DOMException('aborted','AbortError');this.onWireStart?.();wireStarted=true;
       aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=reject;active.signal.addEventListener('abort',onAbort,{once:true});});
-      const sonnetForcedTools=toolChoice==='required'&&/^claude-sonnet-5-5(?:-|$)/.test(this.model);
-      const response=await Promise.race([this.transport(ANTHROPIC_MESSAGES_URL,{method:'POST',headers:{authorization:`Bearer ${this.apiKey}`,'content-type':'application/json','anthropic-version':ANTHROPIC_VERSION},body:JSON.stringify({model:this.model,max_tokens:this.maxOutputTokens,stream:false,messages:this.messages,...(this.responseSchema&&!this.toolsForSession.length?{output_config:{format:{type:'json_schema',schema:wireSchema(this.responseSchema.schema)}}}:{}),...(this.toolsForSession.length?{tools:this.toolsForSession.map(tool=>({name:tool.name,description:tool.description,input_schema:wireSchema(tool.inputSchema),strict:true})),tool_choice:toolChoice==='required'&&!sonnetForcedTools?{type:'any'}:{type:'auto'}}:{})}),signal:active.signal}),aborted]);
-      const text=await Promise.race([boundedText(response),aborted]);let body:unknown;try{body=JSON.parse(text);}catch{throw response.ok?new AiProviderFailure('AI_RESPONSE_INVALID'):mapHttpFailure(response.status,undefined);}
-      if(!object(body)){throw response.ok?new AiProviderFailure('AI_RESPONSE_INVALID'):mapHttpFailure(response.status,undefined);}
+      // The verified Haiku 5.5 API supports forced tools. Other/unknown IDs
+      // use auto; the same server-side required-tool check applies to all.
+      const supportsForcedTools=/^claude-haiku-5-5(?:-|$)/.test(this.model);
+      const response=await Promise.race([this.transport(ANTHROPIC_MESSAGES_URL,{method:'POST',headers:{authorization:`Bearer ${this.apiKey}`,'content-type':'application/json','anthropic-version':ANTHROPIC_VERSION},body:JSON.stringify({model:this.model,max_tokens:this.maxOutputTokens,stream:false,messages:this.messages,...(this.responseSchema&&!this.toolsForSession.length?{output_config:{format:{type:'json_schema',schema:wireSchema(this.responseSchema.schema)}}}:{}),...(this.toolsForSession.length?{tools:this.toolsForSession.map(tool=>({name:tool.name,description:tool.description,input_schema:wireSchema(tool.inputSchema),strict:true})),tool_choice:toolChoice==='required'&&supportsForcedTools?{type:'any'}:{type:'auto'}}:{})}),signal:active.signal}).catch(error=>{if(error instanceof TypeError)throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error',undefined,undefined,'network_error');throw error;}),aborted]);
+      const text=await Promise.race([boundedText(response),aborted]);let body:unknown;try{body=JSON.parse(text);}catch{throw response.ok?new AiProviderFailure('AI_RESPONSE_INVALID'):new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'upstream_invalid_json');}
+      if(!object(body)){throw response.ok?new AiProviderFailure('AI_RESPONSE_INVALID'):new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'upstream_invalid_json');}
       const usage=normalizedAnthropicUsage(body.usage),actualModel=typeof body.model==='string'?body.model:undefined;
       if(!response.ok){const failure=mapHttpFailure(response.status,body,hasRetryAfter(response.headers.get('retry-after')));throw new AiProviderFailure(failure.code,usage,failure.responseReason,actualModel,undefined,failure.fallbackReason);}
       const turn=internalizeAiProviderTurn(parseTurn(body),this.aliases);
-      if(sonnetForcedTools&&!turn.toolCalls.length)throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,'invalid_tool_calls',actualModel);
+      if(toolChoice==='required'&&this.toolsForSession.length&&!turn.toolCalls.length)throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,'invalid_tool_calls',actualModel);
       // Preserve every provider block, including thinking/signature blocks, only in
       // this request-local history. They are never exposed as answer text or logged.
       this.messages.push({role:'assistant',content:body.content as unknown[]});
       this.pending=new Map(turn.toolCalls.map(call=>[call.id,call.name]));
       return turn;
-    }catch(error){const timedOut=active.timedOut();const wasAborted=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(wasAborted)throw new AiProviderFailure('AI_STREAM_INTERRUPTED');if(error instanceof AiProviderFailure)throw error;if(!wireStarted)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error',undefined,undefined,'network_error');}
+    }catch(error){const timedOut=active.timedOut();const wasAborted=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(wasAborted)throw new AiProviderFailure('AI_STREAM_INTERRUPTED');if(error instanceof AiProviderFailure)throw error;if(!wireStarted)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR');}
     finally{if(aborted)active.signal.removeEventListener('abort',onAbort);active.close();if(this.active===active)this.active=undefined;}
   }
 }

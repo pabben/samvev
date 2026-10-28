@@ -1,3 +1,4 @@
+import { classifiedHttpFailure } from './http-failure.ts';
 import { lookup } from 'node:dns/promises';
 import { request as httpRequest, type RequestOptions } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -248,10 +249,10 @@ class ChatCompletionSession implements AiProviderSession {
   close():void{if(this.closed)return;this.closed=true;this.closeSession();}
   async next(toolResults:AiToolResult[]=[],toolChoice:AiToolChoice='auto'):Promise<AiProviderTurn>{
     if(this.closed)throw new AiProviderFailure('AI_RESPONSE_INVALID');
-    if(this.pending.size!==toolResults.length||toolResults.some((result)=>this.pending.get(result.callId)!==result.name)){this.close();throw new AiProviderFailure('AI_RESPONSE_INVALID');}
+    if(new Set(toolResults.map(result=>result.callId)).size!==toolResults.length||this.pending.size!==toolResults.length||toolResults.some((result)=>this.pending.get(result.callId)!==result.name)){this.close();throw new AiProviderFailure('AI_RESPONSE_INVALID');}
     if(toolResults.length){this.messages.push(...toolResults.map((result)=>({role:'tool',tool_call_id:result.callId,name:this.aliases.toWire(result.name),content:result.output})));this.pending.clear();}
     const active=combinedSignal(this.externalSignal,this.timeoutMs);
-    let rejectAbort:(error:Error)=>void=()=>{};const onAbort=()=>rejectAbort(new DOMException('aborted','AbortError'));let aborted:Promise<never>|undefined;
+    let rejectAbort:(error:Error)=>void=()=>{};const onAbort=()=>rejectAbort(new DOMException('aborted','AbortError'));let aborted:Promise<never>|undefined;let wireStarted=false;
     try{
       if(active.signal.aborted)throw new DOMException('aborted','AbortError');
       const headers:Record<string,string>={'content-type':'application/json'};if(this.configuration.apiKey)headers.authorization=`Bearer ${this.configuration.apiKey}`;
@@ -263,21 +264,21 @@ class ChatCompletionSession implements AiProviderSession {
       const responseFormat=structuredOutput?{type:'json_object'}:undefined;
       await this.configuration.beforeDispatch?.();
       if(active.signal.aborted)throw new DOMException('aborted','AbortError');
-      this.configuration.onWireStart?.();
+      this.configuration.onWireStart?.();wireStarted=true;
       aborted=new Promise<never>((_resolve,reject)=>{rejectAbort=reject;active.signal.addEventListener('abort',onAbort,{once:true});});
       const response=await Promise.race([this.transport(completionUrl(this.target.baseUrl),{method:'POST',headers,body:JSON.stringify({
         model:this.configuration.model,messages:this.messages,max_tokens:this.task.maxOutputTokens??64,
         reasoning_effort:this.configuration.reasoningEffort??'none',stream:false,
         ...(responseFormat?{response_format:responseFormat}:{}),
         ...(this.aliases.wireTools.length?{tools:this.aliases.wireTools.map((tool)=>({type:'function',function:{name:tool.name,description:tool.description,parameters:tool.inputSchema,strict:true}})),tool_choice:toolChoice}:{})
-      }),signal:active.signal},this.target.target),aborted]);
+      }),signal:active.signal},this.target.target).catch(error=>{if(error instanceof TypeError)throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error',undefined,undefined,'network_error');throw error;}),aborted]);
       const text=await Promise.race([response.text(),aborted]);if(Buffer.byteLength(text)>MAX_RESPONSE_BYTES)throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR',undefined,response.ok?'response_too_large':'upstream_response_too_large');
       let parsed:unknown;try{parsed=JSON.parse(text);}catch{throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR',undefined,response.ok?'invalid_json_body':'upstream_invalid_json');}
       if(!parsed||typeof parsed!=='object'||Array.isArray(parsed))throw new AiProviderFailure(response.ok?'AI_RESPONSE_INVALID':'AI_UPSTREAM_ERROR',undefined,response.ok?'invalid_json_body':'upstream_invalid_json');
-      const payload=parsed as Record<string,unknown>;const usage=normalizedUsage(payload.usage);if(!response.ok)throw new AiProviderFailure('AI_UPSTREAM_ERROR',usage,upstreamReason(response.status,payload));
+      const payload=parsed as Record<string,unknown>;const usage=normalizedUsage(payload.usage);if(!response.ok){const failure=classifiedHttpFailure(response.status,payload,upstreamReason(response.status,payload));throw new AiProviderFailure(failure.code,usage,failure.responseReason,undefined,undefined,failure.fallbackReason);}
       const turn=internalizeAiProviderTurn(chatCompletionTurn(payload),this.aliases);
       this.messages.push(normalizedAssistantContinuation(turn,this.aliases));this.pending=new Map(turn.toolCalls.map((call)=>[call.id,call.name]));return turn;
-    }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error');}
+    }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;if(!wireStarted)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR');}
     finally{if(aborted)active.signal.removeEventListener('abort',onAbort);active.close();}
   }
 }
