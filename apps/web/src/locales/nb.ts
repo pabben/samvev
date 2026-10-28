@@ -1491,6 +1491,7 @@ export const nb: Record<TranslationKey, string> = {
   hubWeekTitle: "Denne uken",
   hubFutureWeekTitle: "Kommende uke",
   hubOngoing: "Pågår",
+  hubEnded: "Avsluttet",
   hubPreviousWeek: "Forrige uke",
   hubNextWeek: "Neste uke",
   hubWeekPersonFilter: "Vis aktiviteter for",

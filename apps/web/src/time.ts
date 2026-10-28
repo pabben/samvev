@@ -1,3 +1,11 @@
+export interface MonotonicClockAnchor { serverAt: number; monotonicAt: number }
+export function monotonicClockAnchor(serverAt: number, monotonicAt: number): MonotonicClockAnchor {
+  return { serverAt, monotonicAt };
+}
+export function monotonicClockNow(anchor: MonotonicClockAnchor, monotonicNow: number): number {
+  return anchor.serverAt + Math.max(0, monotonicNow - anchor.monotonicAt);
+}
+
 /** Convert a household wall-clock time to an instant. Reject DST gaps AND folds. */
 export function wallToInstant(local: string, zone: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local))

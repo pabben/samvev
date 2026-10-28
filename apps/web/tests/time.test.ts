@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { wallToInstant, wallInput, formatEventRange } from "../src/time.ts";
+import { wallToInstant, wallInput, formatEventRange, monotonicClockAnchor, monotonicClockNow } from "../src/time.ts";
 test("household time ignores browser zone and supports fractional offsets", () => {
   assert.equal(
     wallToInstant("2026-09-07T07:00", "Europe/Oslo"),
@@ -56,4 +56,16 @@ test('calendar all-day display preserves civil dates and exclusive ends in both 
   assert.match(multiple,/22/);assert.match(multiple,/24/);assert.doesNotMatch(multiple,/25/);
   assert.equal(formatCalendarEventRange('2026-10-22T06:00:00Z','2026-10-22T07:00:00Z',locale,zone,false),formatEventRange('2026-10-22T06:00:00Z','2026-10-22T07:00:00Z',locale,zone));
  }
+});
+
+test('household live clock advances from server time using monotonic elapsed time',()=>{
+ const anchor=monotonicClockAnchor(Date.parse('2026-10-25T22:59:59Z'),1200);
+ assert.equal(wallInput(anchor.serverAt,'Europe/Oslo'),'2026-10-25T23:59','the anchored clock is just before local midnight');
+ assert.equal(monotonicClockNow(anchor,2200),Date.parse('2026-10-25T23:00:00Z'));
+ assert.equal(wallInput(monotonicClockNow(anchor,2200),'Europe/Oslo'),'2026-10-26T00:00','local midnight rolls without a projection reload');
+ const beforeFallback=wallInput(Date.parse('2026-10-25T00:30:00Z'),'Europe/Oslo');
+ const afterFallback=wallInput(Date.parse('2026-10-25T01:30:00Z'),'Europe/Oslo');
+ assert.equal(beforeFallback,'2026-10-25T02:30');
+ assert.equal(afterFallback,beforeFallback,'the repeated local DST hour maps to two distinct UTC instants');
+ assert.equal(monotonicClockNow(anchor,1100),anchor.serverAt,'a reset monotonic sample cannot rewind the anchored household clock');
 });

@@ -1490,6 +1490,7 @@ export const en = {
   hubWeekTitle: "This week",
   hubFutureWeekTitle: "Upcoming week",
   hubOngoing: "Ongoing",
+  hubEnded: "Ended",
   hubPreviousWeek: "Previous week",
   hubNextWeek: "Next week",
   hubWeekPersonFilter: "Show activities for",

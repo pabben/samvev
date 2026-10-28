@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {adaptivePeopleLayout,currentItems,dayEvents,messageAvatarKey,personItems,importantItems,importantPreviewLimit,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems} from '../src/home-presentation';
+import {adaptivePeopleLayout,currentItems,dayEvents,messageAvatarKey,personItems,importantItems,importantPreviewLimit,hubSectionOrder,splitBriefs,resolveHubDetail,collectionItems,hiddenPersonalCount,personalPreviewItems,personalWindowItems} from '../src/home-presentation';
 import {currentHub} from '../src/display-cache';
 import type {HubItem} from '../src/home-types';
 import type {Projection} from '../src/types';
@@ -222,4 +222,19 @@ test('calendar all-day agenda membership follows civil dates and excludes the ex
   assert.equal(dayEvents([calendar],Date.parse('2026-10-23T12:00:00Z'),zone).length,1);
   assert.equal(dayEvents([calendar],Date.parse('2026-10-24T12:00:00Z'),zone).length,0);
  }
+});
+
+test('person calendar previews keep only unended today/tomorrow events without changing generic item lifetime',()=>{
+ const now=Date.parse('2026-10-16T08:00:00Z');
+ const make=(id:string,startsAt:string,endsAt:string|null=null,extra:Partial<HubItem>={})=>({...item,id,kind:'event' as const,startsAt,endsAt,metadata:{allDay:false,calendar:{provider:'google' as const,sourceId:'synthetic',bridgeKind:'direct' as const,subjectHousehold:false,status:'confirmed'}},targets:{household:false,personIds:['p']},subjects:{personIds:['p']},...extra});
+ const active=make('overnight','2026-10-15T22:00:00Z','2026-10-16T09:00:00Z');
+ const ended=make('ended','2026-10-16T06:00:00Z','2026-10-16T08:00:00Z');
+ const point=make('point','2026-10-16T09:00:00Z');
+ const far=make('far','2026-10-18T09:00:00Z');
+ const cancelled=make('cancelled','2026-10-16T10:00:00Z',null,{metadata:{allDay:false,calendar:{provider:'google',sourceId:'synthetic',bridgeKind:'direct',subjectHousehold:false,status:'cancelled'}}});
+ const candidates=[active,ended,point,far,cancelled];
+ assert.deepEqual(personalWindowItems(currentItems(candidates,now),'p',now,'Europe/Oslo').map(value=>value.id),['overnight','point']);
+ assert.deepEqual(dayEvents(currentItems(candidates,now),now,'Europe/Oslo').map(value=>value.id),['overnight','point']);
+ assert.deepEqual(dayEvents(candidates,now,'Europe/Oslo',0,true).map(value=>value.id),['overnight','ended','point'],'day history keeps completed calendar rows');
+ assert.equal(currentItems([ended],now).length,1,'generic item visibility and detail lifetime are unchanged');
 });

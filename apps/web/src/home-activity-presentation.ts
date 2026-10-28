@@ -7,6 +7,71 @@ export type TimelineEntry =
   | { kind: "school"; id: string; date: string; activity: Extract<HouseholdTimelineActivity, { type: "school" }> }
   | { kind: "dinner"; id: string; date: string; title: string; emoji: string | null };
 
+/** Timed activities have an exclusive end. Without an end, their start is a
+ * point in time and cannot keep an activity current after that point. */
+export function timedActivityUnended(startsAt: string | null, endsAt: string | null, now: number): boolean {
+  if (!startsAt) return false;
+  const start = Date.parse(startsAt);
+  if (!Number.isFinite(start) || !Number.isFinite(now)) return false;
+  if (!endsAt) return start >= now;
+  const end = Date.parse(endsAt);
+  return Number.isFinite(end) && end > start && now < end;
+}
+
+/** Today and tomorrow cards only show activities in that local window. */
+export function currentCalendarActivityRelevant(startsAt: string | null, endsAt: string | null, allDay: boolean, now: number, zone: string): boolean {
+  if (!startsAt || !Number.isFinite(now)) return false;
+  const today = wallInput(now, zone).slice(0, 10);
+  const tomorrow = shiftHomeDate(today, 1);
+  if (allDay) {
+    const start = startsAt.slice(0, 10);
+    const candidateEnd = endsAt?.slice(0, 10);
+    if (endsAt && (!candidateEnd || candidateEnd <= start)) return false;
+    const end = candidateEnd ?? shiftHomeDate(start, 1);
+    return end > today && start <= tomorrow;
+  }
+  if (!timedActivityUnended(startsAt, endsAt, now)) return false;
+  const startDay = wallInput(startsAt, zone).slice(0, 10);
+  return startDay <= tomorrow;
+}
+
+export function calendarActivityEnded(startsAt: string | null, endsAt: string | null, allDay: boolean, now: number, zone: string): boolean {
+  if (!startsAt || !Number.isFinite(now)) return false;
+  if (allDay) {
+    const start = startsAt.slice(0, 10);
+    const candidateEnd = endsAt?.slice(0, 10);
+    if (endsAt && (!candidateEnd || candidateEnd <= start)) return false;
+    const end = candidateEnd ?? shiftHomeDate(start, 1);
+    return end <= wallInput(now, zone).slice(0, 10);
+  }
+  if (endsAt) return Date.parse(endsAt) <= now;
+  return Date.parse(startsAt) < now;
+}
+
+/** Day and history views retain completed rows; current cards use the stricter predicate above. */
+export function timelineDayHistoryVisible(activity: HouseholdTimelineActivity, now: number): boolean {
+  if (!Number.isFinite(now)) return false;
+  if (activity.type === "school") return true;
+  if (activity.publishAt && !(Date.parse(activity.publishAt) <= now)) return false;
+  return true;
+}
+
+export function timelineActivityVisible(activity: HouseholdTimelineActivity, now: number, zone: string, next = false): boolean {
+  if (activity.expiresAt && !(Date.parse(activity.expiresAt) > now)) return false;
+  if (activity.type === "school") return !activity.expiresAt || Date.parse(activity.expiresAt) > now;
+  if (["cancelled", "canceled", "declined"].includes(activity.metadata.calendar?.status ?? "")) return false;
+  if (activity.publishAt && !(Date.parse(activity.publishAt) <= now)) return false;
+  if (activity.metadata.calendar && activity.metadata.allDay) {
+    const start = activity.startsAt?.slice(0, 10) ?? "";
+    const candidateEnd = activity.endsAt?.slice(0, 10);
+    if (activity.endsAt && (!candidateEnd || candidateEnd <= start)) return false;
+    const end = candidateEnd ?? shiftHomeDate(start, 1);
+    const today = wallInput(now, zone).slice(0, 10);
+    return next ? end > today : currentCalendarActivityRelevant(activity.startsAt, activity.endsAt, true, now, zone);
+  }
+  return next ? timedActivityUnended(activity.startsAt, activity.endsAt, now) : currentCalendarActivityRelevant(activity.startsAt, activity.endsAt, false, now, zone);
+}
+
 export function homeWeekStart(localDate: string): string {
   const day = new Date(`${localDate}T00:00:00.000Z`).getUTCDay();
   return shiftHomeDate(localDate, -((day + 6) % 7));
@@ -14,13 +79,13 @@ export function homeWeekStart(localDate: string): string {
 export function homeWeekTitleKey(weekStart:string,currentWeek:string){return weekStart===currentWeek?"hubWeekTitle":"hubFutureWeekTitle";}
 export function isTimelineActivityOngoing(activity:HouseholdTimelineActivity,localDate:string,now:number):boolean{
   if(activity.type!=="calendar"||!activity.startsAt)return false;
-  if(activity.metadata.allDay){
+  if(activity.metadata.calendar&&activity.metadata.allDay){
     const start=activity.startsAt.slice(0,10);
     const endExclusive=activity.endsAt?.slice(0,10)??shiftHomeDate(start,1);
     return start<=localDate&&localDate<endExclusive;
   }
-  const start=Date.parse(activity.startsAt),end=activity.endsAt?Date.parse(activity.endsAt):Number.POSITIVE_INFINITY;
-  return start<=now&&now<end;
+  const start=Date.parse(activity.startsAt);
+  return activity.endsAt ? start<=now&&timedActivityUnended(activity.startsAt,activity.endsAt,now) : start===now;
 }
 
 export function personFutureWindow(weekStart:string,localDate:string){
@@ -38,12 +103,18 @@ export function mergeTimelineEntries(activities: HouseholdTimelineActivity[], di
   for (const activity of activities) {
     if (activity.type === "school") rows.push({ kind: "school", id: activity.id, date: activity.date, activity });
     else {
-      const start = activity.startsAt ? activity.metadata.allDay ? activity.startsAt.slice(0, 10) : wallInput(activity.startsAt, zone).slice(0, 10) : "";
-      const endExclusive = activity.endsAt ? activity.metadata.allDay ? activity.endsAt.slice(0, 10) : wallInput(Date.parse(activity.endsAt) - 1, zone).slice(0, 10) : start;
+      if (activity.endsAt && activity.startsAt) {
+        if (activity.metadata.calendar && activity.metadata.allDay) {
+          if (activity.endsAt.slice(0, 10) <= activity.startsAt.slice(0, 10)) continue;
+        } else if (!Number.isFinite(Date.parse(activity.startsAt)) || !Number.isFinite(Date.parse(activity.endsAt)) || Date.parse(activity.endsAt) <= Date.parse(activity.startsAt)) continue;
+      }
+      const allDay=Boolean(activity.metadata.calendar&&activity.metadata.allDay);
+      const start = activity.startsAt ? allDay ? activity.startsAt.slice(0, 10) : wallInput(activity.startsAt, zone).slice(0, 10) : "";
+      const endExclusive = activity.endsAt ? allDay ? activity.endsAt.slice(0, 10) : wallInput(Date.parse(activity.endsAt) - 1, zone).slice(0, 10) : start;
       // All-day ends are exclusive civil dates; an item ending on the first
       // requested date does not overlap that date. Timed ends above are
       // converted to their final occupied local date.
-      if (rangeStart && (activity.metadata.allDay && activity.endsAt ? endExclusive <= rangeStart : endExclusive < rangeStart) || rangeEnd && start > rangeEnd) continue;
+      if (rangeStart && (allDay && activity.endsAt ? endExclusive <= rangeStart : endExclusive < rangeStart) || rangeEnd && start > rangeEnd) continue;
       const date = rangeStart && start < rangeStart ? rangeStart : start;
       rows.push({ kind: "calendar", id: activity.id, date, activity });
     }
@@ -54,7 +125,7 @@ export function mergeTimelineEntries(activities: HouseholdTimelineActivity[], di
 
 function timeKey(row: TimelineEntry, zone: string): string {
   if (row.kind === "school") return row.activity.time ?? "";
-  if (row.kind === "calendar") return row.activity.metadata.allDay || !row.activity.startsAt ? "" : wallInput(row.activity.startsAt, zone).slice(11, 16);
+  if (row.kind === "calendar") return row.activity.metadata.calendar&&row.activity.metadata.allDay || !row.activity.startsAt ? "" : wallInput(row.activity.startsAt, zone).slice(11, 16);
   return "99:99";
 }
 function kindRank(kind: TimelineEntry["kind"]): number { return kind === "dinner" ? 0 : kind === "school" ? 1 : 2; }

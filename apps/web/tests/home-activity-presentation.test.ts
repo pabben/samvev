@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { collectActivitySourcePages, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate } from "../src/home-activity-presentation";
+import { collectActivitySourcePages, currentCalendarActivityRelevant, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate, timedActivityUnended, timelineActivityVisible } from "../src/home-activity-presentation";
 import type { HouseholdTimelineActivity } from "../src/home-types";
 import { registerHooks } from "node:module";
 registerHooks({ load(url, context, nextLoad) { return url.endsWith(".webp") ? { format: "module", source: 'export default "synthetic-avatar.webp"', shortCircuit: true } : nextLoad(url, context); } });
@@ -43,6 +43,31 @@ test("ongoing all-day events use household civil-date bounds, not UTC-midnight i
   assert.equal(isTimelineActivityOngoing(timed, "2026-10-16", Date.parse("2026-10-16T10:00:00Z")), false);
 });
 
+test("today and tomorrow calendar eligibility uses the household zone, exclusive ends and point events",()=>{
+  const now=Date.parse("2026-10-25T22:30:00Z"); // 23:30 Sunday in Oslo, after its DST fallback
+  assert.equal(currentCalendarActivityRelevant("2026-10-25T21:00:00Z","2026-10-25T23:30:00Z",false,now,"Europe/Oslo"),true,"overnight event remains until its exclusive end");
+  assert.equal(currentCalendarActivityRelevant("2026-10-25T21:00:00Z","2026-10-25T22:30:00Z",false,now,"Europe/Oslo"),false,"end boundary is exclusive");
+  assert.equal(currentCalendarActivityRelevant("2026-10-25T22:31:00Z",null,false,now,"Europe/Oslo"),true,"future event without end is a point, not an infinite interval");
+  assert.equal(currentCalendarActivityRelevant("2026-10-25T22:29:00Z",null,false,now,"Europe/Oslo"),false,"past point event has ended");
+  assert.equal(currentCalendarActivityRelevant("2026-10-26T12:00:00Z","2026-10-27T00:00:00Z",true,now,"Europe/Oslo"),true,"all-day civil end date is exclusive");
+  assert.equal(currentCalendarActivityRelevant("2026-10-26T12:00:00Z",null,true,now,"Europe/Oslo"),true,"missing all-day end uses one civil day");
+  assert.equal(currentCalendarActivityRelevant("2026-10-26T12:00:00Z","2026-10-26T12:00:00Z",true,now,"Europe/Oslo"),false,"an explicitly invalid end does not become a positive span");
+  assert.equal(timedActivityUnended("2026-10-25T23:00:00Z",null,Date.parse("2026-10-25T23:00:00Z")),true,"a point is eligible at its start boundary");
+  assert.equal(timedActivityUnended("2026-10-25T23:00:00Z",null,Date.parse("2026-10-25T23:00:00.001Z")),false);
+});
+
+test("Next uses the same exclusive-end and expiry rules while history can remain in week rows",()=>{
+  const ended=calendar("ended-next","2026-10-16T09:00:00Z");ended.endsAt="2026-10-16T10:00:00Z";
+  assert.equal(timelineActivityVisible(ended,Date.parse("2026-10-16T10:00:00Z"),"Europe/Oslo",true),false);
+  const point=calendar("point-next","2026-10-16T10:01:00Z");
+  assert.equal(timelineActivityVisible(point,Date.parse("2026-10-16T10:00:00Z"),"Europe/Oslo",true),true);
+  const school={type:"school" as const,id:"school",taskId:"task",personId:"p1",personIds:["p1"],startsAt:"2026-10-16T00:00:00Z",date:"2026-10-16",time:null,kind:"bring",title:"Synthetic task",actions:[],evidence:{},confidence:null,uncertainty:null,sourceUrl:null,recordedAt:null,expiresAt:"2026-10-16T10:00:00Z"};
+  assert.equal(timelineActivityVisible(school,Date.parse(school.expiresAt),"Europe/Oslo",true),false,"offline school projection expires at the saved deadline");
+  assert.equal(mergeTimelineEntries([ended],[],"Europe/Oslo","2026-10-16","2026-10-16").length,1,"week/history remains intact");
+  const invalid=calendar("invalid-end","2026-10-16T09:00:00Z");invalid.endsAt=invalid.startsAt;
+  assert.equal(mergeTimelineEntries([invalid],[],"Europe/Oslo").length,0,"an explicit invalid end is not replaced with a one-day span");
+});
+
 test("member source catalog exhausts UUID cursors, includes empty sources and sorts labels", async () => {
   const cursors:(string|undefined)[]=[];
   const sources=await collectActivitySourcePages(async cursor=>{
@@ -79,7 +104,7 @@ test("week rows retain timed and all-day activities that began before Monday, wi
   assert.deepEqual(rows.map(row => [row.id, row.date]), [["ongoing-all-day", "2026-10-12"], ["ongoing-timed", "2026-10-12"]]);
 });
 
-test("person future range retains an overlap begun yesterday but excludes an item that ended today", () => {
+test("person week history retains an overlap begun yesterday and labels an item that ended today", () => {
   const stillRunning = calendar("still-running", "2026-10-15T18:00:00Z");
   stillRunning.endsAt = "2026-10-16T10:00:00Z";
   const ended = calendar("ended", "2026-10-15T00:00:00Z");
@@ -87,7 +112,7 @@ test("person future range retains an overlap begun yesterday but excludes an ite
   ended.endsAt = "2026-10-16T00:00:00Z";
   const range = personFutureWindow("2026-10-12", "2026-10-16");
   const rows = mergeTimelineEntries([stillRunning, ended], [], "Europe/Oslo", range.from, range.to);
-  assert.deepEqual(rows.map(row => [row.id, row.date]), [["still-running", "2026-10-16"]]);
+  assert.deepEqual(rows.map(row => [row.id, row.date]), [["ended", "2026-10-16"], ["still-running", "2026-10-16"]]);
 });
 
 test("shared school items coalesce every subject while identical-title calendar events do not", () => {
@@ -135,6 +160,22 @@ test("Home renders each same-day birthday and saved school item without birth da
     assert.ok(compactSchoolHtml.includes("Pack synthetic book"), "compact person previews keep the actionable school instruction");
     assert.ok(!compactSchoolHtml.includes("Synthetic Child 3"), "compact school preview does not repeat the entire subject roster");
   }
+});
+
+test("school person summaries expire from the server deadline while day history keeps an ended row",()=>{
+  Object.defineProperty(globalThis,"document",{configurable:true,value:{documentElement:{dataset:{theme:"light"}}}});
+  Object.defineProperty(globalThis,"matchMedia",{configurable:true,value:()=>({matches:false})});
+  const person={id:"school-person",displayName:"Synthetic school person"};
+  const school=[{type:"school" as const,id:"expiring-school",taskId:"synthetic-task",personId:person.id,date:"2026-10-16",time:"13:00",kind:"bring",title:"Synthetic school activity",actions:["Bring synthetic item"],evidence:{},confidence:null,uncertainty:null,sourceUrl:null,recordedAt:null,expiresAt:"2026-10-16T10:00:00Z"}];
+  const render=(now:number)=>renderToStaticMarkup(createElement(LocaleProvider,{locale:"en",children:createElement(FamilyHub,{people:[person],items:[],messages:[],zone:"Europe/Oslo",householdName:"Synthetic household",localDate:"2026-10-16",schoolActivities:school,now})}));
+  const before=render(Date.parse("2026-10-16T09:59:59Z"));
+  const after=render(Date.parse("2026-10-16T10:00:00Z"));
+  assert.match(before,/Synthetic school activity/);
+  assert.match(after,/Synthetic school activity/,"the ended day-history row stays understandable without a reload");
+  assert.match(after,/hub-ended-label/);
+  const personCard=after.match(/<article class="hub-person[^"]*"[^>]*data-person-id="school-person"[^>]*data-review-private="person-card">([\s\S]*?)<\/article>/)?.[1]??"";
+  assert.ok(personCard,"the current-person card must be present for the expiry assertion");
+  assert.doesNotMatch(personCard,/Synthetic school activity/,"expired school work leaves the current-person summary");
 });
 
 test("mobile identity strip retains birthday badges", () => {

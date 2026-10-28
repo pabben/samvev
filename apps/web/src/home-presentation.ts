@@ -1,4 +1,5 @@
 import type { HubItem, HubMessage, HubPerson } from './home-types';
+import { currentCalendarActivityRelevant } from './home-activity-presentation';
 import { wallInput } from './time';
 export function currentItems(items:HubItem[], now:number):HubItem[] {
   return items.filter(item => (!item.publishAt || Date.parse(item.publishAt)<=now) && (!item.expiresAt || Date.parse(item.expiresAt)>now));
@@ -12,14 +13,14 @@ export function eventDay(item:HubItem,zone:string) {return item.startsAt?(item.m
 export function overlapsDay(item:HubItem,day:string,zone:string){
  if(item.kind!=='event'||!item.startsAt||['cancelled','canceled','declined'].includes(item.metadata.calendar?.status??''))return false;
  const start=eventDay(item,zone);
- if(item.metadata.calendar&&item.metadata.allDay){const end=item.endsAt?.slice(0,10);return start<=day&&(end&&end>start?day<end:day===start);}
+ if(item.metadata.calendar&&item.metadata.allDay){const end=item.endsAt?.slice(0,10);if(item.endsAt&&(!end||end<=start))return false;return start<=day&&(end?day<end:day===start);}
  // Subtract one millisecond before deriving the end day: midnight is exclusive.
  const end=item.endsAt&&Date.parse(item.endsAt)>Date.parse(item.startsAt)?wallInput(Date.parse(item.endsAt)-1,zone).slice(0,10):start;
  return start<=day&&end>=day;
 }
 export function chronologicalEvents(items:HubItem[],zone:string){return [...items].sort((a,b)=>eventDay(a,zone).localeCompare(eventDay(b,zone))||Number(Boolean(b.metadata.allDay))-Number(Boolean(a.metadata.allDay))||Date.parse(a.startsAt!)-Date.parse(b.startsAt!)||a.id.localeCompare(b.id));}
-export function dayEvents(items:HubItem[], now:number, zone:string, offset=0) {
- return chronologicalEvents(items.filter(item=>overlapsDay(item,dayKey(now,zone,offset),zone)),zone);
+export function dayEvents(items:HubItem[], now:number, zone:string, offset=0, includeEnded=false) {
+ return chronologicalEvents(items.filter(item=>overlapsDay(item,dayKey(now,zone,offset),zone)&&(includeEnded||!item.metadata.calendar||currentCalendarActivityRelevant(item.startsAt,item.endsAt,Boolean(item.metadata.calendar&&item.metadata.allDay),now,zone))),zone);
 }
 export function upcomingEvents(items:HubItem[],now:number,zone:string){
  const today=dayKey(now,zone);
@@ -30,7 +31,7 @@ export function eventDateGroups(items:HubItem[],zone:string){
 }
 export function personalWindowItems(active:HubItem[],personId:string,now:number,zone:string){
  const today=dayKey(now,zone),tomorrow=dayKey(now,zone,1);
- return personItems(active,personId).filter(item=>!item.metadata.temperature&&!(item.metadata.calendar&&itemHousehold(item))&&(item.kind!=='event'||overlapsDay(item,today,zone)||overlapsDay(item,tomorrow,zone)));
+ return personItems(active,personId).filter(item=>!item.metadata.temperature&&!(item.metadata.calendar&&itemHousehold(item))&&(item.kind!=='event'||(overlapsDay(item,today,zone)||overlapsDay(item,tomorrow,zone))&&(!item.metadata.calendar||currentCalendarActivityRelevant(item.startsAt,item.endsAt,Boolean(item.metadata.calendar&&item.metadata.allDay),now,zone))));
 }
 export function wasteEvents(items:HubItem[],now:number,zone:string){return upcomingEvents(items.filter(item=>item.metadata.calendar?.purpose==='waste'),now,zone);}
 export function temperatureItems(items:HubItem[]){return items.filter(item=>item.metadata.temperature).sort((a,b)=>(a.metadata.temperature?.order??0)-(b.metadata.temperature?.order??0)||a.title.localeCompare(b.title));}
@@ -86,7 +87,7 @@ export function collectionItems(id:HubCollection,active:HubItem[],now:number,zon
  if(id==='waste')return wasteEvents(active,now,zone);
  if(id==='important')return importantItems(active);
  if(id==='briefs')return active.filter(item=>['summary','list','observation'].includes(item.kind)&&!item.metadata.temperature&&!importantItems(active).includes(item));
- if(id==='today'||id==='tomorrow')return dayEvents(active,now,zone,id==='tomorrow'?1:0);
+ if(id==='today'||id==='tomorrow')return dayEvents(active,now,zone,id==='tomorrow'?1:0,true);
  return [];
 }
 // Keep only identity in dialog state. Every render resolves the current permitted,
