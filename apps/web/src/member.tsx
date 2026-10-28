@@ -216,7 +216,7 @@ export function MemberApp({
         <div className="sidebar-bottom">
 
           <button className="account-button" aria-label={t("preferences")} onClick={() => setSettings(true)}>
-            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
+            <Avatar name={member.display_name} personId={member.person_id} colorToken={people.find(person=>person.id===member.person_id)?.colorToken} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
             <span>
               <strong>{member.display_name}</strong>
               <small>{t("preferences")}</small>
@@ -233,7 +233,7 @@ export function MemberApp({
             aria-label={t("preferences")}
             onClick={() => setSettings(true)}
           >
-            <Avatar name={member.display_name} personId={member.person_id} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
+            <Avatar name={member.display_name} personId={member.person_id} colorToken={people.find(person=>person.id===member.person_id)?.colorToken} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
           </button>
         </header>
         <main id="main" className="member-main" tabIndex={-1}>
@@ -384,7 +384,7 @@ export function MemberApp({
                   aria-label={t("people")}
                 >
                   {people.slice(0, 4).map((p, i) => (
-                    <Avatar key={p.id} name={p.display_name} index={i} personId={p.id} avatarKey={p.avatarKey} photo={p.photo}/>
+                    <Avatar key={p.id} name={p.display_name} index={i} personId={p.id} colorToken={p.colorToken} avatarKey={p.avatarKey} photo={p.photo}/>
                   ))}
                   {people.length>4&&<span className="people-stack-more">+{people.length-4}</span>}
                 </div>

@@ -27,7 +27,7 @@ export function PhotoEditor({person,householdId,onClose,onSaved}:{person:Person;
  };
  const base=`/households/${householdId}/people/${person.id}/photo`;
  return <Dialog title={t('photoTitle',{name:person.display_name})} onClose={onClose}><div className="form-stack photo-editor" aria-busy={busy}>
- <p>{t('photoHint')}</p>{selection?<canvas ref={canvas} width={256} height={256} role="img" aria-label={t('photoPreview')}/>:<div className="photo-current"><Avatar name={person.display_name} personId={person.id} avatarKey={person.avatarKey} photo={person.photo}/></div>}
+ <p>{t('photoHint')}</p>{selection?<canvas ref={canvas} width={256} height={256} role="img" aria-label={t('photoPreview')}/>:<div className="photo-current"><Avatar name={person.display_name} personId={person.id} colorToken={person.colorToken} avatarKey={person.avatarKey} photo={person.photo}/></div>}
  <Field label={t('photoChoose')}><input type="file" accept="image/jpeg,image/png,image/webp,image/avif,image/heic,image/heif" disabled={busy} onChange={event=>void choose(event.target.files?.[0])}/></Field>
  <Field label={t('photoCamera')}><input type="file" accept="image/*" capture="user" disabled={busy} onChange={event=>void choose(event.target.files?.[0])}/></Field>
  {selection&&<fieldset className="form-stack"><legend>{t('photoCrop')}</legend><Field label={t('photoZoom')}><input type="range" min="1" max="4" step="0.05" value={zoom} onChange={e=>setZoom(Number(e.target.value))}/></Field><Field label={t('photoHorizontal')}><input type="range" min="0" max="1" step="0.01" value={x} onChange={e=>setX(Number(e.target.value))}/></Field><Field label={t('photoVertical')}><input type="range" min="0" max="1" step="0.01" value={y} onChange={e=>setY(Number(e.target.value))}/></Field></fieldset>}

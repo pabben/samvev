@@ -500,7 +500,7 @@ function DisplayRuntime({
                 ).map(([author, group]) => (
                   <section className="person-column" key={author}>
                     <h2>
-                      <Avatar name={author} personId={group?.[0]?.authorPersonId} avatarKey={group?.[0]?.authorAvatarKey} photo={group?.[0]?.authorPhoto}/>
+                      <Avatar name={author} personId={group?.[0]?.authorPersonId} colorToken={group?.[0]?.authorColorToken} avatarKey={group?.[0]?.authorAvatarKey} photo={group?.[0]?.authorPhoto}/>
                       {author}
                     </h2>
                     {group!
@@ -736,7 +736,7 @@ export function DisplayCard({
         </button>
       )}
       <div className="display-card-meta">
-        <Avatar name={card.author} personId={card.authorPersonId} avatarKey={card.authorAvatarKey} photo={card.authorPhoto}/>
+        <Avatar name={card.author} personId={card.authorPersonId} colorToken={card.authorColorToken} avatarKey={card.authorAvatarKey} photo={card.authorPhoto}/>
         <strong>{t("from", { name: card.author })}</strong>
         <span className="display-until">
           <Icon name="clock" />

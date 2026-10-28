@@ -95,3 +95,24 @@ The first UI candidate is for visual iteration only. Known follow-ups include
 consolidating the late CSS override sheet into shared component styles and
 removing unused status-column space in compact mobile rows. No R14 publication
 or design acceptance is claimed. ICS/Anthropic remain pending.
+
+### Second candidate checkpoint
+
+- First candidate `d8a616d` was rejected by coordinator/UX visual review: large
+  Home gaps, inconsistent avatar colors and empty calendar status columns.
+  Its 60-image manifest hashes/sizes were independently verified. A keyboard
+  diagnostic corrected an initial false-positive Escape assertion: Enter worked,
+  but Escape from the row trigger did not dismiss details.
+- Corrective frontend now consolidates shared styles, uses persistent avatar
+  colors, reworks Home composition and fixes row Escape/gradient stripes. Web
+  typecheck, isolated build and 14 focused frontend tests pass; fresh visual
+  approval and browser checks are still required.
+- ICS migration 039 and interval API are implemented. Focused API integration
+  6/6 and transport 10/10 plus API/contracts typechecks passed locally. The
+  coordinator checked logs and identified additional authenticated permission
+  tests and a preview-count assertion correction still required.
+- The enriched before capture needs its album-selection timing fix and complete
+  recapture. Existing partial refreshed baseline must not be used as final proof.
+  Fixtures remain synthetic, provider transports absent and no physical actions.
+- Anthropic remains pending. Public runtime/LAN dist remain unchanged; no push,
+  public release or final acceptance has occurred.

@@ -17,7 +17,7 @@ import {
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
   integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
-  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,
+  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarSyncScheduleSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,
   temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
   homeAssistantControlDiscoverySchema,homeAssistantControlSelectSchema,homeAssistantControlGrantSchema,homeAssistantControlRevisionSchema,homeAssistantControlDispatchSchema,
   groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,dinnerOptionCreateSchema,dinnerOptionUpdateSchema,dinnerAssignmentSchema,displayBoardReadGrantSchema,
@@ -1963,6 +1963,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   });
   app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');return{connection:await calendars.updateSource(auth,params(request).connectionId!,params(request).sourceId!,parse(calendarSourceUpdateSchema,request.body))};
+  });
+  app.patch('/api/v1/households/:householdId/calendar-connections/:connectionId/sync-schedule',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');return{connection:await calendars.updateSyncSchedule(auth,params(request).connectionId!,parse(calendarSyncScheduleSchema,request.body))};
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/refresh',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_source_discovery',{account:20,household:60,ip:40,windowSeconds:3600});const body=parse(calendarSourceRefreshSchema,request.body);reply.header('Cache-Control','private, no-store');return{connection:await calendars.refreshSources(auth,params(request).connectionId!,body.expectedRevision)};

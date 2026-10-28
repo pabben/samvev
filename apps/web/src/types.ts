@@ -130,6 +130,7 @@ export interface MonitorRunResult {
   sources?:MonitorSource[];
 }
 export interface Card {
+  authorColorToken?: PersonColorToken | null;
   authorPhoto?:PersonPhoto|null;
   authorAvatarKey?: string | null;
   authorPersonId?: string | null;

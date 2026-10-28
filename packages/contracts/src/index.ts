@@ -376,6 +376,7 @@ export const calendarConnectionCreateSchema=z.object({
   name:nameSchema,
   bridgeKind:z.enum(calendarBridgeKinds).default('direct'),
   icsUrl:calendarSecretUrlSchema.optional(),
+  syncIntervalMinutes:z.union([z.literal(5),z.literal(15),z.literal(30)]).optional(),
   replacesConnectionId:uuidSchema.optional()
 }).strict().superRefine((value,ctx)=>{
   if(value.provider==='ics'&&!value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_required'});
@@ -384,6 +385,7 @@ export const calendarConnectionCreateSchema=z.object({
   if(value.provider==='home_assistant'&&!['direct','spond_home_assistant'].includes(value.bridgeKind))ctx.addIssue({code:'custom',path:['bridgeKind'],message:'home_assistant_bridge_invalid'});
   if(value.provider!=='home_assistant'&&value.bridgeKind==='spond_home_assistant')ctx.addIssue({code:'custom',path:['provider'],message:'spond_home_assistant_requires_home_assistant'});
   if(value.replacesConnectionId&&value.provider!=='microsoft')ctx.addIssue({code:'custom',path:['replacesConnectionId'],message:'replacement_requires_microsoft'});
+  if(value.provider!=='ics'&&value.syncIntervalMinutes!==undefined)ctx.addIssue({code:'custom',path:['syncIntervalMinutes'],message:'sync_interval_requires_ics'});
 });
 export const calendarSourceUpdateSchema=z.object({
   expectedRevision:z.number().int().positive(),
@@ -440,6 +442,7 @@ export const homeAssistantControlDispatchSchema=z.object({
   if(value.action!=='cover.open_cover'&&value.confirmationToken)ctx.addIssue({code:'custom',path:['confirmationToken'],message:'confirmation_not_allowed'});
 });
 export const calendarConnectionRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const calendarSyncScheduleSchema=z.object({expectedRevision:z.number().int().positive(),syncIntervalMinutes:z.union([z.literal(5),z.literal(15),z.literal(30)])}).strict();
 export const calendarOAuthCompleteSchema=z.object({completionToken:z.string().min(32).max(256)}).strict();
 export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive()}).strict();
 export const calendarProviderConfigurationSchema=z.object({

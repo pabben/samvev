@@ -695,6 +695,19 @@ details[open] > summary:before {
   flex-shrink: 0;
   color: var(--text);
 }
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="teal"]{--person-accent:var(--person-teal);--person-accent-soft:var(--person-teal-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="blue"]{--person-accent:var(--person-blue);--person-accent-soft:var(--person-blue-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="violet"]{--person-accent:var(--person-violet);--person-accent-soft:var(--person-violet-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="rose"]{--person-accent:var(--person-rose);--person-accent-soft:var(--person-rose-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="amber"]{--person-accent:var(--person-amber);--person-accent-soft:var(--person-amber-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="green"]{--person-accent:var(--person-green);--person-accent-soft:var(--person-green-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="coral"]{--person-accent:var(--person-coral);--person-accent-soft:var(--person-coral-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="orange"]{--person-accent:var(--person-orange);--person-accent-soft:var(--person-orange-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="lime"]{--person-accent:var(--person-lime);--person-accent-soft:var(--person-lime-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="cyan"]{--person-accent:var(--person-cyan);--person-accent-soft:var(--person-cyan-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="sky"]{--person-accent:var(--person-sky);--person-accent-soft:var(--person-sky-soft)}
+:is(.avatar,.hub-person,.person-card,.hub-message,.hub-detail-identity)[data-color-token="indigo"]{--person-accent:var(--person-indigo);--person-accent-soft:var(--person-indigo-soft)}
+.avatar[data-color-token]{background:var(--person-accent-soft);border:3px solid color-mix(in srgb,var(--person-accent) 40%,var(--card));color:var(--text)}
 .accent-1 {
   background: var(--accent-blue);
 }

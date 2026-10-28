@@ -1,4 +1,4 @@
-import { personAccent } from "./person-identity";
+import { personAccent, personColorToken } from "./person-identity";
 import { avatarImages } from "./avatars";
 import {
   Children,
@@ -404,11 +404,13 @@ export function Status({ state }: { state: string }) {
     </span>
   );
 }
-export function Avatar({ name, index = 0, avatarKey, personId, photo }: { name: string; index?: number; avatarKey?: string | null; personId?:string|null; photo?:import('./types').PersonPhoto|null }) {
+export function Avatar({ name, index = 0, avatarKey, personId, colorToken, photo }: { name: string; index?: number; avatarKey?: string | null; personId?:string|null; colorToken?:string|null; photo?:import('./types').PersonPhoto|null }) {
   const source=photo?.url96;
   const [failed,setFailed]=useState<string>();
   const image = source && source!==failed ? source : avatarKey ? avatarImages[avatarKey] : undefined;
-  return <span className={`avatar accent-${personId||avatarKey?personAccent(personId,avatarKey):Math.max(0,index)%6} ${image ? "avatar-illustrated" : ""}`} aria-hidden="true">
+  const accent=personId||avatarKey?personAccent(personId,avatarKey):Math.max(0,index)%6;
+  const token=personColorToken(personId,colorToken,avatarKey);
+  return <span className={`avatar accent-${accent} ${image ? "avatar-illustrated" : ""}`} data-color-token={personId||colorToken?token:undefined} aria-hidden="true">
     {image ? <img src={image} alt="" draggable={false} onError={()=>setFailed(image)}/> : name.trim().slice(0, 1).toLocaleUpperCase()}
   </span>;
 }

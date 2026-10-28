@@ -10,7 +10,7 @@
   --accent-blue:#e1edf5;--accent-lilac:#ede6f7;--accent-rose:#f7e6e6;
   --shadow:0 10px 30px #3440500b,0 2px 5px #34405005;
   --shadow-raised:0 18px 44px #473c3515,0 2px 8px #473c3507;
-  --glass:linear-gradient(145deg,#fffefbe8,#fffdf8d6);--glass-border:#ffffffc9;
+  --glass-color:#fffefbea;--glass:linear-gradient(145deg,#fffefbe8,#fffdf8d6);--glass-border:#ffffffc9;
   --app-background:radial-gradient(ellipse 36% 24% at 0% 10%,#e3f2f9 0%,transparent 76%),linear-gradient(165deg,#f2f7f4 0%,#f5f2eb 62%,#f8efe3 100%);
   --hero-bg:linear-gradient(112deg,#eaf4f8 0%,#f4f4ec 52%,#f7eee2 100%);
   --hero-landscape:#b2c7c0;--hero-sun:#f5cb86;
@@ -38,8 +38,8 @@
   --accent-blue:#243b50;--accent-lilac:#37334d;--accent-rose:#40313f;
   --shadow:0 16px 40px #00000035,0 1px 1px #ffffff08 inset;
   --shadow-raised:0 24px 60px #00000052,0 1px 1px #ffffff12 inset;
-  --glass:linear-gradient(145deg,#23394beF,#0c1b2aF2);--glass-border:#b9d0df45;
-  --app-background:linear-gradient(180deg,#061321b5 0%,#071625c2 32%,#061321f0 74%,#05101bf9 100%),url('./assets/nordic-dusk-v2.png') center top/cover fixed,#061321;
+  --glass-color:#102131ee;--glass:linear-gradient(145deg,#23394bef,#0c1b2af2);--glass-border:#b9d0df45;
+  --app-background:linear-gradient(180deg,#061321b5 0%,#071625c2 32%,#061321f0 74%,#05101bf9 100%),var(--dusk-image-url,none) center top/cover fixed,#061321;
   --hero-bg:linear-gradient(112deg,#14283b 0%,#1b2d40 52%,#342e3e 100%);
   --hero-landscape:#112638;--hero-sun:#cba18d;--focus:#b5d9ff;
   --person-teal:#89d6c7;--person-teal-soft:#193d3b;
