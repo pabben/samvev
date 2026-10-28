@@ -234,7 +234,7 @@ test('person calendar previews keep only unended today/tomorrow events without c
  const cancelled=make('cancelled','2026-10-16T10:00:00Z',null,{metadata:{allDay:false,calendar:{provider:'google',sourceId:'synthetic',bridgeKind:'direct',subjectHousehold:false,status:'cancelled'}}});
  const candidates=[active,ended,point,far,cancelled];
  assert.deepEqual(personalWindowItems(currentItems(candidates,now),'p',now,'Europe/Oslo').map(value=>value.id),['overnight','point']);
- assert.deepEqual(dayEvents(currentItems(candidates,now),now,'Europe/Oslo').map(value=>value.id),['overnight','point']);
- assert.deepEqual(dayEvents(candidates,now,'Europe/Oslo',0,true).map(value=>value.id),['overnight','ended','point'],'day history keeps completed calendar rows');
+ assert.deepEqual(dayEvents(currentItems(candidates,now),now,'Europe/Oslo',0,false).map(value=>value.id),['overnight','point']);
+ assert.deepEqual(dayEvents(candidates,now,'Europe/Oslo').map(value=>value.id),['overnight','ended','point'],'day history keeps completed calendar rows');
  assert.equal(currentItems([ended],now).length,1,'generic item visibility and detail lifetime are unchanged');
 });

@@ -15,7 +15,7 @@ export function timedActivityUnended(startsAt: string | null, endsAt: string | n
   if (!Number.isFinite(start) || !Number.isFinite(now)) return false;
   if (!endsAt) return start >= now;
   const end = Date.parse(endsAt);
-  return Number.isFinite(end) && end > start && now < end;
+  return Number.isFinite(end) && (end === start ? start >= now : end > start && now < end);
 }
 
 /** Today and tomorrow cards only show activities in that local window. */
@@ -44,8 +44,13 @@ export function calendarActivityEnded(startsAt: string | null, endsAt: string | 
     const end = candidateEnd ?? shiftHomeDate(start, 1);
     return end <= wallInput(now, zone).slice(0, 10);
   }
-  if (endsAt) return Date.parse(endsAt) <= now;
-  return Date.parse(startsAt) < now;
+  const start = Date.parse(startsAt);
+  if (!Number.isFinite(start)) return false;
+  if (endsAt) {
+    const end = Date.parse(endsAt);
+    return Number.isFinite(end) && end >= start && (end === start ? start < now : end <= now);
+  }
+  return start < now;
 }
 
 /** Day and history views retain completed rows; current cards use the stricter predicate above. */
@@ -85,7 +90,7 @@ export function isTimelineActivityOngoing(activity:HouseholdTimelineActivity,loc
     return start<=localDate&&localDate<endExclusive;
   }
   const start=Date.parse(activity.startsAt);
-  return activity.endsAt ? start<=now&&timedActivityUnended(activity.startsAt,activity.endsAt,now) : start===now;
+  return Boolean(activity.endsAt && Date.parse(activity.endsAt)>start && start<=now && timedActivityUnended(activity.startsAt,activity.endsAt,now));
 }
 
 export function personFutureWindow(weekStart:string,localDate:string){
@@ -106,11 +111,11 @@ export function mergeTimelineEntries(activities: HouseholdTimelineActivity[], di
       if (activity.endsAt && activity.startsAt) {
         if (activity.metadata.calendar && activity.metadata.allDay) {
           if (activity.endsAt.slice(0, 10) <= activity.startsAt.slice(0, 10)) continue;
-        } else if (!Number.isFinite(Date.parse(activity.startsAt)) || !Number.isFinite(Date.parse(activity.endsAt)) || Date.parse(activity.endsAt) <= Date.parse(activity.startsAt)) continue;
+        } else if (!Number.isFinite(Date.parse(activity.startsAt)) || !Number.isFinite(Date.parse(activity.endsAt)) || Date.parse(activity.endsAt) < Date.parse(activity.startsAt)) continue;
       }
       const allDay=Boolean(activity.metadata.calendar&&activity.metadata.allDay);
       const start = activity.startsAt ? allDay ? activity.startsAt.slice(0, 10) : wallInput(activity.startsAt, zone).slice(0, 10) : "";
-      const endExclusive = activity.endsAt ? allDay ? activity.endsAt.slice(0, 10) : wallInput(Date.parse(activity.endsAt) - 1, zone).slice(0, 10) : start;
+      const endExclusive = activity.endsAt ? allDay ? activity.endsAt.slice(0, 10) : Date.parse(activity.endsAt)>Date.parse(activity.startsAt!) ? wallInput(Date.parse(activity.endsAt) - 1, zone).slice(0, 10) : start : start;
       // All-day ends are exclusive civil dates; an item ending on the first
       // requested date does not overlap that date. Timed ends above are
       // converted to their final occupied local date.

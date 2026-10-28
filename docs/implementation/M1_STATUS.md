@@ -1,5 +1,25 @@
 # M1 implementation status
 
+## Round 15 active checkpoint — 2026-10-28
+
+Round 15 remains in local implementation and review. The public R14 baseline
+below is unchanged at source `971913e321dd82f491214fdbda81d08f8123a891`.
+Integrated local checkpoints are time `84f51f7`, school `3a15602`, and
+screen/ICS/school UI `d4490a5`. Recorded checks passed: time 40 tests, school
+153 tests, UI 13 focused tests, then Next/history 11 API tests and the full
+159-test web suite. The prior integrated DST day-history regression is fixed;
+current person cards retain their explicit stricter eligibility rule.
+
+The two real school failures remain separately diagnosed: one final-schema
+rejection with discarded output, and one older generic failure of unknown
+cause. Provider fault is not established. Their school presentation metadata
+remains unset; owner activation is separate. Migration 042 has only been tested
+on the isolated test database; legacy producer links stay `NULL` without a
+guessed backfill. Home visual review, screenshots, final reviews/QA, restore
+evidence and public test deployment remain pending. The earlier final-delivery
+entries below describe R14, not completion of Round 15. See
+[Round 15 status](../design/review/ROUND_15_STATUS.md).
+
 ## Authoritative final delivery — 2026-10-28 03:59 UTC
 
 Public test deployment and scoped HTTPS verification **PASS** at https://samvev.pabben.org/. Source/deploy `971913e321dd82f491214fdbda81d08f8123a891`; image `sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`. Round `20261028032511-971913e3-046fbbb8`. Final local 526 tests, UX/security/readiness gate, fresh pre-cutover restore and postdeployment restore passed. Owner authorization/key/private-calendar/school actions remain separate. Public People color editing was not authorized for the synthetic smoke account; isolated editing tests passed. All lower checkpoint/pending statements are retained historical records, not current status.

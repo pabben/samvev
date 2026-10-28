@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { collectActivitySourcePages, currentCalendarActivityRelevant, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate, timedActivityUnended, timelineActivityVisible } from "../src/home-activity-presentation";
+import { collectActivitySourcePages, calendarActivityEnded, currentCalendarActivityRelevant, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate, timedActivityUnended, timelineActivityVisible } from "../src/home-activity-presentation";
 import type { HouseholdTimelineActivity } from "../src/home-types";
 import { registerHooks } from "node:module";
 registerHooks({ load(url, context, nextLoad) { return url.endsWith(".webp") ? { format: "module", source: 'export default "synthetic-avatar.webp"', shortCircuit: true } : nextLoad(url, context); } });
@@ -64,8 +64,20 @@ test("Next uses the same exclusive-end and expiry rules while history can remain
   const school={type:"school" as const,id:"school",taskId:"task",personId:"p1",personIds:["p1"],startsAt:"2026-10-16T00:00:00Z",date:"2026-10-16",time:null,kind:"bring",title:"Synthetic task",actions:[],evidence:{},confidence:null,uncertainty:null,sourceUrl:null,recordedAt:null,expiresAt:"2026-10-16T10:00:00Z"};
   assert.equal(timelineActivityVisible(school,Date.parse(school.expiresAt),"Europe/Oslo",true),false,"offline school projection expires at the saved deadline");
   assert.equal(mergeTimelineEntries([ended],[],"Europe/Oslo","2026-10-16","2026-10-16").length,1,"week/history remains intact");
-  const invalid=calendar("invalid-end","2026-10-16T09:00:00Z");invalid.endsAt=invalid.startsAt;
-  assert.equal(mergeTimelineEntries([invalid],[],"Europe/Oslo").length,0,"an explicit invalid end is not replaced with a one-day span");
+  const pointAtMidnight=calendar("equal-end-point","2026-10-15T22:00:00Z");pointAtMidnight.endsAt=pointAtMidnight.startsAt;
+  const at=Date.parse(pointAtMidnight.startsAt!);
+  assert.equal(timelineActivityVisible(pointAtMidnight,at-1,"Europe/Oslo",true),true);
+  assert.equal(timelineActivityVisible(pointAtMidnight,at,"Europe/Oslo",true),true,"a timed equal endpoint is a valid point until its start boundary");
+  assert.equal(timelineActivityVisible(pointAtMidnight,at+1,"Europe/Oslo",true),false);
+  assert.equal(calendarActivityEnded(pointAtMidnight.startsAt,pointAtMidnight.endsAt,false,at,"Europe/Oslo"),false);
+  assert.equal(calendarActivityEnded(pointAtMidnight.startsAt,pointAtMidnight.endsAt,false,at+1,"Europe/Oslo"),true);
+  assert.equal(isTimelineActivityOngoing(pointAtMidnight,"2026-10-16",at),false,"a point never becomes ongoing");
+  assert.equal(isTimelineActivityOngoing(point,"2026-10-16",Date.parse(point.startsAt!)),false,"a missing end is also a point, without an invented duration");
+  assert.deepEqual(mergeTimelineEntries([pointAtMidnight],[],"Europe/Oslo","2026-10-16","2026-10-16").map(row=>[row.id,row.date]),[[pointAtMidnight.id,"2026-10-16"]],"a midnight point belongs to its start day and survives in history");
+  const reversed=calendar("reversed-end","2026-10-16T09:00:00Z");reversed.endsAt="2026-10-16T08:00:00Z";
+  assert.equal(mergeTimelineEntries([reversed],[],"Europe/Oslo").length,0,"a reversed end remains invalid");
+  const invalidAllDay={...pointAtMidnight,metadata:{allDay:true,calendar:{provider:"google" as const,sourceId:"synthetic",bridgeKind:"direct",subjectHousehold:true}}};
+  assert.equal(mergeTimelineEntries([invalidAllDay],[],"Europe/Oslo").length,0,"equal all-day civil endpoints remain invalid");
 });
 
 test("member source catalog exhausts UUID cursors, includes empty sources and sorts labels", async () => {

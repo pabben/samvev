@@ -536,11 +536,12 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       CASE WHEN i.metadata->'calendar' IS NOT NULL AND i.metadata->'allDay'='true'::jsonb
         THEN (i.starts_at AT TIME ZONE 'UTC')::date::timestamp AT TIME ZONE household.timezone ELSE i.starts_at END AS starts_at,
       CASE WHEN i.metadata->'calendar' IS NOT NULL AND i.metadata->'allDay'='true'::jsonb
-        THEN COALESCE((i.ends_at AT TIME ZONE 'UTC')::date,(i.starts_at AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE household.timezone ELSE i.ends_at END AS ends_at) activity
+        THEN COALESCE((i.ends_at AT TIME ZONE 'UTC')::date,(i.starts_at AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE household.timezone WHEN i.ends_at=i.starts_at THEN NULL ELSE i.ends_at END AS ends_at) activity
     WHERE i.household_id=$1 AND i.kind IN ('event','reminder') AND i.status='active'
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
       AND (activity.ends_at IS NULL AND activity.starts_at >= ($3::date::timestamp AT TIME ZONE household.timezone) OR activity.ends_at > ($3::date::timestamp AT TIME ZONE household.timezone))
       AND activity.starts_at < (($4::date+1)::timestamp AT TIME ZONE household.timezone)
+      AND (activity.ends_at IS NULL OR activity.ends_at>activity.starts_at)
       AND ((i.kind='event' AND i.metadata->'calendar' IS NOT NULL AND (COALESCE((i.metadata#>>'{calendar,subjectHousehold}')::boolean,false) OR EXISTS(SELECT 1 FROM integration_item_person_subjects placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2)))))
         OR (i.kind IN ('event','reminder') AND i.metadata->'calendar' IS NULL AND (i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2))))))
       AND (($12::uuid IS NULL AND ($5 OR i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets readable WHERE readable.item_id=i.id AND readable.person_id=$6)))
@@ -548,7 +549,8 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
           AND EXISTS(SELECT 1 FROM integration_connection_display_grants cg WHERE cg.household_id=i.household_id AND cg.connection_id=i.connection_id AND cg.display_id=$12)
           AND EXISTS(SELECT 1 FROM integration_item_display_targets dt WHERE dt.household_id=i.household_id AND dt.item_id=i.id AND dt.display_id=$12)
           AND (${displayCalendarSource} OR ${displayGenericSource})))
-      AND ($18::timestamptz IS NULL OR (activity.ends_at IS NULL AND activity.starts_at>$18::timestamptz OR activity.ends_at>$18::timestamptz))
+      AND ($18::timestamptz IS NULL OR (activity.ends_at IS NULL AND activity.starts_at>=$18::timestamptz OR activity.ends_at>$18::timestamptz))
+      AND ($18::timestamptz IS NULL OR COALESCE(i.metadata#>>'{calendar,status}','') NOT IN ('cancelled','canceled','declined'))
       AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8)))
       AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
       ${calendarCursor}
