@@ -29,6 +29,9 @@ export function DisplaysPanel({
   const { t, locale } = useI18n();
   const [pair, setPair] = useState(false);
   const [setups,setSetups]=useState<SetupChoice[]>([]);
+  const [openSetupId, setOpenSetupId] = useState<string | null>(null);
+  const [openPolicyDisplayId, setOpenPolicyDisplayId] = useState<string | null>(null);
+  const [previewDisplayId, setPreviewDisplayId] = useState<string | null>(null);
   const [revoke, setRevoke] = useState<Display | null>(null);
   const { error, busy, run } = useAction();
   const manage = member.capabilities.includes("display.manage");
@@ -68,80 +71,52 @@ export function DisplaysPanel({
       <div className="display-grid">
         {displays.map((d) => (
           <article className="display-admin-card" key={d.id}>
-            <div className="display-illustration" aria-hidden="true">
-              <Icon name="display" size={76} />
-            </div>
-            <h2>{d.name}</h2>
-            <p className="field-hint">
-              {d.revoked_at
-                ? t("revoked")
-                : d.last_seen_at
-                  ? t("lastSeen", {
-                      time: formatDate(d.last_seen_at, locale, member.timezone),
-                    })
-                  : t("neverSeen")}
-            </p>
-            <p className="scope-label">
-              <Icon name="shield" />
-              {t("allowedContent")}
-            </p>
+            <header className="display-admin-heading">
+              <div className="display-illustration" aria-hidden="true"><Icon name="display" size={40} /></div>
+              <div><h2>{d.name}</h2><p className="field-hint">{d.revoked_at ? t("revoked") : d.last_seen_at ? t("lastSeen", { time: formatDate(d.last_seen_at, locale, member.timezone) }) : t("neverSeen")}</p></div>
+            </header>
             {manage && !d.revoked_at && (
-              <>
-                <div className="form-grid">
-                  <Field label={t("displayLocale")}>
-                    <select
-                      value={d.locale}
-                      onChange={(e) =>
-                        void run(() => update(d, { locale: e.target.value }))
-                      }
-                    >
-                      <option value="en">{t("en")}</option>
-                      <option value="nb">{t("nb")}</option>
-                    </select>
-                    <button className="text-button" type="button" onClick={()=>void run(()=>update(d,{locale:null}))}>{t("inheritSetupLocale")}</button>
-                  </Field>
-                  <Field label={t("displayTheme")}>
-                    <select
-                      value={d.theme}
-                      onChange={(e) =>
-                        void run(() => update(d, { theme: e.target.value }))
-                      }
-                    >
-                      {(["light", "dark", "system"] as const).map((v) => (
-                        <option key={v} value={v}>
-                          {t(v)}
-                        </option>
-                      ))}
-                    </select>
-                    <button className="text-button" type="button" onClick={()=>void run(()=>update(d,{theme:null}))}>{t("inheritSetupTheme")}</button>
-                  </Field>
-                </div>
-                <div>
-                  <Check label={t("integrationExternalDisplay")} checked={Boolean(d.external_items_enabled)} onChange={(v) => void run(() => update(d, {externalItemsEnabled:v}))} />
-                  <p className="field-hint">{t("integrationExternalDisplayHint")}</p>
-                </div>
-                <Field label={t("displaySetup")}><select value={d.setup_id??""} onChange={e=>void run(()=>update(d,{setupId:e.target.value}))}><option value={d.setup_id??""}>{setups.find(setup=>setup.id===d.setup_id)?.name??t("defaultDisplaySetup")}</option>{setups.filter(setup=>setup.id!==d.setup_id).map(setup=><option key={setup.id} value={setup.id}>{setup.name}</option>)}</select></Field>
-                <fieldset><legend>{t("displaySetupPeople")}</legend>{people.map(person=><Check key={`profile:${person.id}`} label={t("displayProfileGrant",{name:person.display_name})} checked={Boolean(d.profile_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{profilePersonIds:checked?[...new Set([...(d.profile_person_ids??[]),person.id])]:((d.profile_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
-                <fieldset><legend>{t("displayBirthdayGrants")}</legend>{people.map(person=><Check key={`birthday:${person.id}`} label={t("displayBirthdayGrant",{name:person.display_name})} checked={Boolean(d.birthday_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{birthdayPersonIds:checked?[...new Set([...(d.birthday_person_ids??[]),person.id])]:((d.birthday_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
-                <Check
-                  label={t("displayPrivacy")}
-                  checked={d.privacy_mode}
-                  onChange={(v) =>
-                    void run(() => update(d, { privacyMode: v }))
-                  }
-                />
-                <button
-                  className="text-button danger-text"
-                  onClick={() => setRevoke(d)}
-                >
-                  {t("revoke")}
-                </button>
-              </>
+              <div className="display-admin-sections">
+                <details className="display-admin-section">
+                  <summary>{t("displayOpenConnect")}</summary>
+                  <div className="form-stack">
+                    <p className="field-hint">{t("displayOpenConnectHint")}</p>
+                    <DisplayAddressActions />
+                    <button className="button" type="button" onClick={() => setPair(true)}>{t("displayPairAnother")}</button>
+                  </div>
+                </details>
+                <details className="display-admin-section" open>
+                  <summary>{t("displayContentLayout")}</summary>
+                  <div className="form-stack">
+                    <Field label={t("displaySetup")}><select value={d.setup_id??""} onChange={e=>void run(()=>update(d,{setupId:e.target.value}))}><option value={d.setup_id??""}>{setups.find(setup=>setup.id===d.setup_id)?.name??t("defaultDisplaySetup")}</option>{setups.filter(setup=>setup.id!==d.setup_id).map(setup=><option key={setup.id} value={setup.id}>{setup.name}</option>)}</select></Field>
+                    {d.setup_id && <button className="text-button" type="button" onClick={() => setOpenSetupId(d.setup_id!)}>{t("displayEditAssignedSetup")}</button>}
+                  </div>
+                </details>
+                <details className="display-admin-section">
+                  <summary>{t("displayAppearance")}</summary>
+                  <div className="form-grid">
+                    <Field label={t("displayLocale")}><select value={d.locale} onChange={(e) => void run(() => update(d, { locale: e.target.value }))}><option value="en">{t("en")}</option><option value="nb">{t("nb")}</option></select><button className="text-button" type="button" onClick={()=>void run(()=>update(d,{locale:null}))}>{t("inheritSetupLocale")}</button></Field>
+                    <Field label={t("displayTheme")}><select value={d.theme} onChange={(e) => void run(() => update(d, { theme: e.target.value }))}>{(["light", "dark", "system"] as const).map((v) => <option key={v} value={v}>{t(v)}</option>)}</select><button className="text-button" type="button" onClick={()=>void run(()=>update(d,{theme:null}))}>{t("inheritSetupTheme")}</button></Field>
+                  </div>
+                </details>
+                <details className="display-admin-section">
+                  <summary>{t("displayAccess")}</summary>
+                  <div className="form-stack">
+                    <fieldset><legend>{t("displayProfileGrants")}</legend>{people.map(person=><Check key={`profile:${person.id}`} label={t("displayProfileGrant",{name:person.display_name})} checked={Boolean(d.profile_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{profilePersonIds:checked?[...new Set([...(d.profile_person_ids??[]),person.id])]:((d.profile_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
+                    <fieldset><legend>{t("displayBirthdayGrants")}</legend>{people.map(person=><Check key={`birthday:${person.id}`} label={t("displayBirthdayGrant",{name:person.display_name})} checked={Boolean(d.birthday_person_ids?.includes(person.id))} onChange={checked=>void run(()=>update(d,{birthdayPersonIds:checked?[...new Set([...(d.birthday_person_ids??[]),person.id])]:((d.birthday_person_ids??[]).filter(id=>id!==person.id))}))}/>)}</fieldset>
+                    <div><Check label={t("integrationExternalDisplay")} checked={Boolean(d.external_items_enabled)} onChange={(v) => void run(() => update(d, {externalItemsEnabled:v}))} /><p className="field-hint">{t("integrationExternalDisplayHint")}</p></div>
+                    <Check label={t("displayPrivacy")} checked={d.privacy_mode} onChange={(v) => void run(() => update(d, { privacyMode: v }))}/>
+                    <button className="button" type="button" onClick={() => setOpenPolicyDisplayId(d.id)}>{t("displayManageAccess")}</button>
+                    <button className="button" type="button" onClick={() => setPreviewDisplayId(d.id)}>{t("displayPreviewThisDevice")}</button>
+                  </div>
+                </details>
+                <div className="display-admin-actions"><p className="scope-label"><Icon name="shield" />{t("allowedContent")}</p><button className="text-button danger-text" onClick={() => setRevoke(d)}>{t("revoke")}</button></div>
+              </div>
             )}
           </article>
         ))}
       </div>
-      {manage&&<DisplaySetupsAdmin householdId={member.household_id} member={member} people={people} displays={displays} onChanged={reloadSetups}/>}
+      {manage&&<DisplaySetupsAdmin householdId={member.household_id} member={member} people={people} displays={displays} onChanged={reloadSetups} openSetupId={openSetupId} onOpenSetupHandled={() => setOpenSetupId(null)} openPolicyDisplayId={openPolicyDisplayId} onOpenPolicyHandled={() => setOpenPolicyDisplayId(null)} previewDisplayId={previewDisplayId} onPreviewHandled={() => setPreviewDisplayId(null)}/>}
       {!displays.length && (
         <Empty title={t("noDisplays")} body={t("noDisplaysBody")}>
           {manage && (

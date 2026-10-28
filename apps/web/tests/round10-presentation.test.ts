@@ -65,6 +65,8 @@ test('early and interrupted failures show localized safe explanations, never raw
  assert.equal(personTaskErrorKey('MONITOR_WORKER_INTERRUPTED'),'personTaskInterrupted');
  assert.equal(personTaskErrorKey('MONITOR_OWNER_UNAUTHORIZED'),'monitorErrorPermission');
  assert.equal(personTaskErrorKey('unexpected private diagnostic text'),'monitorErrorGeneric');
+ assert.equal(personTaskErrorKey('AI_RESPONSE_INVALID',{validationStage:'final_schema',validationReason:'schema_mismatch',raw:'private'}),'monitorErrorResponseFormat');
+ assert.equal(personTaskErrorKey('AI_RESPONSE_INVALID',{validationStage:'evidence_anchor',validationReason:'claim'}),'monitorErrorVerification');
  for(const messages of [en,nb]){
   assert.ok(messages.personTaskExecutionFailed);assert.ok(messages.personTaskInterrupted);
   assert.notEqual(messages.personTaskExecutionFailed,messages.personTaskInterrupted);

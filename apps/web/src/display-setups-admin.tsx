@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Display, Membership, Person, Projection } from "./types";
 import type { CalendarConnection } from "./calendar-connection-types";
@@ -78,7 +78,7 @@ function ReadonlyPreview({ result, cardLabel, t }: { result: Preview; cardLabel:
   </section>;
 }
 
-export function DisplaySetupsAdmin({ householdId, member, people, displays, onChanged }: { householdId: string; member: Membership; people: Person[]; displays: Display[]; onChanged: () => Promise<void> }) {
+export function DisplaySetupsAdmin({ householdId, member, people, displays, onChanged, openSetupId, onOpenSetupHandled, openPolicyDisplayId, onOpenPolicyHandled, previewDisplayId, onPreviewHandled }: { householdId: string; member: Membership; people: Person[]; displays: Display[]; onChanged: () => Promise<void>; openSetupId?: string | null; onOpenSetupHandled?: () => void; openPolicyDisplayId?: string | null; onOpenPolicyHandled?: () => void; previewDisplayId?: string | null; onPreviewHandled?: () => void }) {
   const { t } = useI18n();
   const { run, busy, error } = useAction();
   const [setups, setSetups] = useState<Setup[]>([]);
@@ -150,7 +150,15 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     return () => { if (loadGeneration.current === generation) loadGeneration.current++; };
   }, [householdId]);
 
-  const open = (setup?: Setup) => { setEditing(setup ?? null); setDraft(setup ? asDraft(setup) : emptyDraft(member.household_locale)); setEditorOpen(true); setPreview(null); };
+  const open = useCallback((setup?: Setup) => { setEditing(setup ?? null); setDraft(setup ? asDraft(setup) : emptyDraft(member.household_locale)); setEditorOpen(true); setPreview(null); }, [member.household_locale]);
+  useEffect(() => {
+    if (!openSetupId || loading) return;
+    const setup = setups.find(item => item.id === openSetupId);
+    if (!setup) { onOpenSetupHandled?.(); return; }
+    open(setup);
+    onOpenSetupHandled?.();
+    window.setTimeout(() => document.getElementById("display-setup-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }, [openSetupId, loading, setups, open, onOpenSetupHandled]);
   const save = async () => {
     const generation = loadGeneration.current;
     const scopeHousehold = householdId;
@@ -163,10 +171,10 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     await onChanged();
     if (generation === loadGeneration.current) { setEditing(null); setEditorOpen(false); }
   };
-  const previewSetup = async (display: Display) => {
+  const previewSetup = async (display: Display, setupDraft: Draft = draft) => {
     const generation = ++previewGeneration.current;
     const household = householdId;
-    const result = await api<Preview>(`/households/${household}/displays/${display.id}/preview`, "POST", { draft });
+    const result = await api<Preview>(`/households/${household}/displays/${display.id}/preview`, "POST", { draft: setupDraft });
     if (generation === previewGeneration.current && household === householdId) setPreview({ displayId: display.id, result });
   };
   const openPolicy = async (display: Display) => {
@@ -186,6 +194,29 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     const mediaError = mediaResults.find(result=>result.status==="rejected");
     if (generation === policyGeneration.current && household === householdId) { setPolicy(nextPolicy); setBoard(nextBoard); setMediaPolicies(nextMedia); setMediaPolicyError(mediaError?.status==="rejected"?mediaError.reason:null); }
   };
+  useEffect(() => {
+    if (!openPolicyDisplayId) return;
+    const display = displays.find(item => item.id === openPolicyDisplayId);
+    onOpenPolicyHandled?.();
+    if (!display || display.revoked_at) return;
+    void run(async () => {
+      await openPolicy(display);
+      window.setTimeout(() => document.getElementById("display-policy-editor")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    });
+  }, [openPolicyDisplayId, displays]);
+  useEffect(() => {
+    if (!previewDisplayId || loading) return;
+    const display = displays.find(item => item.id === previewDisplayId && !item.revoked_at);
+    const setup = display ? setups.find(item => item.id === display.setup_id) ?? setups.find(item => item.isDefault) : undefined;
+    onPreviewHandled?.();
+    if (!display || !setup) return;
+    const setupDraft = asDraft(setup);
+    setEditing(setup); setDraft(setupDraft); setEditorOpen(true); setPreview(null);
+    void run(async () => {
+      await previewSetup(display, setupDraft);
+      window.setTimeout(() => document.getElementById("display-effective-preview")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    });
+  }, [previewDisplayId, loading, displays, setups]);
   const savePolicy = async () => {
     if (!policyDisplay || !policy) return;
     const generation = policyGeneration.current;
@@ -214,26 +245,26 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
   const selectedSensors = connections.flatMap(connection => (connection.temperatureSensors ?? []).map(sensor => ({ id: sensor.id, label: `${connection.name}: ${sensor.displayName ?? sensor.name}` })));
   const assignedDevices = (setup: Setup) => displays.filter(display => display.setup_id === setup.id && !display.revoked_at).map(display => display.name);
 
-  return <section className="display-setups-admin">
+  return <section className="display-setups-admin" id="display-setups-admin">
     <header className="section-heading"><div><p className="eyebrow">{t("displaySetups")}</p><h2>{t("displaySetupsTitle")}</h2><p>{t("displaySetupsBody")}</p></div><button className="button" disabled={busy} onClick={() => open()}><Icon name="plus"/>{t("displaySetupNew")}</button></header>
     {loading && <p role="status">{t("loading")}</p>}
     {loadError && <ErrorNotice error={loadError}/>}
     {optionalLoadError && <p className="field-hint" role="status">{t("displayOptionalSourcesUnavailable")}</p>}
     {error && <ErrorNotice error={error}/>}
     <div className="display-setup-list">{setups.map(setup => <article className="display-setup-card" key={setup.id}><div><h3>{setup.name}</h3><p>{setup.cardOrder.map(cardLabel).join(" · ")}</p><p className="field-hint">{t("displaySetupAssignedTo")}: {assignedDevices(setup).join(", ") || t("displaySetupUnassigned")}</p></div><button className="button" disabled={busy} onClick={() => open(setup)}>{t("edit")}</button></article>)}</div>
-    {editorOpen && <div className="display-setup-editor" role="region" aria-label={t("displaySetupEditor")}>
+    {editorOpen && <div className="display-setup-editor" id="display-setup-editor" role="region" aria-label={t("displaySetupEditor")}>
       <fieldset disabled={busy} className="display-editor-controls">
         <div className="form-grid"><Field label={t("displaySetupName")}><input maxLength={80} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })}/></Field><Field label={t("displayLocale")}><select value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value as "en" | "nb" })}><option value="en">{t("en")}</option><option value="nb">{t("nb")}</option></select></Field><Field label={t("displayTheme")}><select value={draft.theme} onChange={e => setDraft({ ...draft, theme: e.target.value as Draft["theme"] })}>{(["light", "dark", "system"] as const).map(value => <option key={value} value={value}>{t(value)}</option>)}</select></Field></div>
         <fieldset><legend>{t("displaySetupCards")}</legend>{CARD_IDS.map(id => <Check key={id} label={cardLabel(id)} checked={draft.cards.includes(id)} onChange={checked => { const cards = toggle(draft.cards, id, checked); setDraft({ ...draft, cards, cardOrder: checked ? [...draft.cardOrder, id] : draft.cardOrder.filter(card => card !== id) }); }}/>) }<p className="field-hint">{t("displaySetupOrderHint")}</p><ol className="display-card-order">{draft.cardOrder.map((id, index) => <li key={id}><span>{cardLabel(id)}</span><button type="button" className="button subtle" disabled={!index || busy} onClick={() => { const next = [...draft.cardOrder]; [next[index - 1], next[index]] = [next[index]!, next[index - 1]!]; setDraft({ ...draft, cardOrder: next }); }} aria-label={t("moveUp")}>↑</button><button type="button" className="button subtle" disabled={index === draft.cardOrder.length - 1 || busy} onClick={() => { const next = [...draft.cardOrder]; [next[index + 1], next[index]] = [next[index]!, next[index + 1]!]; setDraft({ ...draft, cardOrder: next }); }} aria-label={t("moveDown")}>↓</button></li>)}</ol></fieldset>
-        <fieldset><legend>{t("displaySetupPeople")}</legend>{people.map(person => <Check key={person.id} label={person.display_name} checked={draft.personIds.includes(person.id)} onChange={checked => setDraft({ ...draft, personIds: toggle(draft.personIds, person.id, checked) })}/>)}</fieldset>
+        <fieldset><legend>{t("displaySetupPeople")}</legend><p className="field-hint">{t("displaySetupPeopleHint")}</p>{people.map(person => <Check key={person.id} label={person.display_name} checked={draft.personIds.includes(person.id)} onChange={checked => setDraft({ ...draft, personIds: toggle(draft.personIds, person.id, checked) })}/>)}</fieldset>
         <fieldset><legend>{t("displaySetupSources")}</legend><Check label={t("allSources")} checked={draft.allSources} onChange={checked => setDraft({ ...draft, allSources: checked })}/>{integrations.map(connection => <Check key={connection.id} label={connection.name} checked={draft.sourceIds.includes(connection.id)} onChange={checked => setDraft({ ...draft, sourceIds: toggle(draft.sourceIds, connection.id, checked) })}/>) }{selectedSources.map(source => <Check key={source.id} label={source.label} checked={draft.calendarSourceIds.includes(source.id)} onChange={checked => setDraft({ ...draft, calendarSourceIds: toggle(draft.calendarSourceIds, source.id, checked) })}/>) }<Check label={t("allSensors")} checked={draft.allSensors} onChange={checked => setDraft({ ...draft, allSensors: checked })}/>{selectedSensors.map(sensor => <Check key={sensor.id} label={sensor.label} checked={draft.sensorIds.includes(sensor.id)} onChange={checked => setDraft({ ...draft, sensorIds: toggle(draft.sensorIds, sensor.id, checked) })}/>)}</fieldset>
         <fieldset><legend>{t("displaySetupMedia")}</legend>{albums.filter(album => album.kind === "photos").map(album => <Check key={album.id} label={album.name} checked={draft.albumIds.includes(album.id)} onChange={checked => setDraft({ ...draft, albumIds: toggle(draft.albumIds, album.id, checked) })}/>) }<Field label={t("displayBackground")}><select value={draft.backgroundId ?? ""} onChange={e => setDraft({ ...draft, backgroundId: e.target.value || null })}><option value="">{t("none")}</option>{backgrounds.map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}</select></Field></fieldset>
         <div className="form-actions"><button type="button" className="button subtle" onClick={() => { setEditing(null); setEditorOpen(false); setDraft(emptyDraft(member.household_locale)); setPreview(null); }}>{t("cancel")}</button><button type="button" className="button" disabled={!draft.name.trim()} onClick={() => void run(save)}>{t("save")}</button>{displays.filter(display => !display.revoked_at).map(display => <button type="button" className="button" key={display.id} disabled={!draft.name.trim()} onClick={() => void run(() => previewSetup(display))}>{t("displayPreviewFor", { name: display.name })}</button>)}</div>
       </fieldset>
-      {preview && <ReadonlyPreview result={preview.result} cardLabel={cardLabel} t={t}/>}
+      {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} cardLabel={cardLabel} t={t}/></div>}
     </div>}
     <section><h3>{t("displayDeviceGrants")}</h3>{displays.map(display => <article className="display-setup-card" key={display.id}><div><strong>{display.name}</strong><p className="field-hint">{t("displaySetup")}: {setups.find(setup => setup.id === display.setup_id)?.name ?? t("defaultDisplaySetup")}</p></div><span>{display.revoked_at ? t("revoked") : t("active")}</span>{!display.revoked_at && <button className="button" disabled={busy} onClick={() => void run(() => openPolicy(display))}>{t("displayDeviceGrants")}</button>}</article>)}</section>
-    {policyDisplay && policy && <section className="display-policy-editor"><h3>{t("displayDeviceGrants")}: {policyDisplay.name}</h3><fieldset disabled={busy}>
+    {policyDisplay && policy && <section className="display-policy-editor" id="display-policy-editor" tabIndex={-1}><h3>{t("displayDeviceGrants")}: {policyDisplay.name}</h3><fieldset disabled={busy}>
       {mediaPolicyError&&<p className="field-hint" role="status">{t("displayOptionalSourcesUnavailable")}</p>}
       <Check label={t("newMessage")} checked={policy.messageCreate} onChange={value => setPolicy({ ...policy, messageCreate: value })}/><Check label={t("messageSchedule")} checked={policy.messageSchedule} onChange={value => setPolicy({ ...policy, messageSchedule: value })}/><Check label={t("boardGroceries")} checked={policy.groceryWrite} onChange={value => setPolicy({ ...policy, groceryWrite: value })}/><Check label={t("boardDinners")} checked={policy.dinnerWrite} onChange={value => setPolicy({ ...policy, dinnerWrite: value })}/><Check label={t("mediaPhotosTitle")} checked={policy.photoUpload} onChange={value => setPolicy({ ...policy, photoUpload: value })}/><Check label={t("homeAssistantControlsTitle")} checked={policy.homeAssistantControl} onChange={value => setPolicy({ ...policy, homeAssistantControl: value })}/>
       <fieldset><legend>{t("displayMessagePeopleRecipients")}</legend>{people.map(person => <Check key={person.id} label={person.display_name} checked={policy.personIds.includes(person.id)} onChange={value => setPolicy({ ...policy, personIds: toggle(policy.personIds, person.id, value) })}/>)}</fieldset>

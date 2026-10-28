@@ -17,6 +17,11 @@ export function monitorPresentationUpdateBody(kind: SchoolPresentationKind, scho
 
 export const taskErrorKey = (error: unknown): TranslationKey => {
   const code = error instanceof ApiError ? error.code : typeof error === 'string' ? error : '';
+  const details = error instanceof ApiError ? error.details : undefined;
+  const validationStage = details?.validationStage;
+  const validationReason = details?.validationReason;
+  if (validationStage === 'final_schema' && ['invalid_json', 'schema_mismatch', 'response_too_large', 'invalid_json_or_schema'].includes(String(validationReason))) return 'monitorErrorResponseFormat';
+  if (validationStage === 'evidence_anchor') return 'monitorErrorVerification';
   if (code === 'MONITOR_LOCATION_REQUIRED') return 'monitorErrorLocationRequired';
   if (code === 'MONITOR_LOCATION_AMBIGUOUS') return 'monitorErrorLocationAmbiguous';
   if (code === 'MONITOR_LOCATION_NOT_FOUND') return 'monitorErrorLocationNotFound';
@@ -45,7 +50,7 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'MONITOR_WORKER_INTERRUPTED') return 'monitorErrorInterrupted';
   if (code.includes('TIMEOUT')) return 'monitorErrorTimeout';
   if (['AI_DISABLED', 'AI_CONFIGURATION_INVALID', 'AI_NOT_CONFIGURED', 'AI_PROVIDER_UNAVAILABLE', 'AI_PROVIDER_MISMATCH', 'AI_CREDENTIAL_INVALID'].includes(code)) return 'monitorErrorSetup';
-  if (code === 'AI_RESPONSE_INVALID' || code === 'AI_COMPOSITION_INVALID') return 'monitorErrorVerification';
+  if (code === 'AI_COMPOSITION_INVALID') return 'monitorErrorVerification';
   if (code === 'MONITOR_INTERPRETATION_SOURCE_REFUSAL') return 'monitorErrorSourceContext';
   if (code === 'MONITOR_INTERPRETATION_SCHEMA_INVALID' || code === 'MONITOR_INTERPRETATION_INVALID') return 'monitorErrorInterpretation';
   if (code === 'REVISION_CONFLICT' || code === 'CONFLICT') return 'monitorErrorConflict';

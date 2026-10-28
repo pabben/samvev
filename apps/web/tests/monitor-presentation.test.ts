@@ -51,6 +51,20 @@ test('transport errors remain distinct from bounded server timeout in both local
   }
 });
 
+test('sanitized AI diagnostics distinguish response formatting from source evidence', () => {
+  for (const reason of ['invalid_json', 'schema_mismatch', 'response_too_large', 'invalid_json_or_schema']) {
+    const key = taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'final_schema', validationReason: reason, raw: 'private' }));
+    assert.equal(key, 'monitorErrorResponseFormat');
+    assert.ok(en[key]); assert.ok(nb[key]);
+  }
+  assert.equal(taskErrorKey(new ApiError('MONITOR_INTERPRETATION_SCHEMA_INVALID', 502, { validationStage: 'final_schema', validationReason: 'invalid_json_or_schema' })), 'monitorErrorResponseFormat');
+  assert.equal(taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'evidence_anchor', validationReason: 'claim' })), 'monitorErrorVerification');
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response' })), 'monitorErrorGeneric');
+  assert.equal(taskErrorKey(new ApiError('MONITOR_EXECUTION_FAILED')), 'monitorErrorGeneric');
+  assert.match(en.monitorErrorResponseFormat, /required format/i);
+  assert.match(nb.monitorErrorResponseFormat, /forventet format/i);
+});
+
 
 test('sanitized weather stage distinguishes place lookup from forecast failures in NB/EN', () => {
   for (const [code, locationKey, forecastKey] of [
