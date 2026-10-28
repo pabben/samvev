@@ -30,6 +30,27 @@ test("member Home uses non-overlapping four-column board slots and explicit tabl
  assert.match(css,/max-width:640px/);
 });
 
+test("household board module stays mounted in Home while CSS fills the sparse lower row",()=>{
+ setViewport();
+ const module=createElement("section",{className:"synthetic-stable-board"},"Synthetic board action");
+ const noMessage=homeMarkup([{id:"synthetic-one",displayName:"Synthetic one"}],{homeModules:module});
+ const withMessage=homeMarkup([{id:"synthetic-one",displayName:"Synthetic one"}],{
+  homeModules:module,
+  messages:[{id:"synthetic-message",body:"Synthetic note",importance:"normal",authorName:"Synthetic sender",publishAt:"2026-10-28T11:00:00Z",expiresAt:"2026-10-29T00:00:00Z",revision:1}],
+ });
+ assert.equal((noMessage.match(/synthetic-stable-board/g)??[]).length,1);
+ assert.equal((withMessage.match(/synthetic-stable-board/g)??[]).length,1);
+ for(const html of [noMessage,withMessage]){
+  const board=html.indexOf('class="hub-home-board"');
+  const moduleAt=html.indexOf('class="hub-home-modules"');
+  const boardEnd=html.indexOf("</div>",moduleAt);
+  assert.ok(board<moduleAt&&moduleAt<boardEnd,"the board editor remains mounted as one Home-grid child");
+ }
+ assert.match(css,/\.hub-home-board:not\(:has\(>\.hub-messages\)\)>.hub-home-modules:not\(:empty\)\{grid-column:1\/span 2;grid-row:2/);
+ assert.match(css,/\.hub-home-board:not\(:has\(>\.hub-messages\)\):has\(>\.hub-home-modules:not\(:empty\)\)>.hub-person-section\{grid-row:1\/span 2\}/);
+ assert.match(css,/\.hub-member-week\{width:100%;max-width:none;margin-inline:0\}/);
+});
+
 test("an empty family roster and empty message preview produce no placeholder sections",()=>{
  setViewport();
  const html=homeMarkup([]);

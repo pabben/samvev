@@ -150,10 +150,11 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
           {sections.today}{sections.tomorrow}{sections.people}
           <div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div>
           {sections.messages}{homePhoto}
+          <div className="hub-home-modules">{homeModules}{sections.support}</div>
         </div>
         {important.length>0&&sections.important}
       </>}
-      <div className="hub-home-modules">{homeModules}{!mobile&&sections.support}</div>
+      {mobile&&<div className="hub-home-modules">{homeModules}</div>}
     </>:<><div className="hub-grid">{orderedSections}</div>{homeModules}{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/>}</>}
     {(displaySections?.week!==false||display&&(displaySections?.today!==false||displaySections?.tomorrow!==false))&&<HouseholdActivityWeek key={`${display?'display':'member'}:${householdId??'display'}`} householdId={householdId} localDate={localDate} zone={zone} now={now} people={people} display={display} householdBoardsReadableDinners={!display||displayDinnersReadable} showWeekCard={displaySections?.week!==false} showNextActivity={displaySections?.next!==false} onCurrentWeekDinners={updateWeekDinners}/>}
     {detail&&createPortal(<Dialog className={detail.kind==='person'?'hub-person-drawer':'hub-item-dialog'} title={detail.kind==='item'?detail.item.title:detail.kind==='person'?detail.person.displayName:detail.kind==='message'?t('hubMessageFrom',{name:detail.message.authorName}):collectionTitle(detail.id)} titleLang={detail.kind==='item'?detail.item.contentLocale??'':undefined} onClose={closeDetail}>

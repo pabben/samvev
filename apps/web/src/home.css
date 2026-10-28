@@ -17,8 +17,11 @@ body{font-family:var(--font-sans)}
 .hub-home-board>.hub-home-smart:empty{display:none}
 .hub-home-board>.hub-messages{grid-column:1/span 2;grid-row:2}
 .hub-home-board>.hub-home-photos{grid-column:4;grid-row:2}
+.hub-home-board>.hub-home-modules{grid-column:1/-1;grid-row:auto;margin-top:0}
 .hub-home-board:has(>.hub-messages)>.hub-person-section{grid-row:1/span 2}
 .hub-home-board:has(>.hub-home-smart:not(:empty)):has(>.hub-home-photos)>.hub-person-section{grid-row:1/span 2}
+.hub-home-board:not(:has(>.hub-messages)):has(>.hub-home-modules:not(:empty))>.hub-person-section{grid-row:1/span 2}
+.hub-home-board:not(:has(>.hub-messages))>.hub-home-modules:not(:empty){grid-column:1/span 2;grid-row:2;grid-template-columns:minmax(0,1fr)}
 .hub-home-board:not(:has(>.hub-home-smart:not(:empty))):not(:has(>.hub-home-photos)){grid-template-columns:repeat(3,minmax(0,1fr))}
 .hub-home-board:not(:has(>.hub-home-smart:not(:empty))):not(:has(>.hub-home-photos))>.hub-home-smart{display:none}
 .hub-home-board:has(>.hub-home-photos):not(:has(>.hub-home-smart:not(:empty)))>.hub-home-photos{grid-row:1}
@@ -57,6 +60,8 @@ body{font-family:var(--font-sans)}
 .hub-home-photos .media-playback-controls{flex-wrap:wrap;gap:8px}
 .hub-home-photos .media-control{min-width:44px;min-height:44px}
 .hub-home-modules .household-boards{height:auto;align-self:start}
+.hub-home-modules .household-board-summary.is-empty{padding:8px 12px}
+.hub-home-modules .household-board-summary.is-empty>.hub-panel-title{display:none}
 .hub-home-modules .board-summary-list{list-style:none;margin:8px 0 0;padding:0}
 .hub-home-modules .board-summary-list li{display:flex;align-items:baseline;gap:7px;margin:3px 0}
 @media(min-width:1101px){
@@ -84,7 +89,8 @@ body{font-family:var(--font-sans)}
  .family-hub.hub-member .hub-home-board{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--hub-gap)}
  .hub-home-board>.hub-today{grid-column:1;grid-row:1}
  .hub-home-board>.hub-tomorrow{grid-column:2;grid-row:1}
- .hub-home-board>.hub-person-section,.hub-home-board>.hub-home-smart,.hub-home-board>.hub-messages,.hub-home-board>.hub-home-photos{grid-column:1/-1;grid-row:auto}
+ .hub-home-board>.hub-person-section,.hub-home-board>.hub-home-smart,.hub-home-board>.hub-messages,.hub-home-board>.hub-home-photos,.hub-home-board>.hub-home-modules{grid-column:1/-1;grid-row:auto}
+ .family-hub.hub-member .hub-home-board>.hub-person-section{grid-row:auto}
  .family-hub.hub-member .hub-home-board .hub-person-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
  .family-hub.hub-member.hub-larger-family .hub-home-board .hub-person-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
  .family-hub.hub-member .hub-home-board .hub-person{min-height:0}
@@ -496,3 +502,4 @@ body{font-family:var(--font-sans)}
  .hub-larger-family .hub-identities button>.hub-person-birthday{grid-column:2;grid-row:2;text-align:left;font-size:11px;line-height:1.2}
  .hub-day-school{grid-template-columns:50px 20px minmax(0,1fr);gap:4px}
 }
+.hub-member-week{width:100%;max-width:none;margin-inline:0}

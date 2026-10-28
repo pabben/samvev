@@ -1,9 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { dateOffset, displayHouseholdBoardAdapter, memberHouseholdBoardAdapter, sevenDayWindow } from "../src/household-board-adapters.ts";
 import { mayApplyBoardRead, mutationFailure, reconcileBoardSnapshot } from "../src/household-board-state.ts";
 import { secureUuid } from "../src/secure-uuid.ts";
 import { todayDinnerSummary } from "../src/household-board-summary.ts";
+
+test("compact Home board collapses only known-empty previews and keeps the editor action",()=>{
+  const source=readFileSync(new URL("../src/household-boards.tsx",import.meta.url),"utf8");
+  const start=source.indexOf("if(compact)return <section");
+  const end=source.indexOf("\n\n  return <section",start);
+  assert.ok(start>=0&&end>start,"compact summary branch is present");
+  const summary=source.slice(start,end);
+  assert.match(summary,/emptyHomeSummary\?"is-empty":"has-preview"/);
+  assert.match(summary,/error\?\.view===viewKey/,"transient load failures remain visible");
+  assert.match(summary,/household-board-edit-disclosure/,"the edit action remains available when previews are empty");
+  assert.doesNotMatch(summary,/boardGroceriesEmpty|boardDinnerTodayEmpty/,"empty confirmation copy does not occupy the compact preview");
+  assert.match(source,/if \(!activeCards\.length \|\| activeCards\.every\(card => currentUnavailable\.includes\(card\)\)\)/,"permission loss remains visible before the compact branch");
+});
 
 test("dinner windows preserve calendar dates across month, leap day, and year boundaries", () => {
   assert.equal(dateOffset("2028-02-28", 1), "2028-02-29");

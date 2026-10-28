@@ -159,6 +159,9 @@ function HouseholdBoardCardsForScope({ adapter, localDate, visibleCards, display
   const canDinners = showDinners && adapter.writable.dinners && !currentWriteDenied.includes("dinners");
   const selectedAssignment = assignments.find(row => row.localDate === selectedDate);
   const todayDinner = todayDinnerSummary(assignments,localDate,freshness.assignments.state==="fresh");
+  const hasGroceryPreview=showGroceries&&groceries.length>0;
+  const hasDinnerPreview=showDinners&&todayDinner.kind==='planned';
+  const emptyHomeSummary=!hasGroceryPreview&&!hasDinnerPreview;
   const selectedOption = selectedAssignment?.title ? options.find(option => option.title === selectedAssignment.title && option.emoji === selectedAssignment.emoji) : undefined;
   const selectedDinnerValue = selectedOption?.id ?? (selectedAssignment?.title ? "__saved_snapshot__" : "");
   const dateLabel = (date: string, weekday: "short" | "long" = "short") => new Intl.DateTimeFormat(locale, { timeZone: "UTC", weekday, day: "numeric", month: "short" }).format(new Date(`${date}T12:00:00Z`));
@@ -167,11 +170,11 @@ function HouseholdBoardCardsForScope({ adapter, localDate, visibleCards, display
   if (!activeCards.length || activeCards.every(card => currentUnavailable.includes(card))) return <section className="hub-panel household-boards" aria-label={t("boardsTitle")}><p className="hub-empty">{t("boardPermissionLost")}</p></section>;
   if (loadedView !== viewKey) return <section className="hub-panel household-boards" aria-label={t("boardsTitle")}><p className="field-hint">{t("loading")}</p></section>;
 
-  if(compact)return <section className="hub-panel household-boards household-board-summary" aria-label={t("boardsTitle")}>
-    <header className="hub-panel-title"><h2><Icon name="list"/>{t("boardsTitle")}</h2></header>
+  if(compact)return <section className={`hub-panel household-boards household-board-summary ${emptyHomeSummary?"is-empty":"has-preview"}`} aria-label={t("boardsTitle")}>
+    {!emptyHomeSummary&&<header className="hub-panel-title"><h2><Icon name="list"/>{t("boardsTitle")}</h2></header>}
     {error?.view===viewKey&&<p className="household-board-error" role="status">{t(error.key as "boardChangedRefresh"|"boardLoadError"|"boardPermissionLost"|"boardSaveError")}</p>}
-    {showGroceries&&<section aria-labelledby="home-grocery-summary"><h3 id="home-grocery-summary">{t("boardGroceries")}</h3>{groceries.length?<><ul className="board-summary-list">{groceries.slice(0,3).map(item=><li className={item.checked?"is-checked":""} key={item.id}><span aria-hidden="true">{item.checked?"✓":"•"}</span><span data-review-private="grocery-label">{item.label}</span></li>)}</ul>{groceries.length>3&&<p className="field-hint">{t("boardMoreItems",{count:groceries.length-3})}</p>}</>:freshness.groceries.state==="fresh"&&<p className="field-hint">{t("boardGroceriesEmpty")}</p>}</section>}
-    {showDinners&&<section aria-labelledby="home-dinner-summary"><h3 id="home-dinner-summary">{t("boardDinners")}</h3>{todayDinner.kind==='planned'?<p className="board-summary-dinner"><span aria-hidden="true">{todayDinner.assignment.emoji??"🍽️"}</span><strong data-review-private="dinner-current">{todayDinner.assignment.title}</strong></p>:todayDinner.kind==='empty'&&<p className="field-hint">{t("boardDinnerTodayEmpty")}</p>}</section>}
+    {hasGroceryPreview&&<section aria-labelledby="home-grocery-summary"><h3 id="home-grocery-summary">{t("boardGroceries")}</h3><ul className="board-summary-list">{groceries.slice(0,3).map(item=><li className={item.checked?"is-checked":""} key={item.id}><span aria-hidden="true">{item.checked?"✓":"•"}</span><span data-review-private="grocery-label">{item.label}</span></li>)}</ul>{groceries.length>3&&<p className="field-hint">{t("boardMoreItems",{count:groceries.length-3})}</p>}</section>}
+    {hasDinnerPreview&&<section aria-labelledby="home-dinner-summary"><h3 id="home-dinner-summary">{t("boardDinners")}</h3><p className="board-summary-dinner"><span aria-hidden="true">{todayDinner.assignment.emoji??"🍽️"}</span><strong data-review-private="dinner-current">{todayDinner.assignment.title}</strong></p></section>}
     <details className="household-board-edit-disclosure" onToggle={event=>setEditOpen(event.currentTarget.open)}>
       <summary>{t("boardEditFromHome")}</summary>
       {editOpen&&<HouseholdBoardCards adapter={adapter} localDate={localDate} visibleCards={requestedCards} display={display}/>}
