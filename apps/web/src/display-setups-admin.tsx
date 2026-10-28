@@ -34,7 +34,7 @@ const emptyDraft = (locale: "en" | "nb"): Draft => ({ name: "", cards: ["househo
 function asDraft(setup: Setup): Draft { return { name: setup.name, cards: [...setup.cards], cardOrder: [...setup.cardOrder], familyLayoutEnabled: setup.familyLayoutEnabled, allSources: setup.allSources, allSensors: setup.allSensors, personIds: [...setup.personIds], sourceIds: [...setup.sourceIds], calendarSourceIds: [...setup.calendarSourceIds], sensorIds: [...setup.sensorIds], albumIds: [...setup.albumIds], backgroundId: setup.backgroundId, locale: setup.locale, theme: setup.theme }; }
 function toggle<T extends string>(items: T[], id: T, checked: boolean): T[] { return checked ? [...new Set([...items, id])] : items.filter(item => item !== id); }
 
-function ReadonlyPreview({ result, cardLabel, t }: { result: Preview; cardLabel: (id: CardId) => string; t: (key: TranslationKey) => string }) {
+function ReadonlyPreview({ result, displayName, cardLabel, t }: { result: Preview; displayName: string; cardLabel: (id: CardId) => string; t: (key: TranslationKey, values?: Record<string, string | number>) => string }) {
   const people = [...new Map([...(result.familyLayout?.people ?? []), ...(result.hub?.people ?? [])].map(person => [person.id, person])).values()];
   const items = result.hub?.items ?? [];
   const board = result.householdBoards;
@@ -44,7 +44,7 @@ function ReadonlyPreview({ result, cardLabel, t }: { result: Preview; cardLabel:
   const today = result.householdBoards?.from ?? new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(Date.parse(result.serverNow));
   const dayActivities = result.dayActivities?.activities ?? [];
   return <section className="display-preview" aria-label={t("displayPreviewTitle")}>
-    <header><h3>{t("displayPreviewTitle")}</h3><p>{t("displayPreviewReadonly")}</p></header>
+    <header><h3>{t("displayPreviewFor", { name: displayName })}</h3><p>{t("displayPreviewTitle")} · {t("displayPreviewReadonly")}</p></header>
     {background && <img className="display-preview-background" src={background.previewUrl} alt={background.title} referrerPolicy="no-referrer"/>}
     <div className="display-preview-layout">
       {result.setup.cardOrder.map((cardValue, index) => {
@@ -261,9 +261,8 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
         <fieldset><legend>{t("displaySetupMedia")}</legend>{albums.filter(album => album.kind === "photos").map(album => <Check key={album.id} label={album.name} checked={draft.albumIds.includes(album.id)} onChange={checked => setDraft({ ...draft, albumIds: toggle(draft.albumIds, album.id, checked) })}/>) }<Field label={t("displayBackground")}><select value={draft.backgroundId ?? ""} onChange={e => setDraft({ ...draft, backgroundId: e.target.value || null })}><option value="">{t("none")}</option>{backgrounds.map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}</select></Field></fieldset>
         <div className="form-actions"><button type="button" className="button subtle" onClick={() => { setEditing(null); setEditorOpen(false); setDraft(emptyDraft(member.household_locale)); setPreview(null); }}>{t("cancel")}</button><button type="button" className="button" disabled={!draft.name.trim()} onClick={() => void run(save)}>{t("save")}</button>{displays.filter(display => !display.revoked_at).map(display => <button type="button" className="button" key={display.id} disabled={!draft.name.trim()} onClick={() => void run(() => previewSetup(display))}>{t("displayPreviewFor", { name: display.name })}</button>)}</div>
       </fieldset>
-      {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} cardLabel={cardLabel} t={t}/></div>}
+      {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} displayName={displays.find(display => display.id === preview.displayId)?.name ?? t("displayPreviewTitle")} cardLabel={cardLabel} t={t}/></div>}
     </div>}
-    <section><h3>{t("displayDeviceGrants")}</h3>{displays.map(display => <article className="display-setup-card" key={display.id}><div><strong>{display.name}</strong><p className="field-hint">{t("displaySetup")}: {setups.find(setup => setup.id === display.setup_id)?.name ?? t("defaultDisplaySetup")}</p></div><span>{display.revoked_at ? t("revoked") : t("active")}</span>{!display.revoked_at && <button className="button" disabled={busy} onClick={() => void run(() => openPolicy(display))}>{t("displayDeviceGrants")}</button>}</article>)}</section>
     {policyDisplay && policy && <section className="display-policy-editor" id="display-policy-editor" tabIndex={-1}><h3>{t("displayDeviceGrants")}: {policyDisplay.name}</h3><fieldset disabled={busy}>
       {mediaPolicyError&&<p className="field-hint" role="status">{t("displayOptionalSourcesUnavailable")}</p>}
       <Check label={t("newMessage")} checked={policy.messageCreate} onChange={value => setPolicy({ ...policy, messageCreate: value })}/><Check label={t("messageSchedule")} checked={policy.messageSchedule} onChange={value => setPolicy({ ...policy, messageSchedule: value })}/><Check label={t("boardGroceries")} checked={policy.groceryWrite} onChange={value => setPolicy({ ...policy, groceryWrite: value })}/><Check label={t("boardDinners")} checked={policy.dinnerWrite} onChange={value => setPolicy({ ...policy, dinnerWrite: value })}/><Check label={t("mediaPhotosTitle")} checked={policy.photoUpload} onChange={value => setPolicy({ ...policy, photoUpload: value })}/><Check label={t("homeAssistantControlsTitle")} checked={policy.homeAssistantControl} onChange={value => setPolicy({ ...policy, homeAssistantControl: value })}/>
