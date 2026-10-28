@@ -71,3 +71,7 @@ test('verifies real Git blob bytes and rejects an edited tracked input', async t
   await writeFile(join(mounted, 'apps/web/src/untracked.js'), 'export const untracked = true;\n');
   await assert.rejects(() => verifyInputs({ cloneDir: source, rootDir: mounted }), /Untracked/);
 });
+
+test('activated proof binds the exact staged builder manifest and immutable image',()=>{
+ const stageHash='c'.repeat(64),imageId=`sha256:${'d'.repeat(64)}`;const activated={...runtime,transition:'qa-app-command-only-recreate',activation:{stageManifestSha256:stageHash},after:{app:{imageId}}};const staged={...proof,stageManifestSha256:stageHash,builderImageId:imageId};assert.doesNotThrow(()=>requireMatchingProof(staged,inputs,assets,activated));assert.throws(()=>requireMatchingProof({...staged,stageManifestSha256:'e'.repeat(64)},inputs,assets,activated),/staged builder/);assert.throws(()=>requireMatchingProof({...staged,builderImageId:`sha256:${'f'.repeat(64)}`},inputs,assets,activated),/staged builder/);
+});
