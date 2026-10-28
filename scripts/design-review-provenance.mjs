@@ -106,10 +106,22 @@ export function recreationInvariant(value) {
   // Reference normalization is bounded by requireAppRecreation: the new
   // reference must be exactly the already captured immutable image ID.
   config.Image=value.Image;
+  if(Array.isArray(config.Env)){
+    const keys=new Set();
+    for(const entry of config.Env){
+      const separator=typeof entry==='string'?entry.indexOf('='):-1;
+      if(separator<1)throw new Error('Invalid QA environment entry.');
+      const key=entry.slice(0,separator);if(keys.has(key))throw new Error(`Duplicate QA environment key: ${key}`);keys.add(key);
+    }
+    config.Env.sort();
+  }
+  const hostConfig=structuredClone(value.HostConfig);
+  if(Array.isArray(hostConfig.Binds))hostConfig.Binds.sort();
+  for(const key of ['Dns','DnsOptions','DnsSearch'])if(hostConfig[key]==null)hostConfig[key]=[];
   delete config.Cmd;
   for(const key of ['com.docker.compose.config-hash','com.docker.compose.project.config_files','com.docker.compose.replace'])delete config.Labels?.[key];
   const networks=Object.fromEntries(Object.entries(value.NetworkSettings?.Networks??{}).map(([name,item])=>[name,{aliases:[...(item.Aliases??[])].sort(),ipam:item.IPAMConfig??null}]));
-  return {imageId:value.Image,config,hostConfig:value.HostConfig,mounts:[...value.Mounts].sort((a,b)=>a.Destination.localeCompare(b.Destination)),networks};
+  return {imageId:value.Image,config,hostConfig,mounts:[...value.Mounts].sort((a,b)=>a.Destination.localeCompare(b.Destination)),networks};
 }
 export function requireAppRecreation(before,after) {
   if(before.Id===after.Id)throw new Error('QA app was not recreated.');

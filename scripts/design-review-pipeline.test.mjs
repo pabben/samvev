@@ -42,3 +42,17 @@ test('mutable workspace tag retag cannot change the image selected for activatio
  const mutableReference=structuredClone(recreated);mutableReference.Config.Image=captured.Config.Image;assert.throws(()=>requireAppRecreation(captured,mutableReference),/captured immutable/,'even a tag still pointing to the captured bytes is not an allowed activation reference');
  const image={Config:{Env:[],Entrypoint:[]}};assert.throws(()=>requireComposeApp({services:{'qa-app':{image:captured.Config.Image,environment:{PATH:'/node',SYNTHETIC:'true'},command:directApiCommand}}},captured,image),/image/);
 });
+
+test('observed Docker reorder and empty DNS representations preserve exact runtime semantics',()=>{
+ const before=rawFixture();before.Config.Env=['HOST=0.0.0.0','DATABASE_URL=synthetic','PORT=4173'];before.HostConfig.Binds=['/synthetic/repo:/workspace:rw','/synthetic/repo/.git:/workspace/.git:ro','samvev-m1-workspace-node-modules:/workspace/node_modules:rw'];before.HostConfig.Dns=[];before.HostConfig.DnsOptions=[];before.HostConfig.DnsSearch=[];
+ const after=structuredClone(before);after.Id='new-container';after.Config.Image=before.Image;after.Config.Cmd=directApiCommand;after.Config.Env.reverse();after.HostConfig.Binds.reverse();after.HostConfig.Dns=null;delete after.HostConfig.DnsOptions;after.HostConfig.DnsSearch=null;
+ const originalBefore=structuredClone(before),originalAfter=structuredClone(after);assert.doesNotThrow(()=>requireAppRecreation(before,after));assert.deepEqual(before,originalBefore);assert.deepEqual(after,originalAfter,'normalization must not mutate inspected evidence');
+ const changedEnv=structuredClone(after);changedEnv.Config.Env[0]='PORT=4174';assert.throws(()=>requireAppRecreation(before,changedEnv),/configuration/);
+ const changedBind=structuredClone(after);changedBind.HostConfig.Binds[0]='another-volume:/workspace/node_modules:rw';assert.throws(()=>requireAppRecreation(before,changedBind),/configuration/);
+ const duplicateEnv=structuredClone(after);duplicateEnv.Config.Env.push('HOST=changed');assert.throws(()=>requireAppRecreation(before,duplicateEnv),/Duplicate QA environment key/);
+ for(const field of ['Dns','DnsOptions','DnsSearch']){const changed=structuredClone(after);changed.HostConfig[field]=['nonempty'];assert.throws(()=>requireAppRecreation(before,changed),/configuration/);}
+});
+test('nonempty DNS ordering and unrelated host configuration remain strict',()=>{
+ for(const field of ['Dns','DnsOptions','DnsSearch']){const before=rawFixture();before.HostConfig[field]=['first','second'];const after=structuredClone(before);after.Id='new-container';after.Config.Image=before.Image;after.Config.Cmd=directApiCommand;assert.doesNotThrow(()=>requireAppRecreation(before,after));after.HostConfig[field].reverse();assert.throws(()=>requireAppRecreation(before,after),/configuration/);}
+ const before=rawFixture(),after=structuredClone(before);after.Id='new-container';after.Config.Image=before.Image;after.Config.Cmd=directApiCommand;after.HostConfig.SecurityOpt=['no-new-privileges:true'];assert.throws(()=>requireAppRecreation(before,after),/configuration/);
+});
