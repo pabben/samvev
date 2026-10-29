@@ -28,13 +28,16 @@ try{
   const geometry=await page.evaluate(()=>{
    const rect=selector=>{const e=document.querySelector(selector);if(!e)return null;const r=e.getBoundingClientRect();return{x:r.x,y:r.y,right:r.right,bottom:r.bottom,width:r.width,height:r.height}};
    const focus=[...document.querySelectorAll('.family-hub button')].filter(e=>e.getClientRects().length).map(e=>({label:e.textContent.trim(),height:e.getBoundingClientRect().height}));
-   return{gap:parseFloat(getComputedStyle(document.querySelector('.family-hub')).getPropertyValue('--hub-gap')),width:innerWidth,scrollWidth:document.documentElement.scrollWidth,today:rect('.hub-today'),tomorrow:rect('.hub-tomorrow'),messages:rect('.hub-messages'),people:rect('.hub-person-section'),photo:rect('.hub-home-photos'),focus};
+   const mobileCards=[...document.querySelectorAll('.hub-home-primary-grid>*')].filter(e=>e.getClientRects().length).map(e=>{const r=e.getBoundingClientRect();return{className:e.className,y:r.y,bottom:r.bottom}});
+   const mobileCardGaps=mobileCards.slice(1).map((card,index)=>({before:mobileCards[index].className,after:card.className,gap:card.y-mobileCards[index].bottom}));
+   return{mobileCardGaps,gap:parseFloat(getComputedStyle(document.querySelector('.family-hub')).getPropertyValue('--hub-gap')),width:innerWidth,scrollWidth:document.documentElement.scrollWidth,today:rect('.hub-today'),tomorrow:rect('.hub-tomorrow'),messages:rect('.hub-messages'),people:rect('.hub-person-section'),photo:rect('.hub-home-photos'),focus};
   });
   assert.ok(geometry.scrollWidth<=width,`${theme}/${width}: no horizontal overflow`);
   if(width>640){assert.ok(Math.abs(geometry.messages.y-geometry.tomorrow.bottom-geometry.gap)<1,`${theme}/${width}: messages start directly beneath Tomorrow: ${JSON.stringify(geometry)}`);assert.ok(geometry.messages.y<geometry.today.bottom,`${theme}/${width}: tall Today cannot delay messages`);}
+  if(width<=640){assert.ok(geometry.mobileCardGaps.length>=3,`${theme}/${width}: populated mobile fixture has multiple adjacent cards`);for(const cards of geometry.mobileCardGaps)assert.ok(cards.gap>=9.5,`${theme}/${width}: ${cards.before} to ${cards.after} retains at least 10px separation, got ${cards.gap}`);}
   for(const target of geometry.focus)assert.ok(target.height>=43.5,`${theme}/${width}: ${target.label} keeps a 44px target`);
   await page.screenshot({path:`${out}/synthetic-component-${theme}-${width}.png`,fullPage:true});results.push({theme,...geometry});
  }
  await writeFile(`${out}/results.json`,JSON.stringify({kind:'synthetic component geometry only',results},null,2));
- console.log('PASS: six light/dark component cases at 1920/820/390, independent message stacking, no horizontal overflow, 44px targets.');
+ console.log('PASS: six light/dark component cases at 1920/820/390, independent message stacking, mobile card gaps ≥10px, no horizontal overflow, 44px targets.');
 }finally{await browser.close()}
