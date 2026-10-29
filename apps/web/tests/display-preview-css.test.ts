@@ -1,0 +1,19 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+
+const styles = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+
+test("preview FamilyHub fieldset resets the editor fieldset cascade", () => {
+  const editorRule = styles.indexOf(".display-setup-editor fieldset,.display-policy-editor fieldset");
+  const snapshotRule = styles.indexOf(".display-setup-editor .display-preview-family-readonly,.display-policy-editor .display-preview-family-readonly");
+  assert.ok(editorRule >= 0 && snapshotRule > editorRule, "snapshot reset must follow editor fieldset styles");
+  assert.match(styles.slice(snapshotRule, snapshotRule + 260), /display:block[^}]*padding:0;border:0/);
+  assert.match(styles.slice(snapshotRule, snapshotRule + 260), /min-inline-size:0/);
+});
+
+test("preview image sizing does not override nested FamilyHub and media component images", () => {
+  assert.doesNotMatch(styles, /\.display-preview img\s*\{/);
+  assert.match(styles, /\.display-preview-background\{[^}]*max-width:min\(100%,360px\)[^}]*max-height:220px/);
+  assert.match(styles, /\.display-preview-person img\{width:40px;height:40px/);
+});
