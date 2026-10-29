@@ -386,8 +386,8 @@ function rememberDisplaySchools(display:DisplayContext,rows:SchoolActivityRow[],
     if(display.schoolWitnesses.size>50)throw new DomainError('CONFLICT',409);
   }
 }
-async function assertDisplayCredential(display:DisplayContext,checkPolicy=false):Promise<void>{
-  const row=(await pool.query<{policy_fingerprint?:string;item_policy_valid?:boolean;message_policy_valid?:boolean;school_policy_valid?:boolean}>(`SELECT ${checkPolicy?`policy.fingerprint AS policy_fingerprint,
+async function assertDisplayCredential(display:DisplayContext,checkPolicy=false,db:DbClient=pool):Promise<void>{
+  const row=(await db.query<{policy_fingerprint?:string;item_policy_valid?:boolean;message_policy_valid?:boolean;school_policy_valid?:boolean}>(`SELECT ${checkPolicy?`policy.fingerprint AS policy_fingerprint,
       NOT EXISTS(SELECT 1 FROM jsonb_to_recordset($5::jsonb) witness(id uuid,sensor_id uuid,hash text)
         LEFT JOIN LATERAL (SELECT ${displayItemWitnessSql('d.id','$6','$7','witness.sensor_id')} AS hash
           FROM integration_items i WHERE i.id=witness.id AND i.household_id=d.household_id LIMIT 1) current_item ON true
@@ -424,7 +424,8 @@ async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
 async function displayContextForManager(householdId:string,displayId:string,db:DbClient=pool,lock=false,lockGrants=false):Promise<DisplayContext>{
   const row=(await db.query<DisplayContextRow&{credential_hash:string}>(`SELECT d.id,d.name,d.household_id,d.credential_hash,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
       d.locale AS locale_override,d.theme AS theme_override,d.credential_generation,d.birthday_mode,d.person_ids_override,s.locale AS setup_locale,s.theme AS setup_theme,s.name AS setup_name,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
-    FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
+      ,selection.value AS selections,policy.fingerprint AS policy_fingerprint
+    FROM displays d ${displayPolicyJoins}
     WHERE d.id=$1 AND d.household_id=$2 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()${lock?' FOR SHARE OF d,s':''}`,[displayId,householdId])).rows[0];
   if(!row)throw new DomainError('NOT_FOUND',404);
   return displayContextFromRow(row,row.credential_hash,false,db,lockGrants);
@@ -2353,9 +2354,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.post('/api/v1/households/:householdId/displays/:displayId/preview',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');reply.header('Cache-Control','private, no-store');
     const householdId=auth.householdId;const displayId=params(request).displayId!;const source=parse(displaySetupPreviewSchema,request.body);
-    const selectedInput=await transaction(async(client)=>{
+    const selected=await transaction(async(client)=>{
       await recheckHouseholdAuth(client,request,auth,'display.manage');
       const device=(await client.query(`SELECT id FROM displays WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId])).rows[0];if(!device)throw new DomainError('NOT_FOUND',404);
+      const deviceContext=await displayContextForManager(householdId,displayId,client,true,true);
       let input:DisplaySetupInput;
       if(source.setupId){await client.query('SELECT id FROM display_setups WHERE id=$1 AND household_id=$2 FOR SHARE',[source.setupId,householdId]);const saved=await displaySetupResponse(client,householdId,source.setupId);input={name:String(saved.name),cards:saved.cards as string[],cardOrder:saved.cardOrder as string[],familyLayoutEnabled:Boolean(saved.familyLayoutEnabled),allSources:Boolean(saved.allSources),allSensors:Boolean(saved.allSensors),personIds:saved.personIds as string[],sourceIds:saved.sourceIds as string[],calendarSourceIds:saved.calendarSourceIds as string[],sensorIds:saved.sensorIds as string[],albumIds:saved.albumIds as string[],backgroundId:saved.backgroundId as string|null,locale:saved.locale as 'en'|'nb',theme:saved.theme as 'light'|'dark'|'system'};}
       else input=source.draft as DisplaySetupInput;
@@ -2367,12 +2369,13 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       ]);
       for(const [index,ids] of [[0,input.personIds],[1,input.sourceIds],[2,input.calendarSourceIds],[3,input.sensorIds]] as const)if(checks[index]!.rowCount!==new Set(ids).size)throw new DomainError('NOT_FOUND',404);
       await validateDisplaySetupMediaSelection(client,householdId,auth.membershipId,input.albumIds,input.backgroundId);
-      return input;
+      return {input,deviceContext};
     });
-    const device=await displayContextForManager(householdId,displayId);
+    const device=selected.deviceContext,selectedInput=selected.input;
     const preview:DisplayContext={...device,setupId:source.setupId??device.setupId,setupName:selectedInput.name,cards:selectedInput.cards,cardOrder:selectedInput.cardOrder,familyLayoutEnabled:selectedInput.familyLayoutEnabled,
       allSources:selectedInput.allSources,allSensors:selectedInput.allSensors,selectedPersonIds:device.personIdsOverride??selectedInput.personIds,setupPersonIds:selectedInput.personIds,setupLocale:selectedInput.locale,setupTheme:selectedInput.theme,sourceIds:selectedInput.sourceIds,calendarSourceIds:selectedInput.calendarSourceIds,sensorIds:selectedInput.sensorIds,
       albumIds:selectedInput.albumIds,backgroundId:selectedInput.backgroundId,locale:device.localeOverride??selectedInput.locale,theme:device.themeOverride??selectedInput.theme};
+    preview.itemWitnesses=new Map();preview.messageWitnesses=new Map();preview.schoolWitnesses=new Map();
     const tag=previewContextTag(preview);const mediaActorDevice={id:preview.id,householdId,setupId:preview.setupId,privacyMode:preview.privacyMode,credentialHash:preview.credentialHash};
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone),weekTo=dateOffset(weekStart(today),6);
@@ -2387,13 +2390,17 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       await recheckHouseholdAuth(client,request,auth,'display.manage');
       const live=(await client.query<{privacy_mode:boolean;external_items_enabled:boolean;birthday_mode:string;person_ids_override:string[]|null;credential_generation:number}>(`SELECT privacy_mode,external_items_enabled,birthday_mode,person_ids_override,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId,device.credentialHash])).rows[0];
       if(!live||live.privacy_mode!==device.privacyMode||live.external_items_enabled!==device.externalItemsEnabled||live.credential_generation!==device.credentialGeneration||live.birthday_mode!==device.birthdayMode||JSON.stringify(live.person_ids_override)!==JSON.stringify(device.personIdsOverride))throw new DomainError('NOT_FOUND',404);
+      await assertDisplayCredential(preview,true,client);
       const final=(await client.query<{session_id:string}>(`SELECT session.id AS session_id FROM sessions session JOIN accounts account ON account.id=session.account_id JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2 JOIN displays device ON device.id=$3 AND device.household_id=$2
         WHERE session.id=$1 AND session.account_id=$4 AND membership.id=$5 AND membership.capabilities ? 'display.manage' AND account.disabled_at IS NULL
           AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND device.credential_hash=$6 AND device.revoked_at IS NULL AND device.credential_expires_at>clock_timestamp()
           AND device.privacy_mode=$7 AND device.external_items_enabled=$8`,[auth.sessionId,householdId,displayId,auth.accountId,auth.membershipId,device.credentialHash,device.privacyMode,device.externalItemsEnabled])).rows[0];
       if(!final)throw new DomainError('NOT_FOUND',404);
     });
-    return{...projection,preview:true,media:previewMedia,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})};
+    const safeProjection={...projection,preview:true,media:previewMedia,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})} as Record<string,any>;
+    safeProjection.actionAvailability={...safeProjection.actionAvailability,newMessage:false,homeAssistantControl:false};
+    safeProjection.householdBoards={...safeProjection.householdBoards,writable:{groceries:false,dinners:false}};
+    return safeProjection;
   });
 
   app.post('/api/v1/households/:householdId/display-setups',async(request,reply)=>{
