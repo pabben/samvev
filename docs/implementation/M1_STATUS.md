@@ -6,7 +6,7 @@ Public read-only observation: HA calendar sync succeeded 2026-10-29 21:35 UTC, s
 
 School task A's latest observed status is `final_schema/schema_mismatch`. School task B's latest is `AI_UPSTREAM_ERROR` after successful tools. Historical raw cause is unavailable. Diagnostics are safe observations only: no verified repair, task mutation, new model call, or schedule/approval change is claimed.
 
-Issue #19 logo assets remain absent pending rights confirmation; use generic symbols and visible names. No real names, private data, URLs, tokens or credentials are recorded. See [Round 16 requirements and evidence matrix](../design/review/ROUND_16_REQUIREMENTS.md) for status distinctions and historical evidence links.
+Issue #19 provider marks are bundled in the R16 code checkpoint; owner authorization and asset provenance are recorded in `apps/web/src/assets/calendar-providers/PROVENANCE.md` (commit `30e8075`). Candidate asset tests and visual review remain part of pending R16 QA. No real names, private data, URLs, tokens or credentials are recorded. See [Round 16 requirements and evidence matrix](../design/review/ROUND_16_REQUIREMENTS.md).
 
 R15 and older checkpoint notes below are historical records only. Public R15 deployment at `05cf86dc` was previously verified; that does not constitute publication or acceptance of the R16 candidate.
 
@@ -14,7 +14,7 @@ R15 and older checkpoint notes below are historical records only. Public R15 dep
 
 # M1 implementation status
 
-R15-statusen øverst i dette dokumentet er gjeldende. Eldre R15-setninger i historiske avsnitt nedenfor kan være erstattet av det nye checkpointet; se `docs/design/review/ROUND_15_STATUS.md` for dagens bevis og avgrensninger.
+R16-statusen øverst i dette dokumentet er gjeldende. Avsnittene nedenfor er historisk dokumentasjon for tidligere kilderunder og må ikke leses som gjeldende publiserings- eller QA-status.
 
 ## Historical Round 15 checkpoint — 2026-10-28 (superseded by current summary above)
 
