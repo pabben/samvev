@@ -1,11 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { registerHooks } from "node:module";
 
 registerHooks({load(url,context,nextLoad){return url.endsWith(".webp")?{format:"module",source:'export default "synthetic-avatar.webp"',shortCircuit:true}:nextLoad(url,context)}});
 const [{FamilyHub},{LocaleProvider}]=await Promise.all([import("../src/family-hub"),import("../src/ui")]);
+const homeStyles=readFileSync(new URL("../src/home.css",import.meta.url),"utf8");
 
 function setViewport(mobile=false,theme:"light"|"dark"="light",compact=mobile){
  Object.defineProperty(globalThis,"document",{configurable:true,value:{documentElement:{dataset:{theme}}}});
@@ -59,6 +61,33 @@ test("mobile Home retains birthday identities and uses the single-column mobile 
  const html=homeMarkup([{id:"synthetic-person",displayName:"Synthetic child"}],{birthdays:[{personId:"synthetic-person",displayName:"Synthetic child",due:"today"}]});
  assert.match(html,/class="hub-home-primary-grid hub-home-mobile"/);
  assert.match(html,/data-review-private="birthday-badge"/);
+});
+
+test("desktop Home places one activity week below the two agenda cards beside the People column",()=>{
+ setViewport(false,"light",false);
+ const html=homeMarkup(Array.from({length:6},(_,i)=>({id:`synthetic-${i}`,displayName:`Synthetic person ${i+1}`})),{householdId:"synthetic-household",displaySections:{week:true}});
+ assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
+ assert.match(html,/<div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-column hub-home-people">[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column"><section class="hub-week/);
+ assert.doesNotMatch(html,/class="hub-member-week-outside"/);
+});
+
+test("tablet Home keeps People beside the agenda and puts the week beneath the agenda",()=>{
+ setViewport(false,"dark",true);
+ const html=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{householdId:"synthetic-household",displaySections:{week:true}});
+ assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
+ assert.match(html,/<div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-column hub-home-people">[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column">/);
+});
+
+test("Home week layout fills the agenda column on desktop and tablet without changing mobile",()=>{
+ assert.match(homeStyles,/\.hub-home-agenda\{grid-column:span 2;display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(homeStyles,/\.hub-home-week\{grid-column:1\/span 2;grid-row:2/);
+ assert.match(homeStyles,/@media\(min-width:641px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-agenda\{grid-column:1;grid-template-columns:minmax\(0,1fr\)\}[\s\S]*?\.family-hub\.hub-member \.hub-home-week\{grid-column:1;grid-row:2\}/);
+ assert.match(homeStyles,/@media\(min-width:900px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-board\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}[\s\S]*?\.family-hub\.hub-member \.hub-home-week\{grid-column:1\/span 2\}/);
+ setViewport(true,"light",true);
+ const mobile=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{householdId:"synthetic-household",displaySections:{week:true}});
+ assert.equal((mobile.match(/data-testid="home-activity-week"/g)??[]).length,1);
+ assert.match(mobile,/class="hub-member-week-outside"><section class="hub-week/);
+ assert.doesNotMatch(mobile,/data-testid="home-week-column"/);
 });
 
 

@@ -140,6 +140,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
     }
     if(displaySections?.[key as keyof typeof displaySections]!==false)orderedSections.push(sections[key]);
   }
+  const weekCard=!displaySnapshot&&(displaySections?.week!==false||display&&(displaySections?.today!==false||displaySections?.tomorrow!==false))?<HouseholdActivityWeek key={`${display?'display':'member'}:${householdId??'display'}`} householdId={householdId} localDate={localDate} zone={zone} now={now} people={people} display={display} householdBoardsReadableDinners={!display||displayDinnersReadable} showWeekCard={displaySections?.week!==false} showNextActivity={displaySections?.next!==false} onCurrentWeekDinners={updateWeekDinners}/>:null;
   return <HubDetails.Provider value={detailAccess}><div ref={hubRoot} tabIndex={-1} data-person-count={people.length} className={`family-hub ${display?'hub-display':'hub-member'} ${displayCompactPeople?'hub-display-compact-people':''} ${dark?'hub-dark':'hub-light'} ${compact?'hub-compact':'hub-wide'} ${lowHeight?'hub-low-height':''} ${companion?'hub-has-companion':''} ${people.length>4?'hub-larger-family':''} ${minCardWidth>144?'hub-long-names':''}`} data-testid="family-hub">
     <section className="hub-hero">
       <div className="hub-hero-copy"><p className="hub-household">{householdName}</p><h1>{greeting}</h1><p className="hub-subtitle">{t('hubSubtitle')}</p></div>
@@ -153,9 +154,12 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
         <div className="hub-home-secondary-grid">{homePhoto}</div>
       </>:<>
         <div className="hub-home-board">
-          <div className="hub-home-column hub-home-today">{sections.today}</div>
-          <div className="hub-home-column hub-home-tomorrow">{sections.tomorrow}{sections.messages}</div>
+          <div className="hub-home-agenda">
+            <div className="hub-home-column hub-home-today">{sections.today}</div>
+            <div className="hub-home-column hub-home-tomorrow">{sections.tomorrow}{sections.messages}</div>
+          </div>
           {sections.people&&<div className="hub-home-column hub-home-people">{sections.people}</div>}
+          {weekCard&&<div className="hub-home-week" data-testid="home-week-column">{weekCard}</div>}
           <div className="hub-home-column hub-home-services"><div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div>{homePhoto}</div>
           <div className="hub-home-modules">{homeModules}{sections.support}</div>
         </div>
@@ -163,7 +167,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
       </>}
       {mobile&&<div className="hub-home-modules">{homeModules}</div>}
     </>:<><div className="hub-grid">{orderedSections}</div>{homeModules}{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/>}</>}
-    {!displaySnapshot&&(displaySections?.week!==false||display&&(displaySections?.today!==false||displaySections?.tomorrow!==false))&&<HouseholdActivityWeek key={`${display?'display':'member'}:${householdId??'display'}`} householdId={householdId} localDate={localDate} zone={zone} now={now} people={people} display={display} householdBoardsReadableDinners={!display||displayDinnersReadable} showWeekCard={displaySections?.week!==false} showNextActivity={displaySections?.next!==false} onCurrentWeekDinners={updateWeekDinners}/>}
+    {(display||mobile)&&weekCard&&<div className={display?'hub-display-week-outside':'hub-member-week-outside'}>{weekCard}</div>}
     {detail&&createPortal(<Dialog className={detail.kind==='person'?'hub-person-drawer':'hub-item-dialog'} title={detail.kind==='item'?detail.item.title:detail.kind==='person'?detail.person.displayName:detail.kind==='message'?t('hubMessageFrom',{name:detail.message.authorName}):collectionTitle(detail.id)} titleLang={detail.kind==='item'?detail.item.contentLocale??'':undefined} onClose={closeDetail}>
       {detail.kind==='item'?<ItemCard item={detail.item} people={people} zone={zone} display={display} hideTitle/>:
        detail.kind==='message'?<MessageCard message={detail.message} people={people} zone={zone}/>:
