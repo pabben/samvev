@@ -80,6 +80,10 @@ interface DisplayContext {
   id: string;
   credentialHash:string;
   credentialGeneration:number;
+  policyFingerprint?:string;
+  itemWitnesses?:Map<string,DisplayItemWitness>;
+  messageWitnesses?:Map<string,{id:string;hash:string}>;
+  schoolWitnesses?:Map<string,DisplaySchoolWitness>;
   birthdayMode:'off'|'all'|'legacy_selected';
   personIdsOverride:string[]|null;
   setupPersonIds:string[];
@@ -227,7 +231,13 @@ async function authForInstallation(request:FastifyRequest,installationId:string)
   if(!row)throw new DomainError('FORBIDDEN',403);return{accountId:account.accountId,sessionId:account.sessionId,installationId,membershipId:row.id,householdId:row.household_id,personId:row.person_id,rolePreset:row.role_preset,capabilities:row.capabilities};
 }
 
+interface DisplaySelections {
+  people:string[];grants:{person_id:string;profile_allowed:boolean;birthday_allowed:boolean}[];
+  sources:string[];calendarSources:string[];sensors:string[];selectedPeople:string[];
+}
+
 interface DisplayContextRow {
+  selections?:DisplaySelections;policy_fingerprint?:string;
   id:string;name:string;household_id:string;locale:'en'|'nb';theme:'light'|'dark'|'system';locale_override:'en'|'nb'|null;theme_override:'light'|'dark'|'system'|null;
   credential_generation:number;birthday_mode:'off'|'all'|'legacy_selected';person_ids_override:string[]|null;setup_locale:'en'|'nb';setup_theme:'light'|'dark'|'system';setup_name:string;
   privacy_mode:boolean;external_items_enabled:boolean;setup_id:string;cards:string[];card_order:string[];family_layout_enabled:boolean;all_sources:boolean;all_sensors:boolean;album_ids:string[];background_id:string|null;
@@ -235,7 +245,11 @@ interface DisplayContextRow {
 
 async function displayContextFromRow(row:DisplayContextRow,credentialHash:string,touchLastSeen:boolean,db:DbClient=pool,lockGrants=false):Promise<DisplayContext>{
   if(touchLastSeen)await db.query('UPDATE displays SET last_seen_at=clock_timestamp() WHERE id=$1',[row.id]);
-  const [people,grants,sources,calendarSources,sensors]=await Promise.all([
+  const [people,grants,sources,calendarSources,sensors]=row.selections?[
+    {rows:row.selections.people.map(person_id=>({person_id}))},{rows:row.selections.grants},
+    {rows:row.selections.sources.map(connection_id=>({connection_id}))},{rows:row.selections.calendarSources.map(source_id=>({source_id}))},
+    {rows:row.selections.sensors.map(sensor_id=>({sensor_id}))}
+  ]:await Promise.all([
     db.query<{person_id:string}>(`SELECT person_id FROM display_setup_people WHERE household_id=$1 AND setup_id=$2 ORDER BY person_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id]),
     db.query<{person_id:string;profile_allowed:boolean;birthday_allowed:boolean}>(`SELECT person_id,profile_allowed,birthday_allowed FROM display_person_grants WHERE household_id=$1 AND display_id=$2 ORDER BY person_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.id]),
     db.query<{connection_id:string}>(`SELECT connection_id FROM display_setup_sources WHERE household_id=$1 AND setup_id=$2 ORDER BY connection_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id]),
@@ -243,9 +257,9 @@ async function displayContextFromRow(row:DisplayContextRow,credentialHash:string
     db.query<{sensor_id:string}>(`SELECT sensor_id FROM display_setup_sensors WHERE household_id=$1 AND setup_id=$2 ORDER BY sensor_id${lockGrants?' FOR SHARE':''}`,[row.household_id,row.setup_id])
   ]);
   const setupPersonIds=people.rows.map((item)=>item.person_id);
-  const selectedPersonIds=row.person_ids_override===null?setupPersonIds:(await db.query<{id:string}>('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id',[row.household_id,row.person_ids_override])).rows.map((person)=>person.id);
+  const selectedPersonIds=row.selections?row.selections.selectedPeople:row.person_ids_override===null?setupPersonIds:(await db.query<{id:string}>('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id',[row.household_id,row.person_ids_override])).rows.map((person)=>person.id);
   return {
-    id: row.id,credentialHash,credentialGeneration:row.credential_generation,birthdayMode:row.birthday_mode,personIdsOverride:row.person_ids_override,setupPersonIds,setupLocale:row.setup_locale,setupTheme:row.setup_theme,setupName:row.setup_name,name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
+    id: row.id,credentialHash,credentialGeneration:row.credential_generation,policyFingerprint:row.policy_fingerprint,birthdayMode:row.birthday_mode,personIdsOverride:row.person_ids_override,setupPersonIds,setupLocale:row.setup_locale,setupTheme:row.setup_theme,setupName:row.setup_name,name:row.name, householdId: row.household_id, locale: row.locale, theme: row.theme,
     localeOverride:row.locale_override,themeOverride:row.theme_override,
     privacyMode: row.privacy_mode, externalItemsEnabled: row.external_items_enabled,
     setupId:row.setup_id,cards:row.cards,cardOrder:row.card_order,familyLayoutEnabled:row.family_layout_enabled,
@@ -256,24 +270,155 @@ async function displayContextFromRow(row:DisplayContextRow,credentialHash:string
   };
 }
 
+// This expression is shared by authentication and the final read fence. Each
+// execution is ONE PostgreSQL statement snapshot, including the selections used
+// to construct DisplayContext. Do not include last_seen_at or delivery progress:
+// this request legitimately updates those without changing authorization.
+const policyRows=(table:string,fields:string,where:string,order:string)=>
+  `COALESCE((SELECT jsonb_agg(${fields} ORDER BY ${order}) FROM ${table} policy WHERE policy.household_id=d.household_id AND (${where})), '[]'::jsonb)`;
+const displaySelectionsSql=`jsonb_build_object(
+  'people',${policyRows('display_setup_people','to_jsonb(policy.person_id)','policy.setup_id=s.id','policy.person_id')},
+  'grants',${policyRows('display_person_grants',"jsonb_build_object('person_id',policy.person_id,'profile_allowed',policy.profile_allowed,'birthday_allowed',policy.birthday_allowed)",'policy.display_id=d.id','policy.person_id')},
+  'sources',${policyRows('display_setup_sources','to_jsonb(policy.connection_id)','policy.setup_id=s.id','policy.connection_id')},
+  'calendarSources',${policyRows('display_setup_calendar_sources','to_jsonb(policy.source_id)','policy.setup_id=s.id','policy.source_id')},
+  'sensors',${policyRows('display_setup_sensors','to_jsonb(policy.sensor_id)','policy.setup_id=s.id','policy.sensor_id')},
+  'selectedPeople',COALESCE((SELECT jsonb_agg(person.id ORDER BY person.id) FROM persons person WHERE person.household_id=d.household_id
+    AND (CASE WHEN d.person_ids_override IS NULL THEN EXISTS(SELECT 1 FROM display_setup_people selected WHERE selected.household_id=d.household_id AND selected.setup_id=s.id AND selected.person_id=person.id) ELSE person.id=ANY(d.person_ids_override) END)), '[]'::jsonb))`;
+const displayPolicySql=`jsonb_build_object(
+  'device',jsonb_build_array(d.name,d.locale,d.theme,d.privacy_mode,d.external_items_enabled,d.setup_id,d.birthday_mode,d.person_ids_override),
+  'setup',to_jsonb(s),'selections',selection.value,
+  'household',(SELECT jsonb_build_array(h.name,h.timezone,h.default_locale,h.show_upcoming_birthday) FROM households h WHERE h.id=d.household_id),
+  'connectionGrants',${policyRows('integration_connection_display_grants','to_jsonb(policy)','policy.display_id=d.id','policy.connection_id')},
+  'connections',${policyRows('integration_connections','jsonb_build_array(policy.id,policy.revoked_at)','EXISTS(SELECT 1 FROM integration_connection_display_grants g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.connection_id=policy.id)','policy.id')},
+  'calendarGrants',${policyRows('calendar_source_display_targets','to_jsonb(policy)','policy.display_id=d.id','policy.source_id')},
+  'calendarSources',${policyRows('calendar_sources','jsonb_build_array(policy.id,policy.connection_id,policy.enabled,policy.subject_household)','EXISTS(SELECT 1 FROM calendar_source_display_targets g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.source_id=policy.id)','policy.id')},
+  'calendarSubjects',${policyRows('calendar_source_person_subjects','to_jsonb(policy)','EXISTS(SELECT 1 FROM calendar_source_display_targets g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.source_id=policy.source_id)','policy.source_id,policy.person_id')},
+  'calendarConnections',${policyRows('calendar_connections',`jsonb_build_array(policy.id,policy.disconnected_at,policy.owner_account_id,
+    (SELECT jsonb_build_array(a.disabled_at,m.capabilities,p.age_group) FROM accounts a JOIN memberships m ON m.account_id=a.id AND m.household_id=d.household_id JOIN persons p ON p.id=m.person_id AND p.household_id=m.household_id WHERE a.id=policy.owner_account_id))`,'EXISTS(SELECT 1 FROM integration_connection_display_grants g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.connection_id=policy.integration_connection_id)','policy.id')},
+  'sensorGrants',${policyRows('home_assistant_temperature_display_targets','to_jsonb(policy)','policy.display_id=d.id','policy.sensor_id')},
+  'sensors',${policyRows('home_assistant_temperature_sensors','jsonb_build_array(policy.id,policy.connection_id,policy.enabled,policy.target_household)','EXISTS(SELECT 1 FROM home_assistant_temperature_display_targets g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.sensor_id=policy.id)','policy.id')},
+  'sensorPeople',${policyRows('home_assistant_temperature_person_readers','to_jsonb(policy)','EXISTS(SELECT 1 FROM home_assistant_temperature_display_targets g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.sensor_id=policy.sensor_id)','policy.sensor_id,policy.person_id')},
+  'boardGrants',${policyRows('display_board_read_grants','to_jsonb(policy)','policy.display_id=d.id','policy.display_id')},
+  'actionPolicy',${policyRows('display_action_policies','to_jsonb(policy)','policy.display_id=d.id','policy.display_id')},
+  'actionPeople',${policyRows('display_action_people','to_jsonb(policy)','policy.display_id=d.id','policy.person_id')},
+  'actionDisplays',${policyRows('display_action_displays',`jsonb_build_array(policy.recipient_display_id,(SELECT jsonb_build_array(recipient.revoked_at,recipient.credential_expires_at) FROM displays recipient WHERE recipient.id=policy.recipient_display_id AND recipient.household_id=d.household_id))`,'policy.display_id=d.id','policy.recipient_display_id')},
+  'mediaGrants',${policyRows('media_album_display_grants','to_jsonb(policy)','policy.display_id=d.id','policy.album_id')},
+  'mediaSettings',${policyRows('media_household_settings','to_jsonb(policy)','true','policy.household_id')},
+  'controlGrants',${policyRows('home_assistant_control_display_grants','to_jsonb(policy)','policy.display_id=d.id','policy.entity_id')},
+  'controlEntities',${policyRows('home_assistant_control_entities','jsonb_build_array(policy.id,policy.connection_id,policy.selected,policy.supported_actions)','EXISTS(SELECT 1 FROM home_assistant_control_display_grants g WHERE g.household_id=d.household_id AND g.display_id=d.id AND g.entity_id=policy.id)','policy.id')})`;
+const displayPolicyJoins=`JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
+  CROSS JOIN LATERAL (SELECT ${displaySelectionsSql} AS value) selection
+  CROSS JOIN LATERAL (SELECT encode(digest((${displayPolicySql})::text,'sha256'),'hex') AS fingerprint) policy`;
 const displayResponseFences=new WeakMap<FastifyRequest,DisplayContext>();
+interface DisplayItemWitness {id:string;sensor_id:string|null;hash:string;}
+// Captured by each bounded item SELECT, never inferred later from returned IDs.
+// The same expression is probed by item PK at the final response snapshot.
+function displayItemWitnessSql(displayId:string,people:string,sources:string,sensorId='NULL::uuid'):string{
+  return `encode(digest(jsonb_build_array(i.connection_id,i.target_household,i.metadata->'calendar',
+    i.status='active' AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp()),
+    (SELECT connection.revoked_at IS NULL FROM integration_connections connection WHERE connection.id=i.connection_id AND connection.household_id=i.household_id),
+    EXISTS(SELECT 1 FROM integration_connection_display_grants witness_connection WHERE witness_connection.connection_id=i.connection_id AND witness_connection.display_id=${displayId} AND witness_connection.household_id=i.household_id),
+    EXISTS(SELECT 1 FROM integration_item_display_targets witness_target WHERE witness_target.item_id=i.id AND witness_target.display_id=${displayId} AND witness_target.household_id=i.household_id),
+    COALESCE((SELECT jsonb_agg(witness_person.person_id ORDER BY witness_person.person_id) FROM integration_item_person_targets witness_person WHERE witness_person.item_id=i.id AND witness_person.person_id=ANY(${people}::uuid[]) AND witness_person.household_id=i.household_id),'[]'::jsonb),
+    COALESCE((SELECT jsonb_agg(witness_subject.person_id ORDER BY witness_subject.person_id) FROM integration_item_person_subjects witness_subject WHERE witness_subject.item_id=i.id AND witness_subject.person_id=ANY(${people}::uuid[]) AND witness_subject.household_id=i.household_id),'[]'::jsonb),
+    EXISTS(SELECT 1 FROM calendar_occurrences witness_occurrence WHERE witness_occurrence.integration_item_id=i.id),
+    EXISTS(SELECT 1 FROM calendar_occurrences witness_occurrence WHERE witness_occurrence.integration_item_id=i.id AND witness_occurrence.source_id=ANY(${sources}::uuid[])),
+    (SELECT jsonb_build_array(witness_sensor.id,witness_sensor.connection_id,witness_sensor.integration_item_id,witness_sensor.enabled,witness_sensor.target_household,
+      EXISTS(SELECT 1 FROM home_assistant_temperature_display_targets witness_sensor_target WHERE witness_sensor_target.sensor_id=witness_sensor.id AND witness_sensor_target.display_id=${displayId} AND witness_sensor_target.household_id=i.household_id),
+      COALESCE((SELECT jsonb_agg(reader.person_id ORDER BY reader.person_id) FROM home_assistant_temperature_person_readers reader WHERE reader.sensor_id=witness_sensor.id AND reader.person_id=ANY(${people}::uuid[]) AND reader.household_id=i.household_id),'[]'::jsonb),
+      (SELECT jsonb_build_array(calendar.provider,calendar.disconnected_at,
+        EXISTS(SELECT 1 FROM memberships owner JOIN persons owner_person ON owner_person.id=owner.person_id AND owner_person.household_id=owner.household_id AND owner_person.age_group='adult' JOIN accounts owner_account ON owner_account.id=owner.account_id AND owner_account.disabled_at IS NULL WHERE owner.account_id=calendar.owner_account_id AND owner.household_id=calendar.household_id AND owner.capabilities ? 'household.view'))
+       FROM calendar_connections calendar WHERE calendar.id=witness_sensor.connection_id AND calendar.household_id=i.household_id))
+      FROM home_assistant_temperature_sensors witness_sensor WHERE witness_sensor.id=${sensorId} AND witness_sensor.household_id=i.household_id)
+    )::text,'sha256'),'hex')`;
+}
+function rememberDisplayItems(display:DisplayContext,rows:ExternalItemRow[]):void{
+  if(!display.itemWitnesses)return;
+  for(const row of rows){
+    if(!row.acl_witness)throw new DomainError('CONFLICT',409);
+    const witness:DisplayItemWitness={id:row.id,sensor_id:row.acl_sensor_id??null,hash:row.acl_witness};
+    const key=`${witness.id}:${witness.sensor_id??''}`,previous=display.itemWitnesses.get(key);
+    if(previous&&previous.hash!==witness.hash)throw new DomainError('CONFLICT',409);
+    display.itemWitnesses.set(key,witness);
+    // One hub response is <=200 ordinary +2000 temperature items. Photo
+    // rechecks share this cap; policy churn never expands a request unboundedly.
+    if(display.itemWitnesses.size>2200)throw new DomainError('CONFLICT',409);
+  }
+}
+const DISPLAY_MESSAGE_CARD_LIMIT=200;
+function displayMessageWitnessSql(displayId:string,people:string,alias='msg'):string{
+  return `encode(digest(jsonb_build_array(msg.author_membership_id,msg.audience_household,msg.state,msg.revision,
+    msg.state='published' AND msg.publish_at<=clock_timestamp() AND msg.expires_at>clock_timestamp(),
+    (SELECT author.person_id FROM memberships author WHERE author.id=msg.author_membership_id AND author.household_id=msg.household_id),
+    EXISTS(SELECT 1 FROM message_display_targets target WHERE target.message_id=msg.id AND target.display_id=${displayId} AND target.household_id=msg.household_id AND target.delivery_state IN ('queued','delivered','displayed')),
+    EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id),
+    COALESCE((SELECT jsonb_agg(audience.person_id ORDER BY audience.person_id) FROM message_person_audiences audience WHERE audience.message_id=msg.id AND audience.person_id=ANY(${people}::uuid[])),'[]'::jsonb)
+    )::text,'sha256'),'hex')`.replaceAll('msg.',`${alias}.`);
+}
+function rememberDisplayMessages(display:DisplayContext,rows:{id:string;acl_witness?:string}[]):void{
+  if(!display.messageWitnesses)return;
+  for(const row of rows){
+    if(!row.acl_witness)throw new DomainError('CONFLICT',409);
+    const previous=display.messageWitnesses.get(row.id);
+    if(previous&&previous.hash!==row.acl_witness)throw new DomainError('CONFLICT',409);
+    display.messageWitnesses.set(row.id,{id:row.id,hash:row.acl_witness});
+    if(display.messageWitnesses.size>DISPLAY_MESSAGE_CARD_LIMIT+3)throw new DomainError('CONFLICT',409);
+  }
+}
+interface DisplaySchoolWitness {id:string;people:string[];audience_people:string[];current:boolean;hash:string;}
+function displaySchoolWitnessSql(displayId:string,people:string,audiencePeople:string,current:string):string{
+  return `encode(digest(jsonb_build_array(event.task_id,event.message_id,event.active,event.actions,event.school_expires_at,
+    task.owner_membership_id,task.state,task.revision,task.approved_revision,task.presentation_kind,
+    ${schoolTaskAuthorized},
+    COALESCE((SELECT jsonb_agg(school_subject.person_id ORDER BY school_subject.person_id) FROM monitor_task_subjects school_subject WHERE school_subject.task_id=task.id AND school_subject.household_id=task.household_id AND school_subject.person_id=ANY(${people}::uuid[])),'[]'::jsonb),
+    ${displayMessageWitnessSql(displayId,audiencePeople,'message')},
+    CASE WHEN ${current} THEN event.school_expires_at>clock_timestamp() AND message.expires_at>clock_timestamp() AND message.state IN ('scheduled','published') ELSE true END
+    )::text,'sha256'),'hex')`;
+}
+function rememberDisplaySchools(display:DisplayContext,rows:SchoolActivityRow[],people:string[],audiencePeople:string[],current:boolean):void{
+  if(!display.schoolWitnesses)return;
+  for(const row of rows){
+    if(!row.acl_witness)throw new DomainError('CONFLICT',409);
+    const witness={id:row.id,people,audience_people:audiencePeople,current,hash:row.acl_witness};
+    const key=JSON.stringify([row.id,people,audiencePeople,current]),previous=display.schoolWitnesses.get(key);
+    if(previous&&previous.hash!==witness.hash)throw new DomainError('CONFLICT',409);
+    display.schoolWitnesses.set(key,witness);
+    if(display.schoolWitnesses.size>50)throw new DomainError('CONFLICT',409);
+  }
+}
 async function assertDisplayCredential(display:DisplayContext,checkPolicy=false):Promise<void>{
-  const row=(await pool.query<{privacy_mode:boolean;birthday_mode:string;person_ids_override:string[]|null;setup_id:string}>(`SELECT privacy_mode,birthday_mode,person_ids_override,setup_id FROM displays
-    WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND credential_generation=$4
-      AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()`,[display.id,display.householdId,display.credentialHash,display.credentialGeneration])).rows[0];
+  const row=(await pool.query<{policy_fingerprint?:string;item_policy_valid?:boolean;message_policy_valid?:boolean;school_policy_valid?:boolean}>(`SELECT ${checkPolicy?`policy.fingerprint AS policy_fingerprint,
+      NOT EXISTS(SELECT 1 FROM jsonb_to_recordset($5::jsonb) witness(id uuid,sensor_id uuid,hash text)
+        LEFT JOIN LATERAL (SELECT ${displayItemWitnessSql('d.id','$6','$7','witness.sensor_id')} AS hash
+          FROM integration_items i WHERE i.id=witness.id AND i.household_id=d.household_id LIMIT 1) current_item ON true
+        WHERE current_item.hash IS DISTINCT FROM witness.hash) AS item_policy_valid,
+      NOT EXISTS(SELECT 1 FROM jsonb_to_recordset($8::jsonb) witness(id uuid,hash text)
+        LEFT JOIN LATERAL (SELECT ${displayMessageWitnessSql('d.id','$6')} AS hash FROM messages msg WHERE msg.id=witness.id AND msg.household_id=d.household_id LIMIT 1) current_message ON true
+        WHERE current_message.hash IS DISTINCT FROM witness.hash) AS message_policy_valid,
+      NOT EXISTS(SELECT 1 FROM jsonb_to_recordset($9::jsonb) witness(id uuid,people uuid[],audience_people uuid[],current boolean,hash text)
+        LEFT JOIN LATERAL (SELECT ${displaySchoolWitnessSql('d.id','witness.people','witness.audience_people','witness.current')} AS hash
+          FROM monitor_events event JOIN monitor_tasks task ON task.id=event.task_id AND task.household_id=event.household_id
+          JOIN messages message ON message.id=event.message_id AND message.household_id=event.household_id
+          WHERE event.id=witness.id AND event.household_id=d.household_id LIMIT 1) current_school ON true
+        WHERE current_school.hash IS DISTINCT FROM witness.hash) AS school_policy_valid`:'d.id'} FROM displays d
+    ${checkPolicy?displayPolicyJoins:''}
+    WHERE d.id=$1 AND d.household_id=$2 AND d.credential_hash=$3 AND d.credential_generation=$4
+      AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()`,[display.id,display.householdId,display.credentialHash,display.credentialGeneration,
+        ...(checkPolicy?[JSON.stringify([...display.itemWitnesses?.values()??[]]),display.selectedPersonIds,display.calendarSourceIds,JSON.stringify([...display.messageWitnesses?.values()??[]]),JSON.stringify([...display.schoolWitnesses?.values()??[]])]:[])])).rows[0];
   if(!row)throw new DomainError('UNAUTHENTICATED',401);
-  if(checkPolicy&&(row.privacy_mode!==display.privacyMode||row.birthday_mode!==display.birthdayMode||row.setup_id!==display.setupId||JSON.stringify(row.person_ids_override)!==JSON.stringify(display.personIdsOverride)))throw new DomainError('CONFLICT',409);
+  if(checkPolicy&&(!display.policyFingerprint||row.policy_fingerprint!==display.policyFingerprint||!row.item_policy_valid||!row.message_policy_valid||!row.school_policy_valid))throw new DomainError('CONFLICT',409);
 }
 
 async function displayAuth(request: FastifyRequest): Promise<DisplayContext> {
   const token=request.cookies[DISPLAY_COOKIE];if(!token)throw new DomainError('UNAUTHENTICATED',401);
   const result=await pool.query<DisplayContextRow>(`SELECT d.id,d.name,d.household_id,COALESCE(d.locale,s.locale) AS locale,COALESCE(d.theme,s.theme) AS theme,
-      d.locale AS locale_override,d.theme AS theme_override,d.credential_generation,d.birthday_mode,d.person_ids_override,s.locale AS setup_locale,s.theme AS setup_theme,s.name AS setup_name,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id
-    FROM displays d JOIN display_setups s ON s.id=d.setup_id AND s.household_id=d.household_id
+      d.locale AS locale_override,d.theme AS theme_override,d.credential_generation,d.birthday_mode,d.person_ids_override,s.locale AS setup_locale,s.theme AS setup_theme,s.name AS setup_name,d.privacy_mode,d.external_items_enabled,d.setup_id,s.cards,s.card_order,s.family_layout_enabled,s.all_sources,s.all_sensors,s.album_ids,s.background_id,
+      selection.value AS selections,policy.fingerprint AS policy_fingerprint
+    FROM displays d ${displayPolicyJoins}
     WHERE d.credential_hash=$1 AND d.revoked_at IS NULL AND d.credential_expires_at>clock_timestamp()`,[tokenHash(token)]);
   const row=result.rows[0];if(!row)throw new DomainError('UNAUTHENTICATED',401);
   const context=await displayContextFromRow(row,tokenHash(token),true);
-  displayResponseFences.set(request,context);return context;
+  context.itemWitnesses=new Map();context.messageWitnesses=new Map();context.schoolWitnesses=new Map();displayResponseFences.set(request,context);return context;
 }
 
 async function displayContextForManager(householdId:string,displayId:string,db:DbClient=pool,lock=false,lockGrants=false):Promise<DisplayContext>{
@@ -399,6 +544,7 @@ interface ExternalItemRow {
   subject_person_ids:string[];
   calendar_connection_state:string|null; calendar_source_error_code:string|null; calendar_provider_status:string|null; calendar_owner_authorized:boolean;
   temperature_sensor_available:boolean|null;
+  acl_witness?:string;acl_sensor_id?:string|null;
 }
 
 function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean;selectedPersonIds?:string[]}={}):Record<string,unknown>{
@@ -508,7 +654,7 @@ function decodeActivityCursor(value:unknown):ActivityCursor|undefined{
 }
 function encodeActivityCursor(cursor:ActivityCursor):string{return Buffer.from(JSON.stringify(cursor)).toString('base64url');}
 
-interface SchoolActivityRow extends SchoolProvenanceRow {id:string;task_id:string;person_id:string;person_ids:string[];person_colors:Record<string,string>;event_date:string;event_time:string|null;event_type:string;description:string;actions:string[];evidence:Record<string,unknown>;confidence:number|null;uncertainty:string|null;school_expires_at:Date;source_url:string|null;recorded_at:Date|null;activity_at:Date;}
+interface SchoolActivityRow extends SchoolProvenanceRow {acl_witness?:string;id:string;task_id:string;person_id:string;person_ids:string[];person_colors:Record<string,string>;event_date:string;event_time:string|null;event_type:string;description:string;actions:string[];evidence:Record<string,unknown>;confidence:number|null;uncertainty:string|null;school_expires_at:Date;source_url:string|null;recorded_at:Date|null;activity_at:Date;}
 const schoolActivitySelect=`event.id,event.task_id,subject.person_id,subject.person_ids,event.event_date::text,event.event_time::text,event.event_type,event.description,event.actions,event.evidence,event.confidence,event.uncertainty,event.school_expires_at,COALESCE(event.evidence->>'sourceUrl',run.source_url) AS source_url,run.checked_at AS recorded_at,${schoolProvenanceColumns},
   COALESCE((SELECT jsonb_object_agg(person.id::text,person.color_token) FROM persons person WHERE person.household_id=event.household_id AND person.id=ANY(subject.person_ids)),'{}'::jsonb) AS person_colors,
   ((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone) AS activity_at`;
@@ -544,7 +690,7 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       AND ($15::boolean OR EXISTS(SELECT 1 FROM calendar_occurrences selected_occurrence WHERE selected_occurrence.integration_item_id=i.id AND selected_occurrence.source_id=ANY($17::uuid[]))))`;
   const displayGenericSource=`(NOT EXISTS(SELECT 1 FROM calendar_occurrences generic_occurrence WHERE generic_occurrence.integration_item_id=i.id)
       AND ($15::boolean OR connection.id=ANY($16::uuid[])))`;
-  const calendar=await pool.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},activity.starts_at AS activity_at,
+  const calendar=await pool.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},${display?displayItemWitnessSql('$12','$19','$17'):'NULLIF($19::uuid[],$19::uuid[])::text'} AS acl_witness,activity.starts_at AS activity_at,
       (SELECT min(subject.person_id::text)::uuid FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))) AS activity_person_id,
       COALESCE((SELECT array_agg(subject.person_id ORDER BY subject.person_id) FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),ARRAY[]::uuid[]) AS activity_person_ids,
       COALESCE((SELECT jsonb_object_agg(subject.person_id::text,person.color_token) FROM integration_item_person_subjects subject JOIN persons person ON person.id=subject.person_id AND person.household_id=i.household_id WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),'{}'::jsonb) AS activity_person_colors
@@ -574,14 +720,14 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8)))
       AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
       ${calendarCursor}
-    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null]);
+    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null,display?.selectedPersonIds??[]]);
   const schoolCursor=`AND ($10::timestamptz IS NULL OR ((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)>$10::timestamptz OR (((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)=$10::timestamptz AND ($11<1 OR ($11=1 AND event.id::text>$12))))`;
   const schoolReader=display
     ?`($5::boolean IS NOT NULL AND $6::uuid IS NOT NULL AND $7::uuid IS NOT NULL)
       AND EXISTS(SELECT 1 FROM message_display_targets target WHERE target.household_id=message.household_id AND target.message_id=message.id AND target.display_id=$13 AND target.delivery_state IN ('queued','delivered','displayed'))
       AND (message.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences any_audience WHERE any_audience.message_id=message.id) OR EXISTS(SELECT 1 FROM message_person_audiences visible_audience WHERE visible_audience.message_id=message.id AND visible_audience.person_id=ANY($2::uuid[])))`
     :schoolReaderAclWeek;
-  const school=await pool.query<SchoolActivityRow>(`SELECT ${schoolActivitySelect}
+  const school=await pool.query<SchoolActivityRow>(`SELECT ${schoolActivitySelect},${display?displaySchoolWitnessSql('$13','$2','$2',input.upcomingOnly?'TRUE':'FALSE'):'NULL::text'} AS acl_witness
     FROM monitor_events event JOIN monitor_tasks task ON task.id=event.task_id AND task.household_id=event.household_id
     JOIN LATERAL (SELECT min(subject.person_id::text)::uuid AS person_id,array_agg(subject.person_id ORDER BY subject.person_id) AS person_ids FROM monitor_task_subjects subject WHERE subject.task_id=task.id AND subject.household_id=task.household_id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2)) HAVING count(*)>0) subject ON true
     JOIN households household ON household.id=task.household_id
@@ -601,12 +747,14 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
   ].filter((row)=>!cursor||row.at>cursor.at||(row.at===cursor.at&&(row.rank>cursor.rank||(row.rank===cursor.rank&&row.id>cursor.id))))
     .sort((left,right)=>left.at.localeCompare(right.at)||left.rank-right.rank||left.id.localeCompare(right.id));
   const page=merged.slice(0,limit);const more=merged.length>limit;
+  if(display){const emitted=new Set(page.filter(row=>row.rank===0).map(row=>row.id));rememberDisplayItems(display,calendar.rows.filter(row=>emitted.has(row.id)));
+    const emittedSchool=new Set(page.filter(row=>row.rank===1).map(row=>row.id));rememberDisplaySchools(display,school.rows.filter(row=>emittedSchool.has(row.id)),personIds??display.selectedPersonIds,personIds??display.selectedPersonIds,Boolean(input.upcomingOnly));}
   return{activities:page.map((row)=>row.value),nextCursor:more&&page.length?encodeActivityCursor({at:page.at(-1)!.at,rank:page.at(-1)!.rank,id:page.at(-1)!.id}):null};
 }
 
 async function displayHub(display:DisplayContext,db:DbClient=pool,lockRows=false):Promise<Record<string,unknown>|undefined>{
   if(display.privacyMode || !display.externalItemsEnabled || !display.cards.includes('external_items'))return undefined;
-  const rows=await db.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
+  const rows=await db.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns},${displayItemWitnessSql('$1','$6','$5')} AS acl_witness
     FROM integration_items i
     JOIN integration_connections c ON c.id=i.connection_id AND c.household_id=i.household_id AND c.revoked_at IS NULL
     JOIN integration_connection_display_grants g ON g.connection_id=i.connection_id AND g.household_id=i.household_id AND g.display_id=$1
@@ -624,7 +772,7 @@ async function displayHub(display:DisplayContext,db:DbClient=pool,lockRows=false
       AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
       ORDER BY CASE i.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'normal' THEN 2 ELSE 3 END,
       i.starts_at NULLS LAST,i.updated_at DESC,i.id LIMIT 200${lockRows?' FOR SHARE OF i,c,g,dt':''}`,[display.id,display.householdId,display.allSources,display.sourceIds,display.calendarSourceIds,display.selectedPersonIds]);
-  const temperatures=await db.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
+  const temperatures=await db.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns},${displayItemWitnessSql('$1','$5','$6','sensor.id')} AS acl_witness,sensor.id AS acl_sensor_id
     FROM home_assistant_temperature_sensors sensor
     JOIN calendar_connections calendar ON calendar.id=sensor.connection_id AND calendar.household_id=sensor.household_id AND calendar.provider='home_assistant' AND calendar.disconnected_at IS NULL
     JOIN integration_connections c ON c.id=calendar.integration_connection_id AND c.household_id=sensor.household_id AND c.revoked_at IS NULL
@@ -638,8 +786,9 @@ async function displayHub(display:DisplayContext,db:DbClient=pool,lockRows=false
       AND (i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets selected_item_reader WHERE selected_item_reader.item_id=i.id AND selected_item_reader.person_id=ANY($5::uuid[])))
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
       AND EXISTS(SELECT 1 FROM memberships owner JOIN persons owner_person ON owner_person.id=owner.person_id AND owner_person.household_id=owner.household_id AND owner_person.age_group='adult' JOIN accounts owner_account ON owner_account.id=owner.account_id AND owner_account.disabled_at IS NULL WHERE owner.account_id=calendar.owner_account_id AND owner.household_id=calendar.household_id AND owner.capabilities ? 'household.view')
-    ORDER BY sensor.display_order,sensor.id LIMIT 2000${lockRows?' FOR SHARE OF sensor,calendar,c,g,sensor_target,i,dt':''}`,[display.id,display.householdId,display.allSensors,display.sensorIds,display.selectedPersonIds]);
+    ORDER BY sensor.display_order,sensor.id LIMIT 2000${lockRows?' FOR SHARE OF sensor,calendar,c,g,sensor_target,i,dt':''}`,[display.id,display.householdId,display.allSensors,display.sensorIds,display.selectedPersonIds,display.calendarSourceIds]);
   const allRows=[...rows.rows,...temperatures.rows];
+  rememberDisplayItems(display,allRows);
   const personIds=[...new Set(allRows.flatMap((row)=>[...row.person_ids,...row.subject_person_ids]))];
   const permittedPeople=display.selectedPersonIds.length?personIds.filter((personId)=>display.selectedPersonIds.includes(personId)):[];
   const people=permittedPeople.length?(await db.query<{id:string;display_name:string;avatar_key:string|null;color_token:string;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.color_token,ph.revision AS photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 AND p.id=ANY($2::uuid[]) ORDER BY p.display_name,p.id`,[display.householdId,permittedPeople])).rows:[];
@@ -650,14 +799,15 @@ async function displayPersonPhotoVisible(display:DisplayContext,personId:string,
   if(display.privacyMode||!display.selectedPersonIds.includes(personId))return false;
   if(display.familyLayoutEnabled&&display.cards.includes('family_layout')&&display.profilePersonIds.includes(personId))return true;
   if(display.cards.includes('household_messages')){
-    const message=await db.query(`SELECT 1 FROM messages msg JOIN memberships author ON author.id=msg.author_membership_id
+    const message=await db.query<{id:string;acl_witness:string}>(`SELECT msg.id,${displayMessageWitnessSql('$3','$4')} AS acl_witness FROM messages msg JOIN memberships author ON author.id=msg.author_membership_id
       JOIN message_display_targets target ON target.message_id=msg.id AND target.household_id=msg.household_id
       WHERE msg.household_id=$1 AND author.person_id=$2 AND target.display_id=$3 AND msg.state='published'
         AND target.delivery_state IN ('queued','delivered','displayed') AND msg.publish_at<=clock_timestamp() AND msg.expires_at>clock_timestamp()
         AND (msg.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id)
           OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=msg.id AND audience.person_id=ANY($4::uuid[])))${lockRows?' FOR SHARE OF msg,target,author':''}`,[display.householdId,personId,display.id,display.selectedPersonIds]);
-    if(message.rowCount)return true;
+    if(message.rows[0]){rememberDisplayMessages(display,message.rows);return true;}
   }
+
   if(display.cards.includes('external_items')){
     const hub=await displayHub(display,db,lockRows);
     if(hub&&Array.isArray(hub.people)&&(hub.people as Array<{id:string}>).some((person)=>person.id===personId))return true;
@@ -842,8 +992,8 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   const hardCache = new Date(now.getTime() + 15 * 60_000);
   const label=await pool.query<{display_name:string;household_name:string;timezone:string;show_upcoming_birthday:boolean}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone,h.show_upcoming_birthday FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
   const cards = display.privacyMode || !display.cards.includes('household_messages') ? [] : (await pool.query<{
-        id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_type:'member'|'display';author_display_id:string|null; author_person_id:string|null; author_avatar_key:string|null;author_color_token:string|null;author_photo_revision:number|null
-  }>(`SELECT m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,COALESCE(p.display_name,m.author_display_name) AS author_name,
+        id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_type:'member'|'display';author_display_id:string|null; author_person_id:string|null; author_avatar_key:string|null;author_color_token:string|null;author_photo_revision:number|null;acl_witness:string
+  }>(`SELECT ${displayMessageWitnessSql('$1','$3','m')} AS acl_witness,m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,COALESCE(p.display_name,m.author_display_name) AS author_name,
       CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.avatar_key AS author_avatar_key,p.color_token AS author_color_token,ph.revision AS author_photo_revision
       FROM messages m JOIN message_display_targets t ON t.message_id=m.id AND t.household_id=m.household_id
       LEFT JOIN memberships ms ON ms.id=m.author_membership_id LEFT JOIN persons p ON p.id=ms.person_id AND p.household_id=m.household_id
@@ -852,10 +1002,10 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
         AND (m.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences restricted WHERE restricted.message_id=m.id)
           OR EXISTS(SELECT 1 FROM message_person_audiences selected WHERE selected.message_id=m.id AND selected.person_id=ANY($3::uuid[])))
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
-      ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`, [display.id, display.householdId,display.selectedPersonIds])).rows.map((row) => ({
+      ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id LIMIT ${DISPLAY_MESSAGE_CARD_LIMIT}`, [display.id, display.householdId,display.selectedPersonIds])).rows.map((row) => {rememberDisplayMessages(display,[row]);return({
         id: row.id, kind: 'household_message', body: row.body, importance: row.importance,
         author: row.author_name,authorType:row.author_type,authorDisplayId:row.author_display_id, authorPersonId: row.author_person_id, authorAvatarKey: row.author_avatar_key,authorColorToken:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?row.author_color_token:null,authorPhoto:row.author_person_id&&display.selectedPersonIds.includes(row.author_person_id)?(options.preview?previewPhotoProjection(display.householdId,display.id,row.author_person_id,row.author_photo_revision,options.previewTag??''):displayPhotoProjection(row.author_person_id,row.author_photo_revision)):null, publishAt: row.publish_at.toISOString(), expiresAt: row.expires_at.toISOString(), revision: row.revision
-      }));
+      });});
   if(options.markDelivered!==false&&!display.privacyMode && cards.length){
     const cardIds=cards.map((card)=>(card as {id:string}).id);
     await pool.query(`UPDATE message_display_targets t SET delivery_state='delivered',delivered_revision=m.revision,delivered_at=clock_timestamp(),displayed_at=CASE WHEN t.delivered_revision IS DISTINCT FROM m.revision THEN NULL ELSE t.displayed_at END
@@ -940,7 +1090,12 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   await app.register(cookie);
   app.addHook('onSend',async(request,reply,payload)=>{
     const displayFence=displayResponseFences.get(request);displayResponseFences.delete(request);
-    if(displayFence&&['GET','HEAD'].includes(request.method)&&reply.statusCode<400)await assertDisplayCredential(displayFence,true);
+    if(displayFence&&['GET','HEAD'].includes(request.method)&&reply.statusCode<400){
+      reply.header('Cache-Control','private, no-store');
+      try{await assertDisplayCredential(displayFence,true);}catch(error){
+        reply.removeHeader('ETag').removeHeader('Content-Length').type('application/json; charset=utf-8');throw error;
+      }
+    }
     applyBrowserSecurityHeaders(reply,responseSecurityHeaders);
     return payload;
   });
@@ -1386,6 +1541,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     if(!requested||requested.revision!==requestedRevision)throw new DomainError('NOT_FOUND',404);
     const photo=await transaction(async(client)=>{
       const current=await displayContextForManager(display.householdId,display.id,client,true,true);
+      current.itemWitnesses=display.itemWitnesses;current.messageWitnesses=display.messageWitnesses;
       if(current.credentialHash!==display.credentialHash||current.privacyMode!==display.privacyMode||current.externalItemsEnabled!==display.externalItemsEnabled)throw new DomainError('UNAUTHENTICATED',401);
       if(!await displayPersonPhotoVisible(current,personId,client,true))throw new DomainError('NOT_FOUND',404);
       const selected=(await client.query<{revision:number;content_sha256:string;data:Buffer}>(`SELECT revision,content_sha256,${variant==='96'?'variant_96':'variant_512'} AS data FROM person_profile_photos WHERE person_id=$1 AND household_id=$2 FOR SHARE`,[personId,display.householdId])).rows[0];
@@ -2653,7 +2809,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const display=await displayAuth(request);reply.header('Cache-Control','private, no-store');
     if(display.privacyMode)throw new DomainError('NOT_FOUND',404);
     const personId=params(request).personId!,eventId=params(request).eventId!;if(!display.selectedPersonIds.includes(personId))throw new DomainError('NOT_FOUND',404);
-    const row=(await pool.query<SchoolActivityRow>(`SELECT ${schoolActivitySelect}
+    const row=(await pool.query<SchoolActivityRow>(`SELECT ${schoolActivitySelect},${displaySchoolWitnessSql('$4','ARRAY[$2::uuid]','$5','TRUE')} AS acl_witness
       FROM monitor_events event JOIN monitor_tasks task ON task.id=event.task_id AND task.household_id=event.household_id
       JOIN LATERAL (SELECT subject.person_id,ARRAY[subject.person_id] AS person_ids FROM monitor_task_subjects subject WHERE subject.task_id=task.id AND subject.household_id=task.household_id AND subject.person_id=$2) subject ON true
       JOIN households household ON household.id=task.household_id
@@ -2667,6 +2823,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         AND (message.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id)
           OR EXISTS(SELECT 1 FROM message_person_audiences audience WHERE audience.message_id=message.id AND audience.person_id=ANY($5::uuid[])))`,[eventId,personId,display.householdId,display.id,display.selectedPersonIds])).rows[0];
     if(!row)throw new DomainError('NOT_FOUND',404);
+    rememberDisplaySchools(display,[row],[personId],display.selectedPersonIds,true);
     return{type:'school',id:row.id,taskId:row.task_id,personId:row.person_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,...schoolProjectionMetadata(row),evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,expiresAt:row.school_expires_at?.toISOString()??null};
   });
 
