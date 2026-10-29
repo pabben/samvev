@@ -1143,7 +1143,7 @@ export const nb: Record<TranslationKey, string> = {
   monitorValidationIssue: "Kontroller {field}: {issue}.",
   monitorIssueFieldResponse: "svaret", monitorIssueFieldSummary: "sammendraget", monitorIssueFieldAnswer: "svaret", monitorIssueFieldEvents: "hendelsene",
   monitorIssueFieldDate: "hendelsesdatoen", monitorIssueFieldTime: "hendelsestidspunktet", monitorIssueFieldType: "hendelsestypen", monitorIssueFieldDescription: "hendelsesbeskrivelsen",
-  monitorIssueFieldQuote: "kildesitatet", monitorIssueFieldSource: "kildelenken", monitorIssueFieldClaims: "kildepåstandene", monitorIssueFieldSchedule: "planen", monitorIssueFieldOther: "svaret",
+  monitorIssueFieldQuote: "kildesitatet", monitorIssueFieldSource: "kildelenken", monitorIssueFieldClaims: "kildepåstandene", monitorIssueFieldSchedule: "planen", monitorIssueFieldVersion: "svarversjonen", monitorIssueFieldResultType: "resultattypen", monitorIssueFieldPeople: "personene", monitorIssueFieldActions: "handlingene", monitorIssueFieldEventTypes: "hendelsestypene", monitorIssueFieldKeywords: "nøkkelordene", monitorIssueFieldLanguage: "språket i svaret", monitorIssueFieldOther: "svarfelt",
   monitorIssueCodeType: "verdien har feil type", monitorIssueCodeRequired: "en obligatorisk verdi mangler", monitorIssueCodeLimit: "verdien er utenfor tillatt størrelse", monitorIssueCodeFormat: "verdien har feil format", monitorIssueCodeUnexpected: "svaret inneholdt et uventet felt", monitorIssueCodeValue: "verdien godtas ikke",
   monitorNoFindingsSuccess: "Kontrollen ble fullført. Ingen treff ble funnet denne gangen.",
   monitorPreviousResultStale: "Den siste kontrollen mislyktes. Resultatet som vises, er fra en tidligere vellykket kontroll og kan være utdatert.",

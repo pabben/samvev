@@ -91,6 +91,27 @@ test('provider connection failures and safe schema issue summaries are distinct 
     assert.ok(messages.monitorIssueCodeType);
   }
   assert.doesNotMatch(JSON.stringify(issues), /private/);
+  const additionalSchemaPaths = monitorValidationIssues({ validationIssues: [
+    { path: 'version', code: 'invalid_value' },
+    { path: 'resultKind', code: 'invalid_value' },
+    { path: 'events[].who', code: 'invalid_type' },
+    { path: 'events[].actions', code: 'invalid_type' },
+    { path: 'events[].privateKey', code: 'invalid_type' },
+    { path: 'unknown.events[].who', code: 'invalid_type' },
+  ] });
+  assert.deepEqual(additionalSchemaPaths, [
+    { field: 'monitorIssueFieldVersion', issue: 'monitorIssueCodeValue' },
+    { field: 'monitorIssueFieldResultType', issue: 'monitorIssueCodeValue' },
+    { field: 'monitorIssueFieldPeople', issue: 'monitorIssueCodeType' },
+    { field: 'monitorIssueFieldActions', issue: 'monitorIssueCodeType' },
+  ], 'recognized schema fields get localized labels; arbitrary paths are discarded');
+  for (const messages of [en, nb]) {
+    assert.ok(messages.monitorIssueFieldVersion);
+    assert.ok(messages.monitorIssueFieldResultType);
+    assert.ok(messages.monitorIssueFieldPeople);
+    assert.ok(messages.monitorIssueFieldActions);
+    assert.ok(messages.monitorIssueFieldOther);
+  }
 });
 
 test('monitor result notices distinguish an empty successful check from a stale result', () => {

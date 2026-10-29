@@ -62,21 +62,24 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
 };
 
 const validationIssueCodes = new Set(['invalid_type', 'too_small', 'too_big', 'invalid_format', 'unrecognized_keys', 'invalid_value', 'invalid_union', 'custom', 'not_multiple_of']);
-const validationIssuePaths = new Set([
-  '$', 'summary', 'answer', 'events', 'events[].date', 'events[].time', 'events[].type',
-  'events[].description', 'events[].evidence.quote', 'events[].evidence.sourceUrl',
-  'events[].evidence.claims', 'evidence.quote', 'evidence.sourceUrl', 'evidence.claims',
-  'schedule.localTime', 'noticeLocalTime', 'checkIntervalMinutes', 'noticeDaysBefore',
+// Keep this schema-field allowlist aligned with services/api/src/monitor/validation-diagnostics.ts.
+// Paths are validated segment by segment; their text is never sent to the UI.
+const validationIssueFields = new Set([
+  'version', 'resultKind', 'summary', 'eventTypes', 'keywords', 'people', 'noticeDaysBefore', 'noticeLocalTime',
+  'checkIntervalMinutes', 'conditionalNotification', 'tools', 'schedule', 'weatherCondition', 'outputLocale', 'answer',
+  'evidence', 'quote', 'sourceUrl', 'claims', 'confidence', 'uncertainty', 'events', 'date', 'time', 'type',
+  'description', 'actions', 'who', 'sources', 'activityQuote', 'weatherQuote', 'kind', 'value', 'minimum', 'maximum',
+  'location', 'query', 'canonicalName', 'municipality', 'region', 'country', 'period', 'timeWindow',
 ]);
 const issueFieldKeys: Record<string, TranslationKey> = {
   '$': 'monitorIssueFieldResponse', summary: 'monitorIssueFieldSummary', answer: 'monitorIssueFieldAnswer',
-  events: 'monitorIssueFieldEvents', 'events[].date': 'monitorIssueFieldDate', 'events[].time': 'monitorIssueFieldTime',
-  'events[].type': 'monitorIssueFieldType', 'events[].description': 'monitorIssueFieldDescription',
-  'events[].evidence.quote': 'monitorIssueFieldQuote', 'events[].evidence.sourceUrl': 'monitorIssueFieldSource',
-  'events[].evidence.claims': 'monitorIssueFieldClaims', 'evidence.quote': 'monitorIssueFieldQuote',
-  'evidence.sourceUrl': 'monitorIssueFieldSource', 'evidence.claims': 'monitorIssueFieldClaims',
-  'schedule.localTime': 'monitorIssueFieldTime', noticeLocalTime: 'monitorIssueFieldTime',
-  checkIntervalMinutes: 'monitorIssueFieldSchedule', noticeDaysBefore: 'monitorIssueFieldSchedule',
+  events: 'monitorIssueFieldEvents', date: 'monitorIssueFieldDate', time: 'monitorIssueFieldTime',
+  type: 'monitorIssueFieldType', description: 'monitorIssueFieldDescription', quote: 'monitorIssueFieldQuote',
+  sourceUrl: 'monitorIssueFieldSource', claims: 'monitorIssueFieldClaims', localTime: 'monitorIssueFieldTime',
+  noticeLocalTime: 'monitorIssueFieldTime', checkIntervalMinutes: 'monitorIssueFieldSchedule',
+  noticeDaysBefore: 'monitorIssueFieldSchedule', version: 'monitorIssueFieldVersion', resultKind: 'monitorIssueFieldResultType',
+  who: 'monitorIssueFieldPeople', people: 'monitorIssueFieldPeople', actions: 'monitorIssueFieldActions',
+  eventTypes: 'monitorIssueFieldEventTypes', keywords: 'monitorIssueFieldKeywords', outputLocale: 'monitorIssueFieldLanguage',
 };
 const issueCodeKeys: Record<string, TranslationKey> = {
   invalid_type: 'monitorIssueCodeType', too_small: 'monitorIssueCodeRequired', too_big: 'monitorIssueCodeLimit',
@@ -92,11 +95,18 @@ export function monitorValidationIssues(details: Record<string, unknown> | undef
   return details.validationIssues.slice(0, 8).flatMap((candidate: unknown) => {
     if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return [];
     const row = candidate as Record<string, unknown>;
-    if (typeof row.path !== 'string' || !validationIssuePaths.has(row.path) || typeof row.code !== 'string' || !validationIssueCodes.has(row.code)) return [];
+    if (typeof row.path !== 'string' || row.path.length > 160 || typeof row.code !== 'string' || !validationIssueCodes.has(row.code)) return [];
+    const fields = row.path === '$' ? [] : row.path.split('.');
+    if (row.path !== '$' && (fields.length > 8 || !fields.every((segment) => {
+      if (!/^[A-Za-z][A-Za-z0-9]*(?:\[\])?$/.test(segment)) return false;
+      const field = segment.endsWith('[]') ? segment.slice(0, -2) : segment;
+      return validationIssueFields.has(field);
+    }))) return [];
     const key = `${row.path}:${row.code}`;
     if (seen.has(key)) return [];
     seen.add(key);
-    return [{ field: issueFieldKeys[row.path] ?? 'monitorIssueFieldOther', issue: issueCodeKeys[row.code] ?? 'monitorIssueCodeValue' }];
+    const leaf = fields.at(-1)?.replace(/\[\]$/, '') ?? '$';
+    return [{ field: issueFieldKeys[leaf] ?? 'monitorIssueFieldOther', issue: issueCodeKeys[row.code] ?? 'monitorIssueCodeValue' }];
   });
 }
 

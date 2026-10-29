@@ -1142,7 +1142,7 @@ export const en = {
   monitorValidationIssue: "Check {field}: {issue}.",
   monitorIssueFieldResponse: "response", monitorIssueFieldSummary: "summary", monitorIssueFieldAnswer: "answer", monitorIssueFieldEvents: "events",
   monitorIssueFieldDate: "event date", monitorIssueFieldTime: "event time", monitorIssueFieldType: "event type", monitorIssueFieldDescription: "event description",
-  monitorIssueFieldQuote: "source quote", monitorIssueFieldSource: "source link", monitorIssueFieldClaims: "source claims", monitorIssueFieldSchedule: "schedule", monitorIssueFieldOther: "response",
+  monitorIssueFieldQuote: "source quote", monitorIssueFieldSource: "source link", monitorIssueFieldClaims: "source claims", monitorIssueFieldSchedule: "schedule", monitorIssueFieldVersion: "response version", monitorIssueFieldResultType: "result type", monitorIssueFieldPeople: "people", monitorIssueFieldActions: "actions", monitorIssueFieldEventTypes: "event types", monitorIssueFieldKeywords: "keywords", monitorIssueFieldLanguage: "output language", monitorIssueFieldOther: "response field",
   monitorIssueCodeType: "the value has the wrong type", monitorIssueCodeRequired: "a required value is missing", monitorIssueCodeLimit: "the value is outside the allowed size", monitorIssueCodeFormat: "the value has the wrong format", monitorIssueCodeUnexpected: "an unexpected field was returned", monitorIssueCodeValue: "the value is not accepted",
   monitorNoFindingsSuccess: "The check completed successfully. No matching items were found this time.",
   monitorPreviousResultStale: "The latest check failed. The result shown is from an earlier successful check and may be outdated.",
