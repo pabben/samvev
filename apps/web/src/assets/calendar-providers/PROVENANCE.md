@@ -1,16 +1,19 @@
 # Calendar provider artwork provenance
 
-Provider marks previously bundled in this directory were removed because the repository has no evidence of permission or an applicable license for distributing them. The current UI uses Samvev's existing code-native generic calendar and home glyphs. They identify calendar and Home Assistant functions; they are not approximations of provider marks. Visible localized provider names remain next to the glyphs.
+The provider marks below are unmodified vendor-origin assets, bundled locally so
+the UI makes no runtime request to a provider. The project owner explicitly
+confirmed Samvev has rights to use the actual Google Calendar, Outlook, Spond,
+and Home Assistant marks for this work (2026-10-29). This confirmation is the
+permission basis for this change; no broader license grant is implied. Keep each
+mark recognizable and adjacent to the localized provider name. The marks are
+decorative in the interface (`aria-hidden`); accessible names come from text.
 
-## Removed artwork and official references
+| File | Official source | SHA-256 | Presentation |
+| --- | --- | --- | --- |
+| `google-calendar.svg` | [Google Workspace Calendar product icon](https://knowledge.workspace.google.com/static/images/icons/product/calendar.svg) | `7f55cd877b2261948168db3d2e9468c0cf3f07766789489e853a0f9931dff8ea` | 30px contained product icon |
+| `outlook.svg` | [Microsoft Outlook FY26 app icon](https://www.microsoft.com/content/dam/microsoft/bade/images/icons/en-us/m365-app-icons-fy26/Outlook-Icon-FY26.svg) | `d67b8bb4bb8d7afe8e71e066112452d5d681ea7991fa1ec7c37df962246b2c31` | 30px contained product icon |
+| `spond.svg` | [Spond official logo](https://www.spond.com/app/themes/sozo/public/images/svg_icons/logo.svg) | `8ef6600ba7a3d1eb945614b4b9904365be17aed2cfdee13eade9f8b5367e4caa` | Unmodified 200×44 wordmark, scaled proportionally |
+| `home-assistant-light.svg` | [Home Assistant official assets repository](https://github.com/home-assistant/assets/tree/master/logo), `home-assistant-logomark-color-on-light.svg` in `home-assistant-logo.zip` | `df9acf37d27145da406454a33c9be4c6f5cb00d5f71303d74bfe82b301fcad39` | Color logomark on light themes |
+| `home-assistant-dark.svg` | [Home Assistant official assets repository](https://github.com/home-assistant/assets/tree/master/logo), `home-assistant-logomark-monochrome-on-dark.svg` in `home-assistant-logo.zip` | `c187abad56074c055d800def9e65decb5575cb4771a3ea2de63e5964c3a43f76` | Monochrome logomark on dark themes |
 
-| Removed asset | Official origin or guidance | Rights status and reason for removal |
-| --- | --- | --- |
-| `google-calendar.svg` | [Google Calendar product icon](https://knowledge.workspace.google.com/static/images/icons/product/calendar.svg); [Google product co-branding guidance](https://partnermarketinghub.withgoogle.com/brands/google/use-cases/product-co-branding/); [Google branding guidance](https://partnermarketinghub.withgoogle.com/brands/google/branding-guidelines/how-to-show-googles-brand/) | Google's guidance requires users of product icons to obtain assets through its Partner Marketing Hub and request permission. No permission is evidenced here. |
-| `outlook.png` | [Outlook PWA manifest](https://outlook.office.com/mail/manifests/pwa.json?culture=en); [Microsoft trademark guidance](https://www.microsoft.com/en-us/legal/intellectualproperty/trademarks) | Microsoft states that its logos, app icons, and product icons may not be used without express license. No license is evidenced here. |
-| `spond-positive.png`, `spond-negative.png` | [Spond official logo ZIP](https://www.spond.com/app/uploads/2026/05/Spond-Logo.zip); [Spond recommendation page](https://www.spond.com/de/spond-empfehlen/) | Official availability and an invitation to recommend Spond do not establish permission to bundle its marks in this application. No applicable license or app-use permission is evidenced here. |
-| `home-assistant.svg` | [Open Home Foundation Home Assistant logo guidance](https://contributors.home-assistant.io/brand/name-and-logo/) | The guidance includes commercial-use conditions, and the repository has no evidence of a copyright license for this asset. No applicable permission is evidenced here. |
-
-## Future rights owner
-
-Before any actual provider artwork is reintroduced, the Samvev project maintainer or release owner must obtain and record permission or a license that covers the intended distribution and use. Record the rights holder, exact asset and source, license or permission terms, date, and any attribution or presentation conditions here. The product's actual-logo acceptance criterion remains pending that evidence; generic glyphs do not fulfill it.
+Home Assistant presentation follows its [brand guidance](https://contributors.home-assistant.io/brand/name-and-logo/). Google, Microsoft, and Spond marks remain unaltered; the SVGs are rendered as local `<img>` assets, never inserted as inline markup. The Home Assistant SVG variants were extracted unchanged from the official ZIP. Provider names remain visible and localized in English and Norwegian Bokmål. ICS remains represented by Samvev's generic calendar glyph.

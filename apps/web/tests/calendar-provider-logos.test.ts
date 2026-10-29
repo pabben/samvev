@@ -12,17 +12,17 @@ registerHooks({load(url, context, nextLoad) {
 
 const {CalendarProviderLogo, SpondHomeAssistantLogos} = await import('../src/calendar-provider-logos');
 
-test('provider markers use generic decorative glyphs and keep provider identity in text', () => {
+test('provider marks use decorative official images and keep provider identity in text', () => {
   for (const provider of ['google', 'microsoft', 'home_assistant', 'spond'] as const) {
     const markup = renderToStaticMarkup(createElement(CalendarProviderLogo, {provider}));
     assert.match(markup, new RegExp(`calendar-provider-mark-${provider}`));
     assert.match(markup, /aria-hidden="true"/);
-    assert.match(markup, /<svg /);
-    assert.doesNotMatch(markup, /<img|https?:|data:image/);
+    assert.match(markup, /<img [^>]*alt=""/);
+    assert.doesNotMatch(markup, /<svg |https?:|data:image/);
   }
 
   const combined = renderToStaticMarkup(createElement(SpondHomeAssistantLogos));
-  assert.equal((combined.match(/<svg /g) ?? []).length, 2);
+  assert.equal((combined.match(/<img /g) ?? []).length, 3);
   assert.match(combined, /calendar-provider-mark-spond/);
   assert.match(combined, /calendar-provider-mark-home_assistant/);
   assert.match(combined, /aria-hidden="true"/);

@@ -66,12 +66,12 @@ test('documented Google legacy web downloads import without allowing arbitrary O
 
 const {calendarMemberAccess,calendarCanDiscoverSources}=await import('../src/calendar-provider-config');
 const {CalendarSourcesEmpty,CalendarConnections}=await import('../src/calendar-connections');
-test('calendar picker and Spond setup use generic decorative glyphs beside visible names',()=>{
+test('calendar picker and Spond setup use decorative vendor marks beside visible names',()=>{
  Object.defineProperty(globalThis,'location',{value:new URL('https://samvev.invalid/?tab=integrations&setup=spond'),configurable:true});
  const markup=renderToStaticMarkup(createElement(LocaleProvider,{locale:'en',children:createElement(CalendarConnections,{member,displays:[],people:[],installationId:'synthetic-installation',accountId:'synthetic-account'})}));
  assert.ok(markup.includes('Google Calendar'));assert.ok(markup.includes('Outlook / Microsoft 365'));assert.ok(markup.includes('Spond / Home Assistant'));
  assert.match(markup,/calendar-provider-mark-google/);assert.match(markup,/calendar-provider-mark-microsoft/);assert.match(markup,/calendar-provider-mark-spond/);assert.match(markup,/calendar-provider-mark-home_assistant/);
- assert.match(markup,/aria-hidden="true"/);assert.match(markup,/calendar-provider-mark-google[^>]*aria-hidden="true"><svg /);assert.match(markup,/calendar-provider-mark-microsoft[^>]*aria-hidden="true"><svg /);assert.match(markup,/calendar-provider-mark-home_assistant[^>]*aria-hidden="true"><svg /);assert.doesNotMatch(markup,/<img|data:image/);
+ assert.match(markup,/aria-hidden="true"/);assert.match(markup,/calendar-provider-mark-google[^>]*aria-hidden="true"><img /);assert.match(markup,/calendar-provider-mark-microsoft[^>]*aria-hidden="true"><img /);assert.match(markup,/calendar-provider-mark-home_assistant[^>]*aria-hidden="true"><img /);assert.match(markup,/<img [^>]*alt=""/);assert.doesNotMatch(markup,/data:image/);
 });
 test('explicit calendar access denial and child age override elevated capabilities while generic integrations retain their own rights',()=>{
  const elevated={...member,capabilities:['household.view','household.manage','installation.manage']};
