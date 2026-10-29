@@ -81,17 +81,19 @@ try {
   await admin.locator('summary').filter({ hasText: 'Åpne eller koble til' }).click();
   await admin.getByRole('button', { name: 'Koble til denne eksisterende skjermen på nytt' }).click();
   await admin.getByRole('heading', { name: 'Koble til Synthetic wall display på nytt' }).waitFor();
-  assert.match(await admin.locator('[role="dialog"]').innerText(), /beholder oppsettet \(Synthetic shared setup\), personvalget og tilgangen/);
+  assert.match(await admin.locator('dialog').innerText(), /beholder oppsettet \(Synthetic shared setup\), personvalget og tilgangen/);
   await screen.goto('/display');
   await screen.getByRole('heading', { name: 'La husstanden bli synlig.' }).waitFor();
-  await screen.getByRole('button', { name: /vis kode|generate code|generer kode/i }).click();
-  // The display starts its pairing request on entry; the test GUI retrieves the synthetic code from it.
-  await admin.getByLabel('Sekssifret kode').fill('123456');
+  await screen.getByRole('button', { name: /hent tilkoblingskode|get a pairing code/i }).click();
+  // The synthetic display GUI requests a code; the admin GUI enters and approves that displayed code.
+  const displayedCode = await screen.getByTestId('pairing-code').innerText();
+  await admin.getByLabel('Sekssifret kode').fill(displayedCode);
   await admin.getByRole('button', { name: 'Godkjenn ny tilkobling' }).click();
   await admin.getByText('Ny tilkobling for denne skjermen er godkjent.').waitFor();
   assert.deepEqual(approvalPayload, { code: '123456', expectedCredentialGeneration: 4 });
   await screen.waitForTimeout(2200);
   assert.equal(redeemedId, displayId, 'second browser redeems into the same display registration');
+  await admin.locator('dialog button.button').filter({ hasText: 'Lukk' }).click();
 
   await admin.locator('summary').filter({ hasText: /Norsk bokmål.*Mørkt/i }).click();
   const locale = admin.getByLabel('Skjermens språk');
@@ -108,7 +110,7 @@ try {
   }
   await locale.focus();
   await admin.keyboard.press('Tab');
-  assert.equal(await admin.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Skjermens utseende');
+  assert.equal(await theme.evaluate(element => document.activeElement === element), true);
   assert.equal(displayPatch, undefined, 'opening and keyboard navigating controls does not change persisted overrides');
   assert.equal(setupPatch, undefined, 'per-display controls do not edit shared setup');
   await adminContext.close();
