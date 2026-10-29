@@ -18,6 +18,7 @@ import { displayActionHasMessageRecipients, displayCalendarSourceUpdate, display
 
 const CARD_IDS = ["household_messages", "new_message", "family_layout", "external_items", "worth_remembering", "today", "tomorrow", "people", "week", "next", "groceries", "dinners", "photos", "home_assistant"] as const;
 type CardId = typeof CARD_IDS[number];
+const PREVIEW_CARD_LABEL_KEYS = { household_messages: "messages", new_message: "newMessage", family_layout: "familyLayout", external_items: "externalItems", worth_remembering: "hubImportant", today: "hubToday", tomorrow: "hubTomorrow", people: "people", week: "week", next: "next", groceries: "boardGroceries", dinners: "boardDinners", photos: "mediaPhotosTitle", home_assistant: "homeAssistantControlsTitle" } as const satisfies Record<CardId, string>;
 type Setup = {
   id: string; name: string; revision: number; cards: CardId[]; cardOrder: CardId[];
   familyLayoutEnabled: boolean; allSources: boolean; allSensors: boolean;
@@ -41,11 +42,11 @@ const emptyDraft = (locale: "en" | "nb"): Draft => ({ name: "", cards: ["househo
 function asDraft(setup: Setup): Draft { return { name: setup.name, cards: [...setup.cards], cardOrder: [...setup.cardOrder], familyLayoutEnabled: setup.familyLayoutEnabled, allSources: setup.allSources, allSensors: setup.allSensors, personIds: [...setup.personIds], sourceIds: [...setup.sourceIds], calendarSourceIds: [...setup.calendarSourceIds], sensorIds: [...setup.sensorIds], albumIds: [...setup.albumIds], backgroundId: setup.backgroundId, locale: setup.locale, theme: setup.theme }; }
 function toggle<T extends string>(items: T[], id: T, checked: boolean): T[] { return checked ? [...new Set([...items, id])] : items.filter(item => item !== id); }
 
-export function ReadonlyPreview(props: { result: Preview; displayName: string; cardLabel: (id: CardId) => string; orientation: "portrait" | "landscape" }) {
-  return <LocaleProvider locale={props.result.display.locale}><ReadonlyPreviewBody {...props}/></LocaleProvider>;
+export function ReadonlyPreview(props: { result: Preview; displayName: string; orientation: "portrait" | "landscape" }) {
+  return <LocaleProvider locale={props.result.display.locale}><ReadonlyPreviewBody result={props.result} displayName={props.displayName} orientation={props.orientation}/></LocaleProvider>;
 }
 
-function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { result: Preview; displayName: string; cardLabel: (id: CardId) => string; orientation: "portrait" | "landscape" }) {
+function ReadonlyPreviewBody({ result, displayName, orientation }: { result: Preview; displayName: string; orientation: "portrait" | "landscape" }) {
   const { t } = useI18n();
   const people = [...new Map([...(result.familyLayout?.people ?? []), ...(result.hub?.people ?? [])].map(person => [person.id, person])).values()];
   const items = result.hub?.items ?? [];
@@ -58,7 +59,7 @@ function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { 
   const messages = result.setup.cards.includes("household_messages") ? result.cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision})) : [];
   const familySelected = displayFamilyContentVisible(familyCardPlan.familyLayout,people.length,messages.length,items.length,birthdays.length);
   const snapshotDinners=board?.readable?.dinners===true&&!result.setup.cards.includes("dinners")?(board.dinners??[]).map(dinner=>({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false})):[];
-  const familyView = (roster: boolean, withMessages = false) => <fieldset className="display-preview-family-readonly" disabled><legend className="sr-only">{t("displayPreviewReadonly")}</legend><FamilyHub display displayCompactPeople displaySnapshot={{dinners:snapshotDinners}} displaySections={{people:roster,today:!result.setup.cards.includes("today"),tomorrow:!result.setup.cards.includes("tomorrow"),important:!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} people={people} items={items} messages={withMessages ? messages : []} birthdays={birthdays} birthdaySourceLocalDate={today} localDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} /></fieldset>;
+  const familyView = (roster: boolean, withMessages = false, peopleOnly = false) => <fieldset className="display-preview-family-readonly" disabled><legend className="sr-only">{t("displayPreviewReadonly")}</legend><FamilyHub display displayCompactPeople displaySnapshot={{dinners:snapshotDinners,composition:{theme:result.display.theme,orientation}}} displaySections={{people:roster,today:!peopleOnly&&!result.setup.cards.includes("today"),tomorrow:!peopleOnly&&!result.setup.cards.includes("tomorrow"),important:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} people={people} items={peopleOnly?[]:items} messages={withMessages&&!peopleOnly?messages:[]} birthdays={birthdays} birthdaySourceLocalDate={today} localDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} /></fieldset>;
   return <section className={`display-preview display-preview-${orientation}`} data-theme={result.display.theme} aria-label={t("displayPreviewTitle")}>
     <header><h3>{t("displayPreviewFor", { name: displayName })}</h3><p>{t("displaySetup")}: {result.display.setupName ?? t("defaultDisplaySetup")} · {t("displayPreviewTitle")} · {t("displayPreviewReadonly")}</p></header>
     {background && <img className="display-preview-background" src={background.previewUrl} alt={background.title} referrerPolicy="no-referrer"/>}
@@ -70,7 +71,7 @@ function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { 
         let content: ReactNode = null;
         if (card === "household_messages") { if (familySelected) return null; content = result.cards.map((message, messageIndex) => <DisplayCard key={message.id} card={message as Card} zone={zone} primary={messageIndex===0}/>); }
         else if (card === "family_layout") { if (!familySelected) return null; content = familyView(true, result.setup.cards.includes("household_messages")); }
-        else if (card === "people") { if (!familyCardPlan.peopleCard) return null; content = familyView(true); }
+        else if (card === "people") { if (!familyCardPlan.peopleCard) return null; content = familyView(true, false, true); }
         else if (card === "new_message") content = <button type="button" className="button" disabled>{t("newMessage")}</button>;
         else if (card === "external_items") { const externalItems = items.filter(item => item.metadata.calendar); content = externalItems.length ? externalItems.map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>) : <p className="field-hint" role="status">{result.contentReadiness?.calendar && result.contentReadiness.calendar!=="ready" ? t(({privacy:"displayReadinessPrivacy",none_selected:"displayReadinessNoPeople",external_disabled:"displayReadinessDisabled",not_shared:"displayReadinessNotShared"} as const)[result.contentReadiness.calendar]) : t("displayCalendarEmpty")}</p>; }
         else if (card === "worth_remembering") content = items.filter(item => item.kind === "summary" || item.kind === "list").map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>);
@@ -91,7 +92,7 @@ function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { 
         else if (card === "photos") content = <DisplayMediaPlayback displayId={result.display.id} snapshot={result.media} readOnly/>;
         else if (card === "home_assistant") content = <p className="field-hint">{t("displayPreviewHaReadonly")}</p>;
         if (!displayPreviewContentVisible(content)) return null;
-        return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}><h4>{cardLabel(card)}</h4>{content}</article>;
+        return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}><h4>{t(PREVIEW_CARD_LABEL_KEYS[card] as never)}</h4>{content}</article>;
       })}
     </div>
   </section>;
@@ -425,7 +426,7 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
         <div className="form-actions"><button type="button" className="button subtle" onClick={() => { setEditing(null); setEditorOpen(false); setDraft(emptyDraft(member.household_locale)); setPreview(null); }}>{t("cancel")}</button><button type="button" className="button" disabled={!draft.name.trim()} onClick={() => void run(save)}>{t("save")}</button></div>
         {activeDisplays.length > 0 && <div className="display-preview-controls"><Field label={t("displayPreviewTarget")}><select value={previewTarget?.id ?? ""} onChange={event => setPreviewTargetId(event.target.value)}>{activeDisplays.map(display => <option key={display.id} value={display.id}>{display.name}</option>)}</select></Field><Field label={t("displayPreviewOrientation")}><select value={previewOrientation} onChange={event => setPreviewOrientation(event.target.value as "portrait" | "landscape")}><option value="portrait">{t("portrait")}</option><option value="landscape">{t("landscape")}</option></select></Field><button type="button" className="button" disabled={!previewTarget} onClick={() => previewTarget && void run(() => previewSetup(previewTarget))}>{t("displayPreviewButton")}</button><button type="button" className="button" disabled={!previewTarget} onClick={() => previewTarget && void run(() => openReview(previewTarget))}>{t("displayReviewAccess")}{previewTarget ? ` · ${previewTarget.name}` : ""}</button></div>}
       </fieldset>
-      {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} displayName={displays.find(display => display.id === preview.displayId)?.name ?? t("displayPreviewTitle")} cardLabel={cardLabel} orientation={previewOrientation}/></div>}
+      {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} displayName={displays.find(display => display.id === preview.displayId)?.name ?? t("displayPreviewTitle")} orientation={previewOrientation}/></div>}
     </div>}
     {displayReview && <section className="display-policy-editor" aria-label={t("displayReviewAccess")}>
       <h3>{t("displayReviewTitle", { name: displayReview.display.name })}</h3>
@@ -460,7 +461,7 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
         <p className="field-hint">{t("displayReviewPreviewCurrent")}</p>
         <div className="form-actions"><button type="button" className="button" disabled={busy || !displayReview.setup} onClick={() => void run(async () => { const result = await api<Preview>(`/households/${householdId}/displays/${displayReview.display.id}/preview`, "POST", { draft: displayReview.draft }); setReviewPreview(result); })}>{t("displayReviewPreview")}</button><button type="button" className="button subtle" onClick={() => { setDisplayReview(null); setReviewPreview(null); }}>{t("cancel")}</button><button type="button" className="button primary" disabled={busy || reviewDeltas.length === 0} onClick={() => setConfirmingReview(true)}>{t("displayReviewApply")}</button></div>
       </fieldset>
-      {reviewPreview && <ReadonlyPreview result={reviewPreview} displayName={displayReview.display.name} cardLabel={cardLabel} orientation={previewOrientation}/>}
+      {reviewPreview && <ReadonlyPreview result={reviewPreview} displayName={displayReview.display.name} orientation={previewOrientation}/>}
     </section>}
     {displayReview && confirmingReview && <Dialog title={t("displayReviewConfirmTitle", { name: displayReview.display.name })} onClose={() => setConfirmingReview(false)}><p>{t("displayReviewConfirmBody")}</p>{reviewDeltas.length ? <ul>{reviewDeltas.map((row, index) => <li key={index}>{row}</li>)}</ul> : <p>{t("displayReviewNoChanges")}</p>}<div className="form-actions"><button type="button" className="button subtle" onClick={() => setConfirmingReview(false)}>{t("cancel")}</button><button type="button" className="button primary" disabled={busy || !displayReviewCanApply(confirmingReview, reviewDeltas.length)} onClick={() => void run(applyDisplayReview)}>{t("displayReviewConfirmApply")}</button></div></Dialog>}
     {policyDisplay && policy && <section className="display-policy-editor" id="display-policy-editor" tabIndex={-1}><h3>{t("displayDeviceGrants")}: {policyDisplay.name}</h3><fieldset disabled={busy}>

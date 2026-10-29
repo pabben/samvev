@@ -17,3 +17,7 @@ test("preview image sizing does not override nested FamilyHub and media componen
   assert.match(styles, /\.display-preview-background\{[^}]*max-width:min\(100%,360px\)[^}]*max-height:220px/);
   assert.match(styles, /\.display-preview-person img\{width:40px;height:40px/);
 });
+
+test("portrait preview lets family and people cards span the full preview width", () => {
+  assert.match(styles, /\.display-preview-portrait \.display-preview-family_layout,\.display-preview-portrait \.display-preview-people\{grid-column:1\/-1\}/);
+});

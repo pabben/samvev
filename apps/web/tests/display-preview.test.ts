@@ -12,7 +12,7 @@ const [{ ReadonlyPreview }, { LocaleProvider }] = await Promise.all([import("../
 function previewMarkup(result: any, orientation: "portrait" | "landscape" = "portrait") {
   Object.defineProperty(globalThis, "document", { configurable: true, value: { documentElement: { dataset: { theme: "light" } } } });
   Object.defineProperty(globalThis, "matchMedia", { configurable: true, value: () => ({ matches: false }) });
-  return renderToStaticMarkup(createElement(LocaleProvider, { locale: "en", children: createElement(ReadonlyPreview, { result, displayName: "Synthetic display", cardLabel: (id: string) => id === "home_assistant" ? result.display.locale === "nb" ? "Home Assistant-styring" : "Home Assistant controls" : id, orientation }) }));
+  return renderToStaticMarkup(createElement(LocaleProvider, { locale: "en", children: createElement(ReadonlyPreview, { result, displayName: "Synthetic display", orientation }) }));
 }
 
 const familyPeople = [{ id: "synthetic-person", displayName: "Synthetic person" }];
@@ -35,6 +35,7 @@ test("family plus People preview has one hub clock/heading and disables action a
   assert.equal((html.match(/data-testid="home-activity-week"/g) ?? []).length, 0);
   assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 1);
   assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
+  assert.match(html, /hub-dark hub-compact/);
   assert.equal((html.match(/display-preview-people/g) ?? []).length, 0);
   assert.match(html, /<button[^>]*disabled[^>]*>Ny beskjed<\/button>/);
   assert.match(html, /data-theme="dark"/);
@@ -88,6 +89,27 @@ test("preview uses selected display locale/theme and orientation while keeping t
   assert.match(html, /Preview on Synthetic display/);
   assert.match(html, /display-preview-landscape/);
   assert.match(html, /<button[^>]*disabled[^>]*>New message<\/button>/);
+  assert.match(html, /hub-light hub-wide hub-low-height/);
+});
+
+test("People-only preview matches the live roster-only sections", () => {
+  const result = { ...base, setup: { ...base.setup, cards: ["people"], cardOrder: ["people"], familyLayoutEnabled: false } };
+  const html = previewMarkup(result);
+  assert.equal((html.match(/data-testid="family-hub"/g) ?? []).length, 1);
+  assert.equal((html.match(/class="hub-agenda/g) ?? []).length, 0);
+  assert.equal((html.match(/class="hub-important/g) ?? []).length, 0);
+  assert.equal((html.match(/class="hub-week/g) ?? []).length, 0);
+});
+
+test("preview card headings use the selected display locale, not the manager locale", () => {
+  const result = {
+    ...base,
+    setup: { ...base.setup, cards: ["today"], cardOrder: ["today"] },
+    birthdays: { mode: "all", localDate: "2026-10-29", entries: [{ personId: familyPeople[0]!.id, displayName: familyPeople[0]!.displayName, due: "today" }] },
+  } as any;
+  const html = previewMarkup(result);
+  assert.match(html, /<h4>I dag<\/h4>/);
+  assert.doesNotMatch(html, /<h4>today<\/h4>/);
 });
 
 test("today, tomorrow and external cards show one calendar sharing reason", () => {

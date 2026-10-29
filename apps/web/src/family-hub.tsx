@@ -17,9 +17,9 @@ const kindIcons={event:'calendar',reminder:'sun',alert:'bell',summary:'spark',li
 type DetailAccess={open:(selection:HubDetailSelection,trigger:HTMLButtonElement)=>void;provenance:Record<string,boolean>;setProvenance:(id:string,open:boolean)=>void;rememberProvenanceFocus:(id:string,node:HTMLElement)=>void};
 const HubDetails=createContext<DetailAccess|null>(null);
 export type TaskAccess={householdId:string;onOpen:(id:string)=>void;onNew:(personId:string)=>void};
-export function FamilyHub({people,items,messages,zone,householdName,householdId,localDate:givenLocalDate,birthdays=[],birthdaySourceLocalDate,schoolActivities=[],display=false,displayDinnersReadable=true,displaySnapshot,displaySections,displayCompactPeople=false,now:givenNow,onCompose,onManagePeople,connection,taskAccess,onEditPhoto,editablePhotoIds,homeModules,homeSmartHome,homePhoto}:{taskAccess?:TaskAccess;onEditPhoto?:(id:string)=>void;editablePhotoIds?:string[];homeModules?:ReactNode;homeSmartHome?:ReactNode;homePhoto?:ReactNode;people:HubPerson[];items:HubItem[];messages:HubMessage[];zone:string;householdName:string;householdId?:string;localDate?:string;birthdays?:HomeBirthday[];birthdaySourceLocalDate?:string;schoolActivities?:HomeSchoolActivity[];display?:boolean;displayDinnersReadable?:boolean;displaySnapshot?:{dinners: DinnerAssignment[]};displaySections?:Partial<Record<'people'|'today'|'tomorrow'|'important'|'messages'|'support'|'week'|'environment'|'next',boolean>>;displayCompactPeople?:boolean;now?:number;onCompose?:()=>void;onManagePeople?:()=>void;connection?:string}) {
+export function FamilyHub({people,items,messages,zone,householdName,householdId,localDate:givenLocalDate,birthdays=[],birthdaySourceLocalDate,schoolActivities=[],display=false,displayDinnersReadable=true,displaySnapshot,displaySections,displayCompactPeople=false,now:givenNow,onCompose,onManagePeople,connection,taskAccess,onEditPhoto,editablePhotoIds,homeModules,homeSmartHome,homePhoto}:{taskAccess?:TaskAccess;onEditPhoto?:(id:string)=>void;editablePhotoIds?:string[];homeModules?:ReactNode;homeSmartHome?:ReactNode;homePhoto?:ReactNode;people:HubPerson[];items:HubItem[];messages:HubMessage[];zone:string;householdName:string;householdId?:string;localDate?:string;birthdays?:HomeBirthday[];birthdaySourceLocalDate?:string;schoolActivities?:HomeSchoolActivity[];display?:boolean;displayDinnersReadable?:boolean;displaySnapshot?:{dinners: DinnerAssignment[];composition?:{theme:string;orientation:'portrait'|'landscape'}};displaySections?:Partial<Record<'people'|'today'|'tomorrow'|'important'|'messages'|'support'|'week'|'environment'|'next',boolean>>;displayCompactPeople?:boolean;now?:number;onCompose?:()=>void;onManagePeople?:()=>void;connection?:string}) {
   const {t,locale}=useI18n();
-  const {dark,compact,mobile,lowHeight}=useHubComposition();
+  const {dark,compact,mobile,lowHeight}=useHubComposition(displaySnapshot?.composition);
   const peopleGrid=useRef<HTMLDivElement>(null);
   const [peopleSpace,setPeopleSpace]=useState({width:0,gap:14});
   useLayoutEffect(()=>{
@@ -174,19 +174,20 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
 }
 // Observe the already-resolved app theme (including system changes), so DOM,
 // reading and keyboard order follow the same composition as the visible grid.
-function useHubComposition() {
+function useHubComposition(snapshot?:{theme:string;orientation:'portrait'|'landscape'}) {
   const queries=['(max-width: 1000px)','(max-width: 640px)','(min-width: 1001px) and (max-height: 850px)'];
-  const read=()=>({dark:document.documentElement.dataset.theme==='dark',compact:matchMedia(queries[0]!).matches,mobile:matchMedia(queries[1]!).matches,lowHeight:matchMedia(queries[2]!).matches});
+  const read=()=>snapshot?{dark:snapshot.theme==='dark'||snapshot.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches,compact:snapshot.orientation==='portrait',mobile:false,lowHeight:snapshot.orientation==='landscape'}:{dark:document.documentElement.dataset.theme==='dark',compact:matchMedia(queries[0]!).matches,mobile:matchMedia(queries[1]!).matches,lowHeight:matchMedia(queries[2]!).matches};
   const [composition,setComposition]=useState(read);
   useEffect(()=>{
     const media=queries.map(query=>matchMedia(query));
+    if(snapshot?.theme==='system')media.push(matchMedia('(prefers-color-scheme: dark)'));
     const update=()=>setComposition(read());
-    const observer=new MutationObserver(update);
-    observer.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+    const observer=snapshot?null:new MutationObserver(update);
+    observer?.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
     media.forEach(query=>query.addEventListener('change',update));update();
-    return()=>{observer.disconnect();media.forEach(query=>query.removeEventListener('change',update))};
-  },[]);
-  return composition;
+    return()=>{observer?.disconnect();media.forEach(query=>query.removeEventListener('change',update))};
+  },[snapshot?.orientation,snapshot?.theme]);
+  return snapshot?read():composition;
 }
 
 function PanelTitle({icon,title,count,id}:{icon:string;title:string;count?:number;id?:string}) {return <div className="hub-panel-title"><h2 id={id}><Icon name={icon}/>{title}</h2>{count!==undefined&&<span className="hub-count">{count}</span>}</div>}
