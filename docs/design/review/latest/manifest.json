@@ -1,14 +1,14 @@
 {
-  "roundId": "20261029134403-05cf86dc-28ee8faa",
-  "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
+  "roundId": "20261029225834-b9b7b8ea-be60b1bc",
+  "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
   "workingTreeDirty": true,
-  "capturedAt": "2026-10-29T13:44:03.836Z",
+  "capturedAt": "2026-10-29T22:58:34.033Z",
   "provenance": {
-    "sourceSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-    "inputFingerprint": "eef51a983411e38c1216d375e3f46933fe8111396e6ba9119e78ce35de181a1a",
-    "rootSourceFingerprint": "eef51a983411e38c1216d375e3f46933fe8111396e6ba9119e78ce35de181a1a",
-    "cloneSourceFingerprint": "eef51a983411e38c1216d375e3f46933fe8111396e6ba9119e78ce35de181a1a",
-    "runtimeFingerprint": "ca6855f92299c44c3604d2a6a67c8fff7d4d2bbb218b1d1bfef3d88876d531e3",
+    "sourceSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+    "inputFingerprint": "731dd59e86180d8f1f12ee302967848c82b84df3afd179e487f24de71076fc47",
+    "rootSourceFingerprint": "731dd59e86180d8f1f12ee302967848c82b84df3afd179e487f24de71076fc47",
+    "cloneSourceFingerprint": "731dd59e86180d8f1f12ee302967848c82b84df3afd179e487f24de71076fc47",
+    "runtimeFingerprint": "c7dfc4b8567d387fc44b50b9ec069cc4f5f060c0729aef34727aea2a26290141",
     "migrationFingerprint": "d8a47e5eeebda5e6c355d20d5e80e078133446ca01b9b419a2ce1646034438fb",
     "inputFileHashes": {
       ".dockerignore": "fd1afa885cfd4c592d2df90f60284b2ee8f63cee14965f31b3da43cb11b53cd6",
@@ -30,7 +30,12 @@
       "apps/web/src/assets/avatars/avatar-04.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
       "apps/web/src/assets/avatars/avatar-05.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "apps/web/src/assets/avatars/avatar-06.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
-      "apps/web/src/assets/calendar-providers/PROVENANCE.md": "a5e7632f18ca81c07eb4339cf401ab3679f9d230509fde50ee185a370e6867b8",
+      "apps/web/src/assets/calendar-providers/PROVENANCE.md": "3851d61ec2d0fc87f56726ea8fbad91eef13576645b60bfa920a4feb94624cf8",
+      "apps/web/src/assets/calendar-providers/google-calendar.svg": "7f55cd877b2261948168db3d2e9468c0cf3f07766789489e853a0f9931dff8ea",
+      "apps/web/src/assets/calendar-providers/home-assistant-dark.svg": "c187abad56074c055d800def9e65decb5575cb4771a3ea2de63e5964c3a43f76",
+      "apps/web/src/assets/calendar-providers/home-assistant-light.svg": "df9acf37d27145da406454a33c9be4c6f5cb00d5f71303d74bfe82b301fcad39",
+      "apps/web/src/assets/calendar-providers/outlook.svg": "d67b8bb4bb8d7afe8e71e066112452d5d681ea7991fa1ec7c37df962246b2c31",
+      "apps/web/src/assets/calendar-providers/spond.svg": "8ef6600ba7a3d1eb945614b4b9904365be17aed2cfdee13eade9f8b5367e4caa",
       "apps/web/src/assets/evening-ridge.svg": "a503ad41f02550e80eea78eafede54fab18382e5e62e8c96ced2910bdd9a2263",
       "apps/web/src/assets/nordic-dusk-v2.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
       "apps/web/src/assets/nordic-dusk-v2.provenance.md": "1ce2fbd485eee9b146e9c225f050818972b5ba901da65bcbee5909c29f7915f7",
@@ -43,22 +48,22 @@
       "apps/web/src/calendar-preview.ts": "4f69d347b344cd16802be1d1da300c32f9aabd451836686c1eb1d0a1d8cd57aa",
       "apps/web/src/calendar-provider-admin.tsx": "2c21b7504779aa878118b96944c7f2d667f69731057cae155deff5b2e6680e4c",
       "apps/web/src/calendar-provider-config.ts": "9d0c76f22edbe2f2db127eb6de645f3fa8c774d2f2fd657b14c617e0b2c7b149",
-      "apps/web/src/calendar-provider-logos.tsx": "eeaee7e9b025c2652a69e6e29cc8312628072ca8ad3f5a99384c706205179a69",
+      "apps/web/src/calendar-provider-logos.tsx": "7cd3bbc2e0c63f607c1be61556a1ebcbaab498ca3bc27f20aa5e8e946ef01dd9",
       "apps/web/src/calendar-schedule.ts": "a96615ebf7b4101bc8f0fe82bcf1266331b190499ed057bbc4a2b9ef8a55545d",
       "apps/web/src/chatgpt-guide-presentation.ts": "469a2cb8dbe7650c275b0619e197f3bd4e71f30695b77c0e33ec7b0aa40e3ed9",
       "apps/web/src/chatgpt-guide.tsx": "60b0215ae045ea4b603712179dbef2b697a6c31ef0606d8100b32a5d0be0dd6b",
       "apps/web/src/demo-login.ts": "874822f9d88156f9b75787e207258041402263270a0f55c144fd8dee7a33abbc",
-      "apps/web/src/display-admin-presentation.ts": "ab08f5b84ff905c65c37b65b958f2b0848875b847d4726982048c51644bd5197",
+      "apps/web/src/display-admin-presentation.ts": "acbcf5cb5df5b04b3118ea0d43840d415a45b5c6e8e4c92ff6e6e04e41b901e9",
       "apps/web/src/display-cache.ts": "73b3832715bfa002520aebfce7bb8c7350527ef9fed0be772047e146127cf9e4",
       "apps/web/src/display-lifecycle.ts": "57f40c7ee9dfcf2b5dd281daaf44b7822d3796dd0cf540c094873997302a52ce",
       "apps/web/src/display-redeem-lock.ts": "b272a1865b46640e2c7361dbeb1b854ef8441965998cf7515c7f8144df002723",
-      "apps/web/src/display-setups-admin.tsx": "6d384957439a06af4dcafa61d7b5545a4be35a87009fa7156b0a3ed22eb8b5c0",
+      "apps/web/src/display-setups-admin.tsx": "37666c5bab11d0d63b92483f9ea816a12a6fa49a0ba500fc4309f4096cb2bca2",
       "apps/web/src/display-source-coordinator.ts": "c92ee999ca2d39139b3530dc430bb0c2ba3779c5f1956a76088343cd5dc45f17",
       "apps/web/src/display-source-session.ts": "a95af6d3768eef3c70ee40d5f199156c15161642e1ee40753df9f964da72424f",
-      "apps/web/src/display.tsx": "67d8f0be9c186d04c092f666b7b318d370d86ac8cbc334a1161181f4e602c6c4",
+      "apps/web/src/display.tsx": "4e88880c38ed5a774fff9759d3720ee29bb0253af890f710f3dbe6d008b7843c",
       "apps/web/src/displays-admin.tsx": "e6ad8c09fa666b8332a3e5f6639b3f6a2c45b3ee91ec47e2b04f0063fd4ce7f2",
-      "apps/web/src/family-hub.tsx": "06179bc9dd46a3c27e68ab6f973a7b2034c206b50b4f84a3c50e172f137932b0",
-      "apps/web/src/home-activities.tsx": "f239453f6d7e5b6ecaf7f1ea34944049fbefc7362cee904825622d07f30fd5ec",
+      "apps/web/src/family-hub.tsx": "42b8d5751ec77d3bbac5a25777f09117b9c61797384ff2d30b2ef88278a03212",
+      "apps/web/src/home-activities.tsx": "52b982b17a61ecc266eb167b425418780385c6af23136784a188bfa7616e2dc8",
       "apps/web/src/home-activity-presentation.ts": "f09b440e916dd646075ac6452f8224d27f40fafa2ff665cf00126d5e3a91bad7",
       "apps/web/src/home-assistant-control-presentation.ts": "430a89bff87ed951cc5c5d11faa402f77b60838d3381b128537bf8c027bb254a",
       "apps/web/src/home-assistant-control-types.ts": "fd9966129fb1f79ae1c36931f46def212f1cfcbdcdf3c4e586490f6521c89810",
@@ -69,25 +74,25 @@
       "apps/web/src/home-media-presentation.ts": "edff8d068230fe6e473719b933347b98053c048551908dca53ee7e9fe0ca2b0e",
       "apps/web/src/home-presentation.ts": "e8d464a71e4944670068bf847528ef75cc8ce53d07d55a81e612628dc49c3766",
       "apps/web/src/home-types.ts": "9976eab496fc697e0afe13a669b36d5b4dc2cfa5aa417ae5d5fff691d136f4b3",
-      "apps/web/src/home.css": "cabe336fe38e1cebf2fbe6bfdce3da79a8c9fef9f2c1bdb86c0fd4175900b48e",
+      "apps/web/src/home.css": "4475ea4d4a3690d7786c371dc8e157c841daa9111f5b54c68e92775ef0c16c72",
       "apps/web/src/home.tsx": "60178678aeb92e5e31f589f86f0ba180b10bae6a24a2a0b656796787bd0b66b1",
       "apps/web/src/household-board-adapters.ts": "4cff210a607b62baddd2819b853e97e99cc000984e33a776393c506e914c953f",
       "apps/web/src/household-board-state.ts": "190a550c6786d75dd7ccf59fb353e9e37f0bd5f66df1d90e5d8c159a67023dac",
       "apps/web/src/household-board-summary.ts": "4307646c4b07b54d22a98ff57a574dbbcdbc4eacd83b7d184308c56ea9302313",
-      "apps/web/src/household-boards.tsx": "332df06ed83c3ade460226391a123cfd21a55a7d15d5d8c0891515df136e5027",
+      "apps/web/src/household-boards.tsx": "f01b2296204a6db51a5034aac57cdd52151796ebe40771e7716fa41d62d9071f",
       "apps/web/src/installation-public-contact.tsx": "9064adb3a455632ace839577fa5e00a436f349aa484e47b27a5a54a438b1c1ea",
       "apps/web/src/integrations.tsx": "0925f35af02b1936eb1e80c7c1cb60a8e7883b0a7a71860139dd2b25ff557265",
-      "apps/web/src/locales/en.ts": "1ee47cc34529c5756b80c67fea820ae08e923e342cf79907fb66db8fef793be3",
-      "apps/web/src/locales/nb.ts": "35bf4bd473d33474a1457dfc4a5d33beff726dd3145b2dcfa5e37ec11b138286",
+      "apps/web/src/locales/en.ts": "822f3da581ad857b3a98f21faff42ee4e0e0b4f269b44a00abd1732a1aa5333c",
+      "apps/web/src/locales/nb.ts": "dab993287e9829495ded67e13360422251c307807e8a01322216d4eb861c2fa8",
       "apps/web/src/main.tsx": "29f4a2ada70e78e0cf4b274a04334f400a41b43c057447b9496fa076fc2b908f",
       "apps/web/src/media-adapters.ts": "5731413554e82aadf0308bc7825ef053eefb0c628e38640722025dc535411fca",
-      "apps/web/src/media-library.tsx": "fdda0f41fb069b39b82709e79fcfda82a9b565514936793977a7e2b5a7fc38d0",
+      "apps/web/src/media-library.tsx": "08b4975b4835ebb9548f28e61b06aeecd99811517ca18015e247a35dc58d5b05",
       "apps/web/src/member-navigation.ts": "fb9cc4778fbf9775e93909b82429ce9a1c02b26e323a670858cef6284a2db5ce",
       "apps/web/src/member-shell.css": "1902815880d675985f46737194e4b39f34b47ab35713f81cf167b1a9603b1fe9",
       "apps/web/src/member.tsx": "b1881a57411ad36438f4f9b433f544bb04874f35023e7ca6d3ae951d0a7a2af5",
       "apps/web/src/messages.tsx": "af413d81a940eb22a58685eb4318b3ccb54b82e3308d78d7bfe30b61db10c3ee",
-      "apps/web/src/monitor-presentation.ts": "2e206b867b5563e2d908f8f3aed8d1ea7aa7e0d9d05e00373385b06ae9109575",
-      "apps/web/src/monitors.tsx": "c386d8961ac3039b7bfcedacead75d412219498c19d6bf8c067282f86912b8d6",
+      "apps/web/src/monitor-presentation.ts": "e25e44b457527445387a411830eece3f64bf41113e8f1b9f5ee7ac7f90109de5",
+      "apps/web/src/monitors.tsx": "435b802e0ad474c0a4d7ce0959b3db6ecbefd19942c21be2c58166b9d18b980e",
       "apps/web/src/password-policy.ts": "49df577ef78de96c7b9a4a41f85f1f22e1cbe55c46d0a0774aa823b86d93fc94",
       "apps/web/src/people.tsx": "50256819eb444724c9adb21f1f9e30def5bf2645fc57863e2893fda94309622b",
       "apps/web/src/person-identity.ts": "2c737d448d1366ed45bf2ff790f96dcb17bc8765b921f3fa30908e01f197bb33",
@@ -97,10 +102,10 @@
       "apps/web/src/photo-presentation.ts": "7fdf8e4d7129abd0b5f26cd4c31d176c672c3dc1feec41eeb8fcfee9e69c1c09",
       "apps/web/src/profile-photo.tsx": "2ac8f3fdd6ad85b713a7615dea7a4b6d14c7b387f4f0359854f6d68bda99004f",
       "apps/web/src/public-information.tsx": "58e48ba7eb68ded5ca86acbe8f6c1e1781fc472a510a3352c1dc6b0515ded8de",
-      "apps/web/src/round9.css": "06599d2bc8b1cd37642255df6da9245d90786081ed90e7f93858c39f52c292f3",
+      "apps/web/src/round9.css": "68bcaf04d0cd6e4aa21aad56d6e606c23fa5d1d215f0c8b7d82845305f89e016",
       "apps/web/src/secure-uuid.ts": "4ca52f96d898b5eb1b4b1aeb67886d969e0e6c2e1e36458236172752d7c5d5f9",
       "apps/web/src/stream-health.ts": "27d929f46e642f4aeb496d5990ccd728d937b5a923a55e44bc2dc2fceec13cfe",
-      "apps/web/src/style.css": "0c5bca7f938fd512b24e75576ce4bf02285f3be399a3207376020ac54ecdab44",
+      "apps/web/src/style.css": "1325d6af6f6e9a0fdd850577b51b481334b99e1f638226f32a0ed16486e0a800",
       "apps/web/src/temperature-settings.tsx": "d6faeeea3faf24fecc983f029de81609813db26bd2ebe78063b98d4fe2da21f8",
       "apps/web/src/time.ts": "ad9121770860e12aabe350dd47693a3127ec9d41d3f77662ee812466ea745160",
       "apps/web/src/types.ts": "269858836b76db91fd78ae0a11ad57dc36325ee4b42e1408a101e053698a238b",
@@ -115,17 +120,20 @@
       "apps/web/tests/calendar-branding.test.ts": "cfa9ebf6b4cb507b4f4157fd6cae923528daa6bf410b7e2ac98698a35b7fa370",
       "apps/web/tests/calendar-error-presentation.test.ts": "b685e4a63437c8120b402ad73869a1e607db81ba9b645dd882a6049bd00a7264",
       "apps/web/tests/calendar-preview.test.ts": "81ac4e2141c38745e2f1408668c28411435774e228557ce5dbf27c7f3cd18088",
-      "apps/web/tests/calendar-provider-config.test.ts": "253025a7e1f97fab80aae03703fda5ac6307389d86bce25ae9580b34a2f8c936",
+      "apps/web/tests/calendar-provider-assets.test.ts": "c773c2ecbd5636b3748554733315eecad5f55e7243a1866400f7ad63852caf5f",
+      "apps/web/tests/calendar-provider-config.test.ts": "caae3def41368cd72f94ed3544bb7ad5b4ec2d7e511fab7f2c3b0c13d624e509",
       "apps/web/tests/calendar-provider-logo-browser.mjs": "c74ff8c75a3c3d415d783421ca2ac83536574e5836037922eacd8b003acea281",
-      "apps/web/tests/calendar-provider-logos.test.ts": "b6f7847820277b64ff37ad2e9b09c9a0fbad7b22e6e3d3127d4e948fc1a22dfd",
+      "apps/web/tests/calendar-provider-logos.test.ts": "2d47faeb1a34af77f89c3e08b1b59e83c9c2d8556ac0492d4608526499c70f44",
       "apps/web/tests/calendar-schedule.test.ts": "91cc2d09b93466766675bf925464bb3209234c0106fc6cb3dad73c0bfadea907",
       "apps/web/tests/chatgpt-guide.test.ts": "7167fed151f49e965bdb4c57043c58693782d3ca4eac964dc4f9fadbbf07ae49",
       "apps/web/tests/cold-load-smoke.mjs": "f8891439716ccecade95fc6ec236a0cfda8d830a56ff25467f9e69f64ca76621",
       "apps/web/tests/demo-login.test.ts": "29d16fc326e333fa5dee68625ba71a837fffd23405e90e2ea4831bf8fb975ed0",
-      "apps/web/tests/display-admin-presentation.test.ts": "b5f09bae56fcc2acba97e80bd0a54a8b1bf0afe7a92a9970bf00c05bcc02594b",
+      "apps/web/tests/display-admin-presentation.test.ts": "6a6215ad549c01dff376a7700c0aafd07aa2c1d30ab8217af2729f068fed16e2",
       "apps/web/tests/display-cache.test.ts": "da81021c2062cc29f76c8f6cc30c4005dc865ec1f07ebc1dd52363e26fa79c97",
       "apps/web/tests/display-day-event.test.ts": "0dd514c0de4a922c54f43de1b4da1bf282c50bd89a50f505158984b52d826843",
       "apps/web/tests/display-lifecycle.test.ts": "ac8ad6b703e5dae7c82e19021688571c55f7f090a741598b432e888940c45cbd",
+      "apps/web/tests/display-preview-css.test.ts": "49e52778329914eccda8bb5957c27014e984ceac865954e52bf1b66de4615531",
+      "apps/web/tests/display-preview.test.ts": "d67ba1b1d6cf766359dde36c54fcd1d9a89ebdf3cac928fdafbc4bf832e42b47",
       "apps/web/tests/display-source-coordinator.test.ts": "aa4adcba0419a5cc77cc6cd7350b17da58ac5a9c2ddc4be387ec067bb6f89314",
       "apps/web/tests/display-source-session.test.ts": "dab5c213b62aa77677fbcf2873c5a002912a7e491aba49bfe5a2367c71e1a029",
       "apps/web/tests/home-activity-presentation.test.ts": "d280feae40792fc7b45a83c5acc2a2ae692cd4b9071c70006a59bf31f56d29bd",
@@ -137,7 +145,7 @@
       "apps/web/tests/m3-family-hub.mjs": "39410dc1b7f47acb8a4971e364b053b51f2c9e805959915d0a78ee3804c5e44c",
       "apps/web/tests/media-adapters.test.ts": "8082702dcc382c24de50470ed8daa01a5abf553f3766150cba0fd0085936728e",
       "apps/web/tests/member-presentation.test.ts": "e93ce086d107367ba543720442c1638bc9f99844497eca56ed7171ed25b7a8d6",
-      "apps/web/tests/monitor-presentation.test.ts": "79d9776256df5681f6dc66dc29b392cc3f00fe975d84762442d2d22fe8f221ba",
+      "apps/web/tests/monitor-presentation.test.ts": "d6621edb4d1c5213b4e31f4a5b00d9def5d15b5f50b9c9ce4452b76d150eba91",
       "apps/web/tests/monitor-smoke.mjs": "b329d4a074edaff07d4a749adfc0dd970e34b41c880ca527e09dfa2bb6317b32",
       "apps/web/tests/password-policy.test.ts": "9d5b6794575b98f8916a46c751323dc59329097db620977c2fdd43d18d81d632",
       "apps/web/tests/people-account-smoke.mjs": "8ce9f45af1dc5d4d18255baadb0f6dd9feb601057538681d5ffd857b0eab565c",
@@ -269,13 +277,13 @@
       "services/api/src/ai/http-failure.ts": "f7fc36ba2f1add6ef1d0f6802afca7e52445acaa5ce7d690f171a55bf7921fa8",
       "services/api/src/ai/oauth-primitives.test.ts": "68e1ef2f119e8d41d840f59e164ba8f3f2c508fa66d22f75be298ff8f6c4f378",
       "services/api/src/ai/oauth-primitives.ts": "cc5406e4c564590015fe60b82bed730479047264b89c0710d763d3c48b025df5",
-      "services/api/src/ai/openai-compatible-provider.ts": "b90558fcca607f08fac29121ab60ed4be7b61d8bc49993a6422037185d48c60d",
+      "services/api/src/ai/openai-compatible-provider.ts": "78455e188b4ca8f40dcdf0cfb916aa67e89e8984735eebe487b646db73b67cad",
       "services/api/src/ai/openai-provider.ts": "aeb699808a240463405951c46997025d27b80ef658d4abb89de9f2fa2a1668ed",
       "services/api/src/ai/provider-security.test.ts": "dedbb78d988ea81dd235fbfe8fd721660ac4e7e8cf7abfa511ca9611e82c49cb",
-      "services/api/src/ai/provider.test.ts": "5f00b4c76e5ee76ecd4272bfdc42155d592391bd16222f7bda3766902c46c966",
+      "services/api/src/ai/provider.test.ts": "add8a7569e592d2ed00a7656360606fa56becfbc0c3f8ae3ec4cc36d5045dfa3",
       "services/api/src/ai/provider.ts": "7142e5ec87527c7c156665bafa3641be5fea93348cab55522f0d3c741eed07cb",
       "services/api/src/api.integration.test.ts": "8626d485eb6cc0c2bc1bf2e8c6e95ea31bc733a965009f1b47f135eaae9b346c",
-      "services/api/src/app.ts": "16eb98b202c9c63bd194820e7385feffca72ab3662ac5d8616df014b68e25dfc",
+      "services/api/src/app.ts": "8eeefef3bd216d61de095100a790a9dc274e5c50175640105a1d75dab25c5038",
       "services/api/src/browser-security.test.ts": "bd8e5464bb591337dd317e6f688b363e4e509b170048d1722314ff4ba2667f8a",
       "services/api/src/browser-security.ts": "03e3cf0ac8b3a7ba5b20abc3364a17dec8c53fcd2651235eb10ed6820dfa2675",
       "services/api/src/calendar-provider.integration.test.ts": "5eaf7590ecdfa79b0f0e47133b830728eb4c77d7022a32e8ccbba3f81f4fddb4",
@@ -308,7 +316,7 @@
       "services/api/src/monitor.integration.test.ts": "2a24bf4fc3eeb42b3945e75c68acdece8f01400a8f19d6b51fc47621f2f88b8f",
       "services/api/src/monitor/agent-runner.test.ts": "758b52440d9c26d13f2f537895e6b457ae309e58a3cc41fb6262330198845fa7",
       "services/api/src/monitor/agent-runner.ts": "ea2a408c90d95694d5831fb03981bc9a7c283a49770da7b2cd58e97dab20dd63",
-      "services/api/src/monitor/domain.test.ts": "64a14598116e65c328f66f9c596a68fde373bc4569c505f95f6faf5f6562d7ce",
+      "services/api/src/monitor/domain.test.ts": "d6edea2361c01b7ce68db402e9ca8f671cdcc7fe370ddf9edd07606f661591ef",
       "services/api/src/monitor/engine.ts": "060f2c4ac085d542af54e4182e2c13c1e51e76468c10083d419f3c6964bed3f8",
       "services/api/src/monitor/event-identity.ts": "8dc0b30a6950550b4d832958b634eb9f489eba08c079f610c97704717ca44f54",
       "services/api/src/monitor/execution-policy.test.ts": "520a307f8e1554b39214e0f3f9ddce5005be79c0b1a32a7e9703e9ae198a017c",
@@ -321,15 +329,15 @@
       "services/api/src/monitor/quality-router.ts": "86f68710eb5a4a64c8c05f33df3a06f23562dda27ce10571c4df1f95d0fb4e53",
       "services/api/src/monitor/response-schemas.ts": "c365bdae16c08c52cf570a0a5866ccfc987459363d22e12167d166e9fccec052",
       "services/api/src/monitor/schedule.ts": "66fdf9d719dcafd9b01c64d2dbf29378f4beb9b288168e84675556723bf48339",
-      "services/api/src/monitor/school-projection.test.ts": "5ae364cb0ff279ff4c9d00e9879b650cd634090eeedca676f1166362303d1489",
+      "services/api/src/monitor/school-projection.test.ts": "132f7d1ecd8041a40d0131ac16f754c461659eb11fc7ed9cb612921e00d79184",
       "services/api/src/monitor/school-projection.ts": "b80a24e361fbc358b385f246a6933381bbec4800cc9f5489ed99ebd4be6d90f6",
-      "services/api/src/monitor/service.ts": "7800f85d4408a275d8f51ad07c3d39413aec530cd660e72cbc97aaa8c3c5d263",
+      "services/api/src/monitor/service.ts": "3d606134ed93cf0118962508b9ebe278a621cba5f11cdc279004c71678543690",
       "services/api/src/monitor/source-fetcher.test.ts": "77c39ed0cdfde5ca50871fdb8811d92c62cc4e0c7c7bfef63ef5f8af229a27ef",
       "services/api/src/monitor/source-fetcher.ts": "4f9edf399246b779d92c7c3995fbcbeabb329a23c51193c3becddd32486aa08e",
       "services/api/src/monitor/subject-link-cli.ts": "c09bd742f9ae056aa31730e827d58cf6fdc6410d94123864d71a01c28fe05cbd",
       "services/api/src/monitor/subjects.ts": "088be3d72f492a5c4d269c7db3b82e48420e4a962660ee2338c0997531fcdb6e",
       "services/api/src/monitor/tool-registry.ts": "9e4019373544157b0341a99c9f665e2f54d77adf97bd3ee5718df31002b572f8",
-      "services/api/src/monitor/validation-diagnostics.ts": "a1bf05cffaf7fafca867b5acd3e558a2dfe9f13e1aed5a857ba8a833f846f38f",
+      "services/api/src/monitor/validation-diagnostics.ts": "c5d2a1d8492a4420b1661641691d6be21638f0dd06eeddd4561ae6c1455e4a78",
       "services/api/src/monitor/weather.integration.test.ts": "33d5dff6bf244cae69e4aa3abadb4444c241c8a7ae602f725dcb8351c47b9d32",
       "services/api/src/monitor/weather.test.ts": "1f5d7a7a377008c83f7186779751656ff433aa137dad8cbe8a4cdbb24bc329b1",
       "services/api/src/monitor/weather.ts": "f7b86468f35444f32190b09fbd52d539676108b0a1391f3b0b1aeebaa4171664",
@@ -351,7 +359,7 @@
       "services/api/src/round12-calendar.integration.test.ts": "4e765ecad48599c6b5fe4d972356f93a878c7b6262f8e177fc5ff064b217efad",
       "services/api/src/round13-activity-source-catalog.integration.test.ts": "b609b79f2d3cb249b44a335a0aadc988daa4039a666eb1d0e02c507ea3718371",
       "services/api/src/round13-all-day-activities.integration.test.ts": "47b2a383361e615a0c9f7b4f6eb2526e6aad52a3cf1f05314eb3f0a8f4ec6faa",
-      "services/api/src/round13-display-backend.integration.test.ts": "16630119480d2a759b9559deab9a811a4ac9ac487184b60416936369173d544e",
+      "services/api/src/round13-display-backend.integration.test.ts": "6ac0a45201ef82197fc32b695f00e792839de7ee8b92b66a9cb9dc4445d82f4a",
       "services/api/src/round13-display-messages.integration.test.ts": "005ddc34b42a3ee50dc3437cbc4a5c33253785948b03a9a3a715600aeed112c8",
       "services/api/src/round13-home-assistant-control.integration.test.ts": "e168baa7f6faf5e9fbb3763d841860eefaec9b7713d5d197ebfd85b36bbc5f43",
       "services/api/src/round13-home.integration.test.ts": "fd50982e0d2e19fcf80a048a58b75d514571b403eef7370417b698c003c7d5d0",
@@ -379,15 +387,16 @@
       "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
       "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
-      "assets/index-Bt_wedOU.css": "b44bbaf4b6b1b2ddb1be87b4712a90d3646c574257655ee5e5f9162ca1dc4259",
-      "assets/index-DijRlX4D.js": "53d60478ae078d2ef5dabf1d03af9d70636188160ec5d308c391fdb0b9568767",
+      "assets/index-DmnEHSuq.css": "ce040c4d4e09329f91ba7a59baa7ef0f112b7d3ada4522a255d58c000beea4c0",
+      "assets/index-gVRRYT1H.js": "e5529544a9314b7f469865403a4b9d74ebde5ea97957e9277cdcc110ea1aac69",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
+      "assets/outlook-B-qerR2g.svg": "d67b8bb4bb8d7afe8e71e066112452d5d681ea7991fa1ec7c37df962246b2c31",
       "fonts/Kalam-OFL.txt": "f62ef357d3a1c3d27edd35a6e1ba350e8a8d13499797964eeadefbf0b3b15d1f",
       "fonts/Kalam-Regular.ttf": "57cecb63d4608019371954274ae1d8c397764debd5b19d4a33c1efa4dc923c0b",
-      "index.html": "0c1f60c998fdb4c59ec370f8d54b20bee33408d29079f3e934f3130e09787633"
+      "index.html": "8ad01f59eb5e3dfd636ab90a4d015489dba86ba71e35591c8f40cf834934b7a3"
     },
-    "builtAt": "2026-10-29T12:58:51.422Z",
-    "containerId": "1eaf4a7dfb52c3b9531876a50912210e820d79b870848ecf2ab3153097231a4b",
+    "builtAt": "2026-10-29T22:57:26.605Z",
+    "containerId": "e74a5269965aa4902860cdf22866663276d915ad37f3c67bdf0bdba487000fae",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
       "/assets/avatar-01-D7jqfrwr.webp",
@@ -396,9 +405,10 @@
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-05-BkiEJE6s.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-Bt_wedOU.css",
-      "/assets/index-DijRlX4D.js",
-      "/assets/nordic-dusk-v2-JZmjLCmU.png"
+      "/assets/index-DmnEHSuq.css",
+      "/assets/index-gVRRYT1H.js",
+      "/assets/nordic-dusk-v2-JZmjLCmU.png",
+      "/assets/outlook-B-qerR2g.svg"
     ],
     "loadedAssetsVerified": [
       "/assets/avatar-01-D7jqfrwr.webp",
@@ -406,8 +416,8 @@
       "/assets/avatar-03-DA7Jq2DZ.webp",
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-Bt_wedOU.css",
-      "/assets/index-DijRlX4D.js"
+      "/assets/index-DmnEHSuq.css",
+      "/assets/index-gVRRYT1H.js"
     ],
     "authorizedDynamicImages": [
       {
@@ -419,12 +429,15 @@
     ]
   },
   "source": {
+    "origin": "http://192.168.0.220:4173",
+    "account": "admin@demo.invalid",
+    "uiAlias": "admin",
     "syntheticDemo": true
   },
   "screenshots": [
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:06.399Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:38.448Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -450,11 +463,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "9deb1127181dc14d9d9433683cfdbfd1913657dbc4623333d73f51eb7e26e048"
+      "sha256": "4b6faf81d1744e087b145d1045b9f5dc3ef2367d9ef9917ff4b6af8cd9c6b1b9"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:06.788Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:38.742Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -479,11 +492,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "94b693b3d5b8cf4d005017d83ec64a5f4a59a336d445ca1d57c2dd837055b270"
+      "sha256": "fd5ac88e1c9ee4c9f5a19e9a39d8f9506ff4b7996c28fd9b5889876cfe7bb59f"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:07.176Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:39.247Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -509,11 +522,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "7e2bd2b5e5de19c9c37a36229a4417f7a32bc7c0c73ac1e8a83434bf7bdc51c4"
+      "sha256": "f387cb6eb0d438bb060dd81ba1b542ec0f7dbb2b5b3ae1bd8e32c74d3c928c58"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:07.493Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:39.600Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -539,11 +552,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "385df822680d29b3b38a972b26a89edd7e0cff5edb86eafda7df3d56b4b47ad0"
+      "sha256": "d39aba099280df45c0256e8bff39c31635270051082cb4b30e5a73e30aaaa0d4"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:07.765Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:39.918Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -569,11 +582,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "308a9c975ab9021d55cfa98e79b2b7813ebd07f6a0a6a7e5707dedcd4114c2e3"
+      "sha256": "fcd37c09ed43619acd573c6bd987d6ef49a40c706010530ddfd4ea490b5c4176"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:08.037Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:40.245Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -598,11 +611,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "262353ca624ebf893be79c32e3ce16e04528eff129503ac0bd5e210d1ee5629a"
+      "sha256": "8ed7dafa09fc2d9c8febf16e203b64c9a37678bd4b3886f7b01c4a09ec26c90b"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:08.803Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:41.159Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -628,11 +641,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "80e22e21ad5eb56ff5dbd91a34b1c469cdac96b57aa0ccff2d63e3d7b2c7f21e"
+      "sha256": "db5c2dae38b2ea0018d14b1722a018167b65cd74c51f989d65d32314d5a537fa"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:09.868Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:42.640Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -658,11 +671,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "8a59cf50771aef56d3c141bda222862a386369a64fed4b00d422fbe430e2ed6c"
+      "sha256": "434570c7faaf8af27e4e860cc37900b0d6e0f52429f800376e67b457d61a59f9"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:10.161Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:42.921Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -687,11 +700,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "024eabd489bb89864e1b8bd3ce77260e7b00adae7fffc6259b0d548a21dcd6f0"
+      "sha256": "a0db7709c14ccc94c647bd0e06fbe21c75f58f2e7fe662639266d4a480004582"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:10.584Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:43.375Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -717,11 +730,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "fc55d839646e7b0e163a015a6ce8ff64a1ad06e1fa765b8d10fcaa01243dcb79"
+      "sha256": "a88ee9889faf75a7ef60b7c80f5115f4c833d288b24d40835456f74f81d08a47"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:10.907Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:43.772Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -747,11 +760,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "6d5c4fe47ddc39ef5ebd4ce1e21dc4c63dcbf89d9fc7e74e2b51f0f1816953f6"
+      "sha256": "dabf01c5e8a0a0d7dd00f7110a3e1dfdbca33c7ad78b10c5d5ee7e644679334f"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:11.235Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:44.142Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -777,11 +790,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "72612b8e3a7ed43d07dbeb6e31a86a8dcfb00063f17a7b500c0c54dac3f065aa"
+      "sha256": "d875ecf03e790c8a35c6f3ca9642d766325e928b71f9219b09c14f229a71b5d0"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:11.511Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:44.531Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -806,11 +819,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "e16f0e04a00ecd8534ef8a4ab88236cf506364b335875776c4a4955d50654114"
+      "sha256": "f8a1e73eeff7b6a0b50ab6b132b9b4ee96954876b610050fb0da53a5d5987e52"
     },
     {
-      "commitSha": "05cf86dc83ab70070b7050b2c25fa71cff6380bb",
-      "capturedAt": "2026-10-29T13:44:12.809Z",
+      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+      "capturedAt": "2026-10-29T22:58:45.657Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -836,7 +849,7 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "0b8f16ed7af1742586f0526676f59548eb73a0daffec6fa9cc7aff511ccf043e"
+      "sha256": "3702f82aeb441701752fc7882dc65ae63b0b4237f9fc1e7123320c3fd1c8449f"
     }
   ]
 }
