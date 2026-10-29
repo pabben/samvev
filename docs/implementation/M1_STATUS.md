@@ -1,6 +1,20 @@
+# Current Round 15 checkpoint — 2026-10-29 13:35:05 UTC
+
+Candidate `05cf86dc83ab70070b7050b2c25fa71cff6380bb` implements issues #16–18. Final QA passed: isolated API 437/437 (0 failures), web 207/207, contracts 7/7, core 3/3, web typecheck PASS, and source-05cf functional browser acceptance 14/14. UX/security review passed; requirements review is conditional GO. Partial R15 was deployed at 13:35:05 UTC: source/deploy SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb`, image `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`, schema 41→45. Fresh quiescent backup and pre/post isolated restore gates passed; app/worker/db are healthy; data, vault and configuration hashes were preserved. Public HTTPS Playwright smoke passed 11/11; health and `/om`, `/personvern`, `/vilkar`, `/display` returned 200. #19 actual logos remain undelivered pending rights evidence; generic code-native glyphs with visible names are used.
+
+School task A failed final JSON/schema validation, but raw output is unavailable; task B's prior generic failure remains undiagnosed. Neither has been live repaired, and no model call/task mutation is claimed. Google/Microsoft owner consent/registration, expired-TLS HA endpoint, private ICS, school display choice and physical iPad/Shelly/real-screen checks remain open.
+
+A QA-only full-test incident truncated the synthetic QA database. Recovery proceeded forward from the 00:08 backup into schema 45 after isolated donor/test restore; 86 table hashes/FKs, AI rates/ledger, login/`me` 200 and app/worker health were verified. Changes made in QA after that backup may be absent; public data was untouched.
+
+Public status: partial R15 is deployed. #19 rights evidence, school-task diagnosis, Google/Microsoft owner consent/registration, expired-TLS HA endpoint, private ICS validation, school display choice and physical iPad/Shelly/real-screen checks remain open. A publication update slot is maintained in [ROUND_15_REPORT.md](../design/review/ROUND_15_REPORT.md). The 14 masked screenshots for six-person Round ID `20261029134403-05cf86dc-28ee8faa` were copied; `bash scripts/design-review.sh` passed and image hashes/source SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb` match; manifest LAN origin and demo identity were omitted. No private screenshots, secrets, names or real household data were added.
+
+See [ROUND_15_STATUS.md](../design/review/ROUND_15_STATUS.md), [ROUND_15_REQUIREMENTS.md](../design/review/ROUND_15_REQUIREMENTS.md), and [ROUND_15_OWNER_ACTIONS.md](../design/review/ROUND_15_OWNER_ACTIONS.md) for detail.
+
+---
+
 # M1 implementation status
 
-R15 nyeste lokale status: #16–#19 er implementert lokalt, inkludert rettinger etter sterkere asynkron klientreview. 389 API-tester, 199 webtester og web-typekontroll består; hovedagenten har verifisert logger og kildehasher. Faktisk flertab-/to-nettleser-QA, appbilder/visuell iterasjon, fagreview, 041→044 restore-gate og offentlig R15-publisering gjenstår. Offentlig source er fortsatt R14 `971913e`. Eksisterende HA-synk er eksternt hindret av et bekreftet utløpt sertifikat; runtimevernet er bevart. Se `docs/design/review/ROUND_15_STATUS.md` for bevis og begrensninger; eldre kontrollpunkter nedenfor er historikk.
+R15-statusen øverst i dette dokumentet er gjeldende. Eldre R15-setninger i historiske avsnitt nedenfor kan være erstattet av det nye checkpointet; se `docs/design/review/ROUND_15_STATUS.md` for dagens bevis og avgrensninger.
 
 ## Round 15 active checkpoint — 2026-10-28
 

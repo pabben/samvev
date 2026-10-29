@@ -53,3 +53,27 @@ Tidligere integrert kandidat `2445c34` bestod 546 tester (167 web, 5 contracts, 
 ### Gjenopprettingsgrense etter nye skjermpolicyer
 
 R14-appfallback er ikke tillatt etter at ny personoverride/bursdagspolicy er tatt i bruk: gammel kode kan ignorere begrensningene. Backendfeil krever fremoverrettet retting med data beholdt. UI-fallback kan bare bruke et særskilt verifisert API-kompatibelt R15-kildepunkt som håndhever begge policyene. Backup/isolert restore skal dekke 041→042 og nye additive 043/044 med eksakte invariants. Ingen gammel database legges over nye brukerendringer.
+
+
+## Sluttkontroll – 2026-10-29 13:07:49 UTC
+
+Denne kontrollen erstatter eldre statusfelt ovenfor der de er i konflikt. Issue-recheck fant ni åpne saker og ingen nye kommentarer. Ingen saker ble endret.
+
+| Krav | Oppdatert status og avgrensning |
+|---|---|
+| #16–18 | Implementert i kandidat `05cf86dc83ab70070b7050b2c25fa71cff6380bb`. Final QA PASS: isolert API 437/437 (0 feil), web 207/207, contracts 7/7, core 3/3, web-typekontroll PASS og source-05cf funksjonell nettleserkontroll 14/14. |
+| #19 | Betinget/ikke levert: faktiske leverandørlogoer er ikke med fordi bruksrettigheter ikke er dokumentert. UI viser kodebaserte generiske symboler med synlige leverandørnavn. Eier må levere rettighetsgrunnlag før lokale logoressurser kan tas inn. |
+| Skoleoppdrag A | Kildedata viser feil i endelig JSON/schema-validering. Råmodellresultatet ble ikke lagret; konkret formfeil kan ikke fastslås. Ingen reparert livekjøring hevdes. |
+| Skoleoppdrag B | Eldre generell feil er ikke diagnostisert til rotårsak. Ingen reparert livekjøring hevdes. |
+| Restore/cutover | PASS: clone gate, fersk quiescent backup, pre-/post-cutover isolerte restore-gates; publisert 2026-10-29 13:35:05 UTC. Source `05cf86dc83ab70070b7050b2c25fa71cff6380bb`, image `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`, schema 41→45. HTTPS smoke 11/11; app/worker/db healthy; data/vault/config hashes bevart. #19 og eierintegrasjoner gjenstår. |
+
+Final canonical capture is the synthetic six-person Round ID `20261029134403-05cf86dc-28ee8faa`; `bash scripts/design-review.sh` passed and all 14 PNG hashes/source SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb` match. Bare de 14 personvernmaskerte PNG-ene og hashmanifestet er publisert i `latest/`; ingen private nettleserbilder eller runtime-identiteter er med. UX- og sikkerhetsreview er PASS. Kravreview er betinget GO, med #19 og eieravhengighetene åpne. Endelig QA er PASS (API 437/437, web 207/207, contracts 7/7, core 3/3, typekontroll og nettleser 14/14). Delvis R15 er publisert etter bestått backup/restore og HTTPS-smoke; dette lukker ikke #19 eller eierhandlingene.
+
+Skolefeil A skyldtes en verifisert schema-/kildedatafeil for syntetisk test, og B er fortsatt ikke forklart. Ingen modellkall, oppdragsendringer eller live-reparasjon ble gjort.
+
+En QA-hendelse oppstod da en full test ved en feil traff QA-appen og forkortet syntetisk QA-database. Hovedagenten gjenopprettet framover fra 00:08-backup inn i gjeldende schema 45 etter isolert donor-/testrestore. 86 tabellhashverdier og FK-er, AI-rater/ledger, innlogging/`me` 200 og app/worker-helse ble kontrollert. QA-endringer etter backup kan mangle; offentlige data ble ikke berørt.
+
+
+### Offentlig aksept – 2026-10-29 13:35:05 UTC
+
+Partial R15 source/deploy `05cf86dc83ab70070b7050b2c25fa71cff6380bb`, image `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`, schema 41→45. Fresh quiescent backup and pre/post isolated restore gates passed. Public HTTPS Playwright smoke 11/11 passed; health and `/om`, `/personvern`, `/vilkar`, `/display` returned 200. Data, vault, and configuration hashes remained preserved. The publication is explicitly partial: actual #19 logos await rights evidence and owner-controlled integrations/physical-device checks remain outstanding.

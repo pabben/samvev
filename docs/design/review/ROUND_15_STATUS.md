@@ -185,3 +185,33 @@ Skjerm-/ICS-flyten er integrert i `d4490a5`, Next/historikk i `cd53080`, og skje
 ## Pågående utvidelse 16–19
 
 Brukeren utvidet samme mål etter at tidligere utviklingspakke var implementert og 546 tester bestod. Nye issues 16–19 er lest; krav og ansvar er lagt til i samme matrise. Pågående capture-/opsforberedelser bevares, men er ikke sluttgodkjent for den utvidede kandidaten. Offentlig drift er fortsatt R14, uendret. Skrivearbeid fortsetter sekvensielt: A ICS, B skjermbackend, C skjerm-UI, D logoressurser; fagreview og lokalt QA følger integrasjon. R14-fallback må erstattes med ny policykompatibel gjenoppretting før 043/044 tas i drift.
+
+
+## Endelig checkpoint – 2026-10-29 13:07:49 UTC
+
+Kandidatkilden er `05cf86dc83ab70070b7050b2c25fa71cff6380bb`. Kriteriene #16–18 er implementert. Endelig QA er ferdig: isolert API-suite 437/437 (0 feil), web 207/207, contracts 7/7, core 3/3 og web-typekontroll PASS. Source-05cf funksjonell nettleserkontroll bestod 14/14. UX- og sikkerhetsreview er PASS; kravreview er betinget GO. Isolert offentlig clone restore-gate er PASS (`.local/m3/round15/ops/public-restore-20261029T132214Z/result.private.json`). Offentlig cutover kjører fortsatt, så publisering er ennå ikke bekreftet.
+
+### #19 og skoleoppdrag
+
+#19s faktiske logoer er ikke levert: rettighetsgrunnlag mangler. Kandidaten viser generiske kodebaserte symboler sammen med synlige navn. Ikke registrer logoressurser før eier har fremlagt rettighetsbevis.
+
+Skoleoppdrag A feilet i endelig JSON/schema-validering. Kildedata lagrer ikke råmodellresultatet, så avviket kan ikke rekonstrueres. Skoleoppdrag B har en eldre generell feil uten diagnostisk trinnbevis. Ingen av oppdragene er live-reparert, og ingen nye modellkall ble gjort.
+
+### QA-gjenoppretting
+
+En tidligere full test traff ved en feil QA-appen og forkortet den syntetiske QA-databasen. Hovedagenten gjenopprettet framover fra 00:08-backup inn i schema 45 etter isolert donor-/testrestore. Kontroller omfattet 86 tabellhashverdier/FK-er, AI-rater og ledger, login/`me` 200 samt app-/worker-helse. QA-endringer etter backup kan mangle. Offentlige data ble ikke berørt.
+
+### Offentlig status og visuelle bevis
+
+Offentlig testmiljø er fortsatt R14 mens cutover kjører. R15 er **ikke bekreftet publisert**. Etter at cutover-resultatet foreligger, oppdateres dette avsnittet med tidspunkt, source SHA, immutable image digest, migrasjons-/restorebevis og offentlig HTTPS-/syntetisk akseptresultat. Clone restore-gate PASS alene er ikke bevis på publisert runtime.
+
+Siste issuesjekk kl. 13:07:49 UTC fant ni åpne issues og ingen nye kommentarer. Ingen issue ble kommentert eller lukket. Syntetiske finalbilder ligger i lokale evidence-output-kataloger; publisert `latest/` har 14 hashverifiserte, personvernmaskerte PNG-er fra seks-personers Round ID `20261029134403-05cf86dc-28ee8faa`; manifestets source SHA er `05cf86dc83ab70070b7050b2c25fa71cff6380bb`. Manifestets LAN-origin og demo-kontolabel er fjernet. Ingen privat nettleserbilder, hemmeligheter eller ekte husholdningsdata ble lagt i Git.
+
+
+## Offentlig cutover – 2026-10-29 13:35:05 UTC
+
+Den delvise R15-kandidaten er nå publisert; cutover completion receipt har mtime 13:35:05 UTC. Source/deploy SHA er `05cf86dc83ab70070b7050b2c25fa71cff6380bb`; immutable image er `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`. Databaseskjema gikk fra 41 til 45. Fersk quiescent backup, pre-/post-cutover isolerte restore-gates og helse for app, worker og database bestod. Data-, vault- og konfigurasjonshasher ble bevart. Cutoverbevis: `.local/m3/round15/ops/cutover-20261029T133220Z/result.private.json` (cutover run directory; completion receipt mtime 13:35:05 UTC).
+
+Offentlig HTTPS Playwright-smoke bestod 11/11. Syntetisk innlogging og navigasjon på desktop/mobil, anonyme sider, asset-hasher, ICS UI, People, AI og utlogging bestod. Ingen ikke-autentiseringsmutasjoner ble observert. Health og rutene `/om`, `/personvern`, `/vilkar` og `/display` svarte 200. Nettleserbevis ligger i `.local/m3/round15/public-browser/postdeploy-smoke.json` (mode 600).
+
+Dette er en begrenset R15-publisering med fortsatt eierarbeid: #19-logoer er ikke levert mens rettighetsgrunnlag mangler; skoleoppdrag A/B er ikke live-reparert; Google/Microsoft-samtykke/registrering, utløpt HA TLS-endepunkt, privat ICS-kontroll, skolevisningsvalg og fysisk iPad/Shelly/ekte skjerm er fortsatt åpne. QA-resultatene og QA-databasehendelsen er dokumentert ovenfor; ingen offentlig data ble berørt av den QA-hendelsen.
