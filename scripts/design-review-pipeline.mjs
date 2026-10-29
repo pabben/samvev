@@ -68,6 +68,13 @@ export async function promoteArtifact({candidate,active,retained,exchange=exchan
 }
 async function atomicJson(path,value){const temporary=`${path}.${randomUUID()}.tmp`;await writeFile(temporary,`${JSON.stringify(value,null,2)}\n`,{mode:0o600});await rename(temporary,path);}
 async function verifySnapshot(source,inputs){for(const [path,digest]of Object.entries(inputs.inputFiles)){if(hash(await readFile(resolve(source,path)))!==digest)throw new Error(`Archived build input changed: ${path}`);}}
+export function archivedBuildPaths(inputFiles){
+ const paths=Object.keys(inputFiles??{});if(!paths.length)throw new Error('No verified build inputs to archive.');
+ const roots=[...new Set(paths.map(path=>path.split('/')[0]))].sort();
+ const allowed=new Set(['apps','packages','services','scripts','package.json','package-lock.json','.npmrc','.dockerignore','Dockerfile','compose.yaml','.env.example','tsconfig.json']);
+ if(roots.some(path=>!allowed.has(path)))throw new Error('Unexpected build archive path.');
+ return roots;
+}
 export function isolatedBuildArguments({source,dist,imageId,uid,gid,webDependencies=resolve(root,'apps/web/node_modules'),base=localRoot}){
  safeStagePath(dirname(resolve(source)),base);if(dirname(resolve(source))!==dirname(resolve(dist))||relative(dirname(source),source)!=='source'||relative(dirname(dist),dist)!=='dist'||!/^sha256:[a-f0-9]{64}$/.test(imageId)||relative(root,resolve(webDependencies)).startsWith('..')||![uid,gid].every(value=>Number.isInteger(value)&&value>=0))throw new Error('Unsafe isolated build plan.');
  return ['run','--rm','--network','none','--read-only','--security-opt','no-new-privileges','--cap-drop','ALL','--tmpfs','/tmp:rw,noexec,nosuid,size=256m','--label','com.docker.compose.project=samvev-m1','--label','com.samvev.component=design-review-builder','--user',`${uid}:${gid}`,'--workdir','/workspace','--mount',`type=bind,source=${source},target=/workspace,readonly`,'--mount','type=volume,source=samvev-m1-workspace-node-modules,target=/workspace/node_modules,readonly','--mount',`type=bind,source=${webDependencies},target=/workspace/apps/web/node_modules,readonly`,'--mount',`type=bind,source=${dist},target=/output`,'--entrypoint','node',imageId,'/workspace/apps/web/node_modules/vite/bin/vite.js','build','/workspace/apps/web','--config','/workspace/apps/web/vite.config.ts','--configLoader','native','--outDir','/output','--emptyOutDir'];
@@ -77,7 +84,7 @@ export async function buildStagedArtifact(){
  const before=captureRuntimeState();const activeBefore=await distHashes();const raw=inspect(app);const image=JSON.parse(docker(['image','inspect',raw.Image]))[0];
  if(image.Config.Labels?.['com.docker.compose.project']!=='samvev-m1')throw new Error('Build image is outside samvev-m1.');
  const stageDir=resolve(localRoot,'staged',`${inputs.sourceSha}-${randomUUID()}`),source=resolve(stageDir,'source'),dist=resolve(stageDir,'dist');await mkdir(source,{recursive:true,mode:0o700});await mkdir(dist,{mode:0o700});
- run('git',['-C',clone,'archive','--format=tar','--output',resolve(stageDir,'source.tar'),inputs.sourceSha]);run('tar',['-xf',resolve(stageDir,'source.tar'),'-C',source]);await verifySnapshot(source,inputs);await mkdir(resolve(source,'node_modules'));await mkdir(resolve(source,'apps/web/node_modules'));
+ run('git',['-C',clone,'archive','--format=tar','--output',resolve(stageDir,'source.tar'),inputs.sourceSha,...archivedBuildPaths(inputs.inputFiles)]);run('tar',['-xf',resolve(stageDir,'source.tar'),'-C',source]);await verifySnapshot(source,inputs);await mkdir(resolve(source,'node_modules'));await mkdir(resolve(source,'apps/web/node_modules'));
  const webDependencies=await realpath(resolve(root,'apps/web/node_modules'));if(relative(root,webDependencies).startsWith('..')||!(await stat(resolve(webDependencies,'vite/bin/vite.js'))).isFile())throw new Error('Verified scoped web dependencies are unavailable.');
  const nodeVersion=docker(['run','--rm','--network','none','--label','com.docker.compose.project=samvev-m1','--entrypoint','node',raw.Image,'--version']).trim();if(!/^v24\./.test(nodeVersion))throw new Error('Builder must use Node 24.');
  const args=isolatedBuildArguments({source,dist,imageId:raw.Image,uid:process.getuid(),gid:process.getgid(),webDependencies});

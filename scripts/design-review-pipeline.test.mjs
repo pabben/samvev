@@ -4,9 +4,14 @@ import {randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile,rm,symlink} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {requireAppRecreation,directoryHashes,directApiCommand} from './design-review-provenance.mjs';
-import {activationOverride,composeFiles,recoveredStdinOverride,isolatedBuildArguments,requireComposeApp,promoteArtifact,requireStageProof} from './design-review-pipeline.mjs';
+import {activationOverride,archivedBuildPaths,composeFiles,recoveredStdinOverride,isolatedBuildArguments,requireComposeApp,promoteArtifact,requireStageProof} from './design-review-pipeline.mjs';
 const imageId=`sha256:${'b'.repeat(64)}`;
 const sourceSha='a'.repeat(40);
+test('isolated web archive includes verified build roots but excludes review images',()=>{
+ assert.deepEqual(archivedBuildPaths({'apps/web/src/main.tsx':'a','services/api/src/app.ts':'b','scripts/design-review.mjs':'c','package.json':'d','Dockerfile':'e'}),['Dockerfile','apps','package.json','scripts','services']);
+ assert.throws(()=>archivedBuildPaths({'docs/design/review/latest/manifest.json':'a'}),/Unexpected/);
+ assert.throws(()=>archivedBuildPaths({}),/No verified/);
+});
 function rawFixture(){return {Id:'old-container',Image:imageId,Config:{Image:'samvev-m1/workspace:local',Hostname:'stable-host',User:'1000:1000',Env:['PATH=/node','SYNTHETIC=true'],WorkingDir:'/workspace',Entrypoint:['dumb-init','--'],Cmd:['sh','-c','npm run build && npm run dev:api'],Labels:{'com.docker.compose.project':'samvev-m1','com.docker.compose.service':'qa-app','com.docker.compose.config-hash':'old'},Healthcheck:{Test:['CMD','synthetic-health']}},HostConfig:{ReadonlyRootfs:false,Privileged:false,Init:true,RestartPolicy:{Name:'no'},PortBindings:{'4173/tcp':[{HostIp:'192.168.0.220',HostPort:'4173'}]},SecurityOpt:[],CapAdd:[],CapDrop:[]},Mounts:[{Type:'bind',Source:'/synthetic/source',Destination:'/workspace',RW:true}],NetworkSettings:{Networks:{'samvev-m1_samvev':{Aliases:['qa-app']}}}};}
 test('command-only recreation preserves every captured runtime configuration invariant',()=>{
  const before=rawFixture(),after=structuredClone(before);after.Id='new-container';after.Config.Image=before.Image;after.Config.Cmd=directApiCommand;after.Config.Labels['com.docker.compose.config-hash']='new';assert.doesNotThrow(()=>requireAppRecreation(before,after));assert.deepEqual(activationOverride(before),{services:{'qa-app':{image:before.Image,hostname:'stable-host',command:directApiCommand}}});
