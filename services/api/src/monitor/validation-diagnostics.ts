@@ -18,10 +18,21 @@ export function sanitizedValidationIssues(value:unknown):MonitorValidationIssue[
   const result:MonitorValidationIssue[]=[];const seen=new Set<string>();
   for(const candidate of value.slice(0,16)){
     if(!candidate||typeof candidate!=='object'||Array.isArray(candidate))continue;
-    const row=candidate as Record<string,unknown>;if(typeof row.code!=='string'||!issueCodes.has(row.code)||!Array.isArray(row.path)||row.path.length>8)continue;
-    const parts:string[]=[];let valid=true;
-    for(const segment of row.path){if(typeof segment==='number'&&Number.isInteger(segment)&&segment>=0){parts.push('[]');continue;}if(typeof segment==='string'&&issueFields.has(segment)){parts.push(segment);continue;}valid=false;break;}
-    if(!valid)continue;const item={path:(parts.join('.').replaceAll('.[]','[]')||'$'),code:row.code};const key=`${item.path}:${item.code}`;if(seen.has(key))continue;seen.add(key);result.push(item);if(result.length>=8)break;
+    const row=candidate as Record<string,unknown>;if(typeof row.code!=='string'||!issueCodes.has(row.code))continue;
+    let path:string;
+    if(Array.isArray(row.path)){
+      if(row.path.length>8)continue;const parts:string[]=[];let valid=true;
+      for(const segment of row.path){if(typeof segment==='number'&&Number.isInteger(segment)&&segment>=0){parts.push('[]');continue;}if(typeof segment==='string'&&issueFields.has(segment)){parts.push(segment);continue;}valid=false;break;}
+      if(!valid)continue;path=parts.join('.').replaceAll('.[]','[]')||'$';
+    }else if(typeof row.path==='string'&&row.path.length<=160){
+      if(row.path==='$')path='$';
+      else{
+        const segments=row.path.split('.');if(segments.length>8)continue;
+        const valid=segments.every((segment)=>{if(!/^[A-Za-z][A-Za-z0-9]*(?:\[\])?$/.test(segment))return false;const field=segment.endsWith('[]')?segment.slice(0,-2):segment;return issueFields.has(field);});
+        if(!valid)continue;path=row.path;
+      }
+    }else continue;
+    const item={path,code:row.code};const key=`${item.path}:${item.code}`;if(seen.has(key))continue;seen.add(key);result.push(item);if(result.length>=8)break;
   }
   return result;
 }

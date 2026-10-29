@@ -3,7 +3,7 @@ import test from 'node:test';
 import { DomainError } from '@samvev/core';
 import { answerFromAi, compositeDecisionFromAi, conditionalWeatherExtraction, extractionFromAi, interpretationFromAi, monitorScheduleFromInstruction, monitorSetupSummary, monitorSourcePlan, monitorTaskLifecycle, weatherConditionFromInstruction, weatherScopeFromInstruction } from './service.ts';
 import { monitorEventKey, orderedMonitorEvents } from './event-identity.ts';
-import { sanitizedMonitorErrorDetails } from './service.ts';
+import { sanitizedMonitorErrorDetails, sanitizedStoredMonitorErrorDetails } from './service.ts';
 
 const event=(date:string,description='Trip day')=>({date,time:null,type:'trip',description,actions:['Bring boots'],who:['A'],evidence:{quote:`Trip day ${date} A Bring boots`,sourceUrl:'https://example.com/plan'},confidence:0.9,uncertainty:null});
 const rule={version:1 as const,resultKind:'answer' as const,summary:'Read the current headline.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60};
@@ -15,6 +15,8 @@ test('validation diagnostics expose only bounded reason tokens and safe ambiguit
   assert.equal(sanitizedMonitorErrorDetails(new Error('raw provider detail')),null);
   const structural=sanitizedMonitorErrorDetails(new DomainError('MONITOR_INTERPRETATION_SCHEMA_INVALID',502,{validationStage:'final_schema',validationReason:'schema_mismatch',validationIssues:[{path:['events',0,'date'],code:'invalid_type',value:'private'},{path:['attacker_supplied_key'],code:'invalid_type'},{path:['summary'],code:'private_code'}],rawOutput:'must not escape'}));
   assert.deepEqual(structural,{validationStage:'final_schema',validationReason:'schema_mismatch',validationIssues:[{path:'events[].date',code:'invalid_type'}]});
+  assert.deepEqual(sanitizedStoredMonitorErrorDetails('MONITOR_INTERPRETATION_SCHEMA_INVALID',structural),structural,'normalized diagnostics survive storage and public projection');
+  assert.equal(sanitizedStoredMonitorErrorDetails('MONITOR_INTERPRETATION_SCHEMA_INVALID',{...structural,validationIssues:[{path:'events[].attacker_key',code:'invalid_type'}]})?.validationIssues,undefined,'stored paths stay allowlisted');
 });
 
 test('weather intent uses the domain tool without inventing or scraping a web source',()=>{
