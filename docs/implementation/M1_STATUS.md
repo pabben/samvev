@@ -1,12 +1,12 @@
 # Current Round 15 checkpoint — 2026-10-29 13:35:05 UTC
 
-Candidate `05cf86dc83ab70070b7050b2c25fa71cff6380bb` implements issues #16–18. Final QA passed: isolated API 437/437 (0 failures), web 207/207, contracts 7/7, core 3/3, web typecheck PASS, and source-05cf functional browser acceptance 14/14. UX/security review passed; requirements review is conditional GO. Partial R15 was deployed at 13:35:05 UTC: source/deploy SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb`, image `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`, schema 41→45. Fresh quiescent backup and pre/post isolated restore gates passed; app/worker/db are healthy; data, vault and configuration hashes were preserved. Public HTTPS Playwright smoke passed 11/11; health and `/om`, `/personvern`, `/vilkar`, `/display` returned 200. #19 actual logos remain undelivered pending rights evidence; generic code-native glyphs with visible names are used.
+Candidate `05cf86dc83ab70070b7050b2c25fa71cff6380bb` implements issues #16–18. Final QA passed: isolated API 437/437 (0 failures), web 207/207, contracts 7/7, core 3/3, and web typecheck PASS. Initial API full-run attempts overlapped stale test runners; authoritative API result is the final isolated test service/test-db run after stopping stale runners. Web/contracts/core results are from preceding completed stages of the final suite. Separate source-05cf functional browser acceptance passed 14/14. UX/security review passed; requirements review is conditional GO. Partial R15 was deployed at 13:35:05 UTC: source/deploy SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb`, image `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`, schema 41→45. Fresh quiescent backup and pre/post isolated restore gates passed; app/worker/db are healthy; data, vault and configuration hashes were preserved. Public HTTPS Playwright smoke passed 11/11; health and `/om`, `/personvern`, `/vilkar`, `/display` returned 200. The People route passed, but the color editor was not exercised (`peopleColorControl=not-authorized`, synthetic account lacks `people.manage`). #19 logo assets were removed from delivery; actual logos remain unshipped pending rights evidence. Generic code-native glyphs with visible names are used.
 
 School task A failed final JSON/schema validation, but raw output is unavailable; task B's prior generic failure remains undiagnosed. Neither has been live repaired, and no model call/task mutation is claimed. Google/Microsoft owner consent/registration, expired-TLS HA endpoint, private ICS, school display choice and physical iPad/Shelly/real-screen checks remain open.
 
 A QA-only full-test incident truncated the synthetic QA database. Recovery proceeded forward from the 00:08 backup into schema 45 after isolated donor/test restore; 86 table hashes/FKs, AI rates/ledger, login/`me` 200 and app/worker health were verified. Changes made in QA after that backup may be absent; public data was untouched.
 
-Public status: partial R15 is deployed. #19 rights evidence, school-task diagnosis, Google/Microsoft owner consent/registration, expired-TLS HA endpoint, private ICS validation, school display choice and physical iPad/Shelly/real-screen checks remain open. A publication update slot is maintained in [ROUND_15_REPORT.md](../design/review/ROUND_15_REPORT.md). The 14 masked screenshots for six-person Round ID `20261029134403-05cf86dc-28ee8faa` were copied; `bash scripts/design-review.sh` passed and image hashes/source SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb` match; manifest LAN origin and demo identity were omitted. No private screenshots, secrets, names or real household data were added.
+Public status: partial R15 is deployed. #19 rights evidence, school-task diagnosis, Google/Microsoft owner consent/registration, expired-TLS HA endpoint, private ICS validation, school display choice and physical iPad/Shelly/real-screen checks remain open. A publication update slot is maintained in [ROUND_15_REPORT.md](../design/review/ROUND_15_REPORT.md). The 14 masked empty-day Home screenshots for six-person Round ID `20261029134403-05cf86dc-28ee8faa` were copied; `bash scripts/design-review.sh` passed and image hashes/source SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb` match. They are layout/theme evidence, not rich functional-state or physical-device proof; separate source-05cf functional/visual evidence is local and ignored; manifest LAN origin and demo identity were omitted. No private screenshots, secrets, names or real household data were added.
 
 See [ROUND_15_STATUS.md](../design/review/ROUND_15_STATUS.md), [ROUND_15_REQUIREMENTS.md](../design/review/ROUND_15_REQUIREMENTS.md), and [ROUND_15_OWNER_ACTIONS.md](../design/review/ROUND_15_OWNER_ACTIONS.md) for detail.
 
@@ -16,7 +16,7 @@ See [ROUND_15_STATUS.md](../design/review/ROUND_15_STATUS.md), [ROUND_15_REQUIRE
 
 R15-statusen øverst i dette dokumentet er gjeldende. Eldre R15-setninger i historiske avsnitt nedenfor kan være erstattet av det nye checkpointet; se `docs/design/review/ROUND_15_STATUS.md` for dagens bevis og avgrensninger.
 
-## Round 15 active checkpoint — 2026-10-28
+## Historical Round 15 checkpoint — 2026-10-28 (superseded by current summary above)
 
 Round 15 remains in local implementation and review. The public R14 baseline
 below is unchanged at source `971913e321dd82f491214fdbda81d08f8123a891`.
@@ -26,9 +26,9 @@ screen/ICS/school UI `d4490a5`. Recorded checks passed: time 40 tests, school
 159-test web suite. The prior integrated DST day-history regression is fixed;
 current person cards retain their explicit stricter eligibility rule.
 
-The two real school failures remain separately diagnosed: one final-schema
-rejection with discarded output, and one older generic failure of unknown
-cause. Provider fault is not established. Their school presentation metadata
+At this historical checkpoint, the observed records showed one final JSON/schema
+validation failure with discarded raw output and one older generic failure of
+unknown cause. Neither root cause was established; provider fault is not established. Their school presentation metadata
 remains unset; owner activation is separate. Migration 042 has only been tested
 on the isolated test database; legacy producer links stay `NULL` without a
 guessed backfill. Home visual review, screenshots, final reviews/QA, restore
@@ -36,7 +36,7 @@ evidence and public test deployment remain pending. The earlier final-delivery
 entries below describe R14, not completion of Round 15. See
 [Round 15 status](../design/review/ROUND_15_STATUS.md).
 
-## Authoritative final delivery — 2026-10-28 03:59 UTC
+## Historical R14 final delivery — 2026-10-28 03:59 UTC (superseded for current deployment by the Round 15 summary above)
 
 Public test deployment and scoped HTTPS verification **PASS** at https://samvev.pabben.org/. Source/deploy `971913e321dd82f491214fdbda81d08f8123a891`; image `sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`. Round `20261028032511-971913e3-046fbbb8`. Final local 526 tests, UX/security/readiness gate, fresh pre-cutover restore and postdeployment restore passed. Owner authorization/key/private-calendar/school actions remain separate. Public People color editing was not authorized for the synthetic smoke account; isolated editing tests passed. All lower checkpoint/pending statements are retained historical records, not current status.
 

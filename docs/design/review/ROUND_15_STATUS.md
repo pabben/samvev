@@ -1,10 +1,24 @@
-# Runde 15 – implementeringsstatus
+# Runde 15 – gjeldende status (2026-10-29 13:35:05 UTC)
 
-Status: lokalt arbeid pågår, 28. oktober 2026. Kravgrunnlaget er
+Delvis R15 er publisert: source/deploy `05cf86dc83ab70070b7050b2c25fa71cff6380bb`, image `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`, skjema 41→45. Quiescent backup, pre-/post-cutover restore-gates, tjenestehelse og bevaring av data/vault/konfigurasjon er PASS. Offentlig HTTPS smoke er 11/11. QA er PASS: endelig isolert API 437/437 (0 feil), web 207/207, contracts 7/7, core 3/3, typecheck PASS. De første API-fullkjøringene overlappet med foreldede test-runners og er ikke autoritative; den endelige 437/437-kjøringen brukte isolert test-service/test-db etter at stale runners var stoppet. Web/contracts/core kom fra tidligere avsluttede stadier av endelig suite.
+
+Åpning av People-ruten bestod i offentlig smoke, men fargeeditoren ble ikke testet: `peopleColorControl=not-authorized`, siden syntetisk smoke-konto manglet `people.manage`. Ingen påstand om offentlig fargeeditoraksept. Skoleoppdrag A har kun observert feil i endelig JSON/schema-validering; råutdata mangler, og årsaken er ukjent. Oppdrag B er fortsatt udiagnostisert. #19-logoressursene er fjernet fra leveransen; faktiske logoer er ikke publisert fordi rettighetsbevis mangler. Generiske kodebaserte symboler og synlige navn brukes.
+
+Nyeste kanoniske visuelle pakke er seks-personers, 14-maskert bildeopptak Round ID `20261029134403-05cf86dc-28ee8faa`, kilde SHA `05cf86dc83ab70070b7050b2c25fa71cff6380bb`. `bash scripts/design-review.sh` PASS. Disse Git-bildene viser maskert, tom-dags Home i flere størrelser/temaer; de er ikke bevis for rik/funksjonell tilstand eller fysisk iPad/Shelly-skjerm. Separat source-05cf funksjonell og visuell evidens finnes i lokale, ignorerte evidence-output. Ingen ekte husholdningsdata eller hemmeligheter er lagt til.
+
+Gjenværende eierhandlinger: logo-rettigheter, skoleoppdragenes avklaringer, Google/Microsoft samtykke/registrering, HA-endepunkt med utløpt TLS, privat ICS-kontroll, skolevisningsvalg og fysiske iPad/Shelly/ekte skjermkontroller. QA-databasehendelsen og begrenset restore er dokumentert i [ROUND_15_REPORT.md](ROUND_15_REPORT.md).
+
+## Historiske checkpoints – superseded av gjeldende status over
+
+All tekst fra dette punktet gjennom de følgende eldre kontrollpunktene, inkludert lokale R14- og «gjenstår»-utsagn, er historisk og erstattet av gjeldende oppsummering ovenfor.
+
+## Historisk statusopptak – 2026-10-28 (superseded)
+
+Status på det tidspunktet: lokalt arbeid pågår. Kravgrunnlaget er
 [ROUND_15_REQUIREMENTS.md](ROUND_15_REQUIREMENTS.md). Dette er en kontrollert
 mellomstatus; samlet QA, release gate og offentlig testpublisering gjenstår.
 
-## Nyeste kontrollpunkt: asynkron skjermtilgang rettet
+## Historisk kontrollpunkt: asynkron skjermtilgang rettet (superseded)
 
 Den avgrensede sterkere rettingen er implementert. Innløsning, eksplisitt
 frakobling, felles kildeidentitet og cacheendringer koordineres gjennom samme
@@ -29,26 +43,24 @@ ikke en samlet releasegodkjenning; faktiske appbilder, fagreview, gjenoppretting
 og offentlig publisering gjenstår. API- og webkodens verifiserte deltrær kan
 gjenbrukes uten ny fullkjøring dersom de ikke endres.
 
-## Nyeste kontrollpunkt: leverandørlogoer #19
+## Historisk kontrollpunkt: leverandørlogoer #19 (ressursene senere fjernet)
 
-Offisielle, uendrede lokale ressurser for Google Kalender, Outlook, Spond og
-Home Assistant brukes i eksisterende kalenderflyt. Spond/HA-kortet har begge
-merkene; ICS beholder generisk ikon. Synlige navn og dekorative bilder er
-separate, uten eksterne bildekall. Kilde-/rettighetskontekst og SHA-256 står i
-`apps/web/src/assets/calendar-providers/PROVENANCE.md`.
+Tidlig lokal implementasjon prøvde offisielle, uendrede ressurser for Google
+Kalender, Outlook, Spond og Home Assistant. Etter rettighetskontroll ble disse
+logoressursene fjernet fra leveransen: dokumentert bruksrett mangler, og ingen
+faktiske leverandørlogoer er publisert. Nåværende UI bruker generiske
+kodebaserte symboler med synlige navn; ICS bruker generisk ikon.
 
-31 målrettede tester og web-typekontroll bestod. Etter hovedreview ble en
-CSS-spesifisitetsfeil i lys Spond-variant rettet. Faktisk Chromium-komponenttest
-med React-markup, originale bilder og appens CSS bekrefter én synlig variant i
-begge temaer; to ressurs-/tilgjengelighetstester og ny typekontroll består.
-Dette er komponentbevis, ikke visuell godkjenning av de ferdige appsidene.
+Tidligere 31 målrettede tester og Chromium-komponenttest gjaldt den lokale
+logoimplementasjonen som nå er fjernet. De dokumenterer ikke logoressurser i
+publisert runtime eller rettighetsklarering.
 
 Resterende asynkrone skjermfunn er bekreftet av sterkere review: kjente lokale
 referanser alene beskytter ikke mot en nyere felles nettleserkobling. Neste
 avgrensede skriver retter koordinering av innløsning, eksplisitt frakobling,
 publisering av kildeidentitet og sene svar. Ingen runtime er oppdatert ennå.
 
-## Nyeste kontrollpunkt: skjerm-UI og ekstern HA-hindring
+## Historisk kontrollpunkt: skjerm-UI og ekstern HA-hindring (superseded)
 
 UI for #17/#18 er implementert lokalt: gjenkobling av eksisterende registrering,
 kompakte språk-/utseendevalg med arv, separate personvalg per enhet og oppsett,
@@ -68,7 +80,7 @@ var utløpt; ingen tokenfornyelse eller ny autorisasjon ble startet. Eieren må
 fornye sertifikatet i den eksisterende HA-/proxy-driften før ekte synk kan
 kontrolleres videre. Dette er adskilt fra Samvev-kode og blokkerer ikke resten.
 
-## Nyeste kontrollpunkt: skjermbackend #17/#18
+## Historisk kontrollpunkt: skjermbackend #17/#18 (superseded)
 
 Backend med additive migrasjoner 043/044 er implementert og kontrollert lokalt.
 Gjenkobling bevarer registrering, oppsett og delinger; vellykket innløsning roterer
@@ -95,7 +107,7 @@ oppdatering 28. oktober kl. 20.13 UTC. Dette er en observert eksisterende status
 ikke en R15-regresjon eller en live-godkjenning av HA. Kilder, hemmeligheter og
 delinger er ikke endret. Videre kontroll holdes adskilt fra syntetisk testing.
 
-## Nyeste kontrollpunkt: kalenderfeil #16
+## Historisk kontrollpunkt: kalenderfeil #16 (superseded)
 
 Samme pågående runde omfatter nå #16–#19. Kalenderrettingen er implementert
 lokalt og gjennomgått av hovedagenten. webcal/HTTPS bruker samme pinnede
@@ -187,7 +199,7 @@ Skjerm-/ICS-flyten er integrert i `d4490a5`, Next/historikk i `cd53080`, og skje
 Brukeren utvidet samme mål etter at tidligere utviklingspakke var implementert og 546 tester bestod. Nye issues 16–19 er lest; krav og ansvar er lagt til i samme matrise. Pågående capture-/opsforberedelser bevares, men er ikke sluttgodkjent for den utvidede kandidaten. Offentlig drift er fortsatt R14, uendret. Skrivearbeid fortsetter sekvensielt: A ICS, B skjermbackend, C skjerm-UI, D logoressurser; fagreview og lokalt QA følger integrasjon. R14-fallback må erstattes med ny policykompatibel gjenoppretting før 043/044 tas i drift.
 
 
-## Endelig checkpoint – 2026-10-29 13:07:49 UTC
+## Historisk checkpoint – 2026-10-29 13:07:49 UTC (superseded)
 
 Kandidatkilden er `05cf86dc83ab70070b7050b2c25fa71cff6380bb`. Kriteriene #16–18 er implementert. Endelig QA er ferdig: isolert API-suite 437/437 (0 feil), web 207/207, contracts 7/7, core 3/3 og web-typekontroll PASS. Source-05cf funksjonell nettleserkontroll bestod 14/14. UX- og sikkerhetsreview er PASS; kravreview er betinget GO. Isolert offentlig clone restore-gate er PASS (`.local/m3/round15/ops/public-restore-20261029T132214Z/result.private.json`). Offentlig cutover kjører fortsatt, så publisering er ennå ikke bekreftet.
 
@@ -208,7 +220,7 @@ Offentlig testmiljø er fortsatt R14 mens cutover kjører. R15 er **ikke bekreft
 Siste issuesjekk kl. 13:07:49 UTC fant ni åpne issues og ingen nye kommentarer. Ingen issue ble kommentert eller lukket. Syntetiske finalbilder ligger i lokale evidence-output-kataloger; publisert `latest/` har 14 hashverifiserte, personvernmaskerte PNG-er fra seks-personers Round ID `20261029134403-05cf86dc-28ee8faa`; manifestets source SHA er `05cf86dc83ab70070b7050b2c25fa71cff6380bb`. Manifestets LAN-origin og demo-kontolabel er fjernet. Ingen privat nettleserbilder, hemmeligheter eller ekte husholdningsdata ble lagt i Git.
 
 
-## Offentlig cutover – 2026-10-29 13:35:05 UTC
+## Offentlig cutover – 2026-10-29 13:35:05 UTC (completion receipt)
 
 Den delvise R15-kandidaten er nå publisert; cutover completion receipt har mtime 13:35:05 UTC. Source/deploy SHA er `05cf86dc83ab70070b7050b2c25fa71cff6380bb`; immutable image er `sha256:20a587bbc1f8630afdbb02be881ef97f996ae8ee58eaa14c1c7112afdaf61e10`. Databaseskjema gikk fra 41 til 45. Fersk quiescent backup, pre-/post-cutover isolerte restore-gates og helse for app, worker og database bestod. Data-, vault- og konfigurasjonshasher ble bevart. Cutoverbevis: `.local/m3/round15/ops/cutover-20261029T133220Z/result.private.json` (cutover run directory; completion receipt mtime 13:35:05 UTC).
 
