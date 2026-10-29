@@ -489,7 +489,7 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
     (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'
   );
   const unclassifiedFailure=new OpenAiCompatibleProvider(async()=>{throw new Error('synthetic local exception');},1_000,resolver);
-  await assert.rejects(unclassifiedFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_UPSTREAM_ERROR'&&error.responseReason===undefined&&error.fallbackReason===undefined);
+  await assert.rejects(unclassifiedFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'&&!error.message.includes('synthetic local exception'));
 
   const upstreamAbort=new OpenAiCompatibleProvider(async()=>{throw new DOMException('upstream aborted early','AbortError');},1_000,resolver);
   await assert.rejects(
@@ -500,7 +500,7 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
   const dnsFailure=new OpenAiCompatibleProvider(async()=>new Response('{}'),1_000,async()=>{throw new Error('synthetic dns failure');});
   await assert.rejects(
     dnsFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
-    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'
   );
 
   const reasoningOnly=new OpenAiCompatibleProvider(async()=>new Response(JSON.stringify({choices:[{message:{content:null,reasoning_content:'No final answer'}}]})),1_000,resolver);

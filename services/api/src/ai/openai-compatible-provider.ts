@@ -105,8 +105,8 @@ export async function resolveOpenAiCompatibleTarget(
   const hostname = new URL(normalized).hostname.replace(/^\[|\]$/g, '');
   let targets: AiResolvedTarget[];
   try { targets = await resolver(hostname); }
-  catch { throw new AiProviderFailure('AI_UPSTREAM_ERROR'); }
-  if (!targets.length) throw new AiProviderFailure('AI_UPSTREAM_ERROR');
+  catch { throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error',undefined,undefined,'network_error'); }
+  if (!targets.length) throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error',undefined,undefined,'network_error');
   if (targets.some((target) => isBlockedAiTarget(target.address))) {
     throw new AiProviderFailure('AI_ENDPOINT_BLOCKED');
   }
@@ -278,7 +278,7 @@ class ChatCompletionSession implements AiProviderSession {
       const payload=parsed as Record<string,unknown>;const usage=normalizedUsage(payload.usage);if(!response.ok){const failure=classifiedHttpFailure(response.status,payload,upstreamReason(response.status,payload));throw new AiProviderFailure(failure.code,usage,failure.responseReason,undefined,undefined,failure.fallbackReason);}
       const turn=internalizeAiProviderTurn(chatCompletionTurn(payload),this.aliases);
       this.messages.push(normalizedAssistantContinuation(turn,this.aliases));this.pending=new Map(turn.toolCalls.map((call)=>[call.id,call.name]));return turn;
-    }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;if(!wireStarted)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR');}
+    }catch(error){const timedOut=active.signal.aborted;this.close();if(timedOut)throw new AiProviderFailure('AI_TIMEOUT');if(error instanceof AiProviderFailure)throw error;if(!wireStarted)throw error;throw new AiProviderFailure('AI_UPSTREAM_ERROR',undefined,'network_error',undefined,undefined,'network_error');}
     finally{if(aborted)active.signal.removeEventListener('abort',onAbort);active.close();}
   }
 }

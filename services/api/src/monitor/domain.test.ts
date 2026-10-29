@@ -13,6 +13,8 @@ test('validation diagnostics expose only bounded reason tokens and safe ambiguit
   assert.deepEqual(safe,{validationStage:'evidence_anchor',validationReason:'claim'});
   assert.deepEqual(sanitizedMonitorErrorDetails(new DomainError('AI_RESPONSE_INVALID',502,{validationStage:'made_up',validationReason:'raw secret'})),{validationStage:'provider_response',validationReason:'invalid_response'});
   assert.equal(sanitizedMonitorErrorDetails(new Error('raw provider detail')),null);
+  const structural=sanitizedMonitorErrorDetails(new DomainError('MONITOR_INTERPRETATION_SCHEMA_INVALID',502,{validationStage:'final_schema',validationReason:'schema_mismatch',validationIssues:[{path:['events',0,'date'],code:'invalid_type',value:'private'},{path:['attacker_supplied_key'],code:'invalid_type'},{path:['summary'],code:'private_code'}],rawOutput:'must not escape'}));
+  assert.deepEqual(structural,{validationStage:'final_schema',validationReason:'schema_mismatch',validationIssues:[{path:'events[].date',code:'invalid_type'}]});
 });
 
 test('weather intent uses the domain tool without inventing or scraping a web source',()=>{

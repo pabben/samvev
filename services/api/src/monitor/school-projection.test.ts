@@ -31,7 +31,9 @@ test('school freshness separates recorded, verified and latest attempt time with
 test('bounded final-schema diagnostics distinguish invalid JSON, schema mismatch and oversize without raw output',()=>{
   for(const [output,reason] of [['<html>synthetic unexpected response</html>','invalid_json'],['{"summary":"missing required fields"}','schema_mismatch'],['x'.repeat(32_001),'response_too_large']]){
     assert.throws(()=>interpretationFromAi(output!),(error:any)=>{
-      assert.deepEqual(error.details,{validationStage:'final_schema',validationReason:reason});return true;
+      assert.equal(error.details.validationStage,'final_schema');assert.equal(error.details.validationReason,reason);
+      if(reason==='schema_mismatch'){assert.ok(Array.isArray(error.details.validationIssues));assert.ok(error.details.validationIssues.length>0);assert.ok(error.details.validationIssues.every((issue:any)=>typeof issue.path==='string'&&typeof issue.code==='string'));}
+      assert.equal('rawOutput' in error.details,false);assert.equal('output' in error.details,false);return true;
     });
   }
 });

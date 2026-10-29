@@ -42,13 +42,13 @@ function balancedObjectCandidates(text:string):string[]{
 }
 function schemaMonitorJsonDetailed<T>(text:string,schema:ZodType<T>,invalidCode:string):{data:T;raw:unknown}{
   if(text.length>MAX_MONITOR_OUTPUT_CHARS)throw validationError(invalidCode,502,'final_schema','response_too_large');
-  let validJson=false;
+  let validJson=false;let issues:unknown;
   const trimmed=text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
-  try{const raw=JSON.parse(trimmed);validJson=true;const exact=schema.safeParse(raw);if(exact.success)return{data:exact.data,raw};}catch{/* bounded candidate recovery below */}
+  try{const raw=JSON.parse(trimmed);validJson=true;const exact=schema.safeParse(raw);if(exact.success)return{data:exact.data,raw};issues??=exact.error.issues.map((issue)=>({path:issue.path,code:issue.code}));}catch{/* bounded candidate recovery below */}
   for(const candidate of balancedObjectCandidates(text)){
-    try{const raw=JSON.parse(candidate);validJson=true;const parsed=schema.safeParse(raw);if(parsed.success)return{data:parsed.data,raw};}catch{/* try the next balanced object */}
+    try{const raw=JSON.parse(candidate);validJson=true;const parsed=schema.safeParse(raw);if(parsed.success)return{data:parsed.data,raw};issues??=parsed.error.issues.map((issue)=>({path:issue.path,code:issue.code}));}catch{/* try the next balanced object */}
   }
-  throw validationError(invalidCode,502,'final_schema',validJson?'schema_mismatch':'invalid_json');
+  throw validationError(invalidCode,502,'final_schema',validJson?'schema_mismatch':'invalid_json',issues);
 }
 function schemaMonitorJson<T>(text:string,schema:ZodType<T>,invalidCode:string):T{return schemaMonitorJsonDetailed(text,schema,invalidCode).data;}
 function assertModelLocaleContract(text:string,field:'answer'|'events',locale:Locale):void{
