@@ -273,4 +273,9 @@ test('admin preview is side-effect-free and image bytes remain device-grant filt
     await pool.query("UPDATE sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[ownerSessionId]);
   }finally{await managerLock.query('ROLLBACK');managerLock.release();}
   const staleManager=await waitingManager!;assert.equal(staleManager.statusCode,401,'manager session expiry during awaited preview work invalidates the completed projection');
+  const freshLogin=await app.inject({method:'POST',url:'/api/v1/auth/login',headers:{origin},payload:{email:'round13-display-manager@test.invalid',password:'Synthetic-display-manager-password-42'}});assert.equal(freshLogin.statusCode,200,freshLogin.body);const freshOwnerHeaders={cookie:cookie(freshLogin),'x-csrf-token':freshLogin.json().csrfToken,origin};
+  await pool.query(`INSERT INTO rate_limits(bucket,key_hash,window_started_at,attempts) VALUES('display_preview_account',$1,clock_timestamp(),60)
+    ON CONFLICT(bucket,key_hash) DO UPDATE SET window_started_at=clock_timestamp(),attempts=60`,[hash(ownerAccountId)]);
+  const limitedPreview=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/displays/${displayId}/preview`,headers:freshOwnerHeaders,payload:{}});assert.equal(limitedPreview.statusCode,429,limitedPreview.body);assert.equal(limitedPreview.json().error.code,'RATE_LIMITED','preview limits are enforced before draft validation or projection work');
+  await pool.query("DELETE FROM rate_limits WHERE bucket LIKE 'display_preview_%'");
 });

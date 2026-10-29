@@ -2352,7 +2352,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   });
 
   app.post('/api/v1/households/:householdId/displays/:displayId/preview',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');reply.header('Cache-Control','private, no-store');
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');await operationRateLimit(request,auth,'display_preview',{account:60,household:180,ip:120,windowSeconds:3600});reply.header('Cache-Control','private, no-store');
     const householdId=auth.householdId;const displayId=params(request).displayId!;const source=parse(displaySetupPreviewSchema,request.body);
     const selected=await transaction(async(client)=>{
       await recheckHouseholdAuth(client,request,auth,'display.manage');
