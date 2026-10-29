@@ -11,6 +11,15 @@ export function effectiveDisplayTheme(override: Theme|null|undefined, setupDefau
   return override ?? setupDefault ?? fallback;
 }
 
+/** Convert the admin select's explicit inheritance choice to the nullable API fields. */
+export function displayLocalePatch(selection: Locale|'inherit'): { locale: Locale|null } {
+  return { locale: selection === 'inherit' ? null : selection };
+}
+
+export function displayThemePatch(selection: Theme|'inherit'): { theme: Theme|null } {
+  return { theme: selection === 'inherit' ? null : selection };
+}
+
 export function changedDevicePeople(currentOverride: string[]|null, effectiveIds: string[], personId: string, checked: boolean): { personIdsOverride: string[] } {
   const current = currentOverride ?? effectiveIds;
   const ids = checked ? [...current, personId] : current.filter(id => id !== personId);

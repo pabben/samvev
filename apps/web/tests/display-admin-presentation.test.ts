@@ -1,12 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
+import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayLocalePatch, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
 
 test("display locale and theme inherit from their assigned setup unless a raw override is present", () => {
   assert.equal(effectiveDisplayLocale(null, "nb", "en"), "nb");
   assert.equal(effectiveDisplayLocale("en", "nb", "nb"), "en");
   assert.equal(effectiveDisplayTheme(null, "dark", "system"), "dark");
   assert.equal(effectiveDisplayTheme("light", "dark", "system"), "light");
+});
+
+test("display admin select values map to the strict update API locale and theme fields", () => {
+  assert.deepEqual(displayLocalePatch("inherit"), { locale: null });
+  assert.deepEqual(displayLocalePatch("nb"), { locale: "nb" });
+  assert.deepEqual(displayThemePatch("inherit"), { theme: null });
+  assert.deepEqual(displayThemePatch("dark"), { theme: "dark" });
 });
 
 test("device selection distinguishes inherited, none, and explicit current people without grant fields", () => {

@@ -14,7 +14,7 @@ import {
 } from "./ui";
 import { formatDate } from "./time";
 import { DisplaySetupsAdmin } from "./display-setups-admin";
-import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, effectiveDisplayLocale, effectiveDisplayTheme, inheritDevicePeople, noDevicePeople, selectedDevicePeople } from "./display-admin-presentation";
+import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayLocalePatch, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, inheritDevicePeople, noDevicePeople, selectedDevicePeople } from "./display-admin-presentation";
 type SetupChoice={id:string;name:string};
 export function DisplaysPanel({
   displays,
@@ -104,8 +104,8 @@ export function DisplaysPanel({
                 </details>
                 <details className="display-admin-section">
                   {(() => { const localeValue=effectiveDisplayLocale(d.localeOverride,d.setupDefaults?.locale,d.effective?.locale??d.locale); const themeValue=effectiveDisplayTheme(d.themeOverride,d.setupDefaults?.theme,d.effective?.theme??d.theme); return <><summary>{t("displayLanguageAppearanceSummary",{language:t(localeValue),appearance:t(themeValue)})}</summary><div className="form-grid">
-                    <Field label={t("displayLocale")} hint={t(d.localeOverride==null?"displayFollowingSetup":"displayOverrideActive")}><select value={d.localeOverride??"inherit"} onChange={(e) => void run(() => update(d, { localeOverride: e.target.value === "inherit" ? null : e.target.value }))}><option value="inherit">{t("inheritSetupLocale")}</option><option value="en">{t("en")}</option><option value="nb">{t("nb")}</option></select></Field>
-                    <Field label={t("displayTheme")} hint={t(d.themeOverride==null?"displayFollowingSetup":"displayOverrideActive")}><select value={d.themeOverride??"inherit"} onChange={(e) => void run(() => update(d, { themeOverride: e.target.value === "inherit" ? null : e.target.value }))}><option value="inherit">{t("inheritSetupTheme")}</option>{(["light", "dark", "system"] as const).map((v) => <option key={v} value={v}>{t(v)}</option>)}</select></Field>
+                    <Field label={t("displayLocale")} hint={t(d.localeOverride==null?"displayFollowingSetup":"displayOverrideActive")}><select value={d.localeOverride??"inherit"} onChange={(e) => void run(() => update(d, displayLocalePatch(e.target.value as "en"|"nb"|"inherit")))}><option value="inherit">{t("inheritSetupLocale")}</option><option value="en">{t("en")}</option><option value="nb">{t("nb")}</option></select></Field>
+                    <Field label={t("displayTheme")} hint={t(d.themeOverride==null?"displayFollowingSetup":"displayOverrideActive")}><select value={d.themeOverride??"inherit"} onChange={(e) => void run(() => update(d, displayThemePatch(e.target.value as "light"|"dark"|"system"|"inherit")))}><option value="inherit">{t("inheritSetupTheme")}</option>{(["light", "dark", "system"] as const).map((v) => <option key={v} value={v}>{t(v)}</option>)}</select></Field>
                   </div></>; })()}
                 </details>
                 <details className="display-admin-section">
