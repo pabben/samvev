@@ -14,7 +14,8 @@ import { DisplayCard, DisplayDayCardContent, DisplayNextActivitySnapshot } from 
 import { HouseholdActivityWeekRows } from "./home-activities";
 import type { HouseholdTimelineActivity } from "./home-types";
 import { homeWeekStart, mergeTimelineEntries, timelineDayHistoryVisible } from "./home-activity-presentation";
-import { displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayFamilyCardPlan, displayFamilyContentVisible, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupNeedsPrivateCopy, displaySetupPeopleSelection } from "./display-admin-presentation";
+import { applyDisplayReviewWrites, displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayFamilyCardPlan, displayFamilyContentVisible, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupPeopleSelection, savePrivateDisplaySetupDraft } from "./display-admin-presentation";
+import type { DisplayActionPolicy } from "./display-admin-presentation";
 
 const CARD_IDS = ["household_messages", "new_message", "family_layout", "external_items", "worth_remembering", "today", "tomorrow", "people", "week", "next", "groceries", "dinners", "photos", "home_assistant"] as const;
 type CardId = typeof CARD_IDS[number];
@@ -124,6 +125,7 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
   const [reviewPreview, setReviewPreview] = useState<Preview | null>(null);
   const [partialDisplay, setPartialDisplay] = useState<Display | null>(null);
   const [confirmingReview, setConfirmingReview] = useState(false);
+  const [partialRevocationsApplied, setPartialRevocationsApplied] = useState(false);
   const loadGeneration = useRef(0);
   const policyGeneration = useRef(0);
   const previewGeneration = useRef(0);
@@ -221,7 +223,7 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     if (generation === policyGeneration.current && household === householdId) { setPolicy(nextPolicy); setBoard(nextBoard); setMediaPolicies(nextMedia); setMediaPolicyError(mediaError?.status==="rejected"?mediaError.reason:null); }
   };
   const openReview = async (display: Display) => {
-    setDisplayReview(null); setReviewPreview(null); setPartialDisplay(null); setConfirmingReview(false);
+    setDisplayReview(null); setReviewPreview(null); setPartialDisplay(null); setConfirmingReview(false); setPartialRevocationsApplied(false);
     const setup = setups.find(item => item.id === display.setup_id) ?? setups.find(item => item.isDefault) ?? null;
     const [nextPolicy, nextBoard] = await Promise.all([
       api<any>(`/households/${householdId}/displays/${display.id}/action-policy`),
@@ -253,21 +255,19 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     if (requestedSensors.some(({ connection, sensor }) => review.sensorIds.includes(sensor.id) && !currentSensorIds.includes(sensor.id) && !connection.canShare)) throw new Error("FORBIDDEN");
     if (requestedSensors.some(({ sensor }) => sensor.displayName === null && review.sensorIds.includes(sensor.id) !== sensor.visibility.displayIds.includes(review.display.id))) throw new Error("FORBIDDEN");
     if ((review.policy.messageCreate || review.policy.messageSchedule) && !displayActionHasMessageRecipients(review.policy)) throw new Error("VALIDATION_FAILED");
-    const changed = review.setup && JSON.stringify(asDraft(review.setup)) !== JSON.stringify(review.draft);
-    try {
-      if (changed && review.setup) {
+    const setupChanged = Boolean(review.setup && JSON.stringify(asDraft(review.setup)) !== JSON.stringify(review.draft));
+    const applyOtherWrites = async () => {
+      if (setupChanged && review.setup) {
         const payload = { ...review.draft, cardOrder: review.draft.cardOrder.filter(card => review.draft.cards.includes(card)), familyLayoutEnabled: review.draft.cards.includes("family_layout") && review.draft.familyLayoutEnabled };
-        const otherDisplays = displays.filter(display => display.id !== review.display.id && display.setup_id === review.setup!.id && !display.revoked_at);
-        if (displaySetupNeedsPrivateCopy(review.setup.isDefault, otherDisplays.map(display => display.id), review.display.setup_id, review.setup.id)) {
-          const baseName = `${payload.name.slice(0, 54)} · ${review.display.name.slice(0, 20)}`.slice(0, 80);
-          const names = new Set(setups.map(item => item.name));
-          let name = baseName, suffix = 2;
-          while (names.has(name)) { const ending = ` (${suffix++})`; name = `${baseName.slice(0, 80 - ending.length)}${ending}`; }
-          const created = await api<{ id: string }>(`/households/${householdId}/display-setups`, "POST", { ...payload, name });
-          await api(`/households/${householdId}/displays/${review.display.id}`, "PATCH", { setupId: created.id });
-        } else {
-          await api(`/households/${householdId}/display-setups/${review.setup.id}`, "PATCH", { ...payload, expectedRevision: review.setup.revision });
-        }
+        const baseName = `${payload.name.slice(0, 54)} · ${review.display.name.slice(0, 20)}`.slice(0, 80);
+        const names = new Set(setups.map(item => item.name));
+        let name = baseName, suffix = 2;
+        while (names.has(name)) { const ending = ` (${suffix++})`; name = `${baseName.slice(0, 80 - ending.length)}${ending}`; }
+        await savePrivateDisplaySetupDraft(
+          true,
+          () => api<{ id: string }>(`/households/${householdId}/display-setups`, "POST", { ...payload, name }),
+          setupId => api(`/households/${householdId}/displays/${review.display.id}`, "PATCH", { setupId }),
+        );
       }
       if (JSON.stringify([...new Set(review.profileIds)].sort()) !== JSON.stringify([...(review.display.profile_person_ids ?? [])].sort()) || review.externalItems !== Boolean(review.display.external_items_enabled)) {
         await api(`/households/${householdId}/displays/${review.display.id}`, "PATCH", { profilePersonIds: [...new Set(review.profileIds)], externalItemsEnabled: review.externalItems });
@@ -295,15 +295,22 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
         if (item.canRead === previous.canRead && item.canUpload === previous.canUpload) continue;
         await api(`/households/${householdId}/media/albums/${item.albumId}/displays/${review.display.id}`, "PUT", { expectedRevision: item.grantRevision, canRead: item.canRead, canUpload: item.canUpload, revoke: !item.canRead && !item.canUpload });
       }
-      const actionFields = ["messageCreate", "messageSchedule", "groceryWrite", "dinnerWrite", "photoUpload", "homeAssistantControl"];
-      const policyChanged = actionFields.some(key => Boolean(review.originalPolicy[key]) !== Boolean(review.policy[key])) || JSON.stringify([...review.originalPolicy.personIds].sort()) !== JSON.stringify([...review.policy.personIds].sort()) || JSON.stringify([...review.originalPolicy.displayIds].sort()) !== JSON.stringify([...review.policy.displayIds].sort());
-      if (policyChanged) await api(`/households/${householdId}/displays/${review.display.id}/action-policy`, "PATCH", { expectedRevision: review.originalPolicy.revision, messageCreate: review.policy.messageCreate, messageSchedule: review.policy.messageSchedule, groceryWrite: review.policy.groceryWrite, dinnerWrite: review.policy.dinnerWrite, photoUpload: review.policy.photoUpload, homeAssistantControl: review.policy.homeAssistantControl, personIds: review.policy.personIds, displayIds: review.policy.displayIds });
+    };
+    let policyRevocationsApplied = false;
+    try {
+      await applyDisplayReviewWrites(
+        review.originalPolicy as DisplayActionPolicy,
+        review.policy as DisplayActionPolicy,
+        patch => api<DisplayActionPolicy>(`/households/${householdId}/displays/${review.display.id}/action-policy`, "PATCH", patch),
+        applyOtherWrites,
+        () => { policyRevocationsApplied = true; },
+      );
       await load(); await onChanged();
       setDisplayReview(null); setReviewPreview(null); setConfirmingReview(false);
     } catch (cause) {
       await load().catch(() => {});
       await onChanged().catch(() => {});
-      setPartialDisplay(review.display); setDisplayReview(null); setReviewPreview(null);
+      setPartialDisplay(review.display); setPartialRevocationsApplied(policyRevocationsApplied); setDisplayReview(null); setReviewPreview(null);
       throw cause;
     }
   };
@@ -362,13 +369,11 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
   const reviewDeltas = displayReview ? (() => {
     const rows: string[] = [];
     const beforeCards = displayReview.setup?.cards ?? [];
+    const setupChanged = Boolean(displayReview.setup && JSON.stringify(asDraft(displayReview.setup)) !== JSON.stringify(displayReview.draft));
     if (JSON.stringify(beforeCards) !== JSON.stringify(displayReview.draft.cards)) {
       rows.push(t("displayReviewDeltaCards", { before: beforeCards.map(cardLabel).join(", ") || t("none"), after: displayReview.draft.cards.map(cardLabel).join(", ") || t("none") }));
-      if (displayReview.setup) {
-        const otherDisplays = displays.filter(display => display.id !== displayReview.display.id && display.setup_id === displayReview.setup!.id && !display.revoked_at);
-        if (displaySetupNeedsPrivateCopy(displayReview.setup.isDefault, otherDisplays.map(display => display.id), displayReview.display.setup_id, displayReview.setup.id)) rows.push(t("displayReviewDeltaPrivateCopy", { name: displayReview.setup.name, displays: otherDisplays.map(display => display.name).join(", ") || t("none") }));
-      }
     }
+    if (setupChanged && displayReview.setup) rows.push(t("displayReviewDeltaPrivateCopy", { name: displayReview.setup.name }));
     if (displayReview.setup && displayReview.setup.familyLayoutEnabled !== displayReview.draft.familyLayoutEnabled) rows.push(t(displayReview.draft.familyLayoutEnabled ? "displayReviewDeltaFamilyLayoutEnabled" : "displayReviewDeltaFamilyLayoutDisabled"));
     for (const id of displayReview.draft.personIds.filter(id => !(displayReview.setup?.personIds ?? []).includes(id))) rows.push(t("displayReviewDeltaContentPersonAdded", { name: people.find(person => person.id === id)?.display_name ?? id }));
     for (const id of (displayReview.setup?.personIds ?? []).filter(id => !displayReview.draft.personIds.includes(id))) rows.push(t("displayReviewDeltaContentPersonRemoved", { name: people.find(person => person.id === id)?.display_name ?? id }));
@@ -414,7 +419,7 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     {loadError && <ErrorNotice error={loadError}/>}
     {optionalLoadError && <p className="field-hint" role="status">{t("displayOptionalSourcesUnavailable")}</p>}
     {error && <ErrorNotice error={error}/>}
-    {partialDisplay && <p className="notice error" role="alert">{t("displayReviewPartialFailure")} <button type="button" className="button" onClick={() => void run(() => openReview(partialDisplay))}>{t("displayReviewAccess")}</button></p>}
+    {partialDisplay && <p className="notice error" role="alert">{t(partialRevocationsApplied ? "displayReviewPartialRevocations" : "displayReviewPartialFailure")} <button type="button" className="button" onClick={() => void run(() => openReview(partialDisplay))}>{t("displayReviewAccess")}</button></p>}
     <div className="display-setup-list">{setups.map(setup => <article className="display-setup-card" key={setup.id}><div><h3>{setup.name}</h3><p>{setup.cardOrder.map(cardLabel).join(" · ")}</p><p className="field-hint">{t("displaySetupAssignedTo")}: {assignedDevices(setup).join(", ") || t("displaySetupUnassigned")}</p></div><button className="button" disabled={busy} onClick={() => open(setup)}>{t("edit")}</button></article>)}</div>
     {editorOpen && <div className="display-setup-editor" id="display-setup-editor" role="region" aria-label={t("displaySetupEditor")}>
       <fieldset disabled={busy} className="display-editor-controls">

@@ -31,8 +31,11 @@ export function displayReviewAccessPlan(current: DisplayReviewAccess, requested:
   };
 }
 
-export function displaySetupNeedsPrivateCopy(isDefault: boolean, otherDisplayIds: string[], displaySetupId: string | null|undefined, setupId: string): boolean {
-  return isDefault || otherDisplayIds.length > 0 || displaySetupId !== setupId;
+export async function savePrivateDisplaySetupDraft<T extends { id: string }>(changed: boolean, createCopy: () => Promise<T>, assignToDisplay: (setupId: string) => Promise<unknown>): Promise<string | null> {
+  if (!changed) return null;
+  const copy = await createCopy();
+  await assignToDisplay(copy.id);
+  return copy.id;
 }
 
 export function displayActionHasMessageRecipients(policy: { personIds?: string[]; displayIds?: string[] }): boolean {
@@ -49,6 +52,57 @@ export function displayReviewCardChange<T extends { cards: string[]; cardOrder: 
 
 export function displaySetupPeopleSelection(personIds: string[], personId: string, checked: boolean): string[] {
   return checked ? [...new Set([...personIds, personId])] : personIds.filter(id => id !== personId);
+}
+
+export type DisplayActionPolicy = {
+  revision: number;
+  messageCreate: boolean;
+  messageSchedule: boolean;
+  groceryWrite: boolean;
+  dinnerWrite: boolean;
+  photoUpload: boolean;
+  homeAssistantControl: boolean;
+  personIds: string[];
+  displayIds: string[];
+};
+export type DisplayActionPolicyUpdate = Omit<DisplayActionPolicy, "revision"> & { expectedRevision: number };
+
+const displayActionFlags = ["messageCreate", "messageSchedule", "groceryWrite", "dinnerWrite", "photoUpload", "homeAssistantControl"] as const;
+
+export function displayActionPolicyRevocationPlan(current: DisplayActionPolicy, desired: DisplayActionPolicy) {
+  const revokePeople = current.personIds.filter(id => !desired.personIds.includes(id));
+  const revokeDisplays = current.displayIds.filter(id => !desired.displayIds.includes(id));
+  const revoked = {
+    expectedRevision: current.revision,
+    ...Object.fromEntries(displayActionFlags.map(key => [key, current[key] && !desired[key] ? false : current[key]])),
+    personIds: current.personIds.filter(id => desired.personIds.includes(id)),
+    displayIds: current.displayIds.filter(id => desired.displayIds.includes(id)),
+  } as DisplayActionPolicyUpdate;
+  const hasRevocations = revokePeople.length > 0 || revokeDisplays.length > 0 || displayActionFlags.some(key => current[key] && !desired[key]);
+  const hasAdditions = displayActionFlags.some(key => !current[key] && desired[key]) || desired.personIds.some(id => !current.personIds.includes(id)) || desired.displayIds.some(id => !current.displayIds.includes(id));
+  return { revoked, hasRevocations, hasAdditions };
+}
+
+/** Persist capability and recipient removals before other review writes; apply additions only after those writes succeed. */
+export async function applyDisplayReviewWrites<T extends DisplayActionPolicy>(
+  current: T,
+  desired: T,
+  updatePolicy: (patch: DisplayActionPolicyUpdate) => Promise<T>,
+  applyOtherWrites: () => Promise<void>,
+  onRevocationsApplied?: (policy: T) => void,
+): Promise<T> {
+  const plan = displayActionPolicyRevocationPlan(current, desired);
+  let latest = current;
+  if (plan.hasRevocations) {
+    latest = await updatePolicy(plan.revoked);
+    onRevocationsApplied?.(latest);
+  }
+  await applyOtherWrites();
+  if (plan.hasAdditions) {
+    const { revision: _revision, ...fields } = desired;
+    latest = await updatePolicy({ ...fields, expectedRevision: latest.revision });
+  }
+  return latest;
 }
 
 export function displayCalendarSourceUpdate(source: { revision: number; enabled: boolean; purpose: string; displayName: string|null; bridgeKind: string; syncWindowDays: { past: number; future: number }; appliesTo: { household: boolean; personIds: string[] }; visibility: { household: boolean; personIds: string[]; displayIds: string[] } }, displayId: string, share: boolean) {

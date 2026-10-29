@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupNeedsPrivateCopy, displaySetupPeopleSelection, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
+import { applyDisplayReviewWrites, birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayActionHasMessageRecipients, displayActionPolicyRevocationPlan, displayCalendarSourceUpdate, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupPeopleSelection, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, savePrivateDisplaySetupDraft, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
 
 test("display locale and theme inherit from their assigned setup unless a raw override is present", () => {
   assert.equal(effectiveDisplayLocale(null, "nb", "en"), "nb");
@@ -111,11 +111,54 @@ test("display review denies private calendar sharing and never silently grants a
   assert.deepEqual(denied.deniedAlbumIds, ["unmanaged-album"]);
 });
 
-test("layout review copies a default or shared setup before changing one display", () => {
-  assert.equal(displaySetupNeedsPrivateCopy(true, [], "setup-1", "setup-1"), true);
-  assert.equal(displaySetupNeedsPrivateCopy(false, ["other-display"], "setup-1", "setup-1"), true);
-  assert.equal(displaySetupNeedsPrivateCopy(false, [], "setup-1", "setup-1"), false);
-  assert.equal(displaySetupNeedsPrivateCopy(false, [], null, "setup-1"), true);
+test("layout review always copies then reassigns only the reviewed display, even if another display binds concurrently", async () => {
+  const assignments = new Map([["display-a", "shared-setup"]]);
+  const events: string[] = [];
+  const copied = await savePrivateDisplaySetupDraft(true, async () => {
+    events.push("create-private-copy");
+    assignments.set("display-b", "shared-setup"); // another display binds while the review is open
+    return { id: "private-copy" };
+  }, async setupId => {
+    events.push("assign-display-a");
+    assignments.set("display-a", setupId);
+  });
+  assert.equal(copied, "private-copy");
+  assert.deepEqual(events, ["create-private-copy", "assign-display-a"]);
+  assert.equal(assignments.get("display-a"), "private-copy");
+  assert.equal(assignments.get("display-b"), "shared-setup");
+});
+
+test("display review applies policy revocations before other writes and delays every addition", async () => {
+  const current = { revision: 7, messageCreate: true, messageSchedule: true, groceryWrite: false, dinnerWrite: false, photoUpload: false, homeAssistantControl: true, personIds: ["person-a"], displayIds: ["display-b"] };
+  const desired = { ...current, messageCreate: false, messageSchedule: false, homeAssistantControl: false, photoUpload: true, personIds: [], displayIds: ["display-c"] };
+  const plan = displayActionPolicyRevocationPlan(current, desired);
+  assert.equal(plan.hasRevocations, true);
+  assert.equal(plan.hasAdditions, true);
+  assert.equal(plan.revoked.homeAssistantControl, false);
+  assert.equal(plan.revoked.photoUpload, false, "the first patch must not add a capability");
+  assert.deepEqual(plan.revoked.personIds, []);
+  assert.deepEqual(plan.revoked.displayIds, []);
+
+  const events: Array<{ kind: string; patch?: typeof plan.revoked }> = [];
+  await assert.rejects(applyDisplayReviewWrites(current, desired, async patch => {
+    events.push({ kind: "policy-revocation", patch });
+    const { expectedRevision, ...fields } = patch;
+    return { ...fields, revision: expectedRevision + 1 };
+  }, async () => {
+    events.push({ kind: "media-write" });
+    throw new Error("REVISION_CONFLICT");
+  }), /REVISION_CONFLICT/);
+  assert.deepEqual(events.map(event => event.kind), ["policy-revocation", "media-write"]);
+  assert.equal(events[0]?.patch?.homeAssistantControl, false);
+  assert.equal(events[0]?.patch?.photoUpload, false);
+
+  const success: string[] = [];
+  await applyDisplayReviewWrites(current, desired, async patch => {
+    success.push(`policy:${patch.expectedRevision}:${patch.homeAssistantControl}:${patch.photoUpload}`);
+    const { expectedRevision, ...fields } = patch;
+    return { ...fields, revision: expectedRevision + 1 };
+  }, async () => { success.push("other-writes"); });
+  assert.deepEqual(success, ["policy:7:false:false", "other-writes", "policy:8:false:true"]);
 });
 
 test("calendar display grant updates preserve subjects, readers, sync window, and other display targets", () => {
