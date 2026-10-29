@@ -452,6 +452,14 @@ body{font-family:var(--font-sans)}
 .hub-school-freshness{display:block;margin-top:3px;padding-left:6px;border-left:2px solid var(--line);font-size:11px;line-height:1.35;color:var(--muted);overflow-wrap:anywhere}.hub-school-freshness.is-retained{border-left-color:var(--warm-text);color:var(--warm-text)}.hub-next-activity>.field-hint{max-width:70ch;margin:8px 0 0;font-size:12px;line-height:1.45}
 @media(max-width:640px){.hub-week-source-filter{grid-template-columns:1fr;gap:3px}}
 
+/* A portrait admin preview is a 752px target even when its host viewport is
+   desktop-wide. Reproduce the live compact two-track FamilyHub composition
+   without changing the physical display's viewport-driven breakpoints. */
+.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-today{grid-column:1;grid-row:auto}
+.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-next-group{grid-column:2;grid-row:auto}
+.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-important,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-messages,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-person-section,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-companion,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-brief-section{grid-column:1/-1;grid-row:auto}
+
 /* A selected display People card is an identity list, not a Home activity
    preview. Keep its single empty identity content-sized at every breakpoint. */
 .display-page.family-display-page .family-hub.hub-display-compact-people .hub-person{min-height:0;height:auto}
