@@ -6,12 +6,13 @@ Code source: `000bf7ab03db3f4f34c2da09e20ad18d5a78b027`. Publisher review checko
 
 ## Verification
 
-- At earlier R16 code checkpoint `3818774104d4989a352a0f9d148c2d61f906a948`, isolated suites passed: API **437/437**, contracts **7/7**, core **3/3**. Backend source was unchanged through final code checkpoint `000bf7ab03db3f4f34c2da09e20ad18d5a78b027`.
+- At earlier R16 code checkpoint `b9b7b8ea4aa52779295288c919b30eaa4611d753`, isolated suites passed: API **437/437**, contracts **7/7**, core **3/3**. Backend source was unchanged through final code checkpoint `000bf7ab03db3f4f34c2da09e20ad18d5a78b027`.
 - At final code checkpoint `000bf7a`, the isolated Compose `test` service against `test-db/samvev_test` passed web **242/242**. QA was isolated; no household or production data was changed.
-- Five workspace checks passed. Host scripts **32/32**, browser privacy check **1/1**, final Home targeted layout **13/13**, and typecheck passed.
+- Five workspace checks passed. Final-source host scripts **33/33**, browser privacy check **1/1**, final Home targeted layout **13/13**, and typecheck passed. Protected local logs for the final web, Home and host-script runs are under `.local/m3/round16/qa/`.
 - Security re-review passed for preview fencing, access boundaries and preview rate limiting.
 - UX final visual review passed for mobile compose and iPad width; the earlier desktop gap was closed. Provider marks were reviewed on mobile, iPad and Shelly-sized viewports in both themes, without overflow. The canonical set has 14 source- and hash-verified images.
 - Fridge preview review used a minimal-grant synthetic setup. The rendered projection was short (218px); this does not establish parity with a paired live display. Physical device behavior was not tested.
+- The #17 same-ID/grant, old-cookie-revoked and new-cookie-authorized API behavior is synthetically tested; two-browser UI acceptance remains engineering work. Focused #18 keyboard/focus browser acceptance also remains open. These are separate from physical owner tests.
 
 ## Safe diagnosis and external state
 
