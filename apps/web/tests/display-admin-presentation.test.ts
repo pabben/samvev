@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displaySetupNeedsPrivateCopy, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
+import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupNeedsPrivateCopy, displaySetupPeopleSelection, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
 
 test("display locale and theme inherit from their assigned setup unless a raw override is present", () => {
   assert.equal(effectiveDisplayLocale(null, "nb", "en"), "nb");
@@ -135,4 +135,16 @@ test("selecting a review delta cannot apply it until the separate confirmation s
   assert.equal(displayReviewCanApply(false, 4), false);
   assert.equal(displayReviewCanApply(true, 0), false);
   assert.equal(displayReviewCanApply(true, 4), true);
+});
+
+test("turning on a disabled family layout enables it and records that exact setup delta", () => {
+  const original = { cards: ["today"], cardOrder: ["today"], familyLayoutEnabled: false };
+  const selected = displayReviewCardChange(original, "family_layout", true);
+  assert.deepEqual(selected, { cards: ["today", "family_layout"], cardOrder: ["today", "family_layout"], familyLayoutEnabled: true });
+  assert.equal(selected.familyLayoutEnabled !== original.familyLayoutEnabled, true);
+});
+
+test("setup-person filtering is separate from profile grants and supports individual changes", () => {
+  assert.deepEqual(displaySetupPeopleSelection(["person-a"], "person-b", true), ["person-a", "person-b"]);
+  assert.deepEqual(displaySetupPeopleSelection(["person-a", "person-b"], "person-b", false), ["person-a"]);
 });

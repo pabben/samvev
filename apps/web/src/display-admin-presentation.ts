@@ -43,6 +43,14 @@ export function displayReviewCanApply(confirmed: boolean, deltaCount: number): b
   return confirmed && deltaCount > 0;
 }
 
+export function displayReviewCardChange<T extends { cards: string[]; cardOrder: string[]; familyLayoutEnabled: boolean }>(draft: T, cardId: string, checked: boolean): T {
+  return { ...draft, cards: checked ? [...new Set([...draft.cards, cardId])] : draft.cards.filter(id => id !== cardId), cardOrder: checked ? [...draft.cardOrder, ...(draft.cardOrder.includes(cardId) ? [] : [cardId])] : draft.cardOrder.filter(id => id !== cardId), familyLayoutEnabled: cardId === 'family_layout' ? checked : draft.familyLayoutEnabled };
+}
+
+export function displaySetupPeopleSelection(personIds: string[], personId: string, checked: boolean): string[] {
+  return checked ? [...new Set([...personIds, personId])] : personIds.filter(id => id !== personId);
+}
+
 export function displayCalendarSourceUpdate(source: { revision: number; enabled: boolean; purpose: string; displayName: string|null; bridgeKind: string; syncWindowDays: { past: number; future: number }; appliesTo: { household: boolean; personIds: string[] }; visibility: { household: boolean; personIds: string[]; displayIds: string[] } }, displayId: string, share: boolean) {
   const displayIds = share ? [...new Set([...source.visibility.displayIds, displayId])] : source.visibility.displayIds.filter(id => id !== displayId);
   return { expectedRevision: source.revision, enabled: source.enabled, purpose: source.purpose, displayName: source.displayName, bridgeKind: source.bridgeKind, syncWindowDays: source.syncWindowDays, appliesTo: source.appliesTo, visibility: { ...source.visibility, displayIds } };
