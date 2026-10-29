@@ -4,14 +4,14 @@ import type { Card, Display, Membership, Person, Projection } from "./types";
 import type { CalendarConnection } from "./calendar-connection-types";
 import { MediaSlideshow } from "./media-library";
 import type { DisplayMediaProjection } from "./media-adapters";
-import { Check, ErrorNotice, Field, Icon, LocaleProvider, useAction, useI18n } from "./ui";
+import { Check, Dialog, ErrorNotice, Field, Icon, LocaleProvider, useAction, useI18n } from "./ui";
 import type { ReactNode } from "react";
 import { advanceHomeBirthdays } from "./home-presentation";
 import { FamilyHub } from "./family-hub";
 import { DisplayCard, DisplayDayCardContent } from "./display";
 import type { HouseholdTimelineActivity } from "./home-types";
 import { mergeTimelineEntries, timelineDayHistoryVisible } from "./home-activity-presentation";
-import { displayFamilyCardPlan, displayFamilyContentVisible, displayPreviewContentVisible, displayReadinessCard } from "./display-admin-presentation";
+import { displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayFamilyCardPlan, displayFamilyContentVisible, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displaySetupNeedsPrivateCopy } from "./display-admin-presentation";
 
 const CARD_IDS = ["household_messages", "new_message", "family_layout", "external_items", "worth_remembering", "today", "tomorrow", "people", "week", "next", "groceries", "dinners", "photos", "home_assistant"] as const;
 type CardId = typeof CARD_IDS[number];
@@ -24,6 +24,7 @@ type Setup = {
 };
 type Draft = Omit<Setup, "id" | "revision" | "isDefault">;
 type MediaPolicy = { albumId: string; name: string; albumRevision: number; grantRevision: number | null; canRead: boolean; canUpload: boolean };
+type DisplayReview = { display: Display; setup: Setup | null; draft: Draft; policy: any; originalPolicy: any; board: any; originalBoard: any; media: MediaPolicy[]; originalMedia: MediaPolicy[]; calendarIds: string[]; sensorIds: string[]; profileIds: string[]; externalItems: boolean };
 export type Preview = Projection & {
   preview: true;
   setup: NonNullable<Projection["setup"]>;
@@ -115,6 +116,10 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
   const [loadError, setLoadError] = useState<unknown>(null);
   const [optionalLoadError, setOptionalLoadError] = useState<unknown>(null);
   const [mediaPolicyError, setMediaPolicyError] = useState<unknown>(null);
+  const [displayReview, setDisplayReview] = useState<DisplayReview | null>(null);
+  const [reviewPreview, setReviewPreview] = useState<Preview | null>(null);
+  const [partialDisplay, setPartialDisplay] = useState<Display | null>(null);
+  const [confirmingReview, setConfirmingReview] = useState(false);
   const loadGeneration = useRef(0);
   const policyGeneration = useRef(0);
   const previewGeneration = useRef(0);
@@ -211,6 +216,93 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     const mediaError = mediaResults.find(result=>result.status==="rejected");
     if (generation === policyGeneration.current && household === householdId) { setPolicy(nextPolicy); setBoard(nextBoard); setMediaPolicies(nextMedia); setMediaPolicyError(mediaError?.status==="rejected"?mediaError.reason:null); }
   };
+  const openReview = async (display: Display) => {
+    setDisplayReview(null); setReviewPreview(null); setPartialDisplay(null); setConfirmingReview(false);
+    const setup = setups.find(item => item.id === display.setup_id) ?? setups.find(item => item.isDefault) ?? null;
+    const [nextPolicy, nextBoard] = await Promise.all([
+      api<any>(`/households/${householdId}/displays/${display.id}/action-policy`),
+      api<any>(`/households/${householdId}/displays/${display.id}/board-read-grants`),
+    ]);
+    const managedAlbums = albums.filter(album => album.kind === "photos" && (album.owner === true || album.permissions?.manage === true));
+    const mediaResults = await Promise.all(managedAlbums.map(async album => {
+      const result = await api<any>(`/households/${householdId}/media/albums/${album.id}/grants`);
+      const grant = result.displayGrants.find((item: any) => item.displayId === display.id);
+      return { albumId: album.id, name: album.name, albumRevision: result.album.revision, grantRevision: grant?.revision ?? null, canRead: grant?.permissions.read ?? false, canUpload: grant?.permissions.upload ?? false } satisfies MediaPolicy;
+    }));
+    const calendarIds = connections.flatMap(connection => connection.sources.filter(source => source.visibility.displayIds.includes(display.id)).map(source => source.id));
+    const sensorIds = connections.flatMap(connection => (connection.temperatureSensors ?? []).filter(sensor => sensor.visibility.displayIds.includes(display.id)).map(sensor => sensor.id));
+    setDisplayReview({ display, setup, draft: setup ? asDraft(setup) : emptyDraft(member.household_locale), policy: nextPolicy, originalPolicy: nextPolicy, board: nextBoard, originalBoard: nextBoard, media: mediaResults.map(item => ({ ...item })), originalMedia: mediaResults.map(item => ({ ...item })), calendarIds, sensorIds, profileIds: [...(display.profile_person_ids ?? [])], externalItems: Boolean(display.external_items_enabled) });
+  };
+
+  const applyDisplayReview = async () => {
+    if (!displayReview || !displayReviewCanApply(confirmingReview, reviewDeltas.length)) return;
+    const review = displayReview;
+    const currentCalendarIds = connections.flatMap(connection => connection.sources.filter(source => source.visibility.displayIds.includes(review.display.id)).map(source => source.id));
+    const currentSensorIds = connections.flatMap(connection => (connection.temperatureSensors ?? []).filter(sensor => sensor.visibility.displayIds.includes(review.display.id)).map(sensor => sensor.id));
+    const requestedCalendarSources = connections.flatMap(connection => connection.sources.filter(source => source.visibility.displayIds.includes(review.display.id) || review.calendarIds.includes(source.id)).map(source => ({ connection, source })));
+    const requestedSensors = connections.flatMap(connection => (connection.temperatureSensors ?? []).filter(sensor => sensor.visibility.displayIds.includes(review.display.id) || review.sensorIds.includes(sensor.id)).map(sensor => ({ connection, sensor })));
+    const accessPlan = displayReviewAccessPlan(
+      { canShareCalendars: true, selectedCalendarDisplayIds: currentCalendarIds, requestedCalendarDisplayIds: currentCalendarIds, selectedAlbumReadIds: review.originalMedia.filter(item => item.canRead).map(item => item.albumId), managedAlbumIds: review.media.map(item => item.albumId), requestedAlbumReadIds: review.originalMedia.filter(item => item.canRead).map(item => item.albumId) },
+      { canShareCalendars: true, selectedCalendarDisplayIds: currentCalendarIds, requestedCalendarDisplayIds: review.calendarIds, selectedAlbumReadIds: review.originalMedia.filter(item => item.canRead).map(item => item.albumId), managedAlbumIds: review.media.map(item => item.albumId), requestedAlbumReadIds: review.media.filter(item => item.canRead).map(item => item.albumId) },
+    );
+    if (accessPlan.deniedAlbumIds.length || requestedCalendarSources.some(({ connection, source }) => review.calendarIds.includes(source.id) && !currentCalendarIds.includes(source.id) && !connection.canShare)) throw new Error("FORBIDDEN");
+    if (requestedSensors.some(({ connection, sensor }) => review.sensorIds.includes(sensor.id) && !currentSensorIds.includes(sensor.id) && !connection.canShare)) throw new Error("FORBIDDEN");
+    if (requestedSensors.some(({ sensor }) => sensor.displayName === null && review.sensorIds.includes(sensor.id) !== sensor.visibility.displayIds.includes(review.display.id))) throw new Error("FORBIDDEN");
+    if ((review.policy.messageCreate || review.policy.messageSchedule) && !displayActionHasMessageRecipients(review.policy)) throw new Error("VALIDATION_FAILED");
+    const changed = review.setup && JSON.stringify(asDraft(review.setup)) !== JSON.stringify(review.draft);
+    try {
+      if (changed && review.setup) {
+        const payload = { ...review.draft, cardOrder: review.draft.cardOrder.filter(card => review.draft.cards.includes(card)), familyLayoutEnabled: review.draft.cards.includes("family_layout") && review.draft.familyLayoutEnabled };
+        const otherDisplays = displays.filter(display => display.id !== review.display.id && display.setup_id === review.setup!.id && !display.revoked_at);
+        if (displaySetupNeedsPrivateCopy(review.setup.isDefault, otherDisplays.map(display => display.id), review.display.setup_id, review.setup.id)) {
+          const baseName = `${payload.name.slice(0, 54)} · ${review.display.name.slice(0, 20)}`.slice(0, 80);
+          const names = new Set(setups.map(item => item.name));
+          let name = baseName, suffix = 2;
+          while (names.has(name)) { const ending = ` (${suffix++})`; name = `${baseName.slice(0, 80 - ending.length)}${ending}`; }
+          const created = await api<{ id: string }>(`/households/${householdId}/display-setups`, "POST", { ...payload, name });
+          await api(`/households/${householdId}/displays/${review.display.id}`, "PATCH", { setupId: created.id });
+        } else {
+          await api(`/households/${householdId}/display-setups/${review.setup.id}`, "PATCH", { ...payload, expectedRevision: review.setup.revision });
+        }
+      }
+      if (JSON.stringify([...new Set(review.profileIds)].sort()) !== JSON.stringify([...(review.display.profile_person_ids ?? [])].sort()) || review.externalItems !== Boolean(review.display.external_items_enabled)) {
+        await api(`/households/${householdId}/displays/${review.display.id}`, "PATCH", { profilePersonIds: [...new Set(review.profileIds)], externalItemsEnabled: review.externalItems });
+      }
+      for (const { connection, source } of requestedCalendarSources) {
+        const wantsDisplay = review.calendarIds.includes(source.id);
+        const hasDisplay = source.visibility.displayIds.includes(review.display.id);
+        if (wantsDisplay === hasDisplay) continue;
+        if (!connection.canShare && wantsDisplay) throw new Error("FORBIDDEN");
+        await api(`/households/${householdId}/calendar-connections/${connection.id}/sources/${source.id}`, "PATCH", displayCalendarSourceUpdate(source, review.display.id, wantsDisplay));
+      }
+      for (const { connection, sensor } of requestedSensors) {
+        const wantsDisplay = review.sensorIds.includes(sensor.id);
+        const hasDisplay = sensor.visibility.displayIds.includes(review.display.id);
+        if (wantsDisplay === hasDisplay) continue;
+        if (!connection.canShare && wantsDisplay) throw new Error("FORBIDDEN");
+        const displayIds = wantsDisplay ? [...new Set([...sensor.visibility.displayIds, review.display.id])] : sensor.visibility.displayIds.filter(id => id !== review.display.id);
+        await api(`/households/${householdId}/calendar-connections/${connection.id}/temperature-sensors/${sensor.id}`, "PATCH", { expectedRevision: sensor.revision, enabled: sensor.enabled, displayName: sensor.displayName ?? sensor.name, order: sensor.order, visibility: { ...sensor.visibility, displayIds } });
+      }
+      if (review.originalBoard && (review.originalBoard.groceryRead !== review.board.groceryRead || review.originalBoard.dinnerRead !== review.board.dinnerRead)) {
+        await api(`/households/${householdId}/displays/${review.display.id}/board-read-grants`, "PUT", { expectedRevision: review.originalBoard.revision, groceryRead: review.board.groceryRead, dinnerRead: review.board.dinnerRead });
+      }
+      for (const item of review.media) {
+        const previous = review.originalMedia.find(row => row.albumId === item.albumId)!;
+        if (item.canRead === previous.canRead && item.canUpload === previous.canUpload) continue;
+        await api(`/households/${householdId}/media/albums/${item.albumId}/displays/${review.display.id}`, "PUT", { expectedRevision: item.grantRevision, canRead: item.canRead, canUpload: item.canUpload, revoke: !item.canRead && !item.canUpload });
+      }
+      const actionFields = ["messageCreate", "messageSchedule", "groceryWrite", "dinnerWrite", "photoUpload", "homeAssistantControl"];
+      const policyChanged = actionFields.some(key => Boolean(review.originalPolicy[key]) !== Boolean(review.policy[key])) || JSON.stringify([...review.originalPolicy.personIds].sort()) !== JSON.stringify([...review.policy.personIds].sort()) || JSON.stringify([...review.originalPolicy.displayIds].sort()) !== JSON.stringify([...review.policy.displayIds].sort());
+      if (policyChanged) await api(`/households/${householdId}/displays/${review.display.id}/action-policy`, "PATCH", { expectedRevision: review.originalPolicy.revision, messageCreate: review.policy.messageCreate, messageSchedule: review.policy.messageSchedule, groceryWrite: review.policy.groceryWrite, dinnerWrite: review.policy.dinnerWrite, photoUpload: review.policy.photoUpload, homeAssistantControl: review.policy.homeAssistantControl, personIds: review.policy.personIds, displayIds: review.policy.displayIds });
+      await load(); await onChanged();
+      setDisplayReview(null); setReviewPreview(null); setConfirmingReview(false);
+    } catch (cause) {
+      await load().catch(() => {});
+      await onChanged().catch(() => {});
+      setPartialDisplay(review.display); setDisplayReview(null); setReviewPreview(null);
+      throw cause;
+    }
+  };
   useEffect(() => {
     if (!openPolicyDisplayId) return;
     const display = displays.find(item => item.id === openPolicyDisplayId);
@@ -263,6 +355,51 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
   const assignedDevices = (setup: Setup) => displays.filter(display => display.setup_id === setup.id && !display.revoked_at).map(display => display.name);
   const activeDisplays = displays.filter(display => !display.revoked_at);
   const previewTarget = activeDisplays.find(display => display.id === previewTargetId) ?? activeDisplays[0];
+  const reviewDeltas = displayReview ? (() => {
+    const rows: string[] = [];
+    const beforeCards = displayReview.setup?.cards ?? [];
+    if (JSON.stringify(beforeCards) !== JSON.stringify(displayReview.draft.cards)) {
+      rows.push(t("displayReviewDeltaCards", { before: beforeCards.map(cardLabel).join(", ") || t("none"), after: displayReview.draft.cards.map(cardLabel).join(", ") || t("none") }));
+      if (displayReview.setup) {
+        const otherDisplays = displays.filter(display => display.id !== displayReview.display.id && display.setup_id === displayReview.setup!.id && !display.revoked_at);
+        if (displaySetupNeedsPrivateCopy(displayReview.setup.isDefault, otherDisplays.map(display => display.id), displayReview.display.setup_id, displayReview.setup.id)) rows.push(t("displayReviewDeltaPrivateCopy", { name: displayReview.setup.name, displays: otherDisplays.map(display => display.name).join(", ") || t("none") }));
+      }
+    }
+    for (const id of displayReview.draft.calendarSourceIds.filter(id => !(displayReview.setup?.calendarSourceIds ?? []).includes(id))) rows.push(t("displayReviewDeltaLayoutSourceAdded", { name: connections.flatMap(connection => connection.sources).find(source => source.id === id)?.displayName ?? id }));
+    for (const id of (displayReview.setup?.calendarSourceIds ?? []).filter(id => !displayReview.draft.calendarSourceIds.includes(id))) rows.push(t("displayReviewDeltaLayoutSourceRemoved", { name: connections.flatMap(connection => connection.sources).find(source => source.id === id)?.displayName ?? id }));
+    for (const id of displayReview.draft.sensorIds.filter(id => !(displayReview.setup?.sensorIds ?? []).includes(id))) rows.push(t("displayReviewDeltaLayoutSensorAdded", { name: connections.flatMap(connection => connection.temperatureSensors ?? []).find(sensor => sensor.id === id)?.displayName ?? id }));
+    for (const id of (displayReview.setup?.sensorIds ?? []).filter(id => !displayReview.draft.sensorIds.includes(id))) rows.push(t("displayReviewDeltaLayoutSensorRemoved", { name: connections.flatMap(connection => connection.temperatureSensors ?? []).find(sensor => sensor.id === id)?.displayName ?? id }));
+    for (const id of displayReview.draft.albumIds.filter(id => !(displayReview.setup?.albumIds ?? []).includes(id))) rows.push(t("displayReviewDeltaLayoutAlbumAdded", { name: albums.find(album => album.id === id)?.name ?? id }));
+    for (const id of (displayReview.setup?.albumIds ?? []).filter(id => !displayReview.draft.albumIds.includes(id))) rows.push(t("displayReviewDeltaLayoutAlbumRemoved", { name: albums.find(album => album.id === id)?.name ?? id }));
+    const profileNames = (ids: string[]) => ids.map(id => people.find(person => person.id === id)?.display_name).filter((name): name is string => Boolean(name));
+    const profileAdded = displayReview.profileIds.filter(id => !displayReview.display.profile_person_ids?.includes(id));
+    const profileRemoved = (displayReview.display.profile_person_ids ?? []).filter(id => !displayReview.profileIds.includes(id));
+    if (profileAdded.length) rows.push(t("displayReviewDeltaProfilesAdded", { names: profileNames(profileAdded).join(", ") }));
+    if (profileRemoved.length) rows.push(t("displayReviewDeltaProfilesRemoved", { names: profileNames(profileRemoved).join(", ") }));
+    if (displayReview.externalItems !== Boolean(displayReview.display.external_items_enabled)) rows.push(t("displayReviewDeltaExternal", { value: t(displayReview.externalItems ? "enabled" : "disabled") }));
+    for (const { connection, source } of connections.flatMap(connection => connection.sources.map(source => ({ connection, source })))) {
+      const before = source.visibility.displayIds.includes(displayReview.display.id), after = displayReview.calendarIds.includes(source.id);
+      if (before !== after) rows.push(t(after ? "displayReviewDeltaSourceAdded" : "displayReviewDeltaSourceRemoved", { name: `${connection.name}: ${source.displayName ?? source.name}` }));
+    }
+    for (const { connection, sensor } of connections.flatMap(connection => (connection.temperatureSensors ?? []).map(sensor => ({ connection, sensor })))) {
+      const before = sensor.visibility.displayIds.includes(displayReview.display.id), after = displayReview.sensorIds.includes(sensor.id);
+      if (before !== after) rows.push(t(after ? "displayReviewDeltaSensorAdded" : "displayReviewDeltaSensorRemoved", { name: `${connection.name}: ${sensor.displayName ?? sensor.name}` }));
+    }
+    for (const key of ["groceryRead", "dinnerRead"] as const) if (displayReview.originalBoard[key] !== displayReview.board[key]) rows.push(t(displayReview.board[key] ? "displayReviewDeltaBoardAdded" : "displayReviewDeltaBoardRemoved", { name: t(key === "groceryRead" ? "boardGroceries" : "boardDinners") }));
+    for (const item of displayReview.media) {
+      const before = displayReview.originalMedia.find(row => row.albumId === item.albumId)!;
+      if (before.canRead !== item.canRead) rows.push(t(item.canRead ? "displayReviewDeltaAlbumAdded" : "displayReviewDeltaAlbumRemoved", { name: item.name }));
+      if (before.canUpload !== item.canUpload) rows.push(t(item.canUpload ? "displayReviewDeltaUploadAdded" : "displayReviewDeltaUploadRemoved", { name: item.name }));
+    }
+    for (const [key, label] of [["messageCreate", "newMessage"], ["messageSchedule", "messageSchedule"], ["groceryWrite", "boardGroceries"], ["dinnerWrite", "boardDinners"], ["photoUpload", "mediaPhotosTitle"], ["homeAssistantControl", "homeAssistantControlsTitle"]] as const) {
+      if (Boolean(displayReview.originalPolicy[key]) !== Boolean(displayReview.policy[key])) rows.push(t(displayReview.policy[key] ? "displayReviewDeltaActionAdded" : "displayReviewDeltaActionRemoved", { name: t(label) }));
+    }
+    for (const id of displayReview.policy.personIds.filter((value: string) => !displayReview.originalPolicy.personIds.includes(value))) rows.push(t("displayReviewDeltaRecipientAdded", { name: people.find(person => person.id === id)?.display_name ?? id }));
+    for (const id of displayReview.originalPolicy.personIds.filter((value: string) => !displayReview.policy.personIds.includes(value))) rows.push(t("displayReviewDeltaRecipientRemoved", { name: people.find(person => person.id === id)?.display_name ?? id }));
+    for (const id of displayReview.policy.displayIds.filter((value: string) => !displayReview.originalPolicy.displayIds.includes(value))) rows.push(t("displayReviewDeltaRecipientAdded", { name: displays.find(display => display.id === id)?.name ?? id }));
+    for (const id of displayReview.originalPolicy.displayIds.filter((value: string) => !displayReview.policy.displayIds.includes(value))) rows.push(t("displayReviewDeltaRecipientRemoved", { name: displays.find(display => display.id === id)?.name ?? id }));
+    return rows;
+  })() : [];
 
   return <section className="display-setups-admin" id="display-setups-admin">
     <header className="section-heading"><div><p className="eyebrow">{t("displaySetups")}</p><h2>{t("displaySetupsTitle")}</h2><p>{t("displaySetupsBody")}</p></div><button className="button" disabled={busy} onClick={() => open()}><Icon name="plus"/>{t("displaySetupNew")}</button></header>
@@ -270,6 +407,7 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     {loadError && <ErrorNotice error={loadError}/>}
     {optionalLoadError && <p className="field-hint" role="status">{t("displayOptionalSourcesUnavailable")}</p>}
     {error && <ErrorNotice error={error}/>}
+    {partialDisplay && <p className="notice error" role="alert">{t("displayReviewPartialFailure")} <button type="button" className="button" onClick={() => void run(() => openReview(partialDisplay))}>{t("displayReviewAccess")}</button></p>}
     <div className="display-setup-list">{setups.map(setup => <article className="display-setup-card" key={setup.id}><div><h3>{setup.name}</h3><p>{setup.cardOrder.map(cardLabel).join(" · ")}</p><p className="field-hint">{t("displaySetupAssignedTo")}: {assignedDevices(setup).join(", ") || t("displaySetupUnassigned")}</p></div><button className="button" disabled={busy} onClick={() => open(setup)}>{t("edit")}</button></article>)}</div>
     {editorOpen && <div className="display-setup-editor" id="display-setup-editor" role="region" aria-label={t("displaySetupEditor")}>
       <fieldset disabled={busy} className="display-editor-controls">
@@ -279,10 +417,45 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
         <fieldset><legend>{t("displaySetupSources")}</legend><Check label={t("allSources")} checked={draft.allSources} onChange={checked => setDraft({ ...draft, allSources: checked })}/>{integrations.map(connection => <Check key={connection.id} label={connection.name} checked={draft.sourceIds.includes(connection.id)} onChange={checked => setDraft({ ...draft, sourceIds: toggle(draft.sourceIds, connection.id, checked) })}/>) }{selectedSources.map(source => <Check key={source.id} label={source.label} checked={draft.calendarSourceIds.includes(source.id)} onChange={checked => setDraft({ ...draft, calendarSourceIds: toggle(draft.calendarSourceIds, source.id, checked) })}/>) }<Check label={t("allSensors")} checked={draft.allSensors} onChange={checked => setDraft({ ...draft, allSensors: checked })}/>{selectedSensors.map(sensor => <Check key={sensor.id} label={sensor.label} checked={draft.sensorIds.includes(sensor.id)} onChange={checked => setDraft({ ...draft, sensorIds: toggle(draft.sensorIds, sensor.id, checked) })}/>)}</fieldset>
         <fieldset><legend>{t("displaySetupMedia")}</legend>{albums.filter(album => album.kind === "photos").map(album => <Check key={album.id} label={album.name} checked={draft.albumIds.includes(album.id)} onChange={checked => setDraft({ ...draft, albumIds: toggle(draft.albumIds, album.id, checked) })}/>) }<Field label={t("displayBackground")}><select value={draft.backgroundId ?? ""} onChange={e => setDraft({ ...draft, backgroundId: e.target.value || null })}><option value="">{t("none")}</option>{backgrounds.map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}</select></Field></fieldset>
         <div className="form-actions"><button type="button" className="button subtle" onClick={() => { setEditing(null); setEditorOpen(false); setDraft(emptyDraft(member.household_locale)); setPreview(null); }}>{t("cancel")}</button><button type="button" className="button" disabled={!draft.name.trim()} onClick={() => void run(save)}>{t("save")}</button></div>
-        {activeDisplays.length > 0 && <div className="display-preview-controls"><Field label={t("displayPreviewTarget")}><select value={previewTarget?.id ?? ""} onChange={event => setPreviewTargetId(event.target.value)}>{activeDisplays.map(display => <option key={display.id} value={display.id}>{display.name}</option>)}</select></Field><Field label={t("displayPreviewOrientation")}><select value={previewOrientation} onChange={event => setPreviewOrientation(event.target.value as "portrait" | "landscape")}><option value="portrait">{t("portrait")}</option><option value="landscape">{t("landscape")}</option></select></Field><button type="button" className="button" disabled={!previewTarget} onClick={() => previewTarget && void run(() => previewSetup(previewTarget))}>{t("displayPreviewButton")}</button></div>}
+        {activeDisplays.length > 0 && <div className="display-preview-controls"><Field label={t("displayPreviewTarget")}><select value={previewTarget?.id ?? ""} onChange={event => setPreviewTargetId(event.target.value)}>{activeDisplays.map(display => <option key={display.id} value={display.id}>{display.name}</option>)}</select></Field><Field label={t("displayPreviewOrientation")}><select value={previewOrientation} onChange={event => setPreviewOrientation(event.target.value as "portrait" | "landscape")}><option value="portrait">{t("portrait")}</option><option value="landscape">{t("landscape")}</option></select></Field><button type="button" className="button" disabled={!previewTarget} onClick={() => previewTarget && void run(() => previewSetup(previewTarget))}>{t("displayPreviewButton")}</button><button type="button" className="button" disabled={!previewTarget} onClick={() => previewTarget && void run(() => openReview(previewTarget))}>{t("displayReviewAccess")}{previewTarget ? ` · ${previewTarget.name}` : ""}</button></div>}
       </fieldset>
       {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} displayName={displays.find(display => display.id === preview.displayId)?.name ?? t("displayPreviewTitle")} cardLabel={cardLabel} orientation={previewOrientation}/></div>}
     </div>}
+    {displayReview && <section className="display-policy-editor" aria-label={t("displayReviewAccess")}>
+      <h3>{t("displayReviewTitle", { name: displayReview.display.name })}</h3>
+      <p>{t("displayReviewExplanation")}</p>
+      {!displayReview.setup && <p role="status" className="notice">{t("displayReviewNoSetup")}</p>}
+      <fieldset disabled={busy}>
+        <details className="display-review-stage"><summary>{t("displayReviewStageCount", { name: t("displayReviewContentStage"), selected: displayReview.draft.cards.length, total: CARD_IDS.length })}</summary>
+        <fieldset><legend>{t("displaySetupCards")}</legend>{CARD_IDS.map(id => <Check key={id} label={cardLabel(id)} checked={displayReview.draft.cards.includes(id)} onChange={checked => setDisplayReview({ ...displayReview, draft: { ...displayReview.draft, cards: toggle(displayReview.draft.cards, id, checked), cardOrder: checked ? [...displayReview.draft.cardOrder, id] : displayReview.draft.cardOrder.filter(card => card !== id) } })}/>)}</fieldset>
+        <fieldset><legend>{t("displayReviewCalendarContent")}</legend><p className="field-hint">{t("displayReviewLayoutContentHelp")}</p>{connections.flatMap(connection => connection.sources.map(source => <Check key={source.id} label={`${connection.name}: ${source.displayName ?? source.name}`} checked={displayReview.draft.calendarSourceIds.includes(source.id)} onChange={checked => setDisplayReview({ ...displayReview, draft: { ...displayReview.draft, calendarSourceIds: toggle(displayReview.draft.calendarSourceIds, source.id, checked) } })}/>))}</fieldset>
+        <fieldset><legend>{t("displayReviewSensorContent")}</legend><p className="field-hint">{t("displayReviewLayoutContentHelp")}</p>{connections.flatMap(connection => (connection.temperatureSensors ?? []).map(sensor => <Check key={sensor.id} label={`${connection.name}: ${sensor.displayName ?? sensor.name}`} checked={displayReview.draft.sensorIds.includes(sensor.id)} onChange={checked => setDisplayReview({ ...displayReview, draft: { ...displayReview.draft, sensorIds: toggle(displayReview.draft.sensorIds, sensor.id, checked) } })}/>))}</fieldset>
+        <fieldset><legend>{t("displayReviewAlbumContent")}</legend><p className="field-hint">{t("displayReviewLayoutContentHelp")}</p>{albums.filter(album => album.kind === "photos" && (album.owner === true || album.permissions?.manage === true)).map(album => <Check key={album.id} label={album.name} checked={displayReview.draft.albumIds.includes(album.id)} onChange={checked => setDisplayReview({ ...displayReview, draft: { ...displayReview.draft, albumIds: toggle(displayReview.draft.albumIds, album.id, checked) } })}/>)}</fieldset>
+        </details>
+        <details className="display-review-stage"><summary>{t("displayReviewStageCount", { name: t("displayReviewProfilesStage"), selected: displayReview.profileIds.length, total: people.length })}</summary>
+        <fieldset><legend>{t("displayProfileGrants")}</legend><p className="field-hint">{t("displayReviewAccessSeparate")}</p>{people.map(person => <Check key={person.id} label={t("displayProfileGrant", { name: person.display_name })} checked={displayReview.profileIds.includes(person.id)} onChange={checked => setDisplayReview({ ...displayReview, profileIds: toggle(displayReview.profileIds, person.id, checked) })}/>)}</fieldset>
+        <Check label={t("integrationExternalDisplay")} checked={displayReview.externalItems} onChange={value => setDisplayReview({ ...displayReview, externalItems: value })}/></details>
+        <details className="display-review-stage"><summary>{t("displayReviewStageCount", { name: t("displayReviewCalendars"), selected: displayReview.calendarIds.length, total: connections.reduce((count, connection) => count + connection.sources.filter(source => connection.canShare || source.visibility.displayIds.includes(displayReview.display.id)).length, 0) })}</summary>
+        <fieldset><legend>{t("displayReviewCalendars")}</legend><p className="field-hint">{t("displayReviewCalendarHelp")}</p>{connections.flatMap(connection => connection.sources.map(source => <Check key={source.id} label={`${connection.name}: ${source.displayName ?? source.name}`} checked={displayReview.calendarIds.includes(source.id)} disabled={!connection.canShare && !source.visibility.displayIds.includes(displayReview.display.id)} onChange={checked => setDisplayReview({ ...displayReview, calendarIds: toggle(displayReview.calendarIds, source.id, checked) })}/>))}</fieldset></details>
+        <details className="display-review-stage"><summary>{t("displayReviewStageCount", { name: t("displayReviewSensors"), selected: displayReview.sensorIds.length, total: connections.reduce((count, connection) => count + (connection.canShare ? (connection.temperatureSensors ?? []).length : (connection.temperatureSensors ?? []).filter(sensor => sensor.visibility.displayIds.includes(displayReview.display.id)).length), 0) })}</summary>
+        <fieldset><legend>{t("displayReviewSensors")}</legend><p className="field-hint">{t("displayReviewSensorHelp")}</p>{connections.flatMap(connection => (connection.temperatureSensors ?? []).map(sensor => <Check key={sensor.id} label={`${connection.name}: ${sensor.displayName ?? sensor.name}`} checked={displayReview.sensorIds.includes(sensor.id)} disabled={sensor.displayName === null || (!connection.canShare && !sensor.visibility.displayIds.includes(displayReview.display.id))} onChange={checked => setDisplayReview({ ...displayReview, sensorIds: toggle(displayReview.sensorIds, sensor.id, checked) })}/>))}{connections.some(connection => (connection.temperatureSensors ?? []).some(sensor => sensor.displayName === null)) && <p className="field-hint">{t("displayReviewSensorLabelRequired")}</p>}</fieldset></details>
+        <details className="display-review-stage"><summary>{t("displayReviewStageCount", { name: t("displayBoardReadGrants"), selected: Number(displayReview.board.groceryRead) + Number(displayReview.board.dinnerRead), total: 2 })}</summary>
+        <fieldset><legend>{t("displayBoardReadGrants")}</legend><p className="field-hint">{t("displayReviewBoardHelp")}</p><Check label={t("boardGroceries")} checked={displayReview.board.groceryRead} onChange={value => setDisplayReview({ ...displayReview, board: { ...displayReview.board, groceryRead: value } })}/><Check label={t("boardDinners")} checked={displayReview.board.dinnerRead} onChange={value => setDisplayReview({ ...displayReview, board: { ...displayReview.board, dinnerRead: value } })}/></fieldset></details>
+        <details className="display-review-stage"><summary>{t("displayReviewStageCount", { name: t("mediaDisplayReadGrant"), selected: displayReview.media.filter(item => item.canRead).length, total: displayReview.media.length })}</summary>
+        <fieldset><legend>{t("mediaDisplayReadGrant")}</legend><p className="field-hint">{t("displayReviewAlbumHelp")}</p>{displayReview.media.length ? displayReview.media.map(item => <div key={item.albumId}><strong>{item.name}</strong><Check label={t("mediaDisplayReadGrant")} checked={item.canRead} onChange={value => setDisplayReview({ ...displayReview, media: displayReview.media.map(row => row.albumId === item.albumId ? { ...row, canRead: value } : row) })}/><Check label={t("mediaDisplayUploadGrant")} checked={item.canUpload} onChange={value => setDisplayReview({ ...displayReview, media: displayReview.media.map(row => row.albumId === item.albumId ? { ...row, canUpload: value } : row) })}/></div>) : <p className="field-hint">{t("displayReviewNoManagedAlbums")}</p>}</fieldset></details>
+        <details className="display-review-stage"><summary>{t("displayReviewStageCount", { name: t("displayReviewActions"), selected: [displayReview.policy.messageCreate, displayReview.policy.messageSchedule, displayReview.policy.groceryWrite, displayReview.policy.dinnerWrite, displayReview.policy.photoUpload, displayReview.policy.homeAssistantControl].filter(Boolean).length, total: 6 })}</summary>
+        <fieldset><legend>{t("displayReviewActions")}</legend>{([["messageCreate", "newMessage"], ["messageSchedule", "messageSchedule"], ["groceryWrite", "boardGroceries"], ["dinnerWrite", "boardDinners"], ["photoUpload", "mediaPhotosTitle"], ["homeAssistantControl", "homeAssistantControlsTitle"]] as const).map(([field, label]) => <Check key={field} label={t(label)} checked={Boolean(displayReview.policy[field])} onChange={value => setDisplayReview({ ...displayReview, policy: { ...displayReview.policy, [field]: value } })}/>)}
+          {(displayReview.policy.messageCreate || displayReview.policy.messageSchedule) && <fieldset><legend>{t("displayMessagePeopleRecipients")}</legend><p className="field-hint">{t("displayReviewMessageRecipientsHelp")}</p>{people.map(person => <Check key={`recipient:${person.id}`} label={person.display_name} checked={displayReview.policy.personIds.includes(person.id)} onChange={value => setDisplayReview({ ...displayReview, policy: { ...displayReview.policy, personIds: toggle(displayReview.policy.personIds, person.id, value) } })}/>)}</fieldset>}
+          {(displayReview.policy.messageCreate || displayReview.policy.messageSchedule) && <fieldset><legend>{t("displayMessageDisplayRecipients")}</legend>{displays.filter(display => display.id !== displayReview.display.id && !display.revoked_at).map(display => <Check key={`recipient-display:${display.id}`} label={display.name} checked={displayReview.policy.displayIds.includes(display.id)} onChange={value => setDisplayReview({ ...displayReview, policy: { ...displayReview.policy, displayIds: toggle(displayReview.policy.displayIds, display.id, value) } })}/>)}</fieldset>}
+          {(displayReview.policy.messageCreate || displayReview.policy.messageSchedule) && !displayActionHasMessageRecipients(displayReview.policy) && <p className="notice">{t("displayReviewMessageRecipientsRequired")}</p>}
+          {displayReview.policy.homeAssistantControl && <p className="field-hint">{t("displayReviewHaTargetsSeparate")}</p>}
+        </fieldset></details>
+        <p className="field-hint">{t("displayReviewPreviewCurrent")}</p>
+        <div className="form-actions"><button type="button" className="button" disabled={busy || !displayReview.setup} onClick={() => void run(async () => { const result = await api<Preview>(`/households/${householdId}/displays/${displayReview.display.id}/preview`, "POST", { draft: displayReview.draft }); setReviewPreview(result); })}>{t("displayReviewPreview")}</button><button type="button" className="button subtle" onClick={() => { setDisplayReview(null); setReviewPreview(null); }}>{t("cancel")}</button><button type="button" className="button primary" disabled={busy || reviewDeltas.length === 0} onClick={() => setConfirmingReview(true)}>{t("displayReviewApply")}</button></div>
+      </fieldset>
+      {reviewPreview && <ReadonlyPreview result={reviewPreview} displayName={displayReview.display.name} cardLabel={cardLabel} orientation={previewOrientation}/>}
+    </section>}
+    {displayReview && confirmingReview && <Dialog title={t("displayReviewConfirmTitle", { name: displayReview.display.name })} onClose={() => setConfirmingReview(false)}><p>{t("displayReviewConfirmBody")}</p>{reviewDeltas.length ? <ul>{reviewDeltas.map((row, index) => <li key={index}>{row}</li>)}</ul> : <p>{t("displayReviewNoChanges")}</p>}<div className="form-actions"><button type="button" className="button subtle" onClick={() => setConfirmingReview(false)}>{t("cancel")}</button><button type="button" className="button primary" disabled={busy || !displayReviewCanApply(confirmingReview, reviewDeltas.length)} onClick={() => void run(applyDisplayReview)}>{t("displayReviewConfirmApply")}</button></div></Dialog>}
     {policyDisplay && policy && <section className="display-policy-editor" id="display-policy-editor" tabIndex={-1}><h3>{t("displayDeviceGrants")}: {policyDisplay.name}</h3><fieldset disabled={busy}>
       {mediaPolicyError&&<p className="field-hint" role="status">{t("displayOptionalSourcesUnavailable")}</p>}
       <Check label={t("newMessage")} checked={policy.messageCreate} onChange={value => setPolicy({ ...policy, messageCreate: value })}/><Check label={t("messageSchedule")} checked={policy.messageSchedule} onChange={value => setPolicy({ ...policy, messageSchedule: value })}/><Check label={t("boardGroceries")} checked={policy.groceryWrite} onChange={value => setPolicy({ ...policy, groceryWrite: value })}/><Check label={t("boardDinners")} checked={policy.dinnerWrite} onChange={value => setPolicy({ ...policy, dinnerWrite: value })}/><Check label={t("mediaPhotosTitle")} checked={policy.photoUpload} onChange={value => setPolicy({ ...policy, photoUpload: value })}/><Check label={t("homeAssistantControlsTitle")} checked={policy.homeAssistantControl} onChange={value => setPolicy({ ...policy, homeAssistantControl: value })}/>

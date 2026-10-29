@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPreviewContentVisible, displayReadinessCard, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
+import { birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displaySetupNeedsPrivateCopy, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
 
 test("display locale and theme inherit from their assigned setup unless a raw override is present", () => {
   assert.equal(effectiveDisplayLocale(null, "nb", "en"), "nb");
@@ -87,4 +87,52 @@ test("calendar access readiness is rendered in exactly one selected card", () =>
   assert.equal(displayReadinessCard(["today","tomorrow"]),"today");
   assert.equal(displayReadinessCard(["tomorrow"]),"tomorrow");
   assert.equal(displayReadinessCard([]),null);
+});
+
+test("display review produces only explicit source and managed album deltas", () => {
+  const current = { canShareCalendars: true, selectedCalendarDisplayIds: ["source-already-shared"], requestedCalendarDisplayIds: ["source-already-shared"], selectedAlbumReadIds: ["album-current"], managedAlbumIds: ["album-current", "album-managed"], requestedAlbumReadIds: ["album-current"] };
+  const requested = { ...current, requestedCalendarDisplayIds: ["source-already-shared", "source-opted-in"], requestedAlbumReadIds: ["album-managed"] };
+  assert.deepEqual(displayReviewAccessPlan(current, requested), {
+    calendarDisplayIds: ["source-already-shared", "source-opted-in"], calendarChanged: true, calendarDenied: false,
+    albumDisplayIds: ["album-managed"], albumChangedIds: ["album-current", "album-managed"], deniedAlbumIds: [],
+  });
+});
+
+test("display review denies private calendar sharing and never silently grants an unmanaged album", () => {
+  const base = { canShareCalendars: false, selectedCalendarDisplayIds: [], requestedCalendarDisplayIds: [], selectedAlbumReadIds: [], managedAlbumIds: [], requestedAlbumReadIds: [] };
+  const noChoice = displayReviewAccessPlan(base, base);
+  assert.equal(noChoice.calendarChanged, false);
+  assert.equal(noChoice.calendarDenied, false);
+  const request = { ...base, requestedCalendarDisplayIds: ["private-source"], requestedAlbumReadIds: ["unmanaged-album"] };
+  const denied = displayReviewAccessPlan(base, request);
+  assert.equal(denied.calendarDenied, true);
+  assert.deepEqual(denied.calendarDisplayIds, []);
+  assert.deepEqual(denied.albumDisplayIds, []);
+  assert.deepEqual(denied.deniedAlbumIds, ["unmanaged-album"]);
+});
+
+test("layout review copies a default or shared setup before changing one display", () => {
+  assert.equal(displaySetupNeedsPrivateCopy(true, [], "setup-1", "setup-1"), true);
+  assert.equal(displaySetupNeedsPrivateCopy(false, ["other-display"], "setup-1", "setup-1"), true);
+  assert.equal(displaySetupNeedsPrivateCopy(false, [], "setup-1", "setup-1"), false);
+  assert.equal(displaySetupNeedsPrivateCopy(false, [], null, "setup-1"), true);
+});
+
+test("calendar display grant updates preserve subjects, readers, sync window, and other display targets", () => {
+  const source = { revision: 9, enabled: true, purpose: "calendar", displayName: "Family plan", bridgeKind: "direct", syncWindowDays: { past: 21, future: 120 }, appliesTo: { household: false, personIds: ["person-a"] }, visibility: { household: false, personIds: ["person-b"], displayIds: ["display-a", "display-current"] } };
+  assert.deepEqual(displayCalendarSourceUpdate(source, "display-current", false), { expectedRevision: 9, enabled: true, purpose: "calendar", displayName: "Family plan", bridgeKind: "direct", syncWindowDays: { past: 21, future: 120 }, appliesTo: source.appliesTo, visibility: { household: false, personIds: ["person-b"], displayIds: ["display-a"] } });
+  assert.deepEqual(displayCalendarSourceUpdate(source, "display-new", true).visibility, { household: false, personIds: ["person-b"], displayIds: ["display-a", "display-current", "display-new"] });
+});
+
+test("message actions are not usable until a recipient is explicitly selected", () => {
+  assert.equal(displayActionHasMessageRecipients({ personIds: [], displayIds: [] }), false);
+  assert.equal(displayActionHasMessageRecipients({ personIds: ["person-a"], displayIds: [] }), true);
+  assert.equal(displayActionHasMessageRecipients({ personIds: [], displayIds: ["display-a"] }), true);
+});
+
+test("selecting a review delta cannot apply it until the separate confirmation step", () => {
+  assert.equal(displayReviewCanApply(false, 1), false);
+  assert.equal(displayReviewCanApply(false, 4), false);
+  assert.equal(displayReviewCanApply(true, 0), false);
+  assert.equal(displayReviewCanApply(true, 4), true);
 });

@@ -3,6 +3,55 @@ import type { Locale, Theme } from './types';
 export type BirthdayMode = 'off'|'all'|'legacy_selected';
 export type CalendarReadiness = 'privacy'|'none_selected'|'external_disabled'|'not_shared'|'ready';
 
+export type DisplayReviewAccess = {
+  canShareCalendars: boolean;
+  selectedCalendarDisplayIds: string[];
+  requestedCalendarDisplayIds: string[];
+  selectedAlbumReadIds: string[];
+  managedAlbumIds: string[];
+  requestedAlbumReadIds: string[];
+};
+
+/** A review plan never creates grants implicitly: only explicit, authorized opt-ins become writes. */
+export function displayReviewAccessPlan(current: DisplayReviewAccess, requested: DisplayReviewAccess) {
+  const calendarDenied = !requested.canShareCalendars && requested.requestedCalendarDisplayIds.some(id => !current.selectedCalendarDisplayIds.includes(id));
+  const calendarDisplayIds = requested.canShareCalendars
+    ? [...new Set(requested.requestedCalendarDisplayIds)]
+    : current.selectedCalendarDisplayIds;
+  const permittedAlbums = new Set(requested.managedAlbumIds);
+  const albumDisplayIds = requested.requestedAlbumReadIds.filter(id => permittedAlbums.has(id));
+  const deniedAlbumIds = requested.requestedAlbumReadIds.filter(id => !permittedAlbums.has(id));
+  return {
+    calendarDisplayIds,
+    calendarChanged: !sameIds(current.selectedCalendarDisplayIds, calendarDisplayIds),
+    calendarDenied,
+    albumDisplayIds,
+    albumChangedIds: [...new Set([...current.selectedAlbumReadIds, ...albumDisplayIds])].filter(id => current.selectedAlbumReadIds.includes(id) !== albumDisplayIds.includes(id)),
+    deniedAlbumIds,
+  };
+}
+
+export function displaySetupNeedsPrivateCopy(isDefault: boolean, otherDisplayIds: string[], displaySetupId: string | null|undefined, setupId: string): boolean {
+  return isDefault || otherDisplayIds.length > 0 || displaySetupId !== setupId;
+}
+
+export function displayActionHasMessageRecipients(policy: { personIds?: string[]; displayIds?: string[] }): boolean {
+  return Boolean(policy.personIds?.length || policy.displayIds?.length);
+}
+
+export function displayReviewCanApply(confirmed: boolean, deltaCount: number): boolean {
+  return confirmed && deltaCount > 0;
+}
+
+export function displayCalendarSourceUpdate(source: { revision: number; enabled: boolean; purpose: string; displayName: string|null; bridgeKind: string; syncWindowDays: { past: number; future: number }; appliesTo: { household: boolean; personIds: string[] }; visibility: { household: boolean; personIds: string[]; displayIds: string[] } }, displayId: string, share: boolean) {
+  const displayIds = share ? [...new Set([...source.visibility.displayIds, displayId])] : source.visibility.displayIds.filter(id => id !== displayId);
+  return { expectedRevision: source.revision, enabled: source.enabled, purpose: source.purpose, displayName: source.displayName, bridgeKind: source.bridgeKind, syncWindowDays: source.syncWindowDays, appliesTo: source.appliesTo, visibility: { ...source.visibility, displayIds } };
+}
+
+function sameIds(left: string[], right: string[]) {
+  return left.length === right.length && left.every(id => right.includes(id));
+}
+
 export function effectiveDisplayLocale(override: Locale|null|undefined, setupDefault: Locale|undefined, fallback: Locale): Locale {
   return override ?? setupDefault ?? fallback;
 }
