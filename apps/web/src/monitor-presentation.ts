@@ -20,6 +20,8 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   const details = error instanceof ApiError ? error.details : undefined;
   const validationStage = details?.validationStage;
   const validationReason = details?.validationReason;
+  if (validationStage === 'provider_response' && validationReason === 'network_error') return 'monitorErrorProviderNetwork';
+  if (validationStage === 'provider_response') return 'monitorErrorProviderResponse';
   if (validationStage === 'final_schema' && ['invalid_json', 'schema_mismatch', 'response_too_large', 'invalid_json_or_schema'].includes(String(validationReason))) return 'monitorErrorResponseFormat';
   if (validationStage === 'evidence_anchor') return 'monitorErrorVerification';
   if (code === 'MONITOR_LOCATION_REQUIRED') return 'monitorErrorLocationRequired';
@@ -58,6 +60,54 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || code === 'MONITOR_OWNER_UNAUTHORIZED') return 'monitorErrorPermission';
   return 'monitorErrorGeneric';
 };
+
+const validationIssueCodes = new Set(['invalid_type', 'too_small', 'too_big', 'invalid_format', 'unrecognized_keys', 'invalid_value', 'invalid_union', 'custom', 'not_multiple_of']);
+const validationIssuePaths = new Set([
+  '$', 'summary', 'answer', 'events', 'events[].date', 'events[].time', 'events[].type',
+  'events[].description', 'events[].evidence.quote', 'events[].evidence.sourceUrl',
+  'events[].evidence.claims', 'evidence.quote', 'evidence.sourceUrl', 'evidence.claims',
+  'schedule.localTime', 'noticeLocalTime', 'checkIntervalMinutes', 'noticeDaysBefore',
+]);
+const issueFieldKeys: Record<string, TranslationKey> = {
+  '$': 'monitorIssueFieldResponse', summary: 'monitorIssueFieldSummary', answer: 'monitorIssueFieldAnswer',
+  events: 'monitorIssueFieldEvents', 'events[].date': 'monitorIssueFieldDate', 'events[].time': 'monitorIssueFieldTime',
+  'events[].type': 'monitorIssueFieldType', 'events[].description': 'monitorIssueFieldDescription',
+  'events[].evidence.quote': 'monitorIssueFieldQuote', 'events[].evidence.sourceUrl': 'monitorIssueFieldSource',
+  'events[].evidence.claims': 'monitorIssueFieldClaims', 'evidence.quote': 'monitorIssueFieldQuote',
+  'evidence.sourceUrl': 'monitorIssueFieldSource', 'evidence.claims': 'monitorIssueFieldClaims',
+  'schedule.localTime': 'monitorIssueFieldTime', noticeLocalTime: 'monitorIssueFieldTime',
+  checkIntervalMinutes: 'monitorIssueFieldSchedule', noticeDaysBefore: 'monitorIssueFieldSchedule',
+};
+const issueCodeKeys: Record<string, TranslationKey> = {
+  invalid_type: 'monitorIssueCodeType', too_small: 'monitorIssueCodeRequired', too_big: 'monitorIssueCodeLimit',
+  invalid_format: 'monitorIssueCodeFormat', unrecognized_keys: 'monitorIssueCodeUnexpected',
+  invalid_value: 'monitorIssueCodeValue', invalid_union: 'monitorIssueCodeValue', custom: 'monitorIssueCodeValue',
+  not_multiple_of: 'monitorIssueCodeValue',
+};
+
+/** Project only the sanitized, allowlisted field and code summary to UI copy. */
+export function monitorValidationIssues(details: Record<string, unknown> | undefined): { field: TranslationKey; issue: TranslationKey }[] {
+  if (!Array.isArray(details?.validationIssues)) return [];
+  const seen = new Set<string>();
+  return details.validationIssues.slice(0, 8).flatMap((candidate: unknown) => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return [];
+    const row = candidate as Record<string, unknown>;
+    if (typeof row.path !== 'string' || !validationIssuePaths.has(row.path) || typeof row.code !== 'string' || !validationIssueCodes.has(row.code)) return [];
+    const key = `${row.path}:${row.code}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ field: issueFieldKeys[row.path] ?? 'monitorIssueFieldOther', issue: issueCodeKeys[row.code] ?? 'monitorIssueCodeValue' }];
+  });
+}
+
+export function monitorResultNotice(execution: { status: string; resultSummary?: unknown } | null | undefined, hasPreviousResult: boolean): 'success_no_findings' | 'stale_previous_success' | null {
+  if (execution?.status === 'failed' && hasPreviousResult) return 'stale_previous_success';
+  if (execution?.status !== 'succeeded' || !execution.resultSummary || typeof execution.resultSummary !== 'object') return null;
+  const summary = execution.resultSummary as { outcome?: unknown; resultKind?: unknown; result?: unknown };
+  if (summary.outcome !== 'changed' || summary.resultKind !== 'events' || !summary.result || typeof summary.result !== 'object') return null;
+  const result = summary.result as { events?: unknown };
+  return Array.isArray(result.events) && result.events.length === 0 ? 'success_no_findings' : null;
+}
 
 /** Error details are untrusted. Show only bounded, human-readable place fields. */
 export function locationCandidates(error: unknown): string[] {

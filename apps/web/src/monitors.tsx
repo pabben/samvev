@@ -5,7 +5,7 @@ import type { Display, MonitorExecution, MonitorRunResult, MonitorSource, Monito
 import type { TranslationKey } from "./locales/en";
 import { Field, Icon, Loading, useI18n } from "./ui";
 import { formatDate } from "./time";
-import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
+import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
 
 interface Draft {
   name: string; instruction: string; sourceUrl: string;
@@ -208,8 +208,10 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
     const value = error && error.taskId === taskId ? error.value : storedError;
     if (!value) return null;
     const candidates = locationCandidates(value);
+    const validationIssues = value instanceof ApiError ? monitorValidationIssues(value.details) : [];
     return <div className="notice error monitor-error" id={taskId ? `monitor-error-${taskId}` : 'monitor-error'} tabIndex={-1} role="alert">
       <p>{t(taskErrorKey(value))}</p>
+      {validationIssues.length > 0 && <ul className="monitor-validation-issues">{validationIssues.map(({ field, issue }, index) => <li key={`${field}:${issue}:${index}`}>{t('monitorValidationIssue', { field: t(field), issue: t(issue) })}</li>)}</ul>}
       {candidates.length > 0 && <ul className="monitor-location-options">{candidates.map((place) => <li key={place}>
         {task && task.lifecycle.actions.edit.enabled && task.instruction.length + t('monitorLocationClarification', { place }).length < 2000 ? <button type="button" disabled={formBusy || Boolean(taskBusy[task.id])} onClick={() => {
           beginEdit(task);
@@ -255,6 +257,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
       const persistedPreview = completedRun?.status === 'succeeded' && completedRun.kind !== 'interpretation' && completedSummary?.outcome && summaryCanRender ? { action: completedRun.kind === 'manual' ? 'run' as const : completedRun.kind === 'scheduled' ? 'saved' as const : completedRun.kind, value: completedSummary } : undefined;
       const preview = persistedPreview ?? results[task.id] ?? (task.state !== 'draft' && task.latestResult ? { action: 'saved' as const, value: { ...task.latestResult, outcome: 'changed' as const } } : undefined);
       const visibleResult = preview?.value.outcome === 'unchanged' ? (task.state !== 'draft' ? task.latestResult : null) : preview?.value;
+      const resultNotice = monitorResultNotice(completedRun, Boolean(task.latestResult || task.events.length || task.lastResult));
       const lifecycle = task.lifecycle;
       const execution = task.activeExecution;
       const working = Boolean(taskBusy[task.id]) || Boolean(execution) || lifecycle.status === 'running';
@@ -303,6 +306,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
             <div><dt>{t('monitorRuleTargets')}</dt><dd>{names(task)}</dd></div>
           </dl>{task.state === 'draft' && <p>{t('monitorApprovalHint')}</p>}
         </div>}
+        {resultNotice === 'stale_previous_success' && <p className="notice" role="status">{t('monitorPreviousResultStale')}</p>}
         {preview && <section className="monitor-result" id={`monitor-result-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-result-title-${task.id}`}><h3 id={`monitor-result-title-${task.id}`}>{t(preview.action === 'smarter' ? 'monitorSmarterResult' : preview.action === 'test' ? 'monitorTestResult' : 'monitorLastResult')}</h3><>{preview.action !== 'saved' && <p className="field-hint">{t(preview.action === 'run' ? 'monitorRunPreservesSchedule' : 'monitorPreviewHint')}</p>}</>{preview.value.outcome === 'unchanged' && <p>{t('monitorResultUnchanged')}</p>}{visibleResult?.resultKind === 'answer' ? <><p className="monitor-answer">{visibleResult.result?.answer}</p>{visibleResult.result?.evidence && shouldShowAnswerEvidence(resultSources) && <blockquote>{visibleResult.result.evidence.quote}</blockquote>}{visibleResult.result?.uncertainty && <p>{t('monitorUncertainty')}: {visibleResult.result.uncertainty}</p>}</> : visibleResult?.resultKind === 'events' ? findings(visibleResult.result?.events ?? []) : null}{resultSourceUrl && <a className="monitor-result-source" href={resultSourceUrl} target="_blank" rel="noreferrer">{resultSource && isWeatherSource(resultSource) ? t('monitorWeatherSource') : t('monitorOpenSource')}</a>}{observedAt && <small className="monitor-observed-at">{t('monitorSourceChecked')} <time dateTime={observedAt}>{formatDate(observedAt, locale, timezone)}</time></small>}{resultSource && resultSources.length === 1 && isWeatherSource(resultSource) && <div className="monitor-forecast-details">{sourceDetails(resultSource, false)}</div>}{resultSources.length > 1 && <details className="monitor-sources"><summary>{t('monitorSourcesUsed')}</summary><ul>{resultSources.map((source) => <li key={source.sourceUrl}><a href={source.sourceUrl} target="_blank" rel="noreferrer">{sourceName(source)}</a>{sourceDetails(source)}</li>)}</ul></details>}{preview.action === 'smarter' && task.state !== 'draft' && <><p>{t('monitorSmarterChoice')}</p><div className="card-actions"><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'smarter')}>{t('monitorKeepSmarter')}</button><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'standard')}>{t('monitorKeepStandard')}</button></div></>}</section>}
         {!preview && task.state !== 'draft' && task.events.length > 0 && <details className="monitor-findings"><summary>{t('monitorFindings', { count: task.events.length })}</summary>{findings(task.events)}</details>}
         {!preview && task.state !== 'draft' && task.lastResult && !/^(\d+) event\(s\)$|^unchanged$|^failed$/.test(task.lastResult) && <section className="monitor-result"><h3>{t('monitorLastResult')}</h3><p className="monitor-answer">{task.lastResult}</p>{(task.source?.finalUrl || task.sourceUrl) && <a href={task.source?.finalUrl || task.sourceUrl!} target="_blank" rel="noreferrer">{weatherTask ? t('monitorWeatherSource') : t('monitorOpenSource')}</a>}</section>}

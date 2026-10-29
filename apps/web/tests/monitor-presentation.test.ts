@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/api.ts';
-import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
+import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
 import { en } from '../src/locales/en.ts';
 import { nb } from '../src/locales/nb.ts';
 
@@ -61,10 +61,47 @@ test('sanitized AI diagnostics distinguish response formatting from source evide
   }
   assert.equal(taskErrorKey(new ApiError('MONITOR_INTERPRETATION_SCHEMA_INVALID', 502, { validationStage: 'final_schema', validationReason: 'invalid_json_or_schema' })), 'monitorErrorResponseFormat');
   assert.equal(taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'evidence_anchor', validationReason: 'claim' })), 'monitorErrorVerification');
-  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response' })), 'monitorErrorGeneric');
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response' })), 'monitorErrorProviderResponse');
   assert.equal(taskErrorKey(new ApiError('MONITOR_EXECUTION_FAILED')), 'monitorErrorGeneric');
   assert.match(en.monitorErrorResponseFormat, /required format/i);
   assert.match(nb.monitorErrorResponseFormat, /forventet format/i);
+});
+
+test('provider connection failures and safe schema issue summaries are distinct and private', () => {
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response', validationReason: 'network_error', message: 'private endpoint' })), 'monitorErrorProviderNetwork');
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response', validationReason: 'upstream_http_5xx' })), 'monitorErrorProviderResponse');
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { message: 'private endpoint' })), 'monitorErrorGeneric', 'unknown failures stay generic');
+  const details = { validationIssues: [
+    { path: 'events[].date', code: 'invalid_type', value: 'private model text' },
+    { path: 'events[].evidence.quote', code: 'too_small', value: 'private quote' },
+    { path: 'private.child.name', code: 'invalid_type' },
+    { path: 'events[].date', code: 'invalid_type' },
+    { path: 'summary', code: 'private_code' },
+  ], rawOutput: 'do not show this' };
+  const issues = monitorValidationIssues(details);
+  assert.deepEqual(issues, [
+    { field: 'monitorIssueFieldDate', issue: 'monitorIssueCodeType' },
+    { field: 'monitorIssueFieldQuote', issue: 'monitorIssueCodeRequired' },
+  ]);
+  for (const messages of [en, nb]) {
+    assert.ok(messages.monitorErrorProviderNetwork);
+    assert.ok(messages.monitorErrorProviderResponse);
+    assert.ok(messages.monitorValidationIssue);
+    assert.ok(messages.monitorIssueFieldDate);
+    assert.ok(messages.monitorIssueCodeType);
+  }
+  assert.doesNotMatch(JSON.stringify(issues), /private/);
+});
+
+test('monitor result notices distinguish an empty successful check from a stale result', () => {
+  assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'events', result: { events: [] } } }, false), 'success_no_findings');
+  assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'events', result: { events: [{ date: '2030-01-01' }] } } }, false), null);
+  assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, true), 'stale_previous_success');
+  assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, false), null);
+  assert.match(en.monitorNoFindingsSuccess, /completed successfully/i);
+  assert.match(nb.monitorNoFindingsSuccess, /fullført/);
+  assert.match(en.monitorPreviousResultStale, /earlier successful check/);
+  assert.match(nb.monitorPreviousResultStale, /tidligere vellykket kontroll/);
 });
 
 
