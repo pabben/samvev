@@ -91,6 +91,24 @@ test("Home week layout fills the agenda column on desktop and tablet without cha
  assert.doesNotMatch(mobile,/data-testid="home-week-column"/);
 });
 
+test("portrait tablet override beats the empty-services three-track selector",()=>{
+ assert.match(homeStyles,/@media\(min-width:641px\) and \(max-width:899px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-board:not\(:has\(>\.hub-home-services>\.hub-home-smart:not\(:empty\)\)\):not\(:has\(>\.hub-home-services>\.hub-home-photos\)\)\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+});
+
+test("mobile light and dark both expose exactly one compose action with empty or populated messages",()=>{
+ const message={id:"synthetic-message",body:"A synthetic mobile note",importance:"normal" as const,authorName:"Synthetic sender",publishAt:"2026-10-28T11:00:00Z",expiresAt:"2026-10-29T00:00:00Z",revision:1};
+ for(const theme of ["light","dark"] as const){
+  for(const messages of [[],[message]]){
+   setViewport(true,theme,true);
+   const html=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{onCompose:()=>{},messages});
+   assert.equal((html.match(/New message/g)??[]).length,1,`${theme} theme should render one compose action`);
+   assert.match(html,/class="hub-quick-actions"[^]*?New message[^]*?<\/section>/);
+   assert.doesNotMatch(html,/class="button hub-compose"/,"mobile should not retain the hidden hero compose button in the DOM");
+   if(messages.length)assert.match(html,/hub-messages/);
+  }
+ }
+});
+
 
 test("display message section is absent when empty, future, or expired, and retains real live messages",()=>{
  setViewport();

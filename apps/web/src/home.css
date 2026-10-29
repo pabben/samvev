@@ -101,6 +101,11 @@ body{font-family:var(--font-sans)}
  .family-hub.hub-member .hub-home-people{grid-column:auto;grid-row:auto}
  .family-hub.hub-member .hub-home-services{grid-column:auto;grid-row:auto}
 }
+@media(min-width:641px) and (max-width:899px){
+ /* The no-services selector has :has() specificity high enough to win over
+    the tablet grid declaration. Reassert two tracks for the portrait board. */
+ .family-hub.hub-member .hub-home-board:not(:has(>.hub-home-services>.hub-home-smart:not(:empty))):not(:has(>.hub-home-services>.hub-home-photos)){grid-template-columns:repeat(2,minmax(0,1fr))}
+}
 @media(max-width:640px){
  .hub-home-primary-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:10px}
  .hub-home-secondary-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:10px}
