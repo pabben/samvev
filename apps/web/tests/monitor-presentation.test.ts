@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/api.ts';
-import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
+import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorResultNoticeKey, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
 import { en } from '../src/locales/en.ts';
 import { nb } from '../src/locales/nb.ts';
 
@@ -98,6 +98,9 @@ test('monitor result notices distinguish an empty successful check from a stale 
   assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'events', result: { events: [{ date: '2030-01-01' }] } } }, false), null);
   assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, true), 'stale_previous_success');
   assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, false), null);
+  assert.equal(monitorResultNoticeKey('success_no_findings'), 'monitorNoFindingsSuccess');
+  assert.equal(monitorResultNoticeKey('stale_previous_success'), 'monitorPreviousResultStale');
+  assert.equal(monitorResultNoticeKey(null), null);
   assert.match(en.monitorNoFindingsSuccess, /completed successfully/i);
   assert.match(nb.monitorNoFindingsSuccess, /fullført/);
   assert.match(en.monitorPreviousResultStale, /earlier successful check/);

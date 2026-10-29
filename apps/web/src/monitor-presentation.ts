@@ -109,6 +109,12 @@ export function monitorResultNotice(execution: { status: string; resultSummary?:
   return Array.isArray(result.events) && result.events.length === 0 ? 'success_no_findings' : null;
 }
 
+export function monitorResultNoticeKey(notice: 'success_no_findings' | 'stale_previous_success' | null): TranslationKey | null {
+  if (notice === 'success_no_findings') return 'monitorNoFindingsSuccess';
+  if (notice === 'stale_previous_success') return 'monitorPreviousResultStale';
+  return null;
+}
+
 /** Error details are untrusted. Show only bounded, human-readable place fields. */
 export function locationCandidates(error: unknown): string[] {
   if (!(error instanceof ApiError) || error.code !== 'MONITOR_LOCATION_AMBIGUOUS' || !Array.isArray(error.details?.candidates)) return [];
