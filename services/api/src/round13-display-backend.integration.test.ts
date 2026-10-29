@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {createHash,randomUUID} from 'node:crypto';
 import test,{after,before} from 'node:test';
 import type {FastifyInstance,LightMyRequestResponse} from 'fastify';
+import type {PoolClient} from 'pg';
 import {displaySetupCards,personColorTokens} from '@samvev/contracts';
 import {buildApp} from './app.ts';
 import {pool} from './db.ts';
@@ -17,7 +18,26 @@ function day(value:string,offset:number){const date=new Date(`${value}T00:00:00Z
 function hash(value:string){return createHash('sha256').update(value).digest('hex');}
 function previewTag(sourceId:string){return Buffer.from(JSON.stringify({cards:displaySetupCards.filter((card)=>card!=='family_layout'),familyLayoutEnabled:false,allSources:false,allSensors:false,personIds:[childId],sourceIds:[connectionId],calendarSourceIds:[sourceId],sensorIds:[],albumIds:[],backgroundId:null})).toString('base64url');}
 function profileTag(){return Buffer.from(JSON.stringify({cards:displaySetupCards,familyLayoutEnabled:true,allSources:false,allSensors:false,personIds:[childId],sourceIds:[],calendarSourceIds:[],sensorIds:[],albumIds:[],backgroundId:null})).toString('base64url');}
-async function waitForBlockedQuery(fragment:string,count=1){const deadline=Date.now()+4_000;while(Date.now()<deadline){const state=await pool.query<{waiting:number}>(`SELECT count(*)::int AS waiting FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query ILIKE $1`,[`%${fragment}%`]);if(state.rows[0]!.waiting>=count)return;await new Promise((resolve)=>setTimeout(resolve,20));}assert.fail(`timed out waiting for ${count} blocked queries containing ${fragment}`);}
+async function waitForBlockedClient(blocker:PoolClient,count=1){
+  const pid=(await blocker.query<{pid:number}>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;
+  const deadline=Date.now()+4_000;
+  while(Date.now()<deadline){
+    // A queued tuple-lock waiter can be blocked by the preceding waiter,
+    // rather than directly by the original holder. Follow actual blocker
+    // edges to that holder, preserving the two-request ordering assertion.
+    const state=await pool.query<{waiting:number}>(`WITH RECURSIVE blocking_chain(pid,blocker) AS (
+      SELECT activity.pid,blocking.pid FROM pg_stat_activity activity
+        CROSS JOIN LATERAL unnest(pg_blocking_pids(activity.pid)) blocking(pid)
+        WHERE activity.datname=current_database() AND activity.wait_event_type='Lock'
+      UNION
+      SELECT chain.pid,parent.pid FROM blocking_chain chain
+        CROSS JOIN LATERAL unnest(pg_blocking_pids(chain.blocker)) parent(pid)
+    ) SELECT count(DISTINCT pid)::int AS waiting FROM blocking_chain WHERE blocker=$1`,[pid]);
+    if(state.rows[0]!.waiting>=count)return;
+    await new Promise(resolve=>setTimeout(resolve,20));
+  }
+  assert.fail(`timed out waiting for ${count} requests blocked by the exact test lock holder`);
+}
 async function pair(name:string){
   const verifier=`${name}-display-verifier-0123456789`;
   const started=await app.inject({method:'POST',url:'/api/v1/display/pairing/start',headers:{origin},payload:{verifierHash:hash(verifier)}});assert.equal(started.statusCode,201,started.body);
@@ -157,11 +177,11 @@ test('same manager preview and media grant update lock authority before the devi
     // Queue the media mutation first. It will acquire the manager account before
     // the preview after release, then require the target device exclusively.
     mediaUpdate=app.inject({method:'PUT',url:`/api/v1/households/${householdId}/media/albums/${albumId}/displays/${secondDisplayId}`,headers:{cookie:`samvev_session=${mediaToken}`,'x-csrf-token':mediaCsrf,origin},payload:{expectedRevision:null,canRead:true,canUpload:false}}).then(response=>response);
-    await waitForBlockedQuery('JOIN accounts account');
+    await waitForBlockedClient(lock);
     preview=app.inject({method:'POST',url:`/api/v1/households/${householdId}/displays/${secondDisplayId}/preview`,headers:adminHeaders(),payload:{setupId}}).then(response=>response);
     // In the former order the preview already owns device SHARE here. Once the
     // media mutation obtains manager UPDATE, that forms a real two-request cycle.
-    await waitForBlockedQuery('JOIN accounts account',2);
+    await waitForBlockedClient(lock,2);
     await lock.query('COMMIT');locked=false;
   }finally{if(locked)await lock.query('ROLLBACK');lock.release();}
   assert.ok(mediaUpdate);assert.ok(preview);
@@ -198,7 +218,7 @@ test('admin preview is side-effect-free and image bytes remain device-grant filt
   const profileLock=await pool.connect();let waitingProfile:Promise<LightMyRequestResponse>|undefined;await profileLock.query('BEGIN');await profileLock.query('LOCK TABLE person_profile_photos IN ACCESS EXCLUSIVE MODE');
   try{
     waitingProfile=app.inject({method:'GET',url:`/api/v1/households/${householdId}/displays/${displayId}/preview/people/${childId}/photo/96?v=${profileRevision}&s=${profileTag()}`,headers:adminHeaders()});
-    await waitForBlockedQuery('person_profile_photos');
+    await waitForBlockedClient(profileLock);
     await pool.query('DELETE FROM display_person_grants WHERE household_id=$1 AND display_id=$2 AND person_id=$3',[householdId,displayId,childId]);
   }finally{await profileLock.query('ROLLBACK');profileLock.release();}
   const revokedProfile=await waitingProfile!;assert.equal(revokedProfile.statusCode,404,'profile grant revoked during photo read cannot receive bytes or a cached 304');
@@ -206,7 +226,7 @@ test('admin preview is side-effect-free and image bytes remain device-grant filt
   const actualLock=await pool.connect();let waitingActual:Promise<LightMyRequestResponse>|undefined;await actualLock.query('BEGIN');await actualLock.query('LOCK TABLE person_profile_photos IN ACCESS EXCLUSIVE MODE');
   try{
     waitingActual=app.inject({method:'GET',url:`/api/v1/display/people/${childId}/photo/96?v=${profileRevision}`,headers:{cookie:displayCookie}});
-    await waitForBlockedQuery('person_profile_photos');
+    await waitForBlockedClient(actualLock);
     await pool.query('DELETE FROM display_person_grants WHERE household_id=$1 AND display_id=$2 AND person_id=$3',[householdId,displayId,childId]);
   }finally{await actualLock.query('ROLLBACK');actualLock.release();}
   const revokedActual=await waitingActual!;assert.equal(revokedActual.statusCode,404,'actual display profile image is also fenced after a blocked read');
@@ -214,21 +234,21 @@ test('admin preview is side-effect-free and image bytes remain device-grant filt
   const expiryLock=await pool.connect();let waitingExpiry:Promise<LightMyRequestResponse>|undefined;await expiryLock.query('BEGIN');await expiryLock.query('LOCK TABLE person_profile_photos IN ACCESS EXCLUSIVE MODE');
   try{
     waitingExpiry=app.inject({method:'GET',url:`/api/v1/households/${householdId}/displays/${secondDisplayId}/preview/people/${childId}/photo/96?v=${profileRevision}&s=${profileTag()}`,headers:adminHeaders()});
-    await waitForBlockedQuery('person_profile_photos');
+    await waitForBlockedClient(expiryLock);
     await pool.query("UPDATE displays SET credential_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[secondDisplayId]);
   }finally{await expiryLock.query('ROLLBACK');expiryLock.release();}
   const expiredDevice=await waitingExpiry!;assert.equal(expiredDevice.statusCode,404,'device expiry during a blocked preview image read is enforced before bytes or 304');
   const photoLock=await pool.connect();let waitingPhoto:Promise<LightMyRequestResponse>|undefined;await photoLock.query('BEGIN');await photoLock.query('LOCK TABLE person_profile_photos IN ACCESS EXCLUSIVE MODE');
   try{
     waitingPhoto=app.inject({method:'GET',url:`/api/v1/households/${householdId}/displays/${displayId}/preview/people/${childId}/photo/96?v=${profileRevision}&s=${previewTag(sourceB)}`,headers:adminHeaders()});
-    await waitForBlockedQuery('person_profile_photos');
+    await waitForBlockedClient(photoLock);
     await pool.query('DELETE FROM integration_connection_display_grants WHERE household_id=$1 AND connection_id=$2 AND display_id=$3',[householdId,connectionId,displayId]);
   }finally{await photoLock.query('ROLLBACK');photoLock.release();}
   const revokedDuringRead=await waitingPhoto!;assert.equal(revokedDuringRead.statusCode,404,'current source grant is rechecked after a blocked photo read and before conditional responses');
   const messageLock=await pool.connect();let waitingPrivacy:Promise<LightMyRequestResponse>|undefined;await messageLock.query('BEGIN');await messageLock.query('LOCK TABLE messages IN ACCESS EXCLUSIVE MODE');
   try{
     waitingPrivacy=app.inject({method:'POST',url:`/api/v1/households/${householdId}/displays/${displayId}/preview`,headers:adminHeaders(),payload:{setupId}});
-    await waitForBlockedQuery('FROM messages m');
+    await waitForBlockedClient(messageLock);
     const changed=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${displayId}`,headers:adminHeaders(),payload:{privacyMode:true}});assert.equal(changed.statusCode,200,changed.body);
   }finally{await messageLock.query('ROLLBACK');messageLock.release();}
   const stalePrivacy=await waitingPrivacy!;assert.equal(stalePrivacy.statusCode,404,'privacy change during awaited preview work invalidates the completed projection');
@@ -236,7 +256,7 @@ test('admin preview is side-effect-free and image bytes remain device-grant filt
   const managerLock=await pool.connect();let waitingManager:Promise<LightMyRequestResponse>|undefined;await managerLock.query('BEGIN');await managerLock.query('LOCK TABLE messages IN ACCESS EXCLUSIVE MODE');
   try{
     waitingManager=app.inject({method:'POST',url:`/api/v1/households/${householdId}/displays/${displayId}/preview`,headers:adminHeaders(),payload:{setupId}});
-    await waitForBlockedQuery('FROM messages m');
+    await waitForBlockedClient(managerLock);
     await pool.query("UPDATE sessions SET expires_at=clock_timestamp()-interval '1 second' WHERE id=$1",[ownerSessionId]);
   }finally{await managerLock.query('ROLLBACK');managerLock.release();}
   const staleManager=await waitingManager!;assert.equal(staleManager.statusCode,401,'manager session expiry during awaited preview work invalidates the completed projection');

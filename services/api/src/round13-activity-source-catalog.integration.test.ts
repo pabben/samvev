@@ -39,7 +39,20 @@ async function pair(name:string){
   const token=opaqueToken();const row=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme,setup_id,credential_hash,credential_expires_at,external_items_enabled) VALUES($1,$2,'en','light',$3,$4,clock_timestamp()+interval '90 days',true) RETURNING id`,[householdId,name,setupId,tokenHash(token)])).rows[0]!;
   return{id:row.id,cookie:`samvev_display=${token}`};
 }
-async function waitForSourceQuery(count=1){const deadline=Date.now()+4_000;do{const rows=await pool.query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%FROM calendar_sources source%'`);if((rows.rowCount??0)>=count)return;await new Promise(resolve=>setTimeout(resolve,20));}while(Date.now()<deadline);assert.fail('catalog must reach its source query lock wait');}
+// Observe the exact session that owns our test lock, not SQL text: activity
+// text is truncated and the auth snapshot may now encounter this lock first.
+async function waitForCatalogBlocker(blocker:pg.Client,count=1){
+  const pid=(await blocker.query<{pid:number}>('SELECT pg_backend_pid() AS pid')).rows[0]!.pid;
+  const deadline=Date.now()+4_000;
+  do{
+    const waiting=await pool.query(`SELECT activity.pid FROM pg_stat_activity activity
+      WHERE activity.datname=current_database() AND activity.wait_event_type='Lock'
+        AND $1::int=ANY(pg_blocking_pids(activity.pid))`,[pid]);
+    if((waiting.rowCount??0)>=count)return;
+    await new Promise(resolve=>setTimeout(resolve,20));
+  }while(Date.now()<deadline);
+  assert.fail(`catalog must reach ${count} waits blocked by its test lock holder`);
+}
 async function waitForExpiry(query:string,values:string[]){const deadline=Date.now()+4_000;do{if((await pool.query<{expired:boolean}>(query,values)).rows[0]!.expired)return;await new Promise(resolve=>setTimeout(resolve,20));}while(Date.now()<deadline);assert.fail('actor must expire while the source query is blocked');}
 
 before(async()=>{
@@ -112,7 +125,7 @@ test('catalogs discard source reader and device grants revoked while the source 
   try{
     member=app.inject({method:'GET',url:memberUrl,headers:{cookie:viewerCookie}}).then(response=>response);
     display=app.inject({method:'GET',url:displayPath,headers:{cookie:firstCookie}}).then(response=>response);
-    await waitForSourceQuery(2);
+    await waitForCatalogBlocker(lock,2);
     // Match the source mutation protocol: change the source revision before
     // replacing its reader/device grants, while the catalog snapshot waits.
     await pool.query('UPDATE calendar_sources SET revision=revision+1 WHERE id=ANY($1::uuid[])',[[readerId,futureId]]);
@@ -136,11 +149,11 @@ test('display catalog applies setup narrowing committed while acquiring the curr
   let request!:Promise<LightMyRequestResponse>;
   try{
     request=app.inject({method:'GET',url:displayPath,headers:{cookie:firstCookie}}).then(response=>response);
-    const deadline=Date.now()+4_000;let blocked=false;
-    do{const rows=await pool.query(`SELECT pid FROM pg_stat_activity WHERE datname=current_database() AND wait_event_type='Lock' AND query LIKE '%FROM displays d JOIN display_setups s%FOR SHARE OF d,s%'`);if(rows.rowCount){blocked=true;break;}await new Promise(resolve=>setTimeout(resolve,20));}while(Date.now()<deadline);
-    assert.ok(blocked,'catalog must wait for the current setup, after reading the original device context');
+    await waitForCatalogBlocker(lock);
     await lock.query('COMMIT');
-    const response=await request;assert.equal(response.statusCode,200,response.body);assert.deepEqual(response.json().sources.map((row:{id:string})=>row.id),[emptyId],'stale initial setup selections never grant a source');
+    const response=await request;assert.equal(response.statusCode,409,response.body);assert.equal(response.json().error.code,'CONFLICT');assert.equal(response.json().sources,undefined,'changed policy returns no stale source page');
+    assert.doesNotMatch(response.body,/Synthetic future-only calendar|Synthetic chosen empty label/);
+    const fresh=await app.inject({method:'GET',url:displayPath,headers:{cookie:firstCookie}});assert.equal(fresh.statusCode,200,fresh.body);assert.deepEqual(fresh.json().sources.map((row:{id:string})=>row.id),[emptyId],'a fresh read preserves the narrowed selection without the removed source');
   }finally{
     await lock.query('ROLLBACK');await lock.end();
     if(request)await request;
@@ -150,13 +163,13 @@ test('display catalog applies setup narrowing committed while acquiring the curr
 
 test('member catalog rejects session expiry after a source query lock wait',async()=>{
   const lock=new pg.Client({connectionString:process.env.DATABASE_URL,statement_timeout:8_000});await lock.connect();await lock.query('BEGIN');await lock.query('LOCK TABLE calendar_sources IN ACCESS EXCLUSIVE MODE');let request!:Promise<LightMyRequestResponse>;
-  try{const token=opaqueToken();const session=(await pool.query<{id:string}>(`INSERT INTO sessions(account_id,token_hash,csrf_hash,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1500 milliseconds') RETURNING id`,[viewerAccountId,tokenHash(token),tokenHash(opaqueToken())])).rows[0]!;request=app.inject({method:'GET',url:memberPath(),headers:{cookie:`samvev_session=${token}`}}).then(response=>response);await waitForSourceQuery();await waitForExpiry('SELECT expires_at<=clock_timestamp() AS expired FROM sessions WHERE id=$1',[session.id]);}finally{await lock.query('ROLLBACK');await lock.end();}
+  try{const token=opaqueToken();const session=(await pool.query<{id:string}>(`INSERT INTO sessions(account_id,token_hash,csrf_hash,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1500 milliseconds') RETURNING id`,[viewerAccountId,tokenHash(token),tokenHash(opaqueToken())])).rows[0]!;request=app.inject({method:'GET',url:memberPath(),headers:{cookie:`samvev_session=${token}`}}).then(response=>response);await waitForCatalogBlocker(lock);await waitForExpiry('SELECT expires_at<=clock_timestamp() AS expired FROM sessions WHERE id=$1',[session.id]);}finally{await lock.query('ROLLBACK');await lock.end();}
   const result=await request;assert.equal(result.statusCode,401,result.body);assert.equal(result.json().sources,undefined,'expired actor receives no source metadata');
 });
 
 test('display catalog rejects credential expiry after a source query lock wait',async()=>{
   const previous=(await pool.query<{credential_expires_at:Date}>('SELECT credential_expires_at FROM displays WHERE id=$1',[firstDisplayId])).rows[0]!.credential_expires_at;
   const lock=new pg.Client({connectionString:process.env.DATABASE_URL,statement_timeout:8_000});await lock.connect();await lock.query('BEGIN');await lock.query('LOCK TABLE calendar_sources IN ACCESS EXCLUSIVE MODE');let request!:Promise<LightMyRequestResponse>;
-  try{await pool.query(`UPDATE displays SET credential_expires_at=clock_timestamp()+interval '1500 milliseconds' WHERE id=$1`,[firstDisplayId]);request=app.inject({method:'GET',url:displayPath,headers:{cookie:firstCookie}}).then(response=>response);await waitForSourceQuery();await waitForExpiry('SELECT credential_expires_at<=clock_timestamp() AS expired FROM displays WHERE id=$1',[firstDisplayId]);}finally{await lock.query('ROLLBACK');await lock.end();}
+  try{await pool.query(`UPDATE displays SET credential_expires_at=clock_timestamp()+interval '1500 milliseconds' WHERE id=$1`,[firstDisplayId]);request=app.inject({method:'GET',url:displayPath,headers:{cookie:firstCookie}}).then(response=>response);await waitForCatalogBlocker(lock);await waitForExpiry('SELECT credential_expires_at<=clock_timestamp() AS expired FROM displays WHERE id=$1',[firstDisplayId]);}finally{await lock.query('ROLLBACK');await lock.end();}
   const result=await request;assert.equal(result.statusCode,401,result.body);assert.equal(result.json().sources,undefined);await pool.query('UPDATE displays SET credential_expires_at=$2 WHERE id=$1',[firstDisplayId,previous]);
 });
