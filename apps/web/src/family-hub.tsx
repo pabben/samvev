@@ -154,12 +154,14 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
         <div className="hub-home-secondary-grid">{homePhoto}</div>
       </>:<>
         <div className="hub-home-board">
-          <div className="hub-home-agenda">
-            <div className="hub-home-column hub-home-today">{sections.today}</div>
-            <div className="hub-home-column hub-home-tomorrow">{sections.tomorrow}{sections.messages}</div>
+          <div className="hub-home-left-column">
+            <div className="hub-home-agenda">
+              <div className="hub-home-column hub-home-today">{sections.today}</div>
+              <div className="hub-home-column hub-home-tomorrow">{sections.tomorrow}{sections.messages}</div>
+            </div>
+            {weekCard&&<div className="hub-home-week" data-testid="home-week-column">{weekCard}</div>}
           </div>
           {sections.people&&<div className="hub-home-column hub-home-people">{sections.people}</div>}
-          {weekCard&&<div className="hub-home-week" data-testid="home-week-column">{weekCard}</div>}
           <div className="hub-home-column hub-home-services"><div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div>{homePhoto}</div>
           <div className="hub-home-modules">{homeModules}{sections.support}</div>
         </div>

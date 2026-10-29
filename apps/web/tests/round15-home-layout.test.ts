@@ -67,7 +67,7 @@ test("desktop Home places one activity week below the two agenda cards beside th
  setViewport(false,"light",false);
  const html=homeMarkup(Array.from({length:6},(_,i)=>({id:`synthetic-${i}`,displayName:`Synthetic person ${i+1}`})),{householdId:"synthetic-household",displaySections:{week:true}});
  assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
- assert.match(html,/<div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-column hub-home-people">[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column"><section class="hub-week/);
+ assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column"><section class="hub-week[\s\S]*?<\/div><\/div><div class="hub-home-column hub-home-people">/);
  assert.doesNotMatch(html,/class="hub-member-week-outside"/);
 });
 
@@ -75,14 +75,15 @@ test("tablet Home keeps People beside the agenda and puts the week beneath the a
  setViewport(false,"dark",true);
  const html=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{householdId:"synthetic-household",displaySections:{week:true}});
  assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
- assert.match(html,/<div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-column hub-home-people">[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column">/);
+ assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column">[\s\S]*?<\/div><\/div><div class="hub-home-column hub-home-people">/);
 });
 
 test("Home week layout fills the agenda column on desktop and tablet without changing mobile",()=>{
- assert.match(homeStyles,/\.hub-home-agenda\{grid-column:span 2;display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
- assert.match(homeStyles,/\.hub-home-week\{grid-column:1\/span 2;grid-row:2/);
- assert.match(homeStyles,/@media\(min-width:641px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-agenda\{grid-column:1;grid-template-columns:minmax\(0,1fr\)\}[\s\S]*?\.family-hub\.hub-member \.hub-home-week\{grid-column:1;grid-row:2\}/);
- assert.match(homeStyles,/@media\(min-width:900px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-board\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}[\s\S]*?\.family-hub\.hub-member \.hub-home-week\{grid-column:1\/span 2\}/);
+ assert.match(homeStyles,/\.hub-home-left-column\{grid-column:span 2;display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(homeStyles,/\.hub-home-agenda\{grid-column:1\/-1;display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(homeStyles,/\.hub-home-week\{grid-column:1\/-1;min-width:0\}/);
+ assert.match(homeStyles,/@media\(min-width:641px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-left-column\{display:contents\}[\s\S]*?\.family-hub\.hub-member \.hub-home-agenda\{grid-column:1;grid-row:1;grid-template-columns:minmax\(0,1fr\)\}[\s\S]*?\.family-hub\.hub-member \.hub-home-week\{grid-column:1\/-1;grid-row:2\}[\s\S]*?\.family-hub\.hub-member \.hub-home-people\{grid-column:2;grid-row:1\}/);
+ assert.match(homeStyles,/@media\(min-width:900px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-board\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}[\s\S]*?\.family-hub\.hub-member \.hub-home-left-column\{display:grid;grid-column:span 2/);
  setViewport(true,"light",true);
  const mobile=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{householdId:"synthetic-household",displaySections:{week:true}});
  assert.equal((mobile.match(/data-testid="home-activity-week"/g)??[]).length,1);
