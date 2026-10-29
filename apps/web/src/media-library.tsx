@@ -20,7 +20,7 @@ function useReducedMotion(): boolean {
 }
 function authorizationFailure(error: unknown): boolean { return [401, 403, 404].includes((error as { status?: number } | null)?.status ?? 0); }
 
-export function MediaSlideshow({ assets, label }: { assets: MediaAsset[]; label: string }) {
+export function MediaSlideshow({ assets, label, readOnly = false }: { assets: MediaAsset[]; label: string; readOnly?: boolean }) {
   const { t } = useI18n();
   const reducedMotion = useReducedMotion();
   const [currentId, setCurrentId] = useState(assets[0]?.id ?? "");
@@ -34,7 +34,7 @@ export function MediaSlideshow({ assets, label }: { assets: MediaAsset[]; label:
     if (!assets.some(asset => asset.id === currentId) && first) setCurrentId(first.id);
     if (!initialized.current) {
       initialized.current = true;
-      if (assets.length > 1 && !reducedMotion) setPlaying(true);
+      if (!readOnly && assets.length > 1 && !reducedMotion) setPlaying(true);
     }
   }, [assets, currentId, reducedMotion]);
   useEffect(() => { if (reducedMotion) setPlaying(false); }, [reducedMotion]);
@@ -54,17 +54,18 @@ export function MediaSlideshow({ assets, label }: { assets: MediaAsset[]; label:
       <figcaption data-review-private="album-caption">{current.title}</figcaption>
     </figure>
     <div className="media-playback-controls">
-      <button type="button" className="media-control" onClick={() => setCurrentId(assets[(index + assets.length - 1) % assets.length]?.id ?? "")} disabled={assets.length < 2} aria-label={t("mediaPreviousPhoto")}><Icon name="back" size={17}/></button>
-      <button type="button" className="media-control" onClick={() => setPlaying(value => !value)} disabled={assets.length < 2 || reducedMotion} aria-label={playing ? t("mediaPause") : t("mediaPlay")} aria-pressed={playing}>{playing ? "Ⅱ" : "▶"}</button>
-      <button type="button" className="media-control" onClick={() => setCurrentId(assets[(index + 1) % assets.length]?.id ?? "")} disabled={assets.length < 2} aria-label={t("mediaNextPhoto")}><Icon name="arrow" size={17}/></button>
-      <label className="media-interval-label">{t("mediaSlideInterval")}<select value={intervalSeconds} onChange={event => setIntervalSeconds(Number(event.target.value))}><option value={5}>5 s</option><option value={8}>8 s</option><option value={15}>15 s</option></select></label>
+      <button type="button" className="media-control" onClick={() => setCurrentId(assets[(index + assets.length - 1) % assets.length]?.id ?? "")} disabled={readOnly || assets.length < 2} aria-label={t("mediaPreviousPhoto")}><Icon name="back" size={17}/></button>
+      <button type="button" className="media-control" onClick={() => setPlaying(value => !value)} disabled={readOnly || assets.length < 2 || reducedMotion} aria-label={playing ? t("mediaPause") : t("mediaPlay")} aria-pressed={playing}>{playing ? "Ⅱ" : "▶"}</button>
+      <button type="button" className="media-control" onClick={() => setCurrentId(assets[(index + 1) % assets.length]?.id ?? "")} disabled={readOnly || assets.length < 2} aria-label={t("mediaNextPhoto")}><Icon name="arrow" size={17}/></button>
+      <label className="media-interval-label">{t("mediaSlideInterval")}<select disabled={readOnly} value={intervalSeconds} onChange={event => setIntervalSeconds(Number(event.target.value))}><option value={5}>5 s</option><option value={8}>8 s</option><option value={15}>15 s</option></select></label>
       {assets.length > 1 && <span className="field-hint">{index + 1} / {assets.length}</span>}
     </div>
   </div>;
 }
 
 /** Reusable paired-device surface; it only calls the display-scoped projection adapter. */
-export function DisplayMediaPlayback(props: { displayId: string; enabled?: boolean }) {
+export function DisplayMediaPlayback(props: { displayId: string; enabled?: boolean; snapshot?: DisplayMediaProjection; readOnly?: boolean }) {
+  if (props.readOnly) return <DisplayMediaProjectionView projection={props.snapshot} readOnly label=""/>;
   return <DisplayMediaPlaybackContent key={props.displayId} {...props}/>;
 }
 
@@ -99,13 +100,19 @@ function DisplayMediaPlaybackContent({ displayId, enabled = false }: { displayId
   }, [adapter]);
   if (!adapter.enabled || failed) return <p className="field-hint">{t("mediaPermissionLost")}</p>;
   if (!projection) return <p className="field-hint">{refreshError ? t("mediaActionError") : t("loading")} <button type="button" className="media-control" disabled={refreshing} onClick={() => refreshRef.current()}>{t("mediaRefresh")}</button></p>;
+  return <DisplayMediaProjectionView projection={projection} selectedAlbum={selectedAlbum} onAlbumChange={setSelectedAlbum} refreshing={refreshing} refreshError={refreshError} onRefresh={()=>refreshRef.current()} readOnly={false} label={t("mediaPhotosTitle")}/>;
+}
+
+export function DisplayMediaProjectionView({projection,selectedAlbum="",onAlbumChange,refreshing=false,refreshError=false,onRefresh,readOnly=false,label}:{projection?:DisplayMediaProjection;selectedAlbum?:string;onAlbumChange?:(id:string)=>void;refreshing?:boolean;refreshError?:boolean;onRefresh?:()=>void;readOnly?:boolean;label:string}){
+  const {t}=useI18n();
+  if(!projection)return <p className="field-hint">{t("mediaPermissionLost")}</p>;
   const albumId = projection.albums.some(album => album.id === selectedAlbum) ? selectedAlbum : projection.albums[0]?.id ?? "";
   const photos = projection.assets.filter(asset => asset.albumId === albumId);
   return <section className="hub-panel media-display-playback" aria-label={t("mediaPhotosTitle")}>
     {refreshError && <p className="household-board-error" role="status">{t("mediaActionError")}</p>}
-    <button type="button" className="media-control" disabled={refreshing} onClick={() => refreshRef.current()}>{t("mediaRefresh")}</button>
-    {projection.albums.length > 1 && <label className="media-display-album-select">{t("mediaChooseAlbum")}<select data-review-private="album-selection" value={albumId} onChange={event => setSelectedAlbum(event.target.value)}>{projection.albums.map(album => <option value={album.id} key={album.id}>{album.name}</option>)}</select></label>}
-    <MediaSlideshow assets={photos} label={t("mediaPhotosTitle")}/>
+    {!readOnly&&<button type="button" className="media-control" disabled={refreshing} onClick={onRefresh}>{t("mediaRefresh")}</button>}
+    {projection.albums.length > 1 && <label className="media-display-album-select">{t("mediaChooseAlbum")}<select disabled={readOnly} data-review-private="album-selection" value={albumId} onChange={event => onAlbumChange?.(event.target.value)}>{projection.albums.map(album => <option value={album.id} key={album.id}>{album.name}</option>)}</select></label>}
+    <MediaSlideshow assets={photos} label={label||t("mediaPhotosTitle")} readOnly={readOnly}/>
     {(projection.background || projection.householdBackground) && <div className="media-display-background" data-review-private="background-image"><img src={(projection.background ?? projection.householdBackground)!.previewUrl} alt={(projection.background ?? projection.householdBackground)!.title || t("mediaBackgroundAlt")} referrerPolicy="no-referrer"/></div>}
   </section>;
 }

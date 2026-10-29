@@ -764,15 +764,20 @@ export function DisplayDayCalendarEvent({activity,people,zone,now}:{activity:Ext
 }
 
 function DisplayNextActivity({scope,zone,people}:{scope:DisplayActivityScope;zone:string;people:HubPerson[]}){
- const {t,locale}=useI18n();
  const state=useDisplayActivity<HouseholdTimelineActivity|null>(scope,async()=>{
   const result=await api<{activity:HouseholdTimelineActivity|null;serverNow:string}>("/display/activities/next");return{value:result.activity,serverNow:result.serverNow};
  },[]);
  const activity=state.value&&displayActivityVisible(state.value,state.now,zone,true)&&timelineActivityVisible(state.value,state.now,zone,true)?state.value:null;
  const expired=state.expired||Boolean(state.value&&!activity);
- const activityPeople=activity?.personIds?.map(id=>people.find(person=>person.id===id)).filter((person):person is HubPerson=>Boolean(person))??[];
- const targetNames=activityPeople.map(person=>person.displayName).join(" · ")||(activity?.type==="calendar"&&activity.metadata.calendar?.subjectHousehold?t("hubFamily"):"");
- return <section className="hub-panel display-selected-card" aria-label={t("next")} aria-busy={!state.loaded}><h2>{t("next")}</h2>{activity?.type==="school"?<SchoolActivityCard activity={activity} people={people} compact zone={zone}/>:activity?.type==="calendar"?<article><strong>{activity.title}</strong>{targetNames&&<p>{targetNames}</p>}{activity.startsAt&&<p>{activity.metadata.allDay&&<>{t("hubAllDay")} · </>}{formatCalendarEventRange(activity.startsAt,activity.endsAt,locale,zone,Boolean(activity.metadata.calendar&&activity.metadata.allDay))}</p>}</article>:null}{Boolean(state.error||expired)&&<><ErrorNotice error={state.error}/>{expired&&<p className="field-hint" role="status">{t("cacheCleared")}</p>}<button type="button" className="text-button" onClick={state.retry}>{t("retry")}</button></>}{!activity&&!state.error&&!expired&&(state.loaded?<p className="field-hint">{t("displayNextEmpty")}</p>:<p className="field-hint">{t("loading")}</p>)}</section>;
+ return <DisplayNextActivitySnapshot activity={activity} zone={zone} people={people} now={state.now} loading={!state.loaded} error={state.error} expired={expired} onRetry={state.retry}/>;
+}
+
+export function DisplayNextActivitySnapshot({activity,zone,people,now,loading=false,error,expired=false,onRetry}:{activity:HouseholdTimelineActivity|null;zone:string;people:HubPerson[];now:number;loading?:boolean;error?:unknown;expired?:boolean;onRetry?:()=>void}){
+ const {t,locale}=useI18n();
+ const currentActivity=activity&&displayActivityVisible(activity,now,zone,true)&&timelineActivityVisible(activity,now,zone,true)?activity:null;
+ const activityPeople=currentActivity?.personIds?.map(id=>people.find(person=>person.id===id)).filter((person):person is HubPerson=>Boolean(person))??[];
+ const targetNames=activityPeople.map(person=>person.displayName).join(" · ")||(currentActivity?.type==="calendar"&&currentActivity.metadata.calendar?.subjectHousehold?t("hubFamily"):"");
+ return <section className="hub-panel display-selected-card" aria-label={t("next")} aria-busy={loading}><h2>{t("next")}</h2>{currentActivity?.type==="school"?<SchoolActivityCard activity={currentActivity} people={people} compact zone={zone}/>:currentActivity?.type==="calendar"?<article><strong>{currentActivity.title}</strong>{targetNames&&<p>{targetNames}</p>}{currentActivity.startsAt&&<p>{currentActivity.metadata.allDay&&<>{t("hubAllDay")} · </>}{formatCalendarEventRange(currentActivity.startsAt,currentActivity.endsAt,locale,zone,Boolean(currentActivity.metadata.calendar&&currentActivity.metadata.allDay))}</p>}</article>:null}{Boolean(error||expired)&&<><ErrorNotice error={error}/>{expired&&<p className="field-hint" role="status">{t("cacheCleared")}</p>}{onRetry&&<button type="button" className="text-button" onClick={onRetry}>{t("retry")}</button>}</>}{!currentActivity&&!error&&!expired&&<p className="field-hint">{loading?t("loading"):t("displayNextEmpty")}</p>}</section>;
 }
 
 export function DisplayCard({

@@ -2,15 +2,18 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import type { Card, Display, Membership, Person, Projection } from "./types";
 import type { CalendarConnection } from "./calendar-connection-types";
-import { MediaSlideshow } from "./media-library";
+import { DisplayMediaPlayback } from "./media-library";
+import { DisplayBoardPreviewCard } from "./household-boards";
 import type { DisplayMediaProjection } from "./media-adapters";
 import { Check, Dialog, ErrorNotice, Field, Icon, LocaleProvider, useAction, useI18n } from "./ui";
 import type { ReactNode } from "react";
 import { advanceHomeBirthdays } from "./home-presentation";
+import { dateOffset } from "./household-board-adapters";
 import { FamilyHub } from "./family-hub";
-import { DisplayCard, DisplayDayCardContent } from "./display";
+import { DisplayCard, DisplayDayCardContent, DisplayNextActivitySnapshot } from "./display";
+import { HouseholdActivityWeekRows } from "./home-activities";
 import type { HouseholdTimelineActivity } from "./home-types";
-import { mergeTimelineEntries, timelineDayHistoryVisible } from "./home-activity-presentation";
+import { homeWeekStart, mergeTimelineEntries, timelineDayHistoryVisible } from "./home-activity-presentation";
 import { displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayFamilyCardPlan, displayFamilyContentVisible, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupNeedsPrivateCopy, displaySetupPeopleSelection } from "./display-admin-presentation";
 
 const CARD_IDS = ["household_messages", "new_message", "family_layout", "external_items", "worth_remembering", "today", "tomorrow", "people", "week", "next", "groceries", "dinners", "photos", "home_assistant"] as const;
@@ -47,7 +50,6 @@ function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { 
   const people = [...new Map([...(result.familyLayout?.people ?? []), ...(result.hub?.people ?? [])].map(person => [person.id, person])).values()];
   const items = result.hub?.items ?? [];
   const board = result.householdBoards;
-  const photos = result.media?.assets ?? [];
   const background = result.media?.background ?? result.media?.householdBackground ?? null;
   const zone = result.display.timezone ?? "UTC";
   const today = result.householdBoards?.from ?? new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(Date.parse(result.serverNow));
@@ -55,7 +57,7 @@ function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { 
   const familyCardPlan = displayFamilyCardPlan(result.setup.cards,result.setup.familyLayoutEnabled,result.display.privacyMode);
   const messages = result.setup.cards.includes("household_messages") ? result.cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision})) : [];
   const familySelected = displayFamilyContentVisible(familyCardPlan.familyLayout,people.length,messages.length,items.length,birthdays.length);
-  const familyView = (roster: boolean, withMessages = false) => <FamilyHub display displayCompactPeople displaySections={{people:roster,today:!result.setup.cards.includes("today"),tomorrow:!result.setup.cards.includes("tomorrow"),important:!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} people={people} items={items} messages={withMessages ? messages : []} birthdays={birthdays} birthdaySourceLocalDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} />;
+  const familyView = (roster: boolean, withMessages = false) => <FamilyHub display displayCompactPeople displaySections={{people:roster,today:false,tomorrow:false,important:!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} people={people} items={items} messages={withMessages ? messages : []} birthdays={birthdays} birthdaySourceLocalDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} />;
   return <section className={`display-preview display-preview-${orientation}`} data-theme={result.display.theme} aria-label={t("displayPreviewTitle")}>
     <header><h3>{t("displayPreviewFor", { name: displayName })}</h3><p>{t("displaySetup")}: {result.display.setupName ?? t("defaultDisplaySetup")} · {t("displayPreviewTitle")} · {t("displayPreviewReadonly")}</p></header>
     {background && <img className="display-preview-background" src={background.previewUrl} alt={background.title} referrerPolicy="no-referrer"/>}
@@ -81,11 +83,11 @@ function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { 
           const readinessCard = displayReadinessCard(result.setup.cards);
           content = <DisplayDayCardContent date={targetDate} zone={zone} people={people} birthdays={birthdays} labelKey={card} now={Date.parse(result.serverNow)} activities={dayActivities} dinners={dayDinners} readiness={card===readinessCard?result.contentReadiness?.calendar:undefined} empty={!entries.length&&!due.length}/>;
         }
-        else if (card === "week") content = (result.weekActivities?.activities ?? []).map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong>{item.type === "school" && <span>{item.actions.slice(0, 2).join(" · ")}</span>}{item.type === "calendar" && <p>{item.body}</p>}</article>);
-        else if (card === "next") content = result.nextActivity ? result.nextActivity.type === "school" ? <article className="display-preview-item"><strong>{result.nextActivity.title}</strong><span>{result.nextActivity.actions.slice(0, 2).join(" · ")}</span></article> : <article className="display-preview-item"><strong>{result.nextActivity.title}</strong><p>{result.nextActivity.startsAt ?? ""}</p></article> : <p className="field-hint">{t("displayEmptyBody")}</p>;
-        else if (card === "groceries") content = board?.readable?.groceries ? (board.groceries ?? []).map(item => <article className="display-preview-item" key={item.id}><span>{item.checked ? "✓ " : ""}{item.label}</span></article>) : <p className="field-hint">{t("displayPreviewBoardNotShared")}</p>;
-        else if (card === "dinners") { if (!board?.readable?.dinners && result.setup.cards.includes("groceries")) return null; content = board?.readable?.dinners ? (board.dinners ?? []).map(item => <article className="display-preview-item" key={item.id}><strong>{item.localDate}</strong><span>{item.title ?? t("boardDinnerEmpty")}</span></article>) : <p className="field-hint">{t("displayPreviewBoardNotShared")}</p>; }
-        else if (card === "photos") content = photos.length ? <MediaSlideshow assets={photos} label={cardLabel(card)}/> : <p className="field-hint">{t("displayEmptyBody")}</p>;
+        else if (card === "week") { const weekStart=homeWeekStart(today),weekEnd=dateOffset(weekStart,6),weekDinners=(board?.dinners??[]).filter(dinner=>dinner.localDate>=weekStart&&dinner.localDate<=weekEnd).map(dinner=>({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false}));const weekEntries=mergeTimelineEntries(result.weekActivities?.activities??[],weekDinners,zone,weekStart,weekEnd);content=<section className="hub-week hub-panel hub-display-week" aria-label={t("hubWeekTitle")} data-testid="home-activity-week"><header className="hub-week-heading"><div><h2>{t("hubWeekTitle")}</h2><p>{weekStart} – {weekEnd}</p></div></header><HouseholdActivityWeekRows entries={weekEntries} people={people} zone={zone} locale={result.display.locale} now={Date.parse(result.serverNow)} readOnly/></section>; }
+        else if (card === "next") content = <DisplayNextActivitySnapshot activity={result.nextActivity ?? null} zone={zone} people={people} now={Date.parse(result.serverNow)}/>;
+        else if (card === "groceries") content = <DisplayBoardPreviewCard kind="groceries" readable={board?.readable?.groceries===true} groceries={(board?.groceries??[]).map(item=>({...item,revision:item.revision??0}))} localDate={today} weekStart={homeWeekStart(today)}/>;
+        else if (card === "dinners") { if (!board?.readable?.dinners && result.setup.cards.includes("groceries")) return null; content = <DisplayBoardPreviewCard kind="dinners" readable={board?.readable?.dinners===true} dinners={(board?.dinners??[]).map(item=>({...item,emoji:item.emoji??null,revision:item.revision??0,cleared:item.cleared??false}))} localDate={today} weekStart={homeWeekStart(today)}/>; }
+        else if (card === "photos") content = <DisplayMediaPlayback displayId={result.display.id} snapshot={result.media} readOnly/>;
         else if (card === "home_assistant") content = <p className="field-hint">{t("displayPreviewHaReadonly")}</p>;
         if (!displayPreviewContentVisible(content)) return null;
         return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}><h4>{cardLabel(card)}</h4>{content}</article>;

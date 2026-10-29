@@ -202,12 +202,17 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
     {!display && sources.length > 0 && <label className="hub-week-source-filter">{t("hubWeekSourceFilter")}<select data-review-private="week-source-filter" value={sourceId} onChange={event => setSourceId(event.target.value)}><option value="">{t("hubWeekEverySource")}</option>{sources.map(source => <option key={source.id} value={source.id}>{source.label}</option>)}</select></label>}
     {sourceCatalogError&&<p className="hub-week-error" role="status">{t("hubWeekLoadError")}</p>}
     {error && <p className="hub-week-error" role="status">{t("hubWeekLoadError")}</p>}
-    {loading && !loaded ? <p className="field-hint">{t("loading")}</p> : entries.length ? <div className="hub-week-days">{groupTimelineEntries(entries).map(group => <section className="hub-week-day" key={group.date}><h3><time dateTime={group.date}>{dateHeading(group.date, locale)}</time></h3>{group.rows.map(row => <TimelineRow key={`${row.kind}:${row.id}`} row={row} people={people} family={t("hubFamily")} zone={zone} locale={locale} now={now}/>)}</section>)}</div> : loaded && !error && <p className="field-hint">{t("hubWeekEmpty")}</p>}
-    {cursor && <button className="hub-week-more" type="button" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? t("loading") : t("hubWeekMore")}</button>}
+    <HouseholdActivityWeekRows entries={entries} people={people} zone={zone} locale={locale} now={now} loading={loading} loaded={loaded} error={error} cursor={cursor} loadingMore={loadingMore} onLoadMore={()=>void loadMore()}/>
     {showNextActivity&&<div className="hub-next-activity"><button type="button" className="hub-next-toggle" aria-expanded={showNext} onClick={() => { setShowNext(value => !value); if (!showNext && nextActivity === null) void loadNext(); }}><Icon name="arrow" size={16}/>{t("hubShowNext")}</button>
       {showNext && (nextLoading ? <p className="field-hint">{t("loading")}</p> : nextError ? <p role="status" className="hub-week-error">{t("hubWeekLoadError")} <button type="button" onClick={() => void loadNext()}>{t("retry")}</button></p> : currentNextActivity ? <><p className="hub-next-date" data-review-private="next-activity-date">{isTimelineActivityOngoing(currentNextActivity, localDate, now) ? `${t("hubOngoing")} · ` : ""}{dateHeading(currentNextActivity.type === "school" ? currentNextActivity.date : currentNextActivity.metadata.allDay ? currentNextActivity.startsAt?.slice(0,10) ?? "" : currentNextActivity.startsAt ? wallInput(currentNextActivity.startsAt, zone).slice(0,10) : "", locale)}</p><TimelineRow row={mergeTimelineEntries([currentNextActivity], [], zone)[0]!} people={people} family={t("hubFamily")} zone={zone} locale={locale} now={now}/></> : <p className="field-hint">{t("hubNextEmpty")}</p>)}
     </div>}
   </section>;
+}
+
+/** Shared server-projected week rows for live displays and read-only admin preview. */
+export function HouseholdActivityWeekRows({entries,people,zone,locale,now,loading=false,loaded=true,error=false,cursor=null,loadingMore=false,onLoadMore,readOnly=false}:{entries:TimelineEntry[];people:HubPerson[];zone:string;locale:string;now:number;loading?:boolean;loaded?:boolean;error?:boolean;cursor?:string|null;loadingMore?:boolean;onLoadMore?:()=>void;readOnly?:boolean}){
+ const {t}=useI18n();
+ return <>{loading&&!loaded?<p className="field-hint">{t("loading")}</p>:entries.length?<div className="hub-week-days">{groupTimelineEntries(entries).map(group=><section className="hub-week-day" key={group.date}><h3><time dateTime={group.date}>{dateHeading(group.date,locale)}</time></h3>{group.rows.map(row=><TimelineRow key={`${row.kind}:${row.id}`} row={row} people={people} family={t("hubFamily")} zone={zone} locale={locale} now={now} readOnly={readOnly}/>)}</section>)}</div>:loaded&&!error?<p className="field-hint">{t("hubWeekEmpty")}</p>:null}{cursor&&onLoadMore&&<button className="hub-week-more" type="button" disabled={loadingMore||readOnly} onClick={onLoadMore}>{loadingMore?t("loading"):t("hubWeekMore")}</button>}</>;
 }
 
 function groupTimelineEntries(entries: TimelineEntry[]) {
@@ -216,7 +221,7 @@ function groupTimelineEntries(entries: TimelineEntry[]) {
   return [...groups].map(([date, rows]) => ({ date, rows }));
 }
 
-function TimelineRow({ row, people, family, zone, locale, now }: { row: TimelineEntry; people: HubPerson[]; family: string; zone: string; locale: string; now:number }) {
+function TimelineRow({ row, people, family, zone, locale, now, readOnly=false }: { row: TimelineEntry; people: HubPerson[]; family: string; zone: string; locale: string; now:number; readOnly?:boolean }) {
   const { t } = useI18n();
   const [open,setOpen]=useState(false);
   const buttonId=useId(),detailsId=useId();
@@ -236,7 +241,7 @@ function TimelineRow({ row, people, family, zone, locale, now }: { row: Timeline
   const rowClass=`hub-week-entry hub-week-compact ${row.kind==='school'?'hub-week-school':row.kind==='dinner'?'hub-week-dinner':'hub-week-calendar'} ${row.kind==='calendar'&&row.activity.metadata.calendar?.purpose==='waste'?'is-waste':''}`;
   const date=row.kind==='school'?row.activity.date:row.kind==='dinner'?row.date:row.activity.startsAt?.slice(0,10)??row.date;
   return <div className={rowClass} data-review-private={row.kind==='dinner'?'dinner-event':'week-activity'} data-item-id={row.kind==='calendar'?row.activity.id:undefined} data-event-id={row.kind==='dinner'?row.id:undefined} style={{'--activity-stripe':stripe} as CSSProperties} onKeyDown={event=>{if(event.key==='Escape'&&open){event.preventDefault();event.stopPropagation();setOpen(false);trigger.current?.focus();}}}>
-    <button ref={trigger} id={buttonId} className={`hub-week-row-button ${status?'has-status':''}`} type="button" aria-expanded={open} aria-controls={detailsId} aria-label={accessibleLabel} onClick={()=>setOpen(value=>!value)}>
+    <button ref={trigger} id={buttonId} className={`hub-week-row-button ${status?'has-status':''}`} type="button" disabled={readOnly} aria-expanded={open} aria-controls={detailsId} aria-label={accessibleLabel} onClick={()=>setOpen(value=>!value)}>
       <time dateTime={row.kind==='calendar'?row.activity.startsAt??date:date}>{time}</time>
       {status&&<span className="hub-week-row-status" aria-hidden="true" title={status}>{rawStatus==='cancelled'?'×':rawStatus==='tentative'?'?':'!'}</span>}
       <strong lang={row.kind==='calendar'?row.activity.contentLocale??undefined:undefined}>{title}</strong>{ended&&<span className="hub-ended-label">{t('hubEnded')}</span>}

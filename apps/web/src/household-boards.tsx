@@ -6,6 +6,28 @@ import { secureUuid } from "./secure-uuid";
 import { todayDinnerSummary } from "./household-board-summary";
 function requestKey(): string { return secureUuid(); }
 function readResult<T>(promise: Promise<T>): Promise<BoardReadResult<T>> { return promise.then(value => ({ value }), error => ({ error })); }
+
+export function BoardGroceriesSnapshot({items,confirmedEmpty,canToggle=false,canDelete=false,busy=false,onToggle,onDelete,readOnly=false}:{items:GroceryItem[];confirmedEmpty:boolean;canToggle?:boolean;canDelete?:boolean;busy?:boolean;onToggle?:(item:GroceryItem,checked:boolean)=>void;onDelete?:(item:GroceryItem)=>void;readOnly?:boolean}){
+ const {t}=useI18n();
+ return <>{!items.length&&confirmedEmpty&&<p className="field-hint">{t("boardGroceriesEmpty")}</p>}<ul className="board-list">{items.map(item=><li key={item.id} className={item.checked?"is-checked":""}><label><input type="checkbox" checked={item.checked} disabled={readOnly||busy||!canToggle} onChange={event=>onToggle?.(item,event.currentTarget.checked)}/><span data-review-private="grocery-label">{item.label}</span></label>{canDelete&&!readOnly&&<button type="button" className="board-icon-button" aria-label={t("boardDeleteGrocery",{label:item.label})} disabled={busy} onClick={()=>onDelete?.(item)}><Icon name="close" size={16}/></button>}</li>)}</ul></>;
+}
+
+export function BoardDinnerDayPicker({weekStart,selectedDate,titleForDate,onSelectDate,disabled=false,label}:{weekStart:string;selectedDate:string;titleForDate:(date:string)=>string;onSelectDate?:(date:string)=>void;disabled?:boolean;label:string}){
+ return <div className="board-day-picker" role="group" aria-label={label}>{Array.from({length:7},(_,index)=>dateOffset(weekStart,index)).map(date=><button type="button" key={date} disabled={disabled} aria-pressed={date===selectedDate} className={date===selectedDate?"is-selected":""} onClick={()=>onSelectDate?.(date)}><span>{titleForDate(date)}</span></button>)}</div>;
+}
+
+export function BoardDinnerCurrent({assignment,confirmedEmpty=false}:{assignment:DinnerAssignment|undefined;confirmedEmpty?:boolean}){
+ const {t}=useI18n();
+ return assignment?.title?<p className="board-dinner-current" data-review-private="dinner-current"><span aria-hidden="true">{assignment.emoji??"🍽️"}</span> {assignment.title}</p>:confirmedEmpty?<p className="field-hint">{t("boardDinnerEmpty")}</p>:null;
+}
+
+export function DisplayBoardPreviewCard({kind,readable,groceries=[],dinners=[],localDate,weekStart}:{kind:BoardCard;readable:boolean;groceries?:GroceryItem[];dinners?:DinnerAssignment[];localDate:string;weekStart:string}){
+ const {t,locale}=useI18n();
+ if(!readable)return <section className={`board-card board-${kind}`}><h3>{t(kind==="groceries"?"boardGroceries":"boardDinners")}</h3><p className="field-hint" role="status">{t("displayBoardNotShared")}</p></section>;
+ const selected=dinners.find(item=>item.localDate===localDate);
+ const titleForDate=(date:string)=>date===localDate?t("boardToday"):date===dateOffset(localDate,1)?t("boardTomorrow"):new Intl.DateTimeFormat(locale,{timeZone:"UTC",weekday:"short",day:"numeric",month:"short"}).format(new Date(`${date}T12:00:00Z`));
+ return kind==="groceries"?<section className="board-card board-groceries"><h3>{t("boardGroceries")}</h3><BoardGroceriesSnapshot items={groceries} confirmedEmpty/></section>:<section className="board-card board-dinners"><h3>{t("boardDinners")}</h3><BoardDinnerDayPicker weekStart={weekStart} selectedDate={localDate} titleForDate={titleForDate} disabled label={t("boardChooseDay")}/><BoardDinnerCurrent assignment={selected} confirmedEmpty/></section>;
+}
 export function MemberHouseholdBoards({ householdId, localDate }: { householdId: string; localDate: string }) {
   const adapter = useMemo(() => memberHouseholdBoardAdapter(householdId), [householdId]);
   const { t } = useI18n();
@@ -186,19 +208,15 @@ function HouseholdBoardCardsForScope({ adapter, localDate, visibleCards, display
     {error?.view === viewKey && <p className="household-board-error" role="status">{t(error.key as "boardChangedRefresh" | "boardLoadError" | "boardPermissionLost" | "boardSaveError")}</p>}
     {showGroceries && <section className="board-card board-groceries" aria-labelledby="board-groceries-title">
       <h3 id="board-groceries-title">{t("boardGroceries")}</h3>
-      {!groceries.length && freshness.groceries.state === "fresh" && <p className="field-hint">{t("boardGroceriesEmpty")}</p>}
-      <ul className="board-list">{groceries.map(item => <li key={item.id} className={item.checked ? "is-checked" : ""}>
-        <label><input type="checkbox" checked={item.checked} disabled={busy || !canGroceries} onChange={event => void runMutation("groceries", () => adapter.updateGrocery(item.id, { checked: event.currentTarget.checked, expectedRevision: item.revision, requestKey: requestKey() }))}/><span data-review-private="grocery-label">{item.label}</span></label>
-        {canGroceries && <button type="button" className="board-icon-button" aria-label={t("boardDeleteGrocery", { label: item.label })} disabled={busy} onClick={() => void runMutation("groceries", () => adapter.deleteGrocery(item.id, { expectedRevision: item.revision, requestKey: requestKey() }))}><Icon name="close" size={16}/></button>}
-      </li>)}</ul>
+      <BoardGroceriesSnapshot items={groceries} confirmedEmpty={freshness.groceries.state === "fresh"} canToggle={canGroceries} canDelete={canGroceries} busy={busy} onToggle={(item,checked)=>void runMutation("groceries",()=>adapter.updateGrocery(item.id,{checked,expectedRevision:item.revision,requestKey:requestKey()}))} onDelete={item=>void runMutation("groceries",()=>adapter.deleteGrocery(item.id,{expectedRevision:item.revision,requestKey:requestKey()}))}/>
       {canGroceries && <form className="board-add-row" onSubmit={event => { event.preventDefault(); const label = groceryDraft.trim(); if (!label) return; const key = pendingGroceryCreate.current?.label === label ? pendingGroceryCreate.current.key : requestKey(); pendingGroceryCreate.current = { label, key }; void runMutation("groceries", () => adapter.createGrocery({ label, checked: false, requestKey: key })).then(saved => { if (saved && pendingGroceryCreate.current?.key === key) { pendingGroceryCreate.current = null; setGroceryDraft(""); } }); }}>
         <label className="sr-only" htmlFor="board-grocery-add">{t("boardAddGrocery")}</label><input id="board-grocery-add" data-review-private="grocery-draft" maxLength={120} value={groceryDraft} onChange={event => setGroceryDraft(event.target.value)} placeholder={t("boardGroceryPlaceholder")} disabled={busy}/><button type="submit" className="button" disabled={busy || !groceryDraft.trim()}><Icon name="plus" size={16}/>{t("boardAdd")}</button>
       </form>}
     </section>}
     {showDinners && <section className="board-card board-dinners" aria-labelledby="board-dinners-title">
       <div className="board-section-heading"><h3 id="board-dinners-title">{t("boardDinners")}</h3><div className="board-week-nav"><button className="board-icon-button" type="button" aria-label={t("boardPreviousWeek")} disabled={busy} onClick={() => { const next = dateOffset(weekStart, -7); setWeekStart(next); setSelectedDate(next); }}><Icon name="back" size={16}/></button><button className="board-icon-button" type="button" aria-label={t("boardNextWeek")} disabled={busy} onClick={() => { const next = dateOffset(weekStart, 7); setWeekStart(next); setSelectedDate(next); }}><Icon name="arrow" size={16}/></button></div></div>
-      <div className="board-day-picker" role="group" aria-label={t("boardChooseDay")}>{Array.from({ length: 7 }, (_, index) => dateOffset(weekStart, index)).map(date => <button type="button" key={date} aria-pressed={date === selectedDate} className={date === selectedDate ? "is-selected" : ""} onClick={() => setSelectedDate(date)}><span>{titleForDate(date)}</span></button>)}</div>
-      {selectedAssignment?.title ? <p className="board-dinner-current" data-review-private="dinner-current"><span aria-hidden="true">{selectedAssignment.emoji ?? "🍽️"}</span> {selectedAssignment.title}</p> : freshness.assignments.state === "fresh" && <p className="field-hint">{t("boardDinnerEmpty")}</p>}
+      <BoardDinnerDayPicker weekStart={weekStart} selectedDate={selectedDate} titleForDate={titleForDate} onSelectDate={date=>setSelectedDate(date)} disabled={busy} label={t("boardChooseDay")}/>
+      <BoardDinnerCurrent assignment={selectedAssignment} confirmedEmpty={freshness.assignments.state === "fresh"}/>
       {canDinners && <label className="board-dinner-select"><span>{t("boardChooseDinner", { day: titleForDate(selectedDate) })}</span><select data-review-private="dinner-choice" value={selectedAssignment?.cleared ? "" : selectedDinnerValue} disabled={busy} onChange={event => {
         const option = options.find(item => item.id === event.currentTarget.value);
         void runMutation("dinners", () => adapter.setDinner(selectedDate, { optionId: option?.id ?? null, expectedRevision: selectedAssignment?.revision ?? 0, requestKey: requestKey() }));
