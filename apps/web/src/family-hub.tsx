@@ -39,7 +39,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   const currentBirthdays=advanceHomeBirthdays(birthdays,birthdaySourceLocalDate,localDate);
   const [currentWeekDinnerState,setCurrentWeekDinnerState]=useState<{householdId?:string;localDate:string;dinners:import('./household-board-adapters').DinnerAssignment[];stale:boolean}>({householdId,localDate,dinners:[],stale:false});
   const dailyDinnerScopeMatches=Boolean(displaySnapshot)||currentWeekDinnerState.householdId===householdId&&currentWeekDinnerState.localDate===localDate;
-  const currentWeekDinners=displaySnapshot?.dinners.filter(dinner=>dinner.localDate===localDate)??(dailyDinnerScopeMatches?currentWeekDinnerState.dinners:[]);
+  const currentWeekDinners=displaySnapshot?.dinners??(dailyDinnerScopeMatches?currentWeekDinnerState.dinners:[]);
   const updateWeekDinners=useCallback((dinners:import('./household-board-adapters').DinnerAssignment[]|undefined,stale=false)=>setCurrentWeekDinnerState(previous=>({householdId,localDate,dinners:dinners??(previous.householdId===householdId&&previous.localDate===localDate?previous.dinners:[]),stale})),[householdId,localDate]);
   const hour=Number(wallInput(now,zone).slice(11,13));
   const greeting=t(mobile ? (hour>=5&&hour<10?'hubMorningCompact':hour>=10&&hour<18?'hubDayCompact':'hubEveningCompact') : (hour>=5&&hour<10?'hubMorning':hour>=10&&hour<18?'hubDay':'hubEvening'));

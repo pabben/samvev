@@ -52,12 +52,14 @@ test("family-only preview renders projected implicit agendas and dinners without
       ...base,
       setup: { ...base.setup, cards: ["family_layout"], cardOrder: ["family_layout"] },
       birthdays: { mode: "all", localDate: today, entries: [{ personId: familyPeople[0]!.id, displayName: familyPeople[0]!.displayName, due: "today" }] },
-      householdBoards: { ...base.householdBoards, dinners: [{ id: "dinner-1", localDate: today, title: "Synthetic dinner", emoji: "🍲", revision: 1, cleared: false }], readable: { groceries: false, dinners: true } },
+      householdBoards: { ...base.householdBoards, dinners: [{ id: "dinner-1", localDate: today, title: "Synthetic dinner today", emoji: "🍲", revision: 1, cleared: false }, { id: "dinner-2", localDate: "2026-10-30", title: "Synthetic dinner tomorrow", emoji: "🍲", revision: 1, cleared: false }], readable: { groceries: false, dinners: true } },
     } as any;
     const html = previewMarkup(result);
     assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 1);
     assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
-    assert.match(html, /Synthetic dinner/);
+    assert.match(html, /Synthetic dinner today/);
+    assert.match(html, /Synthetic dinner tomorrow/);
+    assert.match(html, /<fieldset class="display-preview-family-readonly" disabled="">/);
     assert.match(html, /Synthetic person/);
     assert.equal((html.match(/data-testid="home-activity-week"/g) ?? []).length, 0);
     assert.equal(displayFetches, 0);
