@@ -1,14 +1,14 @@
 {
-  "roundId": "20261029225834-b9b7b8ea-be60b1bc",
-  "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
+  "roundId": "20261029232208-000bf7ab-83b5308a",
+  "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
   "workingTreeDirty": true,
-  "capturedAt": "2026-10-29T22:58:34.033Z",
+  "capturedAt": "2026-10-29T23:22:08.716Z",
   "provenance": {
-    "sourceSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-    "inputFingerprint": "731dd59e86180d8f1f12ee302967848c82b84df3afd179e487f24de71076fc47",
-    "rootSourceFingerprint": "731dd59e86180d8f1f12ee302967848c82b84df3afd179e487f24de71076fc47",
-    "cloneSourceFingerprint": "731dd59e86180d8f1f12ee302967848c82b84df3afd179e487f24de71076fc47",
-    "runtimeFingerprint": "c7dfc4b8567d387fc44b50b9ec069cc4f5f060c0729aef34727aea2a26290141",
+    "sourceSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+    "inputFingerprint": "93127ab60c8a4920bdac707e9de4883a5a94a48e157476dc8dd01ca09f12f062",
+    "rootSourceFingerprint": "93127ab60c8a4920bdac707e9de4883a5a94a48e157476dc8dd01ca09f12f062",
+    "cloneSourceFingerprint": "93127ab60c8a4920bdac707e9de4883a5a94a48e157476dc8dd01ca09f12f062",
+    "runtimeFingerprint": "c41b61a1ce7a409e81a4807acc092c2e53df871b65a388ef1d5d2135be25e537",
     "migrationFingerprint": "d8a47e5eeebda5e6c355d20d5e80e078133446ca01b9b419a2ce1646034438fb",
     "inputFileHashes": {
       ".dockerignore": "fd1afa885cfd4c592d2df90f60284b2ee8f63cee14965f31b3da43cb11b53cd6",
@@ -62,7 +62,7 @@
       "apps/web/src/display-source-session.ts": "a95af6d3768eef3c70ee40d5f199156c15161642e1ee40753df9f964da72424f",
       "apps/web/src/display.tsx": "4e88880c38ed5a774fff9759d3720ee29bb0253af890f710f3dbe6d008b7843c",
       "apps/web/src/displays-admin.tsx": "e6ad8c09fa666b8332a3e5f6639b3f6a2c45b3ee91ec47e2b04f0063fd4ce7f2",
-      "apps/web/src/family-hub.tsx": "42b8d5751ec77d3bbac5a25777f09117b9c61797384ff2d30b2ef88278a03212",
+      "apps/web/src/family-hub.tsx": "cc62ba7b0294ce24db1f3d22f59d75b1e3fa4b27b3cdb59a2804a2fe0fef332f",
       "apps/web/src/home-activities.tsx": "52b982b17a61ecc266eb167b425418780385c6af23136784a188bfa7616e2dc8",
       "apps/web/src/home-activity-presentation.ts": "f09b440e916dd646075ac6452f8224d27f40fafa2ff665cf00126d5e3a91bad7",
       "apps/web/src/home-assistant-control-presentation.ts": "430a89bff87ed951cc5c5d11faa402f77b60838d3381b128537bf8c027bb254a",
@@ -74,7 +74,7 @@
       "apps/web/src/home-media-presentation.ts": "edff8d068230fe6e473719b933347b98053c048551908dca53ee7e9fe0ca2b0e",
       "apps/web/src/home-presentation.ts": "e8d464a71e4944670068bf847528ef75cc8ce53d07d55a81e612628dc49c3766",
       "apps/web/src/home-types.ts": "9976eab496fc697e0afe13a669b36d5b4dc2cfa5aa417ae5d5fff691d136f4b3",
-      "apps/web/src/home.css": "4475ea4d4a3690d7786c371dc8e157c841daa9111f5b54c68e92775ef0c16c72",
+      "apps/web/src/home.css": "1531a8313069883bea6e4d8e4484c55b6a7860f00c1eeab8864132777a4fde54",
       "apps/web/src/home.tsx": "60178678aeb92e5e31f589f86f0ba180b10bae6a24a2a0b656796787bd0b66b1",
       "apps/web/src/household-board-adapters.ts": "4cff210a607b62baddd2819b853e97e99cc000984e33a776393c506e914c953f",
       "apps/web/src/household-board-state.ts": "190a550c6786d75dd7ccf59fb353e9e37f0bd5f66df1d90e5d8c159a67023dac",
@@ -157,7 +157,7 @@
       "apps/web/tests/round14-layout.test.ts": "d77ea289f7ada004c226a4187d4184ceb763275a07773feaedccdd8c4a49b632",
       "apps/web/tests/round14-shell.mjs": "d6024a8f234d51f6c2df2a77c70aab6ded7d66bf1669392c41d703a9ccd231a2",
       "apps/web/tests/round15-home-columns-browser.mjs": "fce7eefccda05c5199356d6a7ce5569f386f828f88fb6e958b365b86eca785cb",
-      "apps/web/tests/round15-home-layout.test.ts": "7d6785be8a0b84df1773cfb372d691adddf9789d9ceb7975509554a487a5835d",
+      "apps/web/tests/round15-home-layout.test.ts": "539e143241327ecfec179a158f261d63c85cf335974f441281ff89284587340a",
       "apps/web/tests/round5-design.mjs": "8761741ab8cb360d7b42ed4aff52ce422f262e8d5e49719011bca3fbadb647e0",
       "apps/web/tests/round6-design.mjs": "6fed8ae0d12beded248aa7a5fc81930b2bb3ad2b4a641fffeffc3b75492ba133",
       "apps/web/tests/round7-design.mjs": "3484094c0ebc3001f8ba260ec2da69fb062abf10baf758bcffcb02c31ea1f5cd",
@@ -192,8 +192,8 @@
       "scripts/design-review-assets.mjs": "f017d01dff5cfdfbd201a3cc69f2c8d5be9418c669725ef39cbc3f2d0c20fb00",
       "scripts/design-review-assets.test.mjs": "c8766922a070de9dd053c419cd5b9e5b83d6ea0893f7fb22f536e0aea6cb3028",
       "scripts/design-review-build.sh": "848b7a90bfaf7acc606ec03bd58b351f9b42c3775800f61043bf8270a053cb57",
-      "scripts/design-review-pipeline.mjs": "21fc810485ab2df23e99b7588b2c5e68f53f32c0f899e28b608e616f05b18462",
-      "scripts/design-review-pipeline.test.mjs": "fd4c74f54026c431bf71153ddc2295dde9691260fb6a272d1b0d5c5989050288",
+      "scripts/design-review-pipeline.mjs": "9336f9a6c1c8b9617134f51e799d2db1d28c791c44402582f958affebd824313",
+      "scripts/design-review-pipeline.test.mjs": "19c0d6331d66b37f9aea2dba80177864ded33faaf8c8d37ed7bc12a627411265",
       "scripts/design-review-privacy.mjs": "96f20e7253ee4f0861fa1aec5c9d8db9666cb03de13c5db1527112e28b746d6e",
       "scripts/design-review-privacy.test.mjs": "8d6e2ce800af8265714c18e5a8c463e68955a78d60be1b078da3f08f46ae5166",
       "scripts/design-review-provenance.mjs": "52cf7d945ab4867abe9117dfa8e849922a23fc7d2e99c0085e0c866df95bcbdf",
@@ -387,16 +387,16 @@
       "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
       "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
-      "assets/index-DmnEHSuq.css": "ce040c4d4e09329f91ba7a59baa7ef0f112b7d3ada4522a255d58c000beea4c0",
-      "assets/index-gVRRYT1H.js": "e5529544a9314b7f469865403a4b9d74ebde5ea97957e9277cdcc110ea1aac69",
+      "assets/index-CS3HXALs.js": "8bc4c5b63a34d89ee342c2ab4f925b37228e015c39df8629cd37b7ba31f9b132",
+      "assets/index-k5lsieFI.css": "a2faa202e3c935597549cbb5f5ee0fce5e56f04a622f32b019733b530185884a",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
       "assets/outlook-B-qerR2g.svg": "d67b8bb4bb8d7afe8e71e066112452d5d681ea7991fa1ec7c37df962246b2c31",
       "fonts/Kalam-OFL.txt": "f62ef357d3a1c3d27edd35a6e1ba350e8a8d13499797964eeadefbf0b3b15d1f",
       "fonts/Kalam-Regular.ttf": "57cecb63d4608019371954274ae1d8c397764debd5b19d4a33c1efa4dc923c0b",
-      "index.html": "8ad01f59eb5e3dfd636ab90a4d015489dba86ba71e35591c8f40cf834934b7a3"
+      "index.html": "822b285947b3b7c13593ca7496a782baa1f9c4556b7d4af83cfceae15c5a92c0"
     },
-    "builtAt": "2026-10-29T22:57:26.605Z",
-    "containerId": "e74a5269965aa4902860cdf22866663276d915ad37f3c67bdf0bdba487000fae",
+    "builtAt": "2026-10-29T23:21:06.648Z",
+    "containerId": "5b15cd3941fea17175f9f99c9cc1af2a77de1a85c35b61910cc57edac12e86bb",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
       "/assets/avatar-01-D7jqfrwr.webp",
@@ -405,8 +405,8 @@
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-05-BkiEJE6s.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-DmnEHSuq.css",
-      "/assets/index-gVRRYT1H.js",
+      "/assets/index-CS3HXALs.js",
+      "/assets/index-k5lsieFI.css",
       "/assets/nordic-dusk-v2-JZmjLCmU.png",
       "/assets/outlook-B-qerR2g.svg"
     ],
@@ -416,8 +416,8 @@
       "/assets/avatar-03-DA7Jq2DZ.webp",
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-DmnEHSuq.css",
-      "/assets/index-gVRRYT1H.js"
+      "/assets/index-CS3HXALs.js",
+      "/assets/index-k5lsieFI.css"
     ],
     "authorizedDynamicImages": [
       {
@@ -436,8 +436,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:38.448Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:11.511Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -463,11 +463,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "4b6faf81d1744e087b145d1045b9f5dc3ef2367d9ef9917ff4b6af8cd9c6b1b9"
+      "sha256": "899dbb96e7845e97c85f6a5825aa14aa02140e48fe3b761deda4fed8a225da4a"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:38.742Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:11.781Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -492,11 +492,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "fd5ac88e1c9ee4c9f5a19e9a39d8f9506ff4b7996c28fd9b5889876cfe7bb59f"
+      "sha256": "a9b0c3989c381851056794f9f7a435ff9b31c55e03d1a3ed412811d58ef8826a"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:39.247Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:12.273Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -522,11 +522,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "f387cb6eb0d438bb060dd81ba1b542ec0f7dbb2b5b3ae1bd8e32c74d3c928c58"
+      "sha256": "3c2c772bf6f4e468ac0007beade0f46c558afec7e9e29400f7f1e113bd0df81e"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:39.600Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:12.609Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -552,11 +552,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "d39aba099280df45c0256e8bff39c31635270051082cb4b30e5a73e30aaaa0d4"
+      "sha256": "88750ede073d083e7a80425a1742a43daf9aa7b41f840ee1057a8edf7a4bdf76"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:39.918Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:12.930Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -582,11 +582,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "fcd37c09ed43619acd573c6bd987d6ef49a40c706010530ddfd4ea490b5c4176"
+      "sha256": "7102e4e8eb51f72550bfca381b45a76c65e711f643ef0bfc8c180f0dcb0cc66d"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:40.245Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:13.324Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -611,11 +611,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "8ed7dafa09fc2d9c8febf16e203b64c9a37678bd4b3886f7b01c4a09ec26c90b"
+      "sha256": "de6c21c83bc751220bfb0cf3b0d9663131b01ceb8e71da6c97c31ccf808a5793"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:41.159Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:13.958Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -641,11 +641,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "db5c2dae38b2ea0018d14b1722a018167b65cd74c51f989d65d32314d5a537fa"
+      "sha256": "899dbb96e7845e97c85f6a5825aa14aa02140e48fe3b761deda4fed8a225da4a"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:42.640Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:15.015Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -671,11 +671,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "434570c7faaf8af27e4e860cc37900b0d6e0f52429f800376e67b457d61a59f9"
+      "sha256": "0991f1484aa9499f927d862eb087d578de4ae6cf6aa9fd0d8def0f3488d72c8c"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:42.921Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:15.296Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -700,11 +700,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "a0db7709c14ccc94c647bd0e06fbe21c75f58f2e7fe662639266d4a480004582"
+      "sha256": "5ca8d3db960f057f055f9cb242f9f293bab8dd075b7f4fa3bc45046548b03cab"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:43.375Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:15.779Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -730,11 +730,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "a88ee9889faf75a7ef60b7c80f5115f4c833d288b24d40835456f74f81d08a47"
+      "sha256": "a7282a2d8765d86dd9ac3c18c451379451ac305b788240e4df94bd38183613b7"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:43.772Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:16.262Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -760,11 +760,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "dabf01c5e8a0a0d7dd00f7110a3e1dfdbca33c7ad78b10c5d5ee7e644679334f"
+      "sha256": "35df84cf97f3816c0b33f19363ff85eff2e85ca07f2332717869053b96e60fa9"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:44.142Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:16.755Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -790,11 +790,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "d875ecf03e790c8a35c6f3ca9642d766325e928b71f9219b09c14f229a71b5d0"
+      "sha256": "959a05b3f4f3757b87ad7674e2e41e0533d3f96025d1211eef8242e4c7356c66"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:44.531Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:17.131Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -819,11 +819,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "f8a1e73eeff7b6a0b50ab6b132b9b4ee96954876b610050fb0da53a5d5987e52"
+      "sha256": "a4ef1045e9ba59739feb5f5605aa6ce862bc02409e1a74894e85dab0a33513c1"
     },
     {
-      "commitSha": "b9b7b8ea4aa52779295288c919b30eaa4611d753",
-      "capturedAt": "2026-10-29T22:58:45.657Z",
+      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+      "capturedAt": "2026-10-29T23:22:17.852Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -849,7 +849,7 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "3702f82aeb441701752fc7882dc65ae63b0b4237f9fc1e7123320c3fd1c8449f"
+      "sha256": "0991f1484aa9499f927d862eb087d578de4ae6cf6aa9fd0d8def0f3488d72c8c"
     }
   ]
 }
