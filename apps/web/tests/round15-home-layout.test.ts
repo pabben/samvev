@@ -7,9 +7,9 @@ import { registerHooks } from "node:module";
 registerHooks({load(url,context,nextLoad){return url.endsWith(".webp")?{format:"module",source:'export default "synthetic-avatar.webp"',shortCircuit:true}:nextLoad(url,context)}});
 const [{FamilyHub},{LocaleProvider}]=await Promise.all([import("../src/family-hub"),import("../src/ui")]);
 
-function setViewport(mobile=false){
- Object.defineProperty(globalThis,"document",{configurable:true,value:{documentElement:{dataset:{theme:"light"}}}});
- Object.defineProperty(globalThis,"matchMedia",{configurable:true,value:(query:string)=>({matches:mobile&&query.includes("max-width: 640px")})});
+function setViewport(mobile=false,theme:"light"|"dark"="light",compact=mobile){
+ Object.defineProperty(globalThis,"document",{configurable:true,value:{documentElement:{dataset:{theme}}}});
+ Object.defineProperty(globalThis,"matchMedia",{configurable:true,value:(query:string)=>({matches:query.includes("max-width: 640px")?mobile:query.includes("max-width: 1000px")?compact:false})});
 }
 function homeMarkup(people:Parameters<typeof FamilyHub>[0]["people"],extras:Partial<Parameters<typeof FamilyHub>[0]>={}){
  const props:Parameters<typeof FamilyHub>[0]={people,items:[],messages:[],zone:"Europe/Oslo",householdName:"Synthetic household",localDate:"2026-10-28",now:Date.parse("2026-10-28T12:00:00Z"),displaySections:{week:false},...extras};
@@ -86,4 +86,37 @@ test("day preview shortens groups of three or more while item details keep every
  assert.match(two,/<p>Synthetic person 1 · Synthetic person 2<\/p>/);
  const norwegian=renderToStaticMarkup(createElement(LocaleProvider,{locale:"nb",children:createElement(FamilyHub,{people,items:[item],messages:[],zone:"UTC",householdName:"Synthetic household",now:Date.parse("2026-10-28T12:00:00Z"),displaySections:{week:false}})}));
  assert.match(norwegian,/<p>3 personer<\/p>/);
+});
+
+
+test("mobile themes show the same single relevant Today event and single Tomorrow preview",()=>{
+ const event=(id:string,startsAt:string,endsAt:string,allDay=false):Parameters<typeof FamilyHub>[0]["items"][number]=>({id,kind:"event",contentLocale:"en",title:`Synthetic ${id}`,body:"",targets:{household:true,personIds:[]},entries:[],priority:"normal",publishAt:null,startsAt,endsAt,expiresAt:"2026-10-31T00:00:00Z",source:{label:"Synthetic source",observedAt:"2026-10-28T08:00:00Z",uncertainty:"low"},metadata:{allDay},revision:1,updatedAt:"2026-10-28T08:00:00Z"});
+ const ended=event("ended","2026-10-28T09:00:00Z","2026-10-28T10:00:00Z");
+ const ongoing=event("ongoing","2026-10-28T11:00:00Z","2026-10-28T13:00:00Z");
+ const future=event("future","2026-10-28T14:00:00Z","2026-10-28T15:00:00Z");
+ const tomorrow=event("tomorrow-first","2026-10-29T09:00:00Z","2026-10-29T10:00:00Z");
+ const tomorrowLater=event("tomorrow-later","2026-10-29T11:00:00Z","2026-10-29T12:00:00Z");
+ const allDay=event("all-day","2026-10-28T00:00:00Z","2026-10-29T00:00:00Z",true);
+ const section=(html:string,day:"today"|"tomorrow")=>html.match(new RegExp(`<section[^>]*data-hub-scope="${day}"[\\s\\S]*?<\\/section>`))?.[0]??"";
+ const ids=(html:string)=>[...html.matchAll(/data-item-id="([^"]+)"/g)].map(match=>match[1]);
+ for(const theme of ["light","dark"] as const){
+  setViewport(true,theme);
+  const html=homeMarkup([],{items:[ended,ongoing,future,tomorrow,tomorrowLater]});
+  assert.deepEqual(ids(section(html,"today")),["ongoing"],`${theme}: skip ended event and keep ongoing first`);
+  assert.deepEqual(ids(section(html,"tomorrow")),["tomorrow-first"],`${theme}: one Tomorrow preview`);
+  assert.match(section(html,"today"),/data-hub-detail="today"/,"all Today entries remain reachable through the collection");
+  assert.match(section(html,"tomorrow"),/data-hub-detail="tomorrow"/,"all Tomorrow entries remain reachable through the collection");
+  assert.deepEqual(ids(section(homeMarkup([],{items:[ended,future]}),"today")),["future"],`${theme}: keep next future event when none is ongoing`);
+  assert.deepEqual(ids(section(homeMarkup([],{items:[allDay,ended,future]}),"today")),["all-day"],`${theme}: retain relevant all-day event`);
+ }
+});
+
+test("mobile density parity preserves desktop and compact tablet event counts",()=>{
+ const items=Array.from({length:6},(_,index):Parameters<typeof FamilyHub>[0]["items"][number]=>({id:`synthetic-density-${index}`,kind:"event",contentLocale:"en",title:`Synthetic event ${index}`,body:"",targets:{household:true,personIds:[]},entries:[],priority:"normal",publishAt:null,startsAt:`2026-10-28T${13+index}:00:00Z`,endsAt:`2026-10-28T${14+index}:00:00Z`,expiresAt:"2026-10-29T00:00:00Z",source:{label:"Synthetic source",observedAt:"2026-10-28T08:00:00Z",uncertainty:"low"},metadata:{},revision:1,updatedAt:"2026-10-28T08:00:00Z"}));
+ for(const theme of ["light","dark"] as const)for(const compact of [false,true]){
+  setViewport(false,theme,compact);
+  const html=homeMarkup([],{items});
+  const today=html.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)?.[0]??"";
+  assert.equal([...today.matchAll(/data-item-id="/g)].length,compact?3:5,`${theme}/${compact?"tablet":"desktop"}: existing density remains`);
+ }
 });

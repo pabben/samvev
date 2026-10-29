@@ -114,8 +114,8 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
     const events=dayEvents(dayItems,now,zone,offset,true);
     const school=groupedSchool.filter(activity=>activity.date===date);
     const dinner=currentWeekDinners.find(activity=>activity.localDate===date&&activity.title);
-    const limit=mobile?(dark?3:1):compact||lowHeight?3:5;
-    const next=mobile&&!dark&&!offset?events.find(item=>item.metadata.allDay||Date.parse(item.endsAt??item.startsAt!)>now):undefined;
+    const limit=mobile?1:compact||lowHeight?3:5;
+    const next=mobile&&!offset?events.find(item=>item.metadata.allDay||Date.parse(item.endsAt??item.startsAt!)>now):undefined;
     const preview=next?[next]:events.slice(0,limit);
     const birthdayCount=currentBirthdays.filter(activity=>activity.due===(offset?'tomorrow':'today')).length;
     const displayBirthdayRows=currentBirthdays.filter(activity=>activity.due===(offset?'tomorrow':'today'));
