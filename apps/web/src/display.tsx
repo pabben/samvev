@@ -11,7 +11,7 @@ import { secureUuid } from "./secure-uuid";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { api, ApiError } from "./api";
 import type { Card, Projection } from "./types";
-import { calendarReadinessMessage, familyLayoutBirthdayEntries, visibleDisplayBirthdays, type CalendarReadiness } from "./display-admin-presentation";
+import { calendarReadinessMessage, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayReadinessCard, familyLayoutBirthdayEntries, visibleDisplayBirthdays, type CalendarReadiness } from "./display-admin-presentation";
 import {
   Avatar,
   Brand,
@@ -415,9 +415,10 @@ function DisplayRuntime({
   const birthdaySnapshotDay=projection?.birthdays?.localDate??(projection?.generatedAt?wallInput(projection.generatedAt,zone).slice(0,10):displayLocalDate);
   const displayBirthdays=projection?visibleDisplayBirthdays(projection.birthdays?.mode,advanceHomeBirthdays(projection.birthdays?.entries??projection.familyLayout?.upcomingBirthdays??[],birthdaySnapshotDay,displayLocalDate)):[];
   const familyPeople = [...new Map([...(projection?.familyLayout?.people ?? []), ...(hub?.people ?? [])].map(person => [person.id, person])).values()];
-  const duplicateFamilyPeople = selectedCards.includes("people");
-  const showFamily=Boolean(projection?.setup?.cards.includes("family_layout")&&projection.setup.familyLayoutEnabled&&!projection.display.privacyMode);
-  const familyDisplay=showFamily||Boolean(selectedCards.includes("people")&&!projection?.display.privacyMode);
+  const familyCardPlan=displayFamilyCardPlan(selectedCards,projection?.setup?.familyLayoutEnabled===true,projection?.display.privacyMode===true);
+  const showFamily=displayFamilyContentVisible(familyCardPlan.familyLayout,familyPeople.length,cards.length,hub?.items.length??0,displayBirthdays.length);
+  const familyDisplay=showFamily||Boolean(familyCardPlan.peopleCard&&!projection?.display.privacyMode);
+  const displayChrome=displayChromePlan(familyDisplay);
   const displayBoardAdapter=useMemo(()=>projection?displayHouseholdBoardAdapter(projection.display.id,
     {groceries:projection.householdBoards?.readable?.groceries===true,dinners:projection.householdBoards?.readable?.dinners===true},
     {groceries:online&&!projection.display.privacyMode&&projection.householdBoards?.writable?.groceries===true,dinners:online&&!projection.display.privacyMode&&projection.householdBoards?.writable?.dinners===true}
@@ -456,14 +457,14 @@ function DisplayRuntime({
       <header className="display-header">
         <div>
           <Brand />
-          <div className="display-identity">
+          {displayChrome.displayIdentity&&<div className="display-identity">
             <span>
               {projection?.display.householdName ?? t("displayGreeting")}
             </span>
             <strong>{projection?.display.name ?? t("unknownDisplay")}</strong>
-          </div>
+          </div>}
         </div>
-        <div className="display-date">
+        {displayChrome.displayClock&&<div className="display-date">
           <strong>
             {formatDate(Number.isFinite(displayNow)?displayNow:Date.now(), locale, zone, {
               hour: "2-digit",
@@ -477,7 +478,7 @@ function DisplayRuntime({
               month: "long",
             })}
           </span>
-        </div>
+        </div>}
         <button
           className="icon-button"
           aria-label={t("displayOptions")}
@@ -529,7 +530,7 @@ function DisplayRuntime({
         {projection && !projection.display.timezone && (
           <p className="field-hint">{t("timezoneFallback")}</p>
         )}
-        {showFamily&&<div className="display-ordered-card" style={{order:selectedCards.indexOf("family_layout")+3}}><FamilyHub key={`family:${sourceEpoch}:${projection!.display.id}:${projection!.setup?.id}:${projection!.display.privacyMode}`} display displayCompactPeople displaySections={{people:!duplicateFamilyPeople,today:!selectedCards.includes("today"),tomorrow:!selectedCards.includes("tomorrow"),important:!selectedCards.includes("worth_remembering"),support:!selectedCards.includes("worth_remembering"),week:false,next:false}} displayDinnersReadable={!selectedCards.includes("dinners")&&projection!.householdBoards?.readable?.dinners===true} birthdays={familyLayoutBirthdayEntries(projection!.birthdays?.mode,displayBirthdays,duplicateFamilyPeople)} birthdaySourceLocalDate={displayLocalDate} people={duplicateFamilyPeople?[]:familyPeople} items={hub?.items??[]} messages={projection!.setup?.cards.includes("household_messages")?cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision})):[]} zone={zone} householdName={projection!.display.householdName} now={displayNow} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/></div>}
+        {showFamily&&<div className="display-ordered-card" style={{order:selectedCards.indexOf("family_layout")+3}}><FamilyHub key={`family:${sourceEpoch}:${projection!.display.id}:${projection!.setup?.id}:${projection!.display.privacyMode}`} display displayCompactPeople displaySections={{people:true,today:!selectedCards.includes("today"),tomorrow:!selectedCards.includes("tomorrow"),important:!selectedCards.includes("worth_remembering"),support:!selectedCards.includes("worth_remembering"),week:false,next:false}} displayDinnersReadable={!selectedCards.includes("dinners")&&projection!.householdBoards?.readable?.dinners===true} birthdays={familyLayoutBirthdayEntries(projection!.birthdays?.mode,displayBirthdays,false)} birthdaySourceLocalDate={displayLocalDate} people={familyPeople} items={hub?.items??[]} messages={projection!.setup?.cards.includes("household_messages")?cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision})):[]} zone={zone} householdName={projection!.display.householdName} now={displayNow} connection={t(online ? streamLive ? "live" : "polling" : "offline")}/></div>}
         {!showFamily&&projection?.setup?.cards.includes("household_messages")&&cards.length ? (
           <div className="display-cards display-ordered-card" style={{order:selectedCards.indexOf("household_messages")+3}}>
             {layout === "board"
@@ -570,18 +571,23 @@ function DisplayRuntime({
         {projection&&selectedCards.map(card=>{
           const order=selectedCards.indexOf(card)+3;
           if(projection.display.privacyMode&&["external_items","photos","home_assistant","today","tomorrow","week","next","people","worth_remembering","groceries","dinners"].includes(card))return null;
-          if(card==="new_message")return !projection.display.privacyMode&&projection.actionAvailability?.newMessage?<div className="display-ordered-card" key={card} style={{order}}><DisplayMessageComposer key={`${sourceEpoch}:${projection.display.id}`} recipientGeneration={JSON.stringify([sourceEpoch,projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt])} online={online} now={displayNow}/></div>:null;
-          if(card==="groceries"||card==="dinners")return displayBoardAdapter?<div className="display-ordered-card" key={card} style={{order}}><HouseholdBoardCards adapter={displayBoardAdapter} localDate={displayLocalDate} visibleCards={[card]} display/></div>:null;
+          if(card==="new_message")return !projection.display.privacyMode?(projection.actionAvailability?.newMessage?<div className="display-ordered-card" key={card} style={{order}}><DisplayMessageComposer key={`${sourceEpoch}:${projection.display.id}`} recipientGeneration={JSON.stringify([sourceEpoch,projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt])} online={online} now={displayNow}/></div>:<section className="hub-panel display-selected-card display-ordered-card" key={card} style={{order}} role="status"><h2>{t("newMessage")}</h2><p className="field-hint">{t("displayActionUnavailable")}</p></section>):null;
+          if(card==="groceries"||card==="dinners"){
+            const readable=projection.householdBoards?.readable?.[card]===true;
+            if(!readable&&card==="dinners"&&selectedCards.includes("groceries"))return null;
+            return readable&&displayBoardAdapter?<div className="display-ordered-card" key={card} style={{order}}><HouseholdBoardCards adapter={displayBoardAdapter} localDate={displayLocalDate} visibleCards={[card]} display/></div>:<section className="hub-panel display-selected-card display-ordered-card" key={card} style={{order}} role="status"><h2>{t(card==="groceries"?"boardGroceries":"boardDinners")}</h2><p className="field-hint">{t("displayBoardNotShared")}</p></section>;
+          }
           if(card==="photos")return online?<div className="display-ordered-card" key={card} style={{order}}><DisplayMediaPlayback displayId={projection.display.id} enabled/></div>:null;
           if(card==="home_assistant")return online?<div className="display-ordered-card" key={card} style={{order}}><DeviceHomeAssistantControls timezone={zone} canAct={projection.actionAvailability?.homeAssistantControl===true&&online&&!projection.display.privacyMode} compact/></div>:null;
           if(["household_messages","family_layout","new_message"].includes(card))return null;
           if(card==="today"||card==="tomorrow"){
             const localToday=displayLocalDate;const date=card==="today"?localToday:dateOffset(localToday,1);
-            return <div className="display-ordered-card" style={{order}} key={card}>{activityScope&&<DisplayDayCard scope={activityScope} date={date} zone={zone} people={familyPeople} birthdays={displayBirthdays} readiness={projection.contentReadiness?.calendar} dinnersReadable={projection.householdBoards?.readable?.dinners===true} labelKey={card}/>}</div>
+            const readiness=displayReadinessCard(selectedCards)===card?projection.contentReadiness?.calendar:undefined;
+            return <div className="display-ordered-card" style={{order}} key={card}>{activityScope&&<DisplayDayCard scope={activityScope} date={date} zone={zone} people={familyPeople} birthdays={displayBirthdays} readiness={readiness} dinnersReadable={projection.householdBoards?.readable?.dinners===true} labelKey={card}/>}</div>
           }
           if(card==="week")return <div className="display-ordered-card" key={card} style={{order}}><HouseholdActivityWeek localDate={displayLocalDate} zone={zone} people={familyPeople} display now={displayNow} householdBoardsReadableDinners={projection.householdBoards?.readable?.dinners===true} showNextActivity={false}/></div>;
           if(card==="next")return <div className="display-ordered-card" key={card} style={{order}}>{activityScope&&<DisplayNextActivity scope={activityScope} zone={zone} people={familyPeople}/>}</div>;
-          if(card==="people")return <div className="display-ordered-card" style={{order}} key={card}><FamilyHub display displayCompactPeople displaySections={{people:true,today:false,tomorrow:false,important:false,messages:false,support:false,week:false,environment:false,next:false}} people={familyPeople} items={[]} messages={[]} birthdays={displayBirthdays} birthdaySourceLocalDate={displayLocalDate} zone={zone} householdName={projection.display.householdName} now={displayNow}/></div>;
+          if(card==="people")return !familyCardPlan.peopleCard?null:<div className="display-ordered-card" style={{order}} key={card}><FamilyHub display displayCompactPeople displaySections={{people:true,today:false,tomorrow:false,important:false,messages:false,support:false,week:false,environment:false,next:false}} people={familyPeople} items={[]} messages={[]} birthdays={displayBirthdays} birthdaySourceLocalDate={displayLocalDate} zone={zone} householdName={projection.display.householdName} now={displayNow}/></div>;
           if(card==="external_items"){
             const calendarItems=hub?.items.filter(item=>item.metadata.calendar).slice(0,8)??[];
             return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("externalItems")}</h2>{calendarItems.length?calendarItems.map(item=><article key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>):<p className="field-hint" role="status">{t(projection.contentReadiness?.calendar&&projection.contentReadiness.calendar!=="ready"?calendarReadinessMessage(projection.contentReadiness.calendar):"displayCalendarEmpty")}</p>}</section>;
@@ -731,7 +737,17 @@ function DisplayDayCard({scope,date,zone,people,birthdays,readiness,dinnersReada
  const entries=mergeTimelineEntries(activities,state.value?.dinners??[],zone,date,date);
  const birthdaysToday=birthdays?.filter(birthday=>birthday.due===labelKey)??[];
  const heading=t(labelKey==="today"?"hubToday":"hubTomorrow");
- return <section className="hub-panel display-selected-card" aria-label={heading} aria-busy={!state.loaded}><h2>{heading}</h2>{birthdaysToday.map(person=><p className="hub-person-birthday" data-review-private="birthday-name" key={person.personId}>🎂 {person.displayName}</p>)}{entries.map(entry=>entry.kind==="school"?<SchoolActivityCard key={entry.id} activity={entry.activity} people={people} compact now={state.now} zone={zone}/>:entry.kind==="dinner"?<article className="display-preview-item" key={entry.id}>{entry.emoji} {entry.title}</article>:<DisplayDayCalendarEvent key={entry.id} activity={entry.activity} people={people} zone={zone} now={state.now}/>)}{Boolean(state.error||state.expired)&&<><ErrorNotice error={state.error}/>{state.expired&&<p className="field-hint" role="status">{t("cacheCleared")}</p>}<button type="button" className="text-button" onClick={state.retry}>{t("retry")}</button></>}{state.loaded&&!state.error&&!state.expired&&!entries.length&&!birthdaysToday.length&&<p className="field-hint" role="status">{t(readiness&&readiness!=="ready"?calendarReadinessMessage(readiness):"displayCalendarEmpty")}</p>}{!state.loaded&&<p className="field-hint">{t("loading")}</p>}<span className="sr-only">{formatDate(`${date}T12:00:00Z`,locale,"UTC",{dateStyle:"full"})}</span></section>;
+ if(state.loaded&&!state.error&&!state.expired&&!entries.length&&!birthdaysToday.length&&(!readiness||readiness==="ready"))return null;
+ return <section className="hub-panel display-selected-card" aria-label={heading} aria-busy={!state.loaded}><h2>{heading}</h2><DisplayDayCardContent date={date} zone={zone} people={people} birthdays={birthdays} labelKey={labelKey} now={state.now} activities={activities} dinners={state.value?.dinners??[]} readiness={readiness} empty={!entries.length&&!birthdaysToday.length}/>{Boolean(state.error||state.expired)&&<><ErrorNotice error={state.error}/>{state.expired&&<p className="field-hint" role="status">{t("cacheCleared")}</p>}<button type="button" className="text-button" onClick={state.retry}>{t("retry")}</button></>}{!state.loaded&&<p className="field-hint">{t("loading")}</p>}<span className="sr-only">{formatDate(`${date}T12:00:00Z`,locale,"UTC",{dateStyle:"full"})}</span></section>;
+}
+
+/** Shared day-card contents for live and administrator preview projections. */
+export function DisplayDayCardContent({date,zone,people,birthdays,labelKey,now,activities,dinners,readiness,empty}:{date:string;zone:string;people:HubPerson[];birthdays:NonNullable<Projection["birthdays"]>["entries"];labelKey:"today"|"tomorrow";now:number;activities:HouseholdTimelineActivity[];dinners:Array<{id:string;localDate:string;title:string|null;emoji:string|null;revision:number;cleared:boolean}>;readiness:CalendarReadiness|undefined;empty:boolean}){
+ const {t}=useI18n();
+ const birthdaysToday=birthdays.filter(birthday=>birthday.due===labelKey);
+ const entries=mergeTimelineEntries(activities,dinners,zone,date,date);
+ if(empty&&(!readiness||readiness==="ready"))return null;
+ return <>{birthdaysToday.map(person=><p className="hub-person-birthday" data-review-private="birthday-name" key={person.personId}>🎂 {person.displayName}</p>)}{entries.map(entry=>entry.kind==="school"?<SchoolActivityCard key={entry.id} activity={entry.activity} people={people} compact now={now} zone={zone}/>:entry.kind==="dinner"?<article className="display-preview-item" key={entry.id}>{entry.emoji} {entry.title}</article>:<DisplayDayCalendarEvent key={entry.id} activity={entry.activity} people={people} zone={zone} now={now}/>)}{empty&&readiness&&readiness!=="ready"&&<p className="field-hint" role="status">{t(calendarReadinessMessage(readiness))}</p>}</>;
 }
 
 /** Render only names present in this display's already authorized roster. */

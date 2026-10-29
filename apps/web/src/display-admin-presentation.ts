@@ -55,6 +55,32 @@ export function familyLayoutBirthdayEntries(mode: BirthdayMode|undefined, entrie
   return visibleDisplayBirthdays(mode, entries);
 }
 
+export function displayFamilyCardPlan(cards: readonly string[], familyLayoutEnabled: boolean, privacyMode: boolean) {
+  const familyLayout = cards.includes('family_layout') && familyLayoutEnabled && !privacyMode;
+  return { familyLayout, peopleCard: cards.includes('people') && !familyLayout && !privacyMode, rosterInFamilyLayout: familyLayout };
+}
+
+export function displayPreviewContentVisible(content: unknown): boolean {
+  if (content === null || content === undefined || content === false) return false;
+  if (Array.isArray(content)) return content.length > 0;
+  return typeof content !== 'string' || content.trim().length > 0;
+}
+
+export function displayFamilyContentVisible(familyLayout: boolean, peopleCount: number, messageCount: number, itemCount: number, birthdayCount: number): boolean {
+  return familyLayout && (peopleCount > 0 || messageCount > 0 || itemCount > 0 || birthdayCount > 0);
+}
+
+export function displayChromePlan(familyDisplay: boolean) {
+  return { displayIdentity: !familyDisplay, displayClock: !familyDisplay, familyHero: familyDisplay };
+}
+
+export function displayReadinessCard(cards: readonly string[]): 'external_items'|'today'|'tomorrow'|null {
+  if (cards.includes('external_items')) return 'external_items';
+  if (cards.includes('today')) return 'today';
+  if (cards.includes('tomorrow')) return 'tomorrow';
+  return null;
+}
+
 export function calendarReadinessMessage(status: CalendarReadiness|undefined): 'displayReadinessUnknown'|'displayReadinessPrivacy'|'displayReadinessNoPeople'|'displayReadinessDisabled'|'displayReadinessNotShared'|'displayReadinessReady' {
   if (!status) return 'displayReadinessUnknown';
   return ({ privacy: 'displayReadinessPrivacy', none_selected: 'displayReadinessNoPeople', external_disabled: 'displayReadinessDisabled', not_shared: 'displayReadinessNotShared', ready: 'displayReadinessReady' } as const)[status];

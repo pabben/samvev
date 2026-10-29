@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import type { Display, Membership, Person, Projection } from "./types";
+import type { Card, Display, Membership, Person, Projection } from "./types";
 import type { CalendarConnection } from "./calendar-connection-types";
 import { MediaSlideshow } from "./media-library";
 import type { DisplayMediaProjection } from "./media-adapters";
-import { Check, ErrorNotice, Field, Icon, useAction, useI18n } from "./ui";
-import type { TranslationKey } from "./locales/en";
+import { Check, ErrorNotice, Field, Icon, LocaleProvider, useAction, useI18n } from "./ui";
 import type { ReactNode } from "react";
-import { mergeTimelineEntries } from "./home-activity-presentation";
-import type { HouseholdTimelineActivity } from "./home-types";
 import { advanceHomeBirthdays } from "./home-presentation";
+import { FamilyHub } from "./family-hub";
+import { DisplayCard, DisplayDayCardContent } from "./display";
+import type { HouseholdTimelineActivity } from "./home-types";
+import { mergeTimelineEntries, timelineDayHistoryVisible } from "./home-activity-presentation";
+import { displayFamilyCardPlan, displayFamilyContentVisible, displayPreviewContentVisible, displayReadinessCard } from "./display-admin-presentation";
 
 const CARD_IDS = ["household_messages", "new_message", "family_layout", "external_items", "worth_remembering", "today", "tomorrow", "people", "week", "next", "groceries", "dinners", "photos", "home_assistant"] as const;
 type CardId = typeof CARD_IDS[number];
@@ -22,7 +24,7 @@ type Setup = {
 };
 type Draft = Omit<Setup, "id" | "revision" | "isDefault">;
 type MediaPolicy = { albumId: string; name: string; albumRevision: number; grantRevision: number | null; canRead: boolean; canUpload: boolean };
-type Preview = Projection & {
+export type Preview = Projection & {
   preview: true;
   setup: NonNullable<Projection["setup"]>;
   media?: DisplayMediaProjection;
@@ -35,7 +37,12 @@ const emptyDraft = (locale: "en" | "nb"): Draft => ({ name: "", cards: ["househo
 function asDraft(setup: Setup): Draft { return { name: setup.name, cards: [...setup.cards], cardOrder: [...setup.cardOrder], familyLayoutEnabled: setup.familyLayoutEnabled, allSources: setup.allSources, allSensors: setup.allSensors, personIds: [...setup.personIds], sourceIds: [...setup.sourceIds], calendarSourceIds: [...setup.calendarSourceIds], sensorIds: [...setup.sensorIds], albumIds: [...setup.albumIds], backgroundId: setup.backgroundId, locale: setup.locale, theme: setup.theme }; }
 function toggle<T extends string>(items: T[], id: T, checked: boolean): T[] { return checked ? [...new Set([...items, id])] : items.filter(item => item !== id); }
 
-function ReadonlyPreview({ result, displayName, cardLabel, t }: { result: Preview; displayName: string; cardLabel: (id: CardId) => string; t: (key: TranslationKey, values?: Record<string, string | number>) => string }) {
+export function ReadonlyPreview(props: { result: Preview; displayName: string; cardLabel: (id: CardId) => string; orientation: "portrait" | "landscape" }) {
+  return <LocaleProvider locale={props.result.display.locale}><ReadonlyPreviewBody {...props}/></LocaleProvider>;
+}
+
+function ReadonlyPreviewBody({ result, displayName, cardLabel, orientation }: { result: Preview; displayName: string; cardLabel: (id: CardId) => string; orientation: "portrait" | "landscape" }) {
+  const { t } = useI18n();
   const people = [...new Map([...(result.familyLayout?.people ?? []), ...(result.hub?.people ?? [])].map(person => [person.id, person])).values()];
   const items = result.hub?.items ?? [];
   const board = result.householdBoards;
@@ -44,8 +51,11 @@ function ReadonlyPreview({ result, displayName, cardLabel, t }: { result: Previe
   const zone = result.display.timezone ?? "UTC";
   const today = result.householdBoards?.from ?? new Intl.DateTimeFormat("en-CA", { timeZone: zone, year: "numeric", month: "2-digit", day: "2-digit" }).format(Date.parse(result.serverNow));
   const birthdays = advanceHomeBirthdays(result.birthdays?.entries ?? result.familyLayout?.upcomingBirthdays ?? [], result.birthdays?.localDate ?? today, today);
-  const dayActivities = result.dayActivities?.activities ?? [];
-  return <section className="display-preview" aria-label={t("displayPreviewTitle")}>
+  const familyCardPlan = displayFamilyCardPlan(result.setup.cards,result.setup.familyLayoutEnabled,result.display.privacyMode);
+  const messages = result.setup.cards.includes("household_messages") ? result.cards.map(card => ({id:card.id,body:card.body,importance:card.importance,authorName:card.author,authorPersonId:card.authorPersonId,authorAvatarKey:card.authorAvatarKey,authorPhoto:card.authorPhoto,publishAt:card.publishAt,expiresAt:card.expiresAt,revision:card.revision})) : [];
+  const familySelected = displayFamilyContentVisible(familyCardPlan.familyLayout,people.length,messages.length,items.length,birthdays.length);
+  const familyView = (roster: boolean, withMessages = false) => <FamilyHub display displayCompactPeople displaySections={{people:roster,today:!result.setup.cards.includes("today"),tomorrow:!result.setup.cards.includes("tomorrow"),important:!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} people={people} items={items} messages={withMessages ? messages : []} birthdays={birthdays} birthdaySourceLocalDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} />;
+  return <section className={`display-preview display-preview-${orientation}`} data-theme={result.display.theme} aria-label={t("displayPreviewTitle")}>
     <header><h3>{t("displayPreviewFor", { name: displayName })}</h3><p>{t("displaySetup")}: {result.display.setupName ?? t("defaultDisplaySetup")} · {t("displayPreviewTitle")} · {t("displayPreviewReadonly")}</p></header>
     {background && <img className="display-preview-background" src={background.previewUrl} alt={background.title} referrerPolicy="no-referrer"/>}
     <div className="display-preview-layout">
@@ -54,26 +64,29 @@ function ReadonlyPreview({ result, displayName, cardLabel, t }: { result: Previe
         if (!CARD_IDS.includes(card)) return null;
         if (!result.setup.cards.includes(card)) return null;
         let content: ReactNode = null;
-        if (card === "household_messages") content = result.cards.map(message => <article className="display-preview-message" key={message.id}><strong>{message.author}</strong><p>{message.body}</p>{message.authorPhoto?.url96&&<img src={message.authorPhoto.url96} alt="" referrerPolicy="no-referrer"/>}</article>);
-        else if (card === "family_layout") content = <div className="display-preview-people">{!result.setup.cards.includes("people")&&people.map(person => <span className="display-preview-person" key={person.id}>{person.photo?.url96 && <img src={person.photo.url96} alt="" referrerPolicy="no-referrer"/>}{person.displayName}</span>)}</div>;
-        else if (card === "people") content = <div className="display-preview-people">{people.map(person => <span className="display-preview-person" key={person.id}>{person.photo?.url96 && <img src={person.photo.url96} alt="" referrerPolicy="no-referrer"/>}{person.displayName}</span>)}</div>;
+        if (card === "household_messages") { if (familySelected) return null; content = result.cards.map((message, messageIndex) => <DisplayCard key={message.id} card={message as Card} zone={zone} primary={messageIndex===0}/>); }
+        else if (card === "family_layout") { if (!familySelected) return null; content = familyView(true, result.setup.cards.includes("household_messages")); }
+        else if (card === "people") { if (!familyCardPlan.peopleCard) return null; content = familyView(true); }
         else if (card === "new_message") content = <button type="button" className="button" disabled>{t("newMessage")}</button>;
-        else if (card === "external_items") content = items.filter(item => item.metadata.calendar).map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>);
+        else if (card === "external_items") { const externalItems = items.filter(item => item.metadata.calendar); content = externalItems.length ? externalItems.map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>) : <p className="field-hint" role="status">{result.contentReadiness?.calendar && result.contentReadiness.calendar!=="ready" ? t(({privacy:"displayReadinessPrivacy",none_selected:"displayReadinessNoPeople",external_disabled:"displayReadinessDisabled",not_shared:"displayReadinessNotShared"} as const)[result.contentReadiness.calendar]) : t("displayCalendarEmpty")}</p>; }
         else if (card === "worth_remembering") content = items.filter(item => item.kind === "summary" || item.kind === "list").map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>);
         else if (card === "today" || card === "tomorrow") {
-          const targetDate = card === "today" ? today : (() => { const value = new Date(`${today}T00:00:00.000Z`); value.setUTCDate(value.getUTCDate() + 1); return value.toISOString().slice(0, 10); })();
-          const dinners = (board?.dinners ?? []).filter(dinner => dinner.localDate === targetDate).map(dinner => ({ ...dinner, emoji: dinner.emoji ?? null, revision: dinner.revision ?? 0, cleared: dinner.cleared ?? false }));
-          const timeline = mergeTimelineEntries(dayActivities, dinners, zone, targetDate, targetDate);
+          const targetDate = card === "today" ? today : new Date(Date.parse(`${today}T12:00:00Z`) + 86400000).toISOString().slice(0,10);
+          const dayActivities = (result.dayActivities?.activities ?? []).filter(activity => timelineDayHistoryVisible(activity, Date.parse(result.serverNow)));
+          const dayDinners = (board?.dinners ?? []).filter(dinner => dinner.localDate === targetDate).map(dinner => ({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false}));
+          const entries = mergeTimelineEntries(dayActivities,dayDinners,zone,targetDate,targetDate);
           const birthdayDue = card === "today" ? "today" : "tomorrow";
           const due = birthdays.filter(birthday => birthday.due === birthdayDue);
-          content = <>{due.map(birthday => <p className="hub-person-birthday" key={birthday.personId}>🎂 {birthday.displayName}</p>)}{timeline.map(entry => <article className="display-preview-item" key={`${entry.kind}:${entry.id}`}><strong>{entry.kind === "school" ? entry.activity.title : entry.kind === "calendar" ? entry.activity.title : entry.title}</strong>{entry.kind === "school" && <span>{entry.activity.actions.slice(0, 2).join(" · ")}</span>}{entry.kind === "calendar" && entry.activity.body && <p>{entry.activity.body}</p>}</article>)}</>;
+          const readinessCard = displayReadinessCard(result.setup.cards);
+          content = <DisplayDayCardContent date={targetDate} zone={zone} people={people} birthdays={birthdays} labelKey={card} now={Date.parse(result.serverNow)} activities={dayActivities} dinners={dayDinners} readiness={card===readinessCard?result.contentReadiness?.calendar:undefined} empty={!entries.length&&!due.length}/>;
         }
         else if (card === "week") content = (result.weekActivities?.activities ?? []).map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong>{item.type === "school" && <span>{item.actions.slice(0, 2).join(" · ")}</span>}{item.type === "calendar" && <p>{item.body}</p>}</article>);
         else if (card === "next") content = result.nextActivity ? result.nextActivity.type === "school" ? <article className="display-preview-item"><strong>{result.nextActivity.title}</strong><span>{result.nextActivity.actions.slice(0, 2).join(" · ")}</span></article> : <article className="display-preview-item"><strong>{result.nextActivity.title}</strong><p>{result.nextActivity.startsAt ?? ""}</p></article> : <p className="field-hint">{t("displayEmptyBody")}</p>;
-        else if (card === "groceries" && board?.readable?.groceries) content = (board.groceries ?? []).map(item => <article className="display-preview-item" key={item.id}><span>{item.checked ? "✓ " : ""}{item.label}</span></article>);
-        else if (card === "dinners" && board?.readable?.dinners) content = (board.dinners ?? []).map(item => <article className="display-preview-item" key={item.id}><strong>{item.localDate}</strong><span>{item.title ?? t("boardDinnerEmpty")}</span></article>);
+        else if (card === "groceries") content = board?.readable?.groceries ? (board.groceries ?? []).map(item => <article className="display-preview-item" key={item.id}><span>{item.checked ? "✓ " : ""}{item.label}</span></article>) : <p className="field-hint">{t("displayPreviewBoardNotShared")}</p>;
+        else if (card === "dinners") { if (!board?.readable?.dinners && result.setup.cards.includes("groceries")) return null; content = board?.readable?.dinners ? (board.dinners ?? []).map(item => <article className="display-preview-item" key={item.id}><strong>{item.localDate}</strong><span>{item.title ?? t("boardDinnerEmpty")}</span></article>) : <p className="field-hint">{t("displayPreviewBoardNotShared")}</p>; }
         else if (card === "photos") content = photos.length ? <MediaSlideshow assets={photos} label={cardLabel(card)}/> : <p className="field-hint">{t("displayEmptyBody")}</p>;
         else if (card === "home_assistant") content = <p className="field-hint">{t("displayPreviewHaReadonly")}</p>;
+        if (!displayPreviewContentVisible(content)) return null;
         return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}><h4>{cardLabel(card)}</h4>{content}</article>;
       })}
     </div>
@@ -92,6 +105,8 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
   const [editorOpen, setEditorOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(emptyDraft(member.household_locale));
   const [preview, setPreview] = useState<{ displayId: string; result: Preview } | null>(null);
+  const [previewTargetId, setPreviewTargetId] = useState("");
+  const [previewOrientation, setPreviewOrientation] = useState<"portrait" | "landscape">("landscape");
   const [policyDisplay, setPolicyDisplay] = useState<Display | null>(null);
   const [policy, setPolicy] = useState<any>(null);
   const [board, setBoard] = useState<any>(null);
@@ -246,6 +261,8 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
   const selectedSources = connections.flatMap(connection => connection.sources.map(source => ({ id: source.id, label: `${connection.name}: ${source.displayName ?? source.name}` })));
   const selectedSensors = connections.flatMap(connection => (connection.temperatureSensors ?? []).map(sensor => ({ id: sensor.id, label: `${connection.name}: ${sensor.displayName ?? sensor.name}` })));
   const assignedDevices = (setup: Setup) => displays.filter(display => display.setup_id === setup.id && !display.revoked_at).map(display => display.name);
+  const activeDisplays = displays.filter(display => !display.revoked_at);
+  const previewTarget = activeDisplays.find(display => display.id === previewTargetId) ?? activeDisplays[0];
 
   return <section className="display-setups-admin" id="display-setups-admin">
     <header className="section-heading"><div><p className="eyebrow">{t("displaySetups")}</p><h2>{t("displaySetupsTitle")}</h2><p>{t("displaySetupsBody")}</p></div><button className="button" disabled={busy} onClick={() => open()}><Icon name="plus"/>{t("displaySetupNew")}</button></header>
@@ -257,13 +274,14 @@ export function DisplaySetupsAdmin({ householdId, member, people, displays, onCh
     {editorOpen && <div className="display-setup-editor" id="display-setup-editor" role="region" aria-label={t("displaySetupEditor")}>
       <fieldset disabled={busy} className="display-editor-controls">
         <div className="form-grid"><Field label={t("displaySetupName")}><input maxLength={80} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })}/></Field><Field label={t("displayLocale")}><select value={draft.locale} onChange={e => setDraft({ ...draft, locale: e.target.value as "en" | "nb" })}><option value="en">{t("en")}</option><option value="nb">{t("nb")}</option></select></Field><Field label={t("displayTheme")}><select value={draft.theme} onChange={e => setDraft({ ...draft, theme: e.target.value as Draft["theme"] })}>{(["light", "dark", "system"] as const).map(value => <option key={value} value={value}>{t(value)}</option>)}</select></Field></div>
-        <fieldset><legend>{t("displaySetupCards")}</legend>{CARD_IDS.map(id => <Check key={id} label={cardLabel(id)} checked={draft.cards.includes(id)} onChange={checked => { const cards = toggle(draft.cards, id, checked); setDraft({ ...draft, cards, cardOrder: checked ? [...draft.cardOrder, id] : draft.cardOrder.filter(card => card !== id) }); }}/>) }<p className="field-hint">{t("displaySetupOrderHint")}</p><ol className="display-card-order">{draft.cardOrder.map((id, index) => <li key={id}><span>{cardLabel(id)}</span><button type="button" className="button subtle" disabled={!index || busy} onClick={() => { const next = [...draft.cardOrder]; [next[index - 1], next[index]] = [next[index]!, next[index - 1]!]; setDraft({ ...draft, cardOrder: next }); }} aria-label={t("moveUp")}>↑</button><button type="button" className="button subtle" disabled={index === draft.cardOrder.length - 1 || busy} onClick={() => { const next = [...draft.cardOrder]; [next[index + 1], next[index]] = [next[index]!, next[index + 1]!]; setDraft({ ...draft, cardOrder: next }); }} aria-label={t("moveDown")}>↓</button></li>)}</ol></fieldset>
+        <fieldset><legend>{t("displaySetupCards")}</legend>{CARD_IDS.map(id => { const peopleIncluded = id === "people" && draft.cards.includes("family_layout") && draft.familyLayoutEnabled; return <Check key={id} label={peopleIncluded ? `${cardLabel(id)} · ${t("displayPeopleIncludedWithFamily")}` : cardLabel(id)} checked={peopleIncluded || draft.cards.includes(id)} disabled={peopleIncluded} onChange={checked => { const cards = toggle(draft.cards, id, checked); setDraft({ ...draft, cards, cardOrder: checked ? [...draft.cardOrder, id] : draft.cardOrder.filter(card => card !== id) }); }}/>; })}<p className="field-hint">{t("displaySetupOrderHint")}</p><ol className="display-card-order">{draft.cardOrder.map((id, index) => <li key={id}><span>{cardLabel(id)}</span><button type="button" className="button subtle" disabled={!index || busy} onClick={() => { const next = [...draft.cardOrder]; [next[index - 1], next[index]] = [next[index]!, next[index - 1]!]; setDraft({ ...draft, cardOrder: next }); }} aria-label={t("moveUp")}>↑</button><button type="button" className="button subtle" disabled={index === draft.cardOrder.length - 1 || busy} onClick={() => { const next = [...draft.cardOrder]; [next[index + 1], next[index]] = [next[index + 1]!, next[index]!]; setDraft({ ...draft, cardOrder: next }); }} aria-label={t("moveDown")}>↓</button></li>)}</ol></fieldset>
         <fieldset><legend>{t("displaySetupPeople")}</legend><p className="field-hint">{t("displaySetupPeopleHint")}</p><p className="field-hint">{t("displayPeopleCount",{selected:draft.personIds.filter(id=>people.some(person=>person.id===id)).length,total:people.length})}</p><div className="display-bulk-actions"><button type="button" className="button subtle" disabled={busy||!people.length} onClick={()=>setDraft({...draft,personIds:people.map(person=>person.id)})}>{t("selectAll")}</button><button type="button" className="button subtle" disabled={busy||!people.length} onClick={()=>setDraft({...draft,personIds:[]})}>{t("clearAll")}</button></div>{people.map(person => <Check key={person.id} label={person.display_name} checked={draft.personIds.includes(person.id)} onChange={checked => setDraft({ ...draft, personIds: toggle(draft.personIds, person.id, checked) })}/>)}</fieldset>
         <fieldset><legend>{t("displaySetupSources")}</legend><Check label={t("allSources")} checked={draft.allSources} onChange={checked => setDraft({ ...draft, allSources: checked })}/>{integrations.map(connection => <Check key={connection.id} label={connection.name} checked={draft.sourceIds.includes(connection.id)} onChange={checked => setDraft({ ...draft, sourceIds: toggle(draft.sourceIds, connection.id, checked) })}/>) }{selectedSources.map(source => <Check key={source.id} label={source.label} checked={draft.calendarSourceIds.includes(source.id)} onChange={checked => setDraft({ ...draft, calendarSourceIds: toggle(draft.calendarSourceIds, source.id, checked) })}/>) }<Check label={t("allSensors")} checked={draft.allSensors} onChange={checked => setDraft({ ...draft, allSensors: checked })}/>{selectedSensors.map(sensor => <Check key={sensor.id} label={sensor.label} checked={draft.sensorIds.includes(sensor.id)} onChange={checked => setDraft({ ...draft, sensorIds: toggle(draft.sensorIds, sensor.id, checked) })}/>)}</fieldset>
         <fieldset><legend>{t("displaySetupMedia")}</legend>{albums.filter(album => album.kind === "photos").map(album => <Check key={album.id} label={album.name} checked={draft.albumIds.includes(album.id)} onChange={checked => setDraft({ ...draft, albumIds: toggle(draft.albumIds, album.id, checked) })}/>) }<Field label={t("displayBackground")}><select value={draft.backgroundId ?? ""} onChange={e => setDraft({ ...draft, backgroundId: e.target.value || null })}><option value="">{t("none")}</option>{backgrounds.map(asset => <option key={asset.id} value={asset.id}>{asset.title}</option>)}</select></Field></fieldset>
-        <div className="form-actions"><button type="button" className="button subtle" onClick={() => { setEditing(null); setEditorOpen(false); setDraft(emptyDraft(member.household_locale)); setPreview(null); }}>{t("cancel")}</button><button type="button" className="button" disabled={!draft.name.trim()} onClick={() => void run(save)}>{t("save")}</button>{displays.filter(display => !display.revoked_at).map(display => <button type="button" className="button" key={display.id} disabled={!draft.name.trim()} onClick={() => void run(() => previewSetup(display))}>{t("displayPreviewFor", { name: display.name })}</button>)}</div>
+        <div className="form-actions"><button type="button" className="button subtle" onClick={() => { setEditing(null); setEditorOpen(false); setDraft(emptyDraft(member.household_locale)); setPreview(null); }}>{t("cancel")}</button><button type="button" className="button" disabled={!draft.name.trim()} onClick={() => void run(save)}>{t("save")}</button></div>
+        {activeDisplays.length > 0 && <div className="display-preview-controls"><Field label={t("displayPreviewTarget")}><select value={previewTarget?.id ?? ""} onChange={event => setPreviewTargetId(event.target.value)}>{activeDisplays.map(display => <option key={display.id} value={display.id}>{display.name}</option>)}</select></Field><Field label={t("displayPreviewOrientation")}><select value={previewOrientation} onChange={event => setPreviewOrientation(event.target.value as "portrait" | "landscape")}><option value="portrait">{t("portrait")}</option><option value="landscape">{t("landscape")}</option></select></Field><button type="button" className="button" disabled={!previewTarget} onClick={() => previewTarget && void run(() => previewSetup(previewTarget))}>{t("displayPreviewButton")}</button></div>}
       </fieldset>
-      {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} displayName={displays.find(display => display.id === preview.displayId)?.name ?? t("displayPreviewTitle")} cardLabel={cardLabel} t={t}/></div>}
+      {preview && <div id="display-effective-preview" tabIndex={-1}><ReadonlyPreview result={preview.result} displayName={displays.find(display => display.id === preview.displayId)?.name ?? t("displayPreviewTitle")} cardLabel={cardLabel} orientation={previewOrientation}/></div>}
     </div>}
     {policyDisplay && policy && <section className="display-policy-editor" id="display-policy-editor" tabIndex={-1}><h3>{t("displayDeviceGrants")}: {policyDisplay.name}</h3><fieldset disabled={busy}>
       {mediaPolicyError&&<p className="field-hint" role="status">{t("displayOptionalSourcesUnavailable")}</p>}
