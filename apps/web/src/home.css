@@ -458,7 +458,9 @@ body{font-family:var(--font-sans)}
 .display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
 .display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-today{grid-column:1;grid-row:auto}
 .display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-next-group{grid-column:2;grid-row:auto}
-.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-important,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-messages,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-person-section,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-companion,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-brief-section{grid-column:1/-1;grid-row:auto}
+.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-important,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-messages,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-person-section,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-companion,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-brief-section,.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-support{grid-column:1/-1;grid-row:auto}
+.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-day-plan{grid-column:1/-1;grid-row:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.display-preview-portrait .family-hub.hub-display.hub-compact .hub-grid .hub-day-plan .hub-tomorrow{border-top:0;border-left:1px solid var(--hub-line)}
 
 /* A selected display People card is an identity list, not a Home activity
    preview. Keep its single empty identity content-sized at every breakpoint. */

@@ -22,7 +22,9 @@ test("preview image sizing does not override nested FamilyHub and media componen
 test("portrait preview lets family and people cards span the full preview width", () => {
   assert.match(styles, /\.display-preview-portrait \.display-preview-family_layout,\.display-preview-portrait \.display-preview-people\{grid-column:1\/-1\}/);
   assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
-  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-important,.*\.hub-person-section,.*\{grid-column:1\/-1/);
+  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-important,.*\.hub-support\{grid-column:1\/-1/);
+  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-day-plan\{grid-column:1\/-1;grid-row:auto;display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-day-plan \.hub-tomorrow\{border-top:0;border-left:1px solid var\(--hub-line\)\}/);
 });
 
 test("preview declares its own semantic theme and explicit system-light variables", () => {
