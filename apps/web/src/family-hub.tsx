@@ -7,6 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { createPortal } from 'react-dom';
 import type { CSSProperties, ReactNode } from 'react';
 import type { HubItem, HubMessage, HubPerson, HomeBirthday, HomeSchoolActivity } from './home-types';
+import type { DinnerAssignment } from './household-board-adapters';
 import { advanceHomeBirthdays, eventDay,overlapsDay,dayKey,upcomingEvents,eventDateGroups,personalWindowItems,temperatureItems,itemSubjectIds,itemHousehold,adaptivePeopleLayout,peopleCardMinWidth, currentItems, dayEvents, messageAvatarKey, importantItems, importantPreviewLimit, hubSectionOrder, personItems, personalPreviewItems, hiddenPersonalCount, resolveHubDetail, type HubCollection, type HubDetailSelection } from './home-presentation';
 import { calendarActivityEnded, currentCalendarActivityRelevant, groupHomeSchoolActivities, shiftHomeDate, type GroupedSchoolActivity } from './home-activity-presentation';
 import { Avatar, Dialog, Icon, useI18n } from './ui';
@@ -16,7 +17,7 @@ const kindIcons={event:'calendar',reminder:'sun',alert:'bell',summary:'spark',li
 type DetailAccess={open:(selection:HubDetailSelection,trigger:HTMLButtonElement)=>void;provenance:Record<string,boolean>;setProvenance:(id:string,open:boolean)=>void;rememberProvenanceFocus:(id:string,node:HTMLElement)=>void};
 const HubDetails=createContext<DetailAccess|null>(null);
 export type TaskAccess={householdId:string;onOpen:(id:string)=>void;onNew:(personId:string)=>void};
-export function FamilyHub({people,items,messages,zone,householdName,householdId,localDate:givenLocalDate,birthdays=[],birthdaySourceLocalDate,schoolActivities=[],display=false,displayDinnersReadable=true,displaySections,displayCompactPeople=false,now:givenNow,onCompose,onManagePeople,connection,taskAccess,onEditPhoto,editablePhotoIds,homeModules,homeSmartHome,homePhoto}:{taskAccess?:TaskAccess;onEditPhoto?:(id:string)=>void;editablePhotoIds?:string[];homeModules?:ReactNode;homeSmartHome?:ReactNode;homePhoto?:ReactNode;people:HubPerson[];items:HubItem[];messages:HubMessage[];zone:string;householdName:string;householdId?:string;localDate?:string;birthdays?:HomeBirthday[];birthdaySourceLocalDate?:string;schoolActivities?:HomeSchoolActivity[];display?:boolean;displayDinnersReadable?:boolean;displaySections?:Partial<Record<'people'|'today'|'tomorrow'|'important'|'messages'|'support'|'week'|'environment'|'next',boolean>>;displayCompactPeople?:boolean;now?:number;onCompose?:()=>void;onManagePeople?:()=>void;connection?:string}) {
+export function FamilyHub({people,items,messages,zone,householdName,householdId,localDate:givenLocalDate,birthdays=[],birthdaySourceLocalDate,schoolActivities=[],display=false,displayDinnersReadable=true,displaySnapshot,displaySections,displayCompactPeople=false,now:givenNow,onCompose,onManagePeople,connection,taskAccess,onEditPhoto,editablePhotoIds,homeModules,homeSmartHome,homePhoto}:{taskAccess?:TaskAccess;onEditPhoto?:(id:string)=>void;editablePhotoIds?:string[];homeModules?:ReactNode;homeSmartHome?:ReactNode;homePhoto?:ReactNode;people:HubPerson[];items:HubItem[];messages:HubMessage[];zone:string;householdName:string;householdId?:string;localDate?:string;birthdays?:HomeBirthday[];birthdaySourceLocalDate?:string;schoolActivities?:HomeSchoolActivity[];display?:boolean;displayDinnersReadable?:boolean;displaySnapshot?:{dinners: DinnerAssignment[]};displaySections?:Partial<Record<'people'|'today'|'tomorrow'|'important'|'messages'|'support'|'week'|'environment'|'next',boolean>>;displayCompactPeople?:boolean;now?:number;onCompose?:()=>void;onManagePeople?:()=>void;connection?:string}) {
   const {t,locale}=useI18n();
   const {dark,compact,mobile,lowHeight}=useHubComposition();
   const peopleGrid=useRef<HTMLDivElement>(null);
@@ -37,8 +38,8 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   const localDate=givenLocalDate??dayKey(now,zone);
   const currentBirthdays=advanceHomeBirthdays(birthdays,birthdaySourceLocalDate,localDate);
   const [currentWeekDinnerState,setCurrentWeekDinnerState]=useState<{householdId?:string;localDate:string;dinners:import('./household-board-adapters').DinnerAssignment[];stale:boolean}>({householdId,localDate,dinners:[],stale:false});
-  const dailyDinnerScopeMatches=currentWeekDinnerState.householdId===householdId&&currentWeekDinnerState.localDate===localDate;
-  const currentWeekDinners=dailyDinnerScopeMatches?currentWeekDinnerState.dinners:[];
+  const dailyDinnerScopeMatches=Boolean(displaySnapshot)||currentWeekDinnerState.householdId===householdId&&currentWeekDinnerState.localDate===localDate;
+  const currentWeekDinners=displaySnapshot?.dinners.filter(dinner=>dinner.localDate===localDate)??(dailyDinnerScopeMatches?currentWeekDinnerState.dinners:[]);
   const updateWeekDinners=useCallback((dinners:import('./household-board-adapters').DinnerAssignment[]|undefined,stale=false)=>setCurrentWeekDinnerState(previous=>({householdId,localDate,dinners:dinners??(previous.householdId===householdId&&previous.localDate===localDate?previous.dinners:[]),stale})),[householdId,localDate]);
   const hour=Number(wallInput(now,zone).slice(11,13));
   const greeting=t(mobile ? (hour>=5&&hour<10?'hubMorningCompact':hour>=10&&hour<18?'hubDayCompact':'hubEveningCompact') : (hour>=5&&hour<10?'hubMorning':hour>=10&&hour<18?'hubDay':'hubEvening'));
@@ -85,7 +86,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   };
   useEffect(()=>{if(selection&&!detail)closeDetail();},[selection,Boolean(detail)]);
   const detailAccess:DetailAccess={
-    open:(next,trigger)=>{returnTo.current={node:trigger,selection:next,scope:trigger.closest<HTMLElement>('[data-hub-scope]')?.dataset.hubScope,personId:trigger.closest<HTMLElement>('[data-person-id]')?.dataset.personId};setSelection(next);},
+    open:(next,trigger)=>{if(displaySnapshot)return;returnTo.current={node:trigger,selection:next,scope:trigger.closest<HTMLElement>('[data-hub-scope]')?.dataset.hubScope,personId:trigger.closest<HTMLElement>('[data-person-id]')?.dataset.personId};setSelection(next);},
     provenance,setProvenance:(id,open)=>setProvenance(previous=>previous[id]===open?previous:{...previous,[id]:open}),
     rememberProvenanceFocus:(id,node)=>{provenanceFocus.current={id,node};},
   };
@@ -162,7 +163,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
       </>}
       {mobile&&<div className="hub-home-modules">{homeModules}</div>}
     </>:<><div className="hub-grid">{orderedSections}</div>{homeModules}{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/>}</>}
-    {(displaySections?.week!==false||display&&(displaySections?.today!==false||displaySections?.tomorrow!==false))&&<HouseholdActivityWeek key={`${display?'display':'member'}:${householdId??'display'}`} householdId={householdId} localDate={localDate} zone={zone} now={now} people={people} display={display} householdBoardsReadableDinners={!display||displayDinnersReadable} showWeekCard={displaySections?.week!==false} showNextActivity={displaySections?.next!==false} onCurrentWeekDinners={updateWeekDinners}/>}
+    {!displaySnapshot&&(displaySections?.week!==false||display&&(displaySections?.today!==false||displaySections?.tomorrow!==false))&&<HouseholdActivityWeek key={`${display?'display':'member'}:${householdId??'display'}`} householdId={householdId} localDate={localDate} zone={zone} now={now} people={people} display={display} householdBoardsReadableDinners={!display||displayDinnersReadable} showWeekCard={displaySections?.week!==false} showNextActivity={displaySections?.next!==false} onCurrentWeekDinners={updateWeekDinners}/>}
     {detail&&createPortal(<Dialog className={detail.kind==='person'?'hub-person-drawer':'hub-item-dialog'} title={detail.kind==='item'?detail.item.title:detail.kind==='person'?detail.person.displayName:detail.kind==='message'?t('hubMessageFrom',{name:detail.message.authorName}):collectionTitle(detail.id)} titleLang={detail.kind==='item'?detail.item.contentLocale??'':undefined} onClose={closeDetail}>
       {detail.kind==='item'?<ItemCard item={detail.item} people={people} zone={zone} display={display} hideTitle/>:
        detail.kind==='message'?<MessageCard message={detail.message} people={people} zone={zone}/>:

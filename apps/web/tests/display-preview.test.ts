@@ -33,11 +33,51 @@ test("family plus People preview has one hub clock/heading and disables action a
   assert.equal((html.match(/<h1/g) ?? []).length, 1);
   assert.equal((html.match(/data-testid="family-hub"/g) ?? []).length, 1);
   assert.equal((html.match(/data-testid="home-activity-week"/g) ?? []).length, 0);
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 1);
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
   assert.equal((html.match(/display-preview-people/g) ?? []).length, 0);
   assert.match(html, /<button[^>]*disabled[^>]*>Ny beskjed<\/button>/);
   assert.match(html, /data-theme="dark"/);
   assert.match(html, /Forhåndsvis på Synthetic display/);
   assert.match(html, /display-preview-portrait/);
+});
+
+test("family-only preview renders projected implicit agendas and dinners without display fetches", () => {
+  let displayFetches = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => { displayFetches++; throw new Error("snapshot preview must not fetch paired-display routes"); }) as typeof fetch;
+  try {
+    const today = "2026-10-29";
+    const result = {
+      ...base,
+      setup: { ...base.setup, cards: ["family_layout"], cardOrder: ["family_layout"] },
+      birthdays: { mode: "all", localDate: today, entries: [{ personId: familyPeople[0]!.id, displayName: familyPeople[0]!.displayName, due: "today" }] },
+      householdBoards: { ...base.householdBoards, dinners: [{ id: "dinner-1", localDate: today, title: "Synthetic dinner", emoji: "🍲", revision: 1, cleared: false }], readable: { groceries: false, dinners: true } },
+    } as any;
+    const html = previewMarkup(result);
+    assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 1);
+    assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
+    assert.match(html, /Synthetic dinner/);
+    assert.match(html, /Synthetic person/);
+    assert.equal((html.match(/data-testid="home-activity-week"/g) ?? []).length, 0);
+    assert.equal(displayFetches, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("family preview leaves explicit day cards outside the hub and keeps the other implicit day once", () => {
+  const today = "2026-10-29";
+  const result = {
+    ...base,
+    setup: { ...base.setup, cards: ["family_layout", "today"], cardOrder: ["family_layout", "today"] },
+    birthdays: { mode: "all", localDate: today, entries: [{ personId: familyPeople[0]!.id, displayName: familyPeople[0]!.displayName, due: "today" }] },
+  } as any;
+  const html = previewMarkup(result);
+  assert.equal((html.match(/class="display-preview-card display-preview-today"/g) ?? []).length, 1);
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 0);
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
+  assert.equal((html.match(/data-review-private="birthday-name"/g) ?? []).length, 1);
 });
 
 test("preview uses selected display locale/theme and orientation while keeping the action disabled", () => {
