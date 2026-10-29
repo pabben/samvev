@@ -62,14 +62,11 @@
 .calendar-empty-sources{display:block}.calendar-empty-sources h4{margin-bottom:8px}.calendar-empty-sources .button{margin-top:12px;white-space:normal}.calendar-stale{display:inline-block;font-size:12px;line-height:1.4;font-weight:600;color:var(--text);border:1px solid var(--line);background:var(--canvas);border-radius:6px;padding:2px 6px;margin-inline-start:6px;vertical-align:middle;white-space:normal;overflow-wrap:anywhere}.calendar-stale-detail{display:block;margin:10px 0;padding:10px 12px;font-size:14px}.calendar-stale-time{display:block;font-weight:400;margin-top:4px}.hub-person-overview .calendar-stale,.hub-person-name .calendar-stale{font-size:11px;margin-top:3px}
 /* Long identities receive wider measured columns, without changing normal-name boards. */
 .hub-light.hub-wide.hub-long-names .hub-person-name>strong{font-size:20px;line-height:1.35;word-break:normal;hyphens:manual}.hub-long-names .hub-person-name{min-width:0;max-width:100%}.hub-long-names .hub-person-name>strong{overflow-wrap:anywhere}.hub-light.hub-wide.hub-long-names .hub-people-multirow .hub-person>header{padding-inline:16px}.hub-light.hub-wide.hub-long-names .hub-people-multirow .hub-person-grid{align-items:stretch}.hub-light.hub-wide.hub-long-names .hub-people-multirow .hub-person-items{padding-inline:16px}
-.calendar-provider-mark{display:inline-flex;width:28px;height:28px;flex:0 0 auto;align-items:center;justify-content:center;line-height:0}
-.calendar-provider-mark img{display:block;max-width:100%;max-height:100%;object-fit:contain}
-.calendar-provider-mark-google img,.calendar-provider-mark-microsoft img{width:24px;height:24px}.calendar-provider-mark-home_assistant img{width:28px;height:28px}
-.calendar-provider-mark-spond{width:88px;height:22px}.calendar-provider-mark-spond img{width:100%;height:100%;object-fit:contain}.calendar-provider-mark-spond .calendar-provider-spond-negative{display:none}
+.calendar-provider-mark{display:inline-flex;width:28px;height:28px;flex:0 0 auto;align-items:center;justify-content:center;line-height:0;color:var(--teal)}
+.calendar-provider-mark svg{display:block;width:24px;height:24px;flex:none}
 .calendar-provider-logos{display:inline-flex;align-items:center;gap:12px;min-width:0;min-height:30px}
 .calendar-provider>.calendar-provider-mark{grid-column:1;grid-row:1}
 .calendar-provider-home-assistant{grid-template-columns:minmax(0,1fr)}.calendar-provider-home-assistant .calendar-provider-logos,.calendar-provider-home-assistant>strong,.calendar-provider-home-assistant>span{grid-column:1}.calendar-provider-home-assistant .calendar-provider-logos{grid-row:1}
 .calendar-provider-ics>svg{grid-row:1/span 2;color:var(--teal)}
-.calendar-connected-provider{display:flex;align-items:center;gap:9px}.calendar-connected-provider .calendar-provider-mark{width:24px;height:24px}.calendar-connected-provider .calendar-provider-mark-spond{width:82px;height:20px}
-.calendar-registration-provider{display:flex;align-items:center;gap:9px}.calendar-registration-provider .calendar-provider-mark{width:24px;height:24px}.calendar-registration-provider .calendar-provider-mark-spond{width:82px;height:20px}
-[data-theme="dark"] .calendar-provider-mark-spond .calendar-provider-spond-positive{display:none}[data-theme="dark"] .calendar-provider-mark-spond .calendar-provider-spond-negative{display:block}
+.calendar-connected-provider{display:flex;align-items:center;gap:9px}.calendar-connected-provider .calendar-provider-mark{width:24px;height:24px}
+.calendar-registration-provider{display:flex;align-items:center;gap:9px}.calendar-registration-provider .calendar-provider-mark{width:24px;height:24px}

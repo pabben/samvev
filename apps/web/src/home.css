@@ -85,7 +85,7 @@ body{font-family:var(--font-sans)}
  .family-hub.hub-member .hub-home-board .hub-person-identity>.avatar{width:40px;height:40px}
 }
 @media(max-width:640px){
- .hub-home-primary-grid{grid-template-columns:minmax(0,1fr);gap:10px;margin-top:10px}
+ .hub-home-primary-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:10px}
  .hub-home-secondary-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin-top:10px}
  .hub-home-secondary-grid:empty{display:none}
  .hub-home-smart{gap:10px}
