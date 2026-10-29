@@ -1,5 +1,6 @@
-/* A shared keyed tree: row-major DOM, keyboard and visual order agree. */
+/* Shared display sections and independent Home columns keep logical keyboard order. */
 body{font-family:var(--font-sans)}
+.display-person-filter-status{color:var(--text);font-size:14px;line-height:1.5}
 .family-hub{--hub-gap:14px;--hub-panel:var(--glass);--hub-line:var(--line);--hub-shadow:var(--shadow);min-width:0;position:relative;color:var(--text)}
 .hub-hero{position:relative;display:flex;align-items:center;gap:24px;margin-bottom:12px;padding:4px 4px 8px;min-width:0}.hub-hero-copy{min-width:0;flex:1}.hub-household{font-size:13px;color:var(--muted);margin-bottom:5px}.hub-hero h1{font-size:clamp(28px,2.5vw,44px);line-height:1.12;letter-spacing:-1.2px;font-weight:650}.hub-subtitle{font-size:16px;color:var(--muted);margin-top:6px}.hub-hero-clock{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0}.hub-hero-clock>span{font-size:14px}.hub-hero-clock>strong{font-size:36px;font-weight:400;letter-spacing:-1px;font-variant-numeric:tabular-nums;line-height:1.1}.hub-hero-clock .connection-pill{font-size:12px;min-height:0;padding:2px 5px;background:transparent;color:var(--muted)}.hub-compose{font-size:14px;align-self:center;min-height:44px;background:#fffdf5;border:1px solid #c7d1c8;box-shadow:var(--hub-shadow)}
 .hub-grid{display:grid;gap:var(--hub-gap);grid-template-columns:repeat(12,minmax(0,1fr));align-items:start}.hub-panel{background:var(--hub-panel);border:1px solid var(--glass-border);border-radius:var(--radius);padding:16px;box-shadow:var(--hub-shadow);min-width:0}.hub-panel-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;min-width:0}.hub-panel-title h2{display:flex;gap:9px;align-items:center;min-width:0;overflow-wrap:anywhere;font-size:20px;font-weight:650;letter-spacing:-.4px;line-height:1.3}.hub-panel-title h2 svg{flex-shrink:0;color:var(--teal)}.hub-count{flex-shrink:0;font-size:13px;line-height:24px;min-width:24px;text-align:center;background:var(--soft-teal);color:var(--teal);border-radius:8px;padding:0 6px}
@@ -7,28 +8,20 @@ body{font-family:var(--font-sans)}
 /* The accessible family heading does not push the four cards below the agenda. */
 .hub-light.hub-wide .hub-grid .hub-person-section>.hub-panel-title{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
 .hub-person-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.hub-person{position:relative;background:linear-gradient(165deg,color-mix(in srgb,var(--person-accent) 48%,#fff),#fffefa 78%);border:1px solid #fff;border-radius:20px;min-width:0;box-shadow:var(--hub-shadow);overflow-wrap:anywhere;scroll-margin-block:90px}.hub-person:not([data-color-token])[data-accent="1"]{--person-accent:var(--person-pink)}.hub-person:not([data-color-token])[data-accent="2"]{--person-accent:var(--person-mint)}.hub-person:not([data-color-token])[data-accent="3"]{--person-accent:var(--person-lilac)}.hub-person>header{display:flex;flex-direction:column;text-align:center;align-items:center;gap:6px;padding:14px 12px 10px}.hub-person header .avatar{height:72px;width:72px;background:linear-gradient(145deg,#ffffff52,transparent 58%),var(--person-accent);color:#263547;border:4px solid color-mix(in srgb,var(--person-accent) 72%,#fff);box-shadow:inset 0 1px #ffffff70,inset 0 -2px #344d5910;font-size:30px;font-weight:550}.hub-person h3{font-size:21px;line-height:1.25}.hub-person header div>span{font-size:13px;color:var(--muted);display:block;margin-top:3px}.hub-person-more{position:absolute;right:5px;top:5px;display:flex;align-items:center;justify-content:center;min-width:44px;min-height:44px;padding:6px 8px;border:1px solid #fff9;border-radius:12px;background:#ffffff80;color:inherit;font-size:14px}.hub-person-more:hover{background:var(--soft-teal)}.hub-person-when{display:none}.hub-person-items{list-style:none;padding:0 14px 10px;margin:0}.hub-person-items li{display:flex;gap:8px;padding:6px 0;border-top:1px solid color-mix(in srgb,var(--hub-line) 45%,transparent);min-width:0}.hub-person-items li[hidden]{display:none}.hub-person-items li>div{min-width:0}.hub-item-dot{color:var(--teal);padding-top:13px;flex-shrink:0}.kind-event{--hub-kind-color:#326587}.kind-reminder,.kind-alert{--hub-kind-color:#805c1f}.kind-observation{--hub-kind-color:#3d725b}.kind-summary{--hub-kind-color:#725088}.hub-item-dot,.hub-reminder>svg,.hub-item-label>span>svg{color:var(--hub-kind-color,var(--teal))}.hub-person-items small{display:block;font-size:13px;margin-top:0;color:var(--muted)}.hub-item-title{display:block;background:transparent;color:inherit;text-align:left;border-radius:6px;padding:4px 0;min-height:44px;font-size:16px;line-height:1.4;max-width:100%;overflow-wrap:anywhere}.hub-item-title strong{font:inherit;font-weight:600}.hub-item-title:hover{text-decoration:underline;text-underline-offset:4px}.hub-person-clear{display:flex;align-items:center;gap:8px;font-size:16px;color:var(--muted);padding:14px}.hub-person-details{display:grid;gap:12px}
-/* Member Home uses a separate board; the shared display continues using .hub-grid. */
-.hub-home-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:auto;align-items:start;gap:var(--hub-gap)}
+/* Each Home column stacks independently; DOM and focus follow each stack.
+   Tomorrow's messages never wait for a taller Today or family roster. */
+.hub-home-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));align-items:start;gap:var(--hub-gap)}
 .hub-home-board>*{min-width:0;align-self:start}
-.hub-home-board>.hub-today{grid-column:1;grid-row:1}
-.hub-home-board>.hub-tomorrow{grid-column:2;grid-row:1}
-.family-hub.hub-member .hub-home-board>.hub-person-section{grid-column:3;grid-row:1;padding:12px;border:1px solid var(--glass-border);border-radius:var(--radius);background:var(--hub-panel);box-shadow:var(--hub-shadow)}
-.hub-home-board>.hub-home-smart{grid-column:4;grid-row:1;display:grid;align-content:start;gap:var(--hub-gap);min-width:0}
-.hub-home-board>.hub-home-smart:empty{display:none}
-.hub-home-board>.hub-messages{grid-column:1/span 2;grid-row:2}
-.hub-home-board>.hub-home-photos{grid-column:4;grid-row:2}
-.hub-home-board>.hub-home-modules{grid-column:1/-1;grid-row:auto;margin-top:0}
-.hub-home-board:has(>.hub-messages)>.hub-person-section{grid-row:1/span 2}
-.hub-home-board:has(>.hub-home-smart:not(:empty)):has(>.hub-home-photos)>.hub-person-section{grid-row:1/span 2}
-.hub-home-board:not(:has(>.hub-messages)):has(>.hub-home-modules:not(:empty))>.hub-person-section{grid-row:1/span 2}
-.hub-home-board:not(:has(>.hub-messages))>.hub-home-modules:not(:empty){grid-column:1/span 2;grid-row:2;grid-template-columns:minmax(0,1fr)}
-.hub-home-board:not(:has(>.hub-home-smart:not(:empty))):not(:has(>.hub-home-photos)){grid-template-columns:repeat(3,minmax(0,1fr))}
-.hub-home-board:not(:has(>.hub-home-smart:not(:empty))):not(:has(>.hub-home-photos))>.hub-home-smart{display:none}
-.hub-home-board:has(>.hub-home-photos):not(:has(>.hub-home-smart:not(:empty)))>.hub-home-photos{grid-row:1}
-.hub-home-board:not(:has(>.hub-person-section)){grid-template-columns:repeat(3,minmax(0,1fr))}
-.hub-home-board:not(:has(>.hub-person-section))>.hub-home-smart{grid-column:3}
-.hub-home-board:not(:has(>.hub-person-section))>.hub-home-photos{grid-column:3}
-.hub-home-board:not(:has(>.hub-person-section)):not(:has(>.hub-home-smart:not(:empty))):not(:has(>.hub-home-photos)){grid-template-columns:repeat(2,minmax(0,1fr))}
+.hub-home-column{display:grid;align-content:start;gap:var(--hub-gap);min-width:0}
+.hub-home-column>*{min-width:0}
+.hub-home-column:empty,.hub-home-services:not(:has(>.hub-home-smart:not(:empty))):not(:has(>.hub-home-photos)){display:none}
+.family-hub.hub-member .hub-home-board .hub-person-section{padding:12px;border:1px solid var(--glass-border);border-radius:var(--radius);background:var(--hub-panel);box-shadow:var(--hub-shadow)}
+.hub-home-smart{display:grid;align-content:start;gap:var(--hub-gap);min-width:0}
+.hub-home-smart:empty{display:none}
+.hub-home-board>.hub-home-modules{grid-column:1/-1;margin-top:0}
+.hub-home-board:not(:has(>.hub-home-people)),.hub-home-board:not(:has(>.hub-home-services>.hub-home-smart:not(:empty))):not(:has(>.hub-home-services>.hub-home-photos)){grid-template-columns:repeat(3,minmax(0,1fr))}
+.hub-home-board:not(:has(>.hub-home-people)):not(:has(>.hub-home-services>.hub-home-smart:not(:empty))):not(:has(>.hub-home-services>.hub-home-photos)){grid-template-columns:repeat(2,minmax(0,1fr))}
+.hub-home-tomorrow .hub-message-meta{flex-wrap:wrap;gap:2px 8px}
 .family-hub.hub-member .hub-home-board .hub-person-section>.hub-panel-title{position:static;width:auto;height:auto;padding:0;margin:0 0 8px;overflow:visible;clip-path:none;white-space:normal;border:0}
 .family-hub.hub-member .hub-home-board .hub-person-grid{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:min-content;height:auto;gap:4px;align-items:start}
 .family-hub.hub-member .hub-home-board .hub-person{display:block;min-height:0;height:auto;padding:0;border-radius:12px;background:color-mix(in srgb,var(--person-accent-soft) 46%,var(--card));box-shadow:none;border:1px solid color-mix(in srgb,var(--person-accent) 16%,transparent)}
@@ -87,12 +80,7 @@ body{font-family:var(--font-sans)}
 .ha-device-controls-compact .ha-device-more-content>code{font-size:11px;overflow-wrap:anywhere}
 @media(min-width:641px) and (max-width:1100px){
  .family-hub.hub-member .hub-home-board{grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--hub-gap)}
- .hub-home-board>.hub-today{grid-column:1;grid-row:1}
- .hub-home-board>.hub-tomorrow{grid-column:2;grid-row:1}
- .hub-home-board>.hub-person-section,.hub-home-board>.hub-home-smart,.hub-home-board>.hub-messages,.hub-home-board>.hub-home-photos,.hub-home-board>.hub-home-modules{grid-column:1/-1;grid-row:auto}
- .family-hub.hub-member .hub-home-board>.hub-person-section{grid-row:auto}
  .family-hub.hub-member .hub-home-board .hub-person-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
- .family-hub.hub-member.hub-larger-family .hub-home-board .hub-person-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
  .family-hub.hub-member .hub-home-board .hub-person{min-height:0}
  .family-hub.hub-member .hub-home-board .hub-person-identity>.avatar{width:40px;height:40px}
 }

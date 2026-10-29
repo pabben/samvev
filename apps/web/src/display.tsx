@@ -591,7 +591,7 @@ function DisplayRuntime({
           return null;
         })}
       </main>
-      <footer className="display-footer">
+      {!familyDisplay&&<footer className="display-footer">
         <span>
           <Icon name="shield" />
           {t("displayEffectiveAccessHint")}
@@ -606,7 +606,7 @@ function DisplayRuntime({
               })
             : t("reconnecting")}
         </span>
-      </footer>
+      </footer>}
       {options && (
         <Dialog title={t("displayOptions")} onClose={() => setOptions(false)}>
           {projection && <section className="display-session-details">
@@ -614,6 +614,8 @@ function DisplayRuntime({
             <p>{t("displaySetup")}: {projection.display.setupName??t("defaultDisplaySetup")}</p>
             <p className="notice" role="status">{t(calendarReadinessMessage(projection.contentReadiness?.calendar))}</p>
             <p className="field-hint" role="status">{t(online?streamLive?"live":"polling":"offline")}</p>
+            <p>{t("displayEffectiveAccessHint")}</p>
+            <p role="status">{lastUpdated?t("updated",{time:formatDate(lastUpdated,locale,zone)}):t("reconnecting")}</p>
           </section>}
           <p className="field-hint">
             {t("displayTheme")} · {t("displayLocale")}
