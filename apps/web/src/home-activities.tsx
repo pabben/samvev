@@ -1,9 +1,9 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
-import { dateOffset, memberHouseholdBoardAdapter, sevenDayWindow, type DinnerAssignment } from "./household-board-adapters";
+import { dateOffset, memberHouseholdBoardAdapter, type DinnerAssignment } from "./household-board-adapters";
 import type { CSSProperties } from "react";
 import type { HomeBirthday, HomeSchoolActivity, HouseholdTimelineActivity, HubPerson } from "./home-types";
-import { calendarActivityEnded, collectActivitySourcePages, dedupeTimelineActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, timelineActivityVisible, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
+import { calendarActivityEnded, collectActivitySourcePages, dedupeTimelineActivities, homeWeekEnd, homeWeekStart, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, timelineActivityVisible, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
 import { CalendarFreshness } from "./calendar-freshness";
 import { calendarParticipationKey } from "./calendar-provider-config";
 import { formatCalendarEventRange, formatDate, wallInput } from "./time";
@@ -78,8 +78,13 @@ export function SchoolActivityCard({ activity, people, compact = false, dateLabe
 export function HouseholdActivityWeek({ householdId, localDate, zone, people, display = false, now = Date.now(), householdBoardsReadableDinners = true, showWeekCard = true, showNextActivity = true, onCurrentWeekDinners }: { householdId?: string; localDate: string; zone: string; people: HubPerson[]; display?: boolean; now?: number; householdBoardsReadableDinners?: boolean; showWeekCard?: boolean; showNextActivity?: boolean; onCurrentWeekDinners?: (dinners: DinnerAssignment[] | undefined, stale?: boolean) => void }) {
   const { t, locale } = useI18n();
   const adapter = useMemo(() => householdId ? memberHouseholdBoardAdapter(householdId) : null, [householdId]);
-  const currentWeek = homeWeekStart(localDate);
-  const [weekStart, setWeekStart] = useState(currentWeek);
+  // The current selection is a rolling household-local window from today
+  // through Sunday. Future selections remain full Monday–Sunday weeks.
+  const currentWeekStart = homeWeekStart(localDate);
+  const [selectedWeekStart, setSelectedWeekStart] = useState(localDate);
+  // Clamp a stale selection synchronously at household midnight, before the
+  // reset effect runs and before any request can include prior dates.
+  const weekStart = selectedWeekStart < localDate ? localDate : selectedWeekStart;
   const [personId, setPersonId] = useState("");
   const [sourceId, setSourceId] = useState("");
   const [sources, setSources] = useState<{id:string;label:string}[]>([]);
@@ -100,8 +105,8 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
   const nextGeneration = useRef(0);
   const dailyDinnerGeneration = useRef(0);
   const [refreshTick, setRefreshTick] = useState(0);
-  const minWeek = currentWeek;
-  const to = dateOffset(weekStart, 6);
+  const isCurrentWindow = weekStart === localDate;
+  const to = isCurrentWindow ? homeWeekEnd(localDate) : dateOffset(weekStart, 6);
 
   useEffect(() => {
     const generation=++sourceCatalogGeneration.current;
@@ -118,10 +123,10 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
 
   useEffect(() => { const timer = setInterval(() => setRefreshTick(value => value + 1), 30_000); return () => clearInterval(timer); }, []);
   useEffect(() => {
-    setWeekStart(currentWeek); setPersonId(""); setSourceId(""); setNextActivity(null); setShowNext(false);
+    setSelectedWeekStart(localDate); setPersonId(""); setSourceId(""); setNextActivity(null); setShowNext(false);
     setActivities([]); setDinners([]); setCursor(null); setLoaded(false); setLoadingMore(false); setError(false);
     generation.current++; nextGeneration.current++;
-  }, [householdId, currentWeek]);
+  }, [householdId, localDate]);
   useEffect(() => {
     setActivities([]); setDinners([]); setCursor(null); setLoaded(false); setLoadingMore(false); setError(false);
     generation.current++; nextGeneration.current++;
@@ -133,7 +138,7 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
     const canReadDinners = !display || householdBoardsReadableDinners;
     const dinnersRequest = !canReadDinners ? Promise.resolve({assignments: [] as DinnerAssignment[]}) : display
       ? api<{assignments:DinnerAssignment[]}>(`/display/dinners?from=${encodeURIComponent(weekStart)}&to=${encodeURIComponent(to)}`)
-      : adapter ? adapter.listDinners(sevenDayWindow(weekStart)) : Promise.reject(new Error("Household scope is unavailable."));
+      : adapter ? adapter.listDinners({ from: weekStart, to }) : Promise.reject(new Error("Household scope is unavailable."));
     const weekRequest=showWeekCard?activityQuery(householdId, weekStart, to, personId || undefined, undefined, display, sourceId || undefined):Promise.resolve({activities:[] as HouseholdTimelineActivity[],nextCursor:null});
     void Promise.allSettled([weekRequest, dinnersRequest]).then(([activityResult, dinnerResult]) => {
       if (!active || request !== generation.current) return;
@@ -148,7 +153,7 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
       if (activityResult.status === "fulfilled" || dinnerResult.status === "fulfilled") setLoaded(true);
     }).finally(() => { if (active && request === generation.current) setLoading(false); });
     return () => { active = false; generation.current++; };
-  }, [householdId, adapter, weekStart, to, personId, sourceId, currentWeek, display, localDate, householdBoardsReadableDinners, showWeekCard, onCurrentWeekDinners, refreshTick]);
+  }, [householdId, adapter, weekStart, to, personId, sourceId, display, localDate, householdBoardsReadableDinners, showWeekCard, onCurrentWeekDinners, refreshTick]);
 
   // The two-day Home agenda is independent of the selected week and filters.
   // Keep its last successful data through transient network errors.
@@ -197,12 +202,12 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
   const currentWeekTitle = `${shortDate(weekStart, locale)} – ${shortDate(to, locale)}`;
   if(!showWeekCard)return null;
   return <section className={`hub-week hub-panel ${display?"hub-display-week":"hub-member-week"}`} aria-label={t("hubWeekTitle")} data-testid="home-activity-week">
-    <header className="hub-week-heading"><div><h2><Icon name="calendar"/>{t(homeWeekTitleKey(weekStart,currentWeek))}</h2><p>{currentWeekTitle}</p></div><div className="hub-week-nav"><button className="hub-icon-button" type="button" aria-label={t("hubPreviousWeek")} disabled={weekStart <= minWeek || loading} onClick={() => setWeekStart(value => dateOffset(value, -7))}><Icon name="back" size={16}/></button><button className="hub-icon-button" type="button" aria-label={t("hubNextWeek")} disabled={loading} onClick={() => setWeekStart(value => dateOffset(value, 7))}><Icon name="arrow" size={16}/></button></div></header>
+    <header className="hub-week-heading"><div><h2><Icon name="calendar"/>{t(isCurrentWindow ? "hubWeekTitle" : "hubFutureWeekTitle")}</h2><p>{currentWeekTitle}</p></div><div className="hub-week-nav"><button className="hub-icon-button" type="button" aria-label={t("hubPreviousWeek")} disabled={weekStart <= localDate || loading} onClick={() => setSelectedWeekStart(value => dateOffset(value, -7))}><Icon name="back" size={16}/></button><button className="hub-icon-button" type="button" aria-label={t("hubNextWeek")} disabled={loading} onClick={() => setSelectedWeekStart(value => dateOffset(isCurrentWindow ? currentWeekStart : value, 7))}><Icon name="arrow" size={16}/></button></div></header>
     <label className="hub-week-person-filter">{t("hubWeekPersonFilter")}<select data-review-private="week-person-filter" value={personId} onChange={event => setPersonId(event.target.value)}><option value="">{t("hubWeekEveryone")}</option>{people.map(person => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>
     {!display && sources.length > 0 && <label className="hub-week-source-filter">{t("hubWeekSourceFilter")}<select data-review-private="week-source-filter" value={sourceId} onChange={event => setSourceId(event.target.value)}><option value="">{t("hubWeekEverySource")}</option>{sources.map(source => <option key={source.id} value={source.id}>{source.label}</option>)}</select></label>}
     {sourceCatalogError&&<p className="hub-week-error" role="status">{t("hubWeekLoadError")}</p>}
     {error && <p className="hub-week-error" role="status">{t("hubWeekLoadError")}</p>}
-    <HouseholdActivityWeekRows entries={entries} people={people} zone={zone} locale={locale} now={now} loading={loading} loaded={loaded} error={error} cursor={cursor} loadingMore={loadingMore} onLoadMore={()=>void loadMore()}/>
+    <HouseholdActivityWeekRows entries={entries} from={weekStart} to={to} people={people} zone={zone} locale={locale} now={now} loading={loading} loaded={loaded} error={error} cursor={cursor} loadingMore={loadingMore} onLoadMore={()=>void loadMore()}/>
     {showNextActivity&&<div className="hub-next-activity"><button type="button" className="hub-next-toggle" aria-expanded={showNext} onClick={() => { setShowNext(value => !value); if (!showNext && nextActivity === null) void loadNext(); }}><Icon name="arrow" size={16}/>{t("hubShowNext")}</button>
       {showNext && (nextLoading ? <p className="field-hint">{t("loading")}</p> : nextError ? <p role="status" className="hub-week-error">{t("hubWeekLoadError")} <button type="button" onClick={() => void loadNext()}>{t("retry")}</button></p> : currentNextActivity ? <><p className="hub-next-date" data-review-private="next-activity-date">{isTimelineActivityOngoing(currentNextActivity, localDate, now) ? `${t("hubOngoing")} · ` : ""}{dateHeading(currentNextActivity.type === "school" ? currentNextActivity.date : currentNextActivity.metadata.allDay ? currentNextActivity.startsAt?.slice(0,10) ?? "" : currentNextActivity.startsAt ? wallInput(currentNextActivity.startsAt, zone).slice(0,10) : "", locale)}</p><TimelineRow row={mergeTimelineEntries([currentNextActivity], [], zone)[0]!} people={people} family={t("hubFamily")} zone={zone} locale={locale} now={now}/></> : <p className="field-hint">{t("hubNextEmpty")}</p>)}
     </div>}
@@ -210,9 +215,13 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
 }
 
 /** Shared server-projected week rows for live displays and read-only admin preview. */
-export function HouseholdActivityWeekRows({entries,people,zone,locale,now,loading=false,loaded=true,error=false,cursor=null,loadingMore=false,onLoadMore,readOnly=false}:{entries:TimelineEntry[];people:HubPerson[];zone:string;locale:string;now:number;loading?:boolean;loaded?:boolean;error?:boolean;cursor?:string|null;loadingMore?:boolean;onLoadMore?:()=>void;readOnly?:boolean}){
+export function HouseholdActivityWeekRows({entries,from,to,people,zone,locale,now,loading=false,loaded=true,error=false,cursor=null,loadingMore=false,onLoadMore,readOnly=false}:{entries:TimelineEntry[];from?:string;to?:string;people:HubPerson[];zone:string;locale:string;now:number;loading?:boolean;loaded?:boolean;error?:boolean;cursor?:string|null;loadingMore?:boolean;onLoadMore?:()=>void;readOnly?:boolean}){
  const {t}=useI18n();
- return <>{loading&&!loaded?<p className="field-hint">{t("loading")}</p>:entries.length?<div className="hub-week-days">{groupTimelineEntries(entries).map(group=><section className="hub-week-day" key={group.date}><h3><time dateTime={group.date}>{dateHeading(group.date,locale)}</time></h3>{group.rows.map(row=><TimelineRow key={`${row.kind}:${row.id}`} row={row} people={people} family={t("hubFamily")} zone={zone} locale={locale} now={now} readOnly={readOnly}/>)}</section>)}</div>:loaded&&!error?<p className="field-hint">{t("hubWeekEmpty")}</p>:null}{cursor&&onLoadMore&&<button className="hub-week-more" type="button" disabled={loadingMore||readOnly} onClick={onLoadMore}>{loadingMore?t("loading"):t("hubWeekMore")}</button>}</>;
+ const groups=new Map(groupTimelineEntries(entries).map(group=>[group.date,group.rows]));
+ const dates:string[]=[];
+ if(from&&to){for(let date=from;date<=to;date=dateOffset(date,1))dates.push(date);}
+ else dates.push(...groups.keys());
+ return <>{loading&&!loaded?<p className="field-hint">{t("loading")}</p>:loaded&&dates.length?<div className="hub-week-days">{dates.map(date=><section className={`hub-week-day${groups.has(date)?"":" is-empty"}`} key={date}><h3><time dateTime={date}>{dateHeading(date,locale)}</time></h3>{groups.get(date)?.map(row=><TimelineRow key={`${row.kind}:${row.id}`} row={row} people={people} family={t("hubFamily")} zone={zone} locale={locale} now={now} readOnly={readOnly}/>)??<p className="hub-week-day-empty">{t("hubNoEvents")}</p>}</section>)}</div>:loaded&&!error?<p className="field-hint">{t("hubWeekEmpty")}</p>:null}{cursor&&onLoadMore&&<button className="hub-week-more" type="button" disabled={loadingMore||readOnly} onClick={onLoadMore}>{loadingMore?t("loading"):t("hubWeekMore")}</button>}</>;
 }
 
 function groupTimelineEntries(entries: TimelineEntry[]) {

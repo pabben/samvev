@@ -22,7 +22,7 @@ await db.query("INSERT INTO sessions(account_id,token_hash,csrf_hash,expires_at)
 const people=[person];
 for(const [name,age] of [['Synthetic adult two','adult'],['Synthetic child one','child'],['Synthetic child two','child'],['Synthetic child three','child'],['Synthetic child four','child']]) people.push(await id('INSERT INTO persons(household_id,display_name,age_group) VALUES($1,$2,$3) RETURNING id',[household,name,age]));
 for(let index=0;index<people.length;index++) await db.query('UPDATE persons SET avatar_key=$2 WHERE id=$1',[people[index],`avatar-0${index+1}`]);
-const setup=await id("INSERT INTO display_setups(household_id,name,locale,theme,cards,card_order,family_layout_enabled) VALUES($1,'Synthetic shared setup','nb','dark','[\"household_messages\",\"family_layout\",\"today\",\"tomorrow\",\"groceries\",\"dinners\",\"photos\"]','[\"household_messages\",\"family_layout\",\"today\",\"tomorrow\",\"groceries\",\"dinners\",\"photos\"]',true) RETURNING id",[household]);
+const setup=await id("INSERT INTO display_setups(household_id,name,locale,theme,cards,card_order,family_layout_enabled) VALUES($1,'Synthetic shared setup','nb','dark','[\"household_messages\",\"family_layout\",\"today\",\"tomorrow\",\"week\",\"groceries\",\"dinners\",\"photos\"]','[\"household_messages\",\"family_layout\",\"today\",\"tomorrow\",\"week\",\"groceries\",\"dinners\",\"photos\"]',true) RETURNING id",[household]);
 for(const selected of people) await db.query('INSERT INTO display_setup_people(household_id,setup_id,person_id) VALUES($1,$2,$3)',[household,setup,selected]);
 const display=await id("INSERT INTO displays(household_id,setup_id,name,locale,theme,credential_hash,credential_expires_at) VALUES($1,$2,'Synthetic wall display','nb',NULL,$3,clock_timestamp()+interval '1 hour') RETURNING id",[household,setup,hash('synthetic-old-display')]);
 for(const selected of people) await db.query('INSERT INTO display_person_grants(household_id,display_id,person_id,profile_allowed) VALUES($1,$2,$3,true)',[household,display,selected]);
@@ -51,11 +51,13 @@ await db.query("INSERT INTO message_display_targets(household_id,message_id,disp
 const schoolEvent=await id("INSERT INTO monitor_events(household_id,task_id,event_key,event_date,event_type,description,actions,evidence,confidence,source_fingerprint,message_id,school_expires_at) VALUES($1,$2,'synthetic-proof-school',(clock_timestamp() AT TIME ZONE 'Europe/Oslo')::date,'preparation','Synthetic school activity','[\"Pack synthetic item\"]',$3,0.9,'synthetic-proof-fingerprint',$4,clock_timestamp()+interval '2 days') RETURNING id",[household,task,JSON.stringify({sourceUrl:'https://school.test.invalid/event',quote:'Synthetic saved evidence'}),message]);
 const todayAndTomorrow=await db.query("SELECT (clock_timestamp() AT TIME ZONE 'Europe/Oslo')::date AS today,((clock_timestamp() AT TIME ZONE 'Europe/Oslo')::date+1) AS tomorrow");
 const today=todayAndTomorrow.rows[0].today.toISOString().slice(0,10),tomorrow=todayAndTomorrow.rows[0].tomorrow.toISOString().slice(0,10);
+const expectedCurrentWeekDates=(()=>{const start=new Date(`${today}T00:00:00.000Z`),count=(7-start.getUTCDay())%7+1;return Array.from({length:count},(_,index)=>new Date(start.getTime()+index*86400000).toISOString().slice(0,10))})();
+const assertCurrentWeek=async(surface)=>{const days=surface.locator('[data-testid="home-activity-week"] .hub-week-day time[datetime]');await days.first().waitFor({timeout:10000});const dates=await days.evaluateAll(nodes=>nodes.map(node=>node.getAttribute('datetime')));assert.deepEqual(dates,expectedCurrentWeekDates,'current week must show household-local today through Sunday, including empty days');};
 const tomorrowEvent=await id("INSERT INTO monitor_events(household_id,task_id,event_key,event_date,event_time,event_type,description,actions,evidence,confidence,source_fingerprint,message_id,school_expires_at) VALUES($1,$2,'synthetic-proof-tomorrow',$3,'08:15','preparation','Synthetic class trip tomorrow','[\"Bring synthetic lunch\",\"Wear a rain jacket\"]',$4,0.94,'synthetic-proof-tomorrow-fingerprint',$5,clock_timestamp()+interval '3 days') RETURNING id",[household,task,tomorrow,JSON.stringify({sourceUrl:'https://school.test.invalid/tomorrow',quote:'Synthetic class trip details'}),message]);
 const dinnerOption=await id("INSERT INTO household_dinner_options(household_id,title,emoji,created_by_actor_type,created_by_actor_id) VALUES($1,'Synthetic veggie tacos','🌮','member',$2) RETURNING id",[household,membership]);
 await db.query("INSERT INTO household_dinner_assignments(household_id,local_date,title_snapshot,emoji_snapshot,updated_by_actor_type,updated_by_actor_id) VALUES($1,$2,'Synthetic veggie tacos','🌮','member',$3),($1,$4,'Synthetic tomato pasta','🍝','member',$3)",[household,today,membership,tomorrow]);
 await db.query("INSERT INTO household_grocery_items(household_id,label,created_by_actor_type,created_by_actor_id) VALUES($1,'Synthetic tomatoes','member',$2),($1,'Synthetic tortillas','member',$2)",[household,membership]);
- await db.query('UPDATE display_setups SET cards=$2,card_order=$2 WHERE id=$1',[setup,'["household_messages","family_layout","today","tomorrow","groceries","dinners","photos"]']);
+ await db.query('UPDATE display_setups SET cards=$2,card_order=$2 WHERE id=$1',[setup,'["household_messages","family_layout","today","tomorrow","week","groceries","dinners","photos"]']);
 const snapshot=async()=> (await db.query("SELECT to_jsonb(d)-ARRAY['credential_hash','credential_expires_at','credential_generation','last_seen_at'] AS display,(SELECT jsonb_agg(to_jsonb(g) ORDER BY g.person_id) FROM display_person_grants g WHERE g.display_id=d.id) AS grants FROM displays d WHERE d.id=$1",[display])).rows[0];
 const before=await snapshot();
 // Real browser calendar lifecycle proof. No subscription URL or credential is seeded.
@@ -239,6 +241,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await admin.goto('/?tab=home');
    await admin.locator('.family-hub').waitFor();
    await waitForSettledHome(admin);
+   await assertCurrentWeek(admin);
    assert.ok(await admin.getByText('Synthetic school activity',{exact:true}).count()>=1,'member Home has loaded synthetic Today content');
    await assertHomePeopleExactlySix(admin);
    assert.equal(await admin.getByText('Synthetic household note',{exact:true}).count(),1,'member Home shows the synthetic household note');
@@ -246,6 +249,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await screen.goto('/display');
    await screen.locator('.family-hub').waitFor();
    await waitForSettledHome(screen);
+   await assertCurrentWeek(screen);
    assert.ok(await screen.getByText('Synthetic adult',{exact:true}).count()>=1,'paired display has loaded synthetic people');
    await previewPage.goto('/?tab=displays');
    await previewPage.getByRole('heading',{name:'Et felles blikk på hjemmet.',exact:true}).waitFor();
@@ -255,6 +259,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await preview.waitFor();
    await previewPage.getByLabel('Retning for forhåndsvisning').selectOption('landscape');
    await waitForSettledHome(previewPage);
+   await assertCurrentWeek(preview);
    assert.ok(await preview.getByText('Synthetic adult',{exact:true}).count()>=1,'admin preview has loaded synthetic people');
    for(const surface of [preview,screen.locator('body')]) {
      assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),1,'paired display message appears in live UI and preview');

@@ -81,6 +81,11 @@ export function homeWeekStart(localDate: string): string {
   const day = new Date(`${localDate}T00:00:00.000Z`).getUTCDay();
   return shiftHomeDate(localDate, -((day + 6) % 7));
 }
+/** The household's current week view ends on its local Sunday. */
+export function homeWeekEnd(localDate: string): string {
+  const day = new Date(`${localDate}T00:00:00.000Z`).getUTCDay();
+  return shiftHomeDate(localDate, (7 - day) % 7);
+}
 export function homeWeekTitleKey(weekStart:string,currentWeek:string){return weekStart===currentWeek?"hubWeekTitle":"hubFutureWeekTitle";}
 export function isTimelineActivityOngoing(activity:HouseholdTimelineActivity,localDate:string,now:number):boolean{
   if(activity.type!=="calendar"||!activity.startsAt)return false;

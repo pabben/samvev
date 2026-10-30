@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { advanceHomeBirthdays } from "../src/home-presentation";
-import { collectActivitySourcePages, calendarActivityEnded, currentCalendarActivityRelevant, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate, timedActivityUnended, timelineActivityVisible } from "../src/home-activity-presentation";
+import { advanceHomeBirthdays, dayKey } from "../src/home-presentation";
+import { collectActivitySourcePages, calendarActivityEnded, currentCalendarActivityRelevant, dedupeTimelineActivities, groupHomeSchoolActivities, homeWeekEnd, homeWeekStart, homeWeekTitleKey, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, shiftHomeDate, timedActivityUnended, timelineActivityVisible } from "../src/home-activity-presentation";
 import type { HomeSchoolActivity, HouseholdTimelineActivity } from "../src/home-types";
 import { registerHooks } from "node:module";
 registerHooks({ load(url, context, nextLoad) { return url.endsWith(".webp") ? { format: "module", source: 'export default "synthetic-avatar.webp"', shortCircuit: true } : nextLoad(url, context); } });
-const [{ FamilyHub }, { LocaleProvider }, { SchoolActivityCard }] = await Promise.all([import("../src/family-hub"), import("../src/ui"), import("../src/home-activities")]);
+const [{ FamilyHub }, { LocaleProvider }, { HouseholdActivityWeekRows, SchoolActivityCard }] = await Promise.all([import("../src/family-hub"), import("../src/ui"), import("../src/home-activities")]);
 
 function calendar(id: string, startsAt: string, title = "Shared title", personIds: string[] = []): Extract<HouseholdTimelineActivity,{type:"calendar"}> {
   return {
@@ -25,6 +25,39 @@ test("week dates are local ISO dates and navigation starts on Monday across year
   assert.equal(shiftHomeDate("2026-12-31", 1), "2027-01-01");
   assert.equal(homeWeekTitleKey("2026-10-12","2026-10-12"),"hubWeekTitle");
   assert.equal(homeWeekTitleKey("2026-10-19","2026-10-12"),"hubFutureWeekTitle");
+});
+
+test("current household week bounds run from local today through Sunday", () => {
+  assert.equal(homeWeekEnd("2026-10-16"), "2026-10-18", "Friday shows three days");
+  assert.equal(homeWeekEnd("2026-10-18"), "2026-10-18", "Sunday shows one day");
+  assert.equal(homeWeekEnd("2026-10-19"), "2026-10-25", "Monday shows seven days");
+  const justAfterUtcMidnight = Date.parse("2026-10-16T00:30:00Z");
+  assert.equal(dayKey(justAfterUtcMidnight, "America/Los_Angeles"), "2026-10-15");
+  assert.equal(homeWeekEnd(dayKey(justAfterUtcMidnight, "America/Los_Angeles")), "2026-10-18", "bounds follow household local date across UTC midnight");
+});
+
+test("weekly rows render each date in range, compact empty days and exclude dates outside the range", () => {
+  const rows = mergeTimelineEntries([
+    calendar("past", "2026-10-15T12:00:00Z"),
+    calendar("friday", "2026-10-16T12:00:00Z"),
+    calendar("sunday", "2026-10-18T12:00:00Z"),
+    calendar("next-week", "2026-10-19T12:00:00Z"),
+  ], [], "UTC", "2026-10-16", "2026-10-18");
+  const renderRange=(from:string,to:string,entries=rows,loaded=true,error=false)=>renderToStaticMarkup(createElement(LocaleProvider, { locale: "en", children: createElement(HouseholdActivityWeekRows, { entries, from, to, loaded, error, people: [], zone: "UTC", locale: "en", now: Date.parse("2026-10-16T08:00:00Z") }) }));
+  const html = renderRange("2026-10-16","2026-10-18");
+  assert.equal((html.match(/class="hub-week-day(?: is-empty)?"/g) ?? []).length, 3, "Friday through Sunday always has three date columns");
+  assert.match(html, /Friday, October 16/);
+  assert.match(html, /Saturday, October 17/);
+  assert.match(html, /hub-week-day is-empty/);
+  assert.match(html, /No recorded activities/);
+  assert.match(html, /Sunday, October 18/);
+  assert.doesNotMatch(html, /October 15|October 19|past|next-week/);
+  assert.equal((renderRange("2026-10-18","2026-10-18",[]).match(/class="hub-week-day(?: is-empty)?"/g) ?? []).length,1,"Sunday has one date column");
+  assert.equal((renderRange("2026-10-19","2026-10-25",[]).match(/class="hub-week-day(?: is-empty)?"/g) ?? []).length,7,"Monday through Sunday has seven future-week columns");
+  const failedInitialLoad=renderRange("2026-10-16","2026-10-18",[],false,true);
+  assert.doesNotMatch(failedInitialLoad,/hub-week-day/,"a failed initial load must not claim that unknown dates are empty");
+  const staleRefresh=renderRange("2026-10-16","2026-10-18",rows,true,true);
+  assert.match(staleRefresh,/Friday, October 16/,"previously loaded rows remain visible during a refresh error");
 });
 
 test("person chronology starts today within the current week and at Monday in a future week", () => {
