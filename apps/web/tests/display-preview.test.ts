@@ -83,6 +83,50 @@ test("family preview leaves explicit day cards outside the hub and keeps the oth
   assert.equal((html.match(/data-review-private="birthday-name"/g) ?? []).length, 1);
 });
 
+test("rich six-person family projection deduplicates roster and withholds unshared board content", () => {
+  const people = [
+    { id: "adult-1", displayName: "Synthetic parent one", ageGroup: "adult" },
+    { id: "adult-2", displayName: "Synthetic parent two", ageGroup: "adult" },
+    { id: "child-1", displayName: "Synthetic child one", ageGroup: "child" },
+    { id: "child-2", displayName: "Synthetic child two", ageGroup: "child" },
+    { id: "child-3", displayName: "Synthetic child three", ageGroup: "child" },
+    { id: "child-4", displayName: "Synthetic child four", ageGroup: "child" },
+  ];
+  const result = {
+    ...base,
+    display: { ...base.display, locale: "en" },
+    setup: {
+      ...base.setup,
+      cards: ["family_layout", "today", "groceries", "new_message"],
+      cardOrder: ["family_layout", "today", "groceries", "new_message"],
+      personIds: people.map(person => person.id),
+      sourceIds: ["synthetic-shared-source"],
+      calendarSourceIds: ["synthetic-shared-calendar"],
+    },
+    familyLayout: { people, upcomingBirthdays: [] },
+    // The same six-person projection is present in both snapshots; the live
+    // display joins these by person ID before passing them to FamilyHub.
+    hub: { people, items: [] },
+    householdBoards: {
+      from: "2026-10-29",
+      groceries: [{ id: "private-grocery", label: "Synthetic unshared grocery", checked: false, revision: 1 }],
+      dinners: [],
+      readable: { groceries: false, dinners: false },
+      writable: { groceries: false, dinners: false },
+    },
+  } as any;
+  const html = previewMarkup(result);
+  assert.match(html, /data-person-count="6"/);
+  for (const person of people) assert.equal((html.match(new RegExp(person.displayName, "g")) ?? []).length, 1, `${person.displayName} should render once despite duplicated projection sources`);
+  assert.equal((html.match(/class="display-preview-card display-preview-today"/g) ?? []).length, 1);
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 0, "explicit Today card replaces the hub's implicit Today section");
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
+  assert.match(html, /not shared/i);
+  assert.doesNotMatch(html, /Synthetic unshared grocery/);
+  assert.match(html, /<button[^>]*disabled[^>]*>New message<\/button>/);
+  assert.match(html, /<fieldset class="display-preview-family-readonly" disabled="">/);
+});
+
 test("preview uses selected display locale/theme and orientation while keeping the action disabled", () => {
   const html = previewMarkup({ ...base, display: { ...base.display, locale: "en", theme: "light" } }, "landscape");
   assert.match(html, /data-theme="light"/);
