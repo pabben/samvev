@@ -2,7 +2,7 @@
 
 ## Candidate and publication status
 
-Code source: `000bf7ab03db3f4f34c2da09e20ad18d5a78b027`. Publisher review checkout before this documentation update: `08851d3448e910ae04bcfe9100e0530bf60d13ea`. Canonical visual capture Round ID `20261029232208-000bf7ab-83b5308a`; the 14 PNGs and hash/source manifest are in [`latest/`](latest/). Public test remains on R15 source `05cf86dc83ab70070b7050b2c25fa71cff6380bb`. Public test deployment of R16 is already authorized; it remains pending until release checks and backup/restore gates pass. No R16 deployment is claimed yet.
+Code and public test deployment source: `000bf7ab03db3f4f34c2da09e20ad18d5a78b027`. Immutable public app/worker image: `sha256:53f18fd919f7e02ec4e9a725fe85560fbbdddcad2e1498e1363fa0c7aec5cdc5`. Canonical visual capture Round ID `20261029232208-000bf7ab-83b5308a`; the 14 PNGs and hash/source manifest are in [`latest/`](latest/). Public test cutover completed on 2026-10-30 UTC; app, worker and database were healthy and retained schema 001–045. This is a scoped R16 publication, not completion of the cumulative product goal.
 
 ## Verification
 
@@ -12,7 +12,9 @@ Code source: `000bf7ab03db3f4f34c2da09e20ad18d5a78b027`. Publisher review checko
 - Security re-review passed for preview fencing, access boundaries and preview rate limiting.
 - UX final visual review passed for mobile compose and iPad width; the earlier desktop gap was closed. Provider marks were reviewed on mobile, iPad and Shelly-sized viewports in both themes, without overflow. The canonical set has 14 source- and hash-verified images.
 - Fridge preview review used a minimal-grant synthetic setup. The rendered projection was short (218px); this does not establish parity with a paired live display. Physical device behavior was not tested.
-- The #17 same-ID/grant, old-cookie-revoked and new-cookie-authorized API behavior is synthetically tested; two-browser UI acceptance remains engineering work. Focused #18 keyboard/focus browser acceptance also remains open. These are separate from physical owner tests.
+- The #17 same-ID/grant, old-cookie-revoked and new-cookie-authorized API behavior was synthetically tested before the focused browser acceptance below. Physical target-screen validation remains a separate owner check.
+- A later focused synthetic Playwright run in the local `qa-browser` service passed with two isolated browser contexts: admin approval and display redeem preserved the same display ID; #18 inherited language/theme controls and visible keyboard focus passed. All API requests were intercepted, so server cookie revocation is evidenced separately by `round15-display-policy.integration.test.ts`. Browser test source is `tests/e2e/display-repair-keyboard.mjs` at `3fdeb9b`; no database or public display was mutated.
+- Public HTTPS smoke passed using the retained protected synthetic credential: anonymous pages, login, direct member navigation/reload, privacy boundaries, asset hashes and logout. The public app and worker image labels independently matched the exact source and both were healthy. Fresh protected pre-cutover and postdeploy backups plus isolated schema-45 restore gates passed. Protected ops evidence is under `.local/m3/round16/ops/000bf7ab03db3f4f34c2da09e20ad18d5a78b027/` on the public host; no secrets or household data are in this report.
 
 ## Safe diagnosis and external state
 
@@ -24,4 +26,4 @@ Issue #19 assets are included as local official marks, with owner authorization 
 
 ## Remaining actions
 
-See [Round 16 owner actions](ROUND_16_OWNER_ACTIONS.md) for consent/private-source/device checks. R16 deployment is authorized and pending release checks plus backup/restore gates; this report does not represent publication.
+See [Round 16 owner actions](ROUND_16_OWNER_ACTIONS.md) for consent/private-source/device checks. The remaining engineering work is school A/B root-cause repair and a paired live fridge/preview parity check. The latter needs an authorized screen setup with explicit grants; the synthetic minimal-grant preview cannot prove it. No full-goal PASS is claimed.
