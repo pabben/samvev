@@ -429,7 +429,7 @@ try {
  assert.deepEqual(messageSummary(preview).map(card=>card.body).sort(),['Synthetic household note','Synthetic school notice']);
  const semantic=value=>({cards:value.setup.cardOrder,selectedPeople:[...value.setup.personIds].sort(),profiles:value.familyLayout.people.map(person=>person.id).sort(),boardReadable:value.householdBoards.readable,boardWritable:value.householdBoards.writable,groceries:value.householdBoards.groceries.map(item=>item.label).sort(),dinners:value.householdBoards.dinners.map(item=>item.title).sort()});
  assert.deepEqual(semantic(preview),semantic(live));
- assert.deepEqual(semantic(live),{cards:['household_messages','family_layout','today','tomorrow','groceries','dinners','photos'],selectedPeople:[...people].sort(),profiles:[...people].sort(),boardReadable:{groceries:true,dinners:true},boardWritable:{groceries:false,dinners:false},groceries:['Synthetic pantry item','Synthetic tomatoes','Synthetic tortillas'],dinners:['Synthetic tomato pasta','Synthetic veggie tacos']});
+ assert.deepEqual(semantic(live),{cards:['household_messages','family_layout','today','tomorrow','week','groceries','dinners','photos'],selectedPeople:[...people].sort(),profiles:[...people].sort(),boardReadable:{groceries:true,dinners:true},boardWritable:{groceries:false,dinners:false},groceries:['Synthetic pantry item','Synthetic tomatoes','Synthetic tortillas'],dinners:['Synthetic tomato pasta','Synthetic veggie tacos']});
  const date=preview.householdBoards.from;
  const liveDay=await screen.evaluate(async date=>{const response=await fetch(`/api/v1/display/activities?from=${date}&to=${date}&limit=50`);return {status:response.status,body:await response.json()};},date);
  assert.equal(liveDay.status,200);
