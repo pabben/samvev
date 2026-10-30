@@ -1,0 +1,38 @@
+{
+  "sourceHeadSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+  "fixture": "synthetic six-person comparable R16 fixture",
+  "files": [
+    {
+      "file": "member-home-light-desktop.png",
+      "sha256": "3aac25f6c8e3cb0427e9d87e1b41dc04981294799dfb521596b168b9b29a5d21"
+    },
+    {
+      "file": "member-home-dark-desktop.png",
+      "sha256": "5deb8802a7e648a0456df2482207c0703de3b227cfb58457b3dc7fd74fb7290f"
+    },
+    {
+      "file": "member-home-light-mobile.png",
+      "sha256": "d47441460db7d31e75d419feb8b8c25da7c6e5edd8a2eae3304ccc79c8a11f1d"
+    },
+    {
+      "file": "member-home-dark-mobile.png",
+      "sha256": "1b234999ee2a32d905c0e1180ba2f19762cce28135f5087ae10e6ef1bcf27c71"
+    },
+    {
+      "file": "paired-display-light-wall-portrait.png",
+      "sha256": "c6b2f314c087e8f59a577d88ad4721b98d9e501b951fe4420e8492d34f02c1bc"
+    },
+    {
+      "file": "paired-display-dark-wall-portrait.png",
+      "sha256": "4de5aba384fc48da3086feffa5b44e4a70d738118b00dcc959342f9462fd5ef5"
+    },
+    {
+      "file": "admin-preview-light-wall-portrait.png",
+      "sha256": "63a440cfb27dac2888e6ea94b44baaea40313d4ca5141770a4f92944fea43a3f"
+    },
+    {
+      "file": "admin-preview-dark-wall-portrait.png",
+      "sha256": "bdd8008919bad1905806287833748eec212a53c10f1f0d5d204cc36658790d1a"
+    }
+  ]
+}

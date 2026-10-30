@@ -1,15 +1,15 @@
 {
-  "roundId": "20261029232208-000bf7ab-83b5308a",
-  "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
+  "roundId": "20261030163806-9f3e83b7-50a1fe1f",
+  "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
   "workingTreeDirty": true,
-  "capturedAt": "2026-10-29T23:22:08.716Z",
+  "capturedAt": "2026-10-30T16:38:06.721Z",
   "provenance": {
-    "sourceSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-    "inputFingerprint": "93127ab60c8a4920bdac707e9de4883a5a94a48e157476dc8dd01ca09f12f062",
-    "rootSourceFingerprint": "93127ab60c8a4920bdac707e9de4883a5a94a48e157476dc8dd01ca09f12f062",
-    "cloneSourceFingerprint": "93127ab60c8a4920bdac707e9de4883a5a94a48e157476dc8dd01ca09f12f062",
-    "runtimeFingerprint": "c41b61a1ce7a409e81a4807acc092c2e53df871b65a388ef1d5d2135be25e537",
-    "migrationFingerprint": "d8a47e5eeebda5e6c355d20d5e80e078133446ca01b9b419a2ce1646034438fb",
+    "sourceSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+    "inputFingerprint": "fbe95cf4bc488d444f5b6795bb15bec0af15cb8c546e13a4b3a373b37e136014",
+    "rootSourceFingerprint": "fbe95cf4bc488d444f5b6795bb15bec0af15cb8c546e13a4b3a373b37e136014",
+    "cloneSourceFingerprint": "fbe95cf4bc488d444f5b6795bb15bec0af15cb8c546e13a4b3a373b37e136014",
+    "runtimeFingerprint": "29fc65a9aaf10f91ed2813caa2c3f9ac19c2911bb58e72a7dd3ef10aaced2395",
+    "migrationFingerprint": "d1fc326b0f8be654d91ddac2e757c5d77ac289c1a3e9d0d7a5d974339347d60b",
     "inputFileHashes": {
       ".dockerignore": "fd1afa885cfd4c592d2df90f60284b2ee8f63cee14965f31b3da43cb11b53cd6",
       ".env.example": "83c995d2b89bdd6bd6d03f2dc1220ddf8b9510dd330ba35ffb3be00df23fa462",
@@ -42,10 +42,10 @@
       "apps/web/src/avatars.ts": "f43eb0e4a1849d898a223f4841681cbf50584c7b50279442daf2ea9673553ed2",
       "apps/web/src/calendar-branding.ts": "860ceddb786eb16e7f258ecb37dba45464693fbbbf59b5bc501c4c4f445d5a16",
       "apps/web/src/calendar-connection-types.ts": "7beffcaf09b5bf6ef4b0cdf95942379a35329292b7de08513c91e01f6f78c744",
-      "apps/web/src/calendar-connections.tsx": "43e5b72dc32f9a077d292cc505f01ec1f761e963502270a0762b01867ddff074",
+      "apps/web/src/calendar-connections.tsx": "96b1978c5497e67a879f6f6e34c7944a5e4a68697da4f2c2662f2a16688bd90b",
       "apps/web/src/calendar-freshness.tsx": "085d020972d6eacfa96962aab6cb6a86d58a17574157c26ea922ac087f6c908d",
-      "apps/web/src/calendar-presentation.ts": "e39104c9ef3cbae78d4858098ea7cda2f65a138c9eea424f7ce587c77936bcde",
-      "apps/web/src/calendar-preview.ts": "4f69d347b344cd16802be1d1da300c32f9aabd451836686c1eb1d0a1d8cd57aa",
+      "apps/web/src/calendar-presentation.ts": "e4928c14d71ac1815d4654b680e285f1271339d9eae06ed12fe43ca713ba7be3",
+      "apps/web/src/calendar-preview.ts": "a79d73595c270f6ef794ae426d81ce2418fda4de175fa3017e1b4ee838313246",
       "apps/web/src/calendar-provider-admin.tsx": "2c21b7504779aa878118b96944c7f2d667f69731057cae155deff5b2e6680e4c",
       "apps/web/src/calendar-provider-config.ts": "9d0c76f22edbe2f2db127eb6de645f3fa8c774d2f2fd657b14c617e0b2c7b149",
       "apps/web/src/calendar-provider-logos.tsx": "7cd3bbc2e0c63f607c1be61556a1ebcbaab498ca3bc27f20aa5e8e946ef01dd9",
@@ -57,14 +57,14 @@
       "apps/web/src/display-cache.ts": "73b3832715bfa002520aebfce7bb8c7350527ef9fed0be772047e146127cf9e4",
       "apps/web/src/display-lifecycle.ts": "57f40c7ee9dfcf2b5dd281daaf44b7822d3796dd0cf540c094873997302a52ce",
       "apps/web/src/display-redeem-lock.ts": "b272a1865b46640e2c7361dbeb1b854ef8441965998cf7515c7f8144df002723",
-      "apps/web/src/display-setups-admin.tsx": "37666c5bab11d0d63b92483f9ea816a12a6fa49a0ba500fc4309f4096cb2bca2",
+      "apps/web/src/display-setups-admin.tsx": "ad85a63bef48f9d97caf2e892a93b3dd37df8bdff2f74ea2e5a17a130af01824",
       "apps/web/src/display-source-coordinator.ts": "c92ee999ca2d39139b3530dc430bb0c2ba3779c5f1956a76088343cd5dc45f17",
       "apps/web/src/display-source-session.ts": "a95af6d3768eef3c70ee40d5f199156c15161642e1ee40753df9f964da72424f",
-      "apps/web/src/display.tsx": "4e88880c38ed5a774fff9759d3720ee29bb0253af890f710f3dbe6d008b7843c",
+      "apps/web/src/display.tsx": "ba1fa7a8ffe3ddd9c31c5278401998fc8e5ec97eba0bd095f735833d269c8b6c",
       "apps/web/src/displays-admin.tsx": "e6ad8c09fa666b8332a3e5f6639b3f6a2c45b3ee91ec47e2b04f0063fd4ce7f2",
-      "apps/web/src/family-hub.tsx": "cc62ba7b0294ce24db1f3d22f59d75b1e3fa4b27b3cdb59a2804a2fe0fef332f",
-      "apps/web/src/home-activities.tsx": "52b982b17a61ecc266eb167b425418780385c6af23136784a188bfa7616e2dc8",
-      "apps/web/src/home-activity-presentation.ts": "f09b440e916dd646075ac6452f8224d27f40fafa2ff665cf00126d5e3a91bad7",
+      "apps/web/src/family-hub.tsx": "235ba1fde39efbfc7dfeb706ed57fb39a81bac1509501fc0a36e0d2d8cbf7a57",
+      "apps/web/src/home-activities.tsx": "3de38de6bcb3d4492b59a4cb7b19112fb98646e0195c61dae065b3d351ba9a4b",
+      "apps/web/src/home-activity-presentation.ts": "868b2a5ba2bdee2de0b89e56ba2ae69b1e67f3e2b26e23e5909c18f09c4fa1ec",
       "apps/web/src/home-assistant-control-presentation.ts": "430a89bff87ed951cc5c5d11faa402f77b60838d3381b128537bf8c027bb254a",
       "apps/web/src/home-assistant-control-types.ts": "fd9966129fb1f79ae1c36931f46def212f1cfcbdcdf3c4e586490f6521c89810",
       "apps/web/src/home-assistant-controls-api.ts": "01742594ce18c05bfd0ed3b8c849cf3ba8fd6c0986fe2f66ec7ce82317e19f1c",
@@ -74,7 +74,7 @@
       "apps/web/src/home-media-presentation.ts": "edff8d068230fe6e473719b933347b98053c048551908dca53ee7e9fe0ca2b0e",
       "apps/web/src/home-presentation.ts": "e8d464a71e4944670068bf847528ef75cc8ce53d07d55a81e612628dc49c3766",
       "apps/web/src/home-types.ts": "9976eab496fc697e0afe13a669b36d5b4dc2cfa5aa417ae5d5fff691d136f4b3",
-      "apps/web/src/home.css": "1531a8313069883bea6e4d8e4484c55b6a7860f00c1eeab8864132777a4fde54",
+      "apps/web/src/home.css": "45ebfcd6b2dcfdba754c73504c2971ecfe320ea4486c63e0668402640df18ae2",
       "apps/web/src/home.tsx": "60178678aeb92e5e31f589f86f0ba180b10bae6a24a2a0b656796787bd0b66b1",
       "apps/web/src/household-board-adapters.ts": "4cff210a607b62baddd2819b853e97e99cc000984e33a776393c506e914c953f",
       "apps/web/src/household-board-state.ts": "190a550c6786d75dd7ccf59fb353e9e37f0bd5f66df1d90e5d8c159a67023dac",
@@ -82,8 +82,8 @@
       "apps/web/src/household-boards.tsx": "f01b2296204a6db51a5034aac57cdd52151796ebe40771e7716fa41d62d9071f",
       "apps/web/src/installation-public-contact.tsx": "9064adb3a455632ace839577fa5e00a436f349aa484e47b27a5a54a438b1c1ea",
       "apps/web/src/integrations.tsx": "0925f35af02b1936eb1e80c7c1cb60a8e7883b0a7a71860139dd2b25ff557265",
-      "apps/web/src/locales/en.ts": "822f3da581ad857b3a98f21faff42ee4e0e0b4f269b44a00abd1732a1aa5333c",
-      "apps/web/src/locales/nb.ts": "dab993287e9829495ded67e13360422251c307807e8a01322216d4eb861c2fa8",
+      "apps/web/src/locales/en.ts": "d9d027bf64a8d151e700f02ab21d423cd1c71950ff5b4017125246246653f622",
+      "apps/web/src/locales/nb.ts": "4d7d69b8d288a17a1a19836966dfcf4bd1d55a79c1cacc83450b849d57fa5d26",
       "apps/web/src/main.tsx": "29f4a2ada70e78e0cf4b274a04334f400a41b43c057447b9496fa076fc2b908f",
       "apps/web/src/media-adapters.ts": "5731413554e82aadf0308bc7825ef053eefb0c628e38640722025dc535411fca",
       "apps/web/src/media-library.tsx": "08b4975b4835ebb9548f28e61b06aeecd99811517ca18015e247a35dc58d5b05",
@@ -102,13 +102,13 @@
       "apps/web/src/photo-presentation.ts": "7fdf8e4d7129abd0b5f26cd4c31d176c672c3dc1feec41eeb8fcfee9e69c1c09",
       "apps/web/src/profile-photo.tsx": "2ac8f3fdd6ad85b713a7615dea7a4b6d14c7b387f4f0359854f6d68bda99004f",
       "apps/web/src/public-information.tsx": "58e48ba7eb68ded5ca86acbe8f6c1e1781fc472a510a3352c1dc6b0515ded8de",
-      "apps/web/src/round9.css": "68bcaf04d0cd6e4aa21aad56d6e606c23fa5d1d215f0c8b7d82845305f89e016",
+      "apps/web/src/round9.css": "53feacf5e6fb24a2d04d425c2736b1bb891173c6aa9829d4ef1876808c22c904",
       "apps/web/src/secure-uuid.ts": "4ca52f96d898b5eb1b4b1aeb67886d969e0e6c2e1e36458236172752d7c5d5f9",
       "apps/web/src/stream-health.ts": "27d929f46e642f4aeb496d5990ccd728d937b5a923a55e44bc2dc2fceec13cfe",
-      "apps/web/src/style.css": "1325d6af6f6e9a0fdd850577b51b481334b99e1f638226f32a0ed16486e0a800",
+      "apps/web/src/style.css": "9fb6958a9922cf335088750ed82160fd16693a95f72c49aaca82f10d8601e561",
       "apps/web/src/temperature-settings.tsx": "d6faeeea3faf24fecc983f029de81609813db26bd2ebe78063b98d4fe2da21f8",
       "apps/web/src/time.ts": "ad9121770860e12aabe350dd47693a3127ec9d41d3f77662ee812466ea745160",
-      "apps/web/src/types.ts": "269858836b76db91fd78ae0a11ad57dc36325ee4b42e1408a101e053698a238b",
+      "apps/web/src/types.ts": "1ce74271e23eba526c86d877c2dd04998eb00429fd7fc019e9bd00c2c9bbd233",
       "apps/web/src/ui.tsx": "6a17188642083493da7314f435c76d70b7da3a17adc9f0317950c54d62d8ccc6",
       "apps/web/src/workbench.tsx": "3697ec7fe45fc1997918700b7f3a79f8a794ac84f959df96a3ea43fa3376f6f6",
       "apps/web/tests/ai-anthropic-model-field.test.ts": "abd8a7f8ff751dc3cb762f76d933d921cfdb77f25ec1dd0bd19647e7627f7f03",
@@ -119,7 +119,7 @@
       "apps/web/tests/api-response.test.ts": "8ebcefe34218b44985202cb99cf93aa2d1fc88cfa0d83d3ef99fc81d0ea84e35",
       "apps/web/tests/calendar-branding.test.ts": "cfa9ebf6b4cb507b4f4157fd6cae923528daa6bf410b7e2ac98698a35b7fa370",
       "apps/web/tests/calendar-error-presentation.test.ts": "b685e4a63437c8120b402ad73869a1e607db81ba9b645dd882a6049bd00a7264",
-      "apps/web/tests/calendar-preview.test.ts": "81ac4e2141c38745e2f1408668c28411435774e228557ce5dbf27c7f3cd18088",
+      "apps/web/tests/calendar-preview.test.ts": "ee55797d4ca09c05280c562e79fbab3edc8e1aac380d6216a351889a5304c8eb",
       "apps/web/tests/calendar-provider-assets.test.ts": "c773c2ecbd5636b3748554733315eecad5f55e7243a1866400f7ad63852caf5f",
       "apps/web/tests/calendar-provider-config.test.ts": "caae3def41368cd72f94ed3544bb7ad5b4ec2d7e511fab7f2c3b0c13d624e509",
       "apps/web/tests/calendar-provider-logo-browser.mjs": "c74ff8c75a3c3d415d783421ca2ac83536574e5836037922eacd8b003acea281",
@@ -132,11 +132,11 @@
       "apps/web/tests/display-cache.test.ts": "da81021c2062cc29f76c8f6cc30c4005dc865ec1f07ebc1dd52363e26fa79c97",
       "apps/web/tests/display-day-event.test.ts": "0dd514c0de4a922c54f43de1b4da1bf282c50bd89a50f505158984b52d826843",
       "apps/web/tests/display-lifecycle.test.ts": "ac8ad6b703e5dae7c82e19021688571c55f7f090a741598b432e888940c45cbd",
-      "apps/web/tests/display-preview-css.test.ts": "49e52778329914eccda8bb5957c27014e984ceac865954e52bf1b66de4615531",
-      "apps/web/tests/display-preview.test.ts": "d67ba1b1d6cf766359dde36c54fcd1d9a89ebdf3cac928fdafbc4bf832e42b47",
+      "apps/web/tests/display-preview-css.test.ts": "d2b42d0917f9df57deb48670599a5678e4c9fbcf1cf041fd390e231ea2f30ee6",
+      "apps/web/tests/display-preview.test.ts": "0fd8dc56d3d5cacfc20d0763b757c8c90e2366c2c91c013f56fc27d841912991",
       "apps/web/tests/display-source-coordinator.test.ts": "aa4adcba0419a5cc77cc6cd7350b17da58ac5a9c2ddc4be387ec067bb6f89314",
       "apps/web/tests/display-source-session.test.ts": "dab5c213b62aa77677fbcf2873c5a002912a7e491aba49bfe5a2367c71e1a029",
-      "apps/web/tests/home-activity-presentation.test.ts": "d280feae40792fc7b45a83c5acc2a2ae692cd4b9071c70006a59bf31f56d29bd",
+      "apps/web/tests/home-activity-presentation.test.ts": "dcc8e9b64e734f7bcdbaed276692107c317b3edf709547b0fe8e358a69c708ab",
       "apps/web/tests/home-assistant-control-presentation.test.ts": "247c86e7dd4b56c41e446693fe1f29e00463e06b284955a56ed02505190b466c",
       "apps/web/tests/home-assistant-controls-api.test.ts": "aaaf12548a9e72c76e1d7d3a5d8ee90fc5b7b76b8b7e0929cd26a8b481b3e069",
       "apps/web/tests/home-media-presentation.test.ts": "852e208d60ea0375c1a86a218f9d18525d3781175471815b5b48d26bf10f59a5",
@@ -157,7 +157,7 @@
       "apps/web/tests/round14-layout.test.ts": "d77ea289f7ada004c226a4187d4184ceb763275a07773feaedccdd8c4a49b632",
       "apps/web/tests/round14-shell.mjs": "d6024a8f234d51f6c2df2a77c70aab6ded7d66bf1669392c41d703a9ccd231a2",
       "apps/web/tests/round15-home-columns-browser.mjs": "fce7eefccda05c5199356d6a7ce5569f386f828f88fb6e958b365b86eca785cb",
-      "apps/web/tests/round15-home-layout.test.ts": "539e143241327ecfec179a158f261d63c85cf335974f441281ff89284587340a",
+      "apps/web/tests/round15-home-layout.test.ts": "eb70a5332a28faebf62b8bfe504cbc3c9f1cd90ab8fffa1de0b2114bc623a2f2",
       "apps/web/tests/round5-design.mjs": "8761741ab8cb360d7b42ed4aff52ce422f262e8d5e49719011bca3fbadb647e0",
       "apps/web/tests/round6-design.mjs": "6fed8ae0d12beded248aa7a5fc81930b2bb3ad2b4a641fffeffc3b75492ba133",
       "apps/web/tests/round7-design.mjs": "3484094c0ebc3001f8ba260ec2da69fb062abf10baf758bcffcb02c31ea1f5cd",
@@ -176,7 +176,7 @@
       "packages/contracts/package.json": "f0517326dc46a607dbc9903267663570ef98cc76025bff2b2c776460e2799c7c",
       "packages/contracts/src/display-policy.test.ts": "935d8f98ee2e53736aa5400b3e446a93a612e8e53610acad8d7d18e3fdc1119e",
       "packages/contracts/src/external-intelligence.test.ts": "34493e0fb6cbfcb85cc0fdb15621fcbb8ec0dd242a64518d406a449f0cec3339",
-      "packages/contracts/src/index.ts": "5287e7e589440e4fec5ef299bb8a1863c2db052a8562b1bdfa79336bd6cf6108",
+      "packages/contracts/src/index.ts": "14e3cf3857f840a3303ce5c01a2cd7f7c6e279a0478eef626d61ead48d60b698",
       "packages/contracts/src/password-policy.test.ts": "08461d43ac2ee9b22c1cc1740273442010f86a7722475479a001072f3a7d438f",
       "packages/contracts/tsconfig.json": "c4ef5588f4e0e442aa72db545d02653e9ac2144621d081a486ee64879a5f5dcd",
       "packages/core/package.json": "d23f3e8bcef542003b10b18db5b8a98f04dc2c7084cf54d3f268e006ec07765a",
@@ -260,6 +260,7 @@
       "services/api/migrations/043_display_credential_generation.sql": "8b8fb0a497c0dbd39ca99913cbd9f6ae17ede4788e10a15803e48e846eb41e38",
       "services/api/migrations/044_display_presentation_policy.sql": "2d9f4d5b7e9cdb2964c4c1cb3bca18833a7b5b1a8a9816b46d289527ed67273e",
       "services/api/migrations/045_display_item_occurrence_fence.sql": "113453498ab154b6fad10c3f975cbb07030d34372d3bebfaea5f24de4932b47e",
+      "services/api/migrations/046_calendar_connection_removal_tombstone.sql": "fca93b1a999499066c84039720d4b64c5d3e12eedc619725de118680c8eae1af",
       "services/api/package.json": "02362881ae04ec85dbf8501786c2e6b2dd47251d8c8979c7952b64bb1ee58f9e",
       "services/api/src/ai-fallback.integration.test.ts": "9765fe1d9cc7a9eefede881a3a55ef36bf7c7626989277079fb8a15436b4fceb",
       "services/api/src/ai.integration.test.ts": "045e7da7d2e8caad556d6e7949096bdc96eb8492e78cf3b3422078603b53bc66",
@@ -282,20 +283,20 @@
       "services/api/src/ai/provider-security.test.ts": "dedbb78d988ea81dd235fbfe8fd721660ac4e7e8cf7abfa511ca9611e82c49cb",
       "services/api/src/ai/provider.test.ts": "add8a7569e592d2ed00a7656360606fa56becfbc0c3f8ae3ec4cc36d5045dfa3",
       "services/api/src/ai/provider.ts": "7142e5ec87527c7c156665bafa3641be5fea93348cab55522f0d3c741eed07cb",
-      "services/api/src/api.integration.test.ts": "8626d485eb6cc0c2bc1bf2e8c6e95ea31bc733a965009f1b47f135eaae9b346c",
-      "services/api/src/app.ts": "8eeefef3bd216d61de095100a790a9dc274e5c50175640105a1d75dab25c5038",
+      "services/api/src/api.integration.test.ts": "78e6d239fac33cdf06739804727c34160409fd163ac22e6debbe80bac68b75c5",
+      "services/api/src/app.ts": "dbee46d41de4aaaef5224f920f84d9aca43df2fda0fc0e00fd4e32b167191ee1",
       "services/api/src/browser-security.test.ts": "bd8e5464bb591337dd317e6f688b363e4e509b170048d1722314ff4ba2667f8a",
       "services/api/src/browser-security.ts": "03e3cf0ac8b3a7ba5b20abc3364a17dec8c53fcd2651235eb10ed6820dfa2675",
-      "services/api/src/calendar-provider.integration.test.ts": "5eaf7590ecdfa79b0f0e47133b830728eb4c77d7022a32e8ccbba3f81f4fddb4",
+      "services/api/src/calendar-provider.integration.test.ts": "0ea1fc1178627872227f6a540a8fb5c1590ba7554b6090e58a4440a674f484b4",
       "services/api/src/calendar/home-assistant-client.test.ts": "5bad3310a04a187a12cb22fe92898081f4b5aa783a7a61d70c1f2fc483b449e6",
       "services/api/src/calendar/home-assistant-client.ts": "32cdec617d82595c7c84ea1a5356a3a8824193fdadbc569fce8e943d9844b307",
       "services/api/src/calendar/ics-parser-bootstrap.mjs": "b9028fcc2b0626566671d6ccfe2fad4a88806822bcfdcbd683d2dfafe7bebcd0",
       "services/api/src/calendar/ics-parser-core.ts": "e8041b18e6757dd128126c54eef059837621c710eb6f6d4c314beda69999548f",
       "services/api/src/calendar/ics-parser-worker.ts": "bec4dd18b1f40b07c5ee696659d4768e85335e70a8e56b5c82258885bf62393d",
-      "services/api/src/calendar/ics-parser.ts": "26aa3c9ee2c8703c6344b89c096f78cb9372c9664c07c76137ae2ed1d730fd70",
+      "services/api/src/calendar/ics-parser.ts": "2fd5814a6abdff23c104b1c35684205e11dd2fcff6e9b96efaa5d5aaf4bdbc30",
       "services/api/src/calendar/provider-config.ts": "6610dc9fa5e9e998281a8d87a950559a6d5e1e6757cef0a352d36d61cbe2c6e3",
-      "services/api/src/calendar/service.ts": "65162c1f0b6a983a8a9a10defab6085a8c225b6fdd7b9acd9ebd29a0c1734ca6",
-      "services/api/src/calendar/transport.test.ts": "19b38816755e05894d408aa7b6fbc117d6643b0cba237ea9896b55c7e4c8e87c",
+      "services/api/src/calendar/service.ts": "3f6c617c8bb373b23250815fe051598c5142072acb15fcebd5c66dd48de7b631",
+      "services/api/src/calendar/transport.test.ts": "94c34a5255ed54e4adade1dbc7c503ec36e3a5857a649c0e987024cf567f2d93",
       "services/api/src/db-guard.test.ts": "fd3d588abd342646701cb8b379f49a85ddcceb573d64eab8b5c46e6284c1bdf1",
       "services/api/src/db.ts": "2b6dea3ee2d4fc1aefab2fc3de10cf8aded740ecd36a2b1aeaeb401971d0502d",
       "services/api/src/db/migrate.ts": "a99377bb2227b768909c7f182856e13286ce02faac8596a2a9b41ce79ae06bb4",
@@ -329,16 +330,16 @@
       "services/api/src/monitor/quality-router.ts": "86f68710eb5a4a64c8c05f33df3a06f23562dda27ce10571c4df1f95d0fb4e53",
       "services/api/src/monitor/response-schemas.ts": "c365bdae16c08c52cf570a0a5866ccfc987459363d22e12167d166e9fccec052",
       "services/api/src/monitor/schedule.ts": "66fdf9d719dcafd9b01c64d2dbf29378f4beb9b288168e84675556723bf48339",
-      "services/api/src/monitor/school-projection.test.ts": "132f7d1ecd8041a40d0131ac16f754c461659eb11fc7ed9cb612921e00d79184",
+      "services/api/src/monitor/school-projection.test.ts": "2e545c4216cda9af3d3979ee852304c7561b158ee5d133b6644a7fe641e87a1e",
       "services/api/src/monitor/school-projection.ts": "b80a24e361fbc358b385f246a6933381bbec4800cc9f5489ed99ebd4be6d90f6",
-      "services/api/src/monitor/service.ts": "3d606134ed93cf0118962508b9ebe278a621cba5f11cdc279004c71678543690",
-      "services/api/src/monitor/source-fetcher.test.ts": "77c39ed0cdfde5ca50871fdb8811d92c62cc4e0c7c7bfef63ef5f8af229a27ef",
-      "services/api/src/monitor/source-fetcher.ts": "4f9edf399246b779d92c7c3995fbcbeabb329a23c51193c3becddd32486aa08e",
+      "services/api/src/monitor/service.ts": "854a7fe93fd0838c3093d16f28960695260a55e653aece108f5ddb9b61bf582d",
+      "services/api/src/monitor/source-fetcher.test.ts": "c2a86dd1ed2b37270ea5ef2066dd248be578fbb3f8c78d3599a9712fea22d69c",
+      "services/api/src/monitor/source-fetcher.ts": "9bf9b64df34a52d9aaf75fdb9412e4c8189b31b9f458fc4a88e9c9786870bca8",
       "services/api/src/monitor/subject-link-cli.ts": "c09bd742f9ae056aa31730e827d58cf6fdc6410d94123864d71a01c28fe05cbd",
       "services/api/src/monitor/subjects.ts": "088be3d72f492a5c4d269c7db3b82e48420e4a962660ee2338c0997531fcdb6e",
       "services/api/src/monitor/tool-registry.ts": "9e4019373544157b0341a99c9f665e2f54d77adf97bd3ee5718df31002b572f8",
-      "services/api/src/monitor/validation-diagnostics.ts": "c5d2a1d8492a4420b1661641691d6be21638f0dd06eeddd4561ae6c1455e4a78",
-      "services/api/src/monitor/weather.integration.test.ts": "33d5dff6bf244cae69e4aa3abadb4444c241c8a7ae602f725dcb8351c47b9d32",
+      "services/api/src/monitor/validation-diagnostics.ts": "b4bc95aea5e659da55c73a02c8428d817324086615d7e14635f38ee25bf7d31c",
+      "services/api/src/monitor/weather.integration.test.ts": "6eac9a16499626d35fc33cc3ed15098fcadfeac673fdbaa70aabffd19c9cb577",
       "services/api/src/monitor/weather.test.ts": "1f5d7a7a377008c83f7186779751656ff433aa137dad8cbe8a4cdbb24bc329b1",
       "services/api/src/monitor/weather.ts": "f7b86468f35444f32190b09fbd52d539676108b0a1391f3b0b1aeebaa4171664",
       "services/api/src/people.integration.test.ts": "bbabf0b8801810da22f2a7d171af441705d537531f57f59476f225c9c40efb7c",
@@ -356,10 +357,10 @@
       "services/api/src/public-contact.integration.test.ts": "a875dbac45bd001dda85629c7c589271f6d0e45b57f3450569799b51cf892866",
       "services/api/src/public-contact.ts": "783e3e9bb387f416465b824ccbca388241161a89b703e9ea4697392df9d79107",
       "services/api/src/round10-backend.integration.test.ts": "70777e0cf1a919d5733ce40dcd85f2bdf4b88487cdcbcad224d770412014189b",
-      "services/api/src/round12-calendar.integration.test.ts": "4e765ecad48599c6b5fe4d972356f93a878c7b6262f8e177fc5ff064b217efad",
+      "services/api/src/round12-calendar.integration.test.ts": "cfeade006e2fbfac0263d32741fcfa53140843b4d42bb9784e33488cb8ba93d9",
       "services/api/src/round13-activity-source-catalog.integration.test.ts": "b609b79f2d3cb249b44a335a0aadc988daa4039a666eb1d0e02c507ea3718371",
       "services/api/src/round13-all-day-activities.integration.test.ts": "47b2a383361e615a0c9f7b4f6eb2526e6aad52a3cf1f05314eb3f0a8f4ec6faa",
-      "services/api/src/round13-display-backend.integration.test.ts": "6ac0a45201ef82197fc32b695f00e792839de7ee8b92b66a9cb9dc4445d82f4a",
+      "services/api/src/round13-display-backend.integration.test.ts": "f162fb69b5d58fec38b66f2eda6bb236e6a408fdd404ccf4e757474b14d0f94e",
       "services/api/src/round13-display-messages.integration.test.ts": "005ddc34b42a3ee50dc3437cbc4a5c33253785948b03a9a3a715600aeed112c8",
       "services/api/src/round13-home-assistant-control.integration.test.ts": "e168baa7f6faf5e9fbb3763d841860eefaec9b7713d5d197ebfd85b36bbc5f43",
       "services/api/src/round13-home.integration.test.ts": "fd50982e0d2e19fcf80a048a58b75d514571b403eef7370417b698c003c7d5d0",
@@ -367,7 +368,7 @@
       "services/api/src/round13-media.integration.test.ts": "b321d783c22634c47a9378c085e55e6bec039b656b9a5941c43043f1c4329137",
       "services/api/src/round13-profile-photo-authorization.integration.test.ts": "1568828ebed7bf348b2240653b40993fbc3c8570186c8aba4c52d643a0dc1050",
       "services/api/src/round13-temperature.integration.test.ts": "9f01a01d2aaa61463fea20b716126f0829d533dccd19f7a8931a5562603523c3",
-      "services/api/src/round15-display-policy.integration.test.ts": "fb2e5ead70a43b45871ec32e9dcdad8ebb233e49d8238756a7d81f0612585861",
+      "services/api/src/round15-display-policy.integration.test.ts": "abd41dc9a0fccf43dbd0835d39f81abff2cac4ccc372173c20f41c013df6c020",
       "services/api/src/round15-next.integration.test.ts": "9b692395912dbb545310aa95b423be8033303dbbe1fcd2941abfbabe14c9595b",
       "services/api/src/round9-backend.integration.test.ts": "d727f776abb4f5957569afa7e0b738d62166fafa63c6bc0b207846441c4c8647",
       "services/api/src/runtime-config.test.ts": "ab4ff17d6768842909de615fe2e5e12ca929c976b0931e25a798effc89e6fd83",
@@ -387,16 +388,16 @@
       "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
       "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
       "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
-      "assets/index-CS3HXALs.js": "8bc4c5b63a34d89ee342c2ab4f925b37228e015c39df8629cd37b7ba31f9b132",
-      "assets/index-k5lsieFI.css": "a2faa202e3c935597549cbb5f5ee0fce5e56f04a622f32b019733b530185884a",
+      "assets/index-BXE1QUEo.css": "346032844931eaf7c3aa700b260417719ba499c84604f39e714d3f73feec9be9",
+      "assets/index-GVrtt1cH.js": "97f64806700fd9b7f4e1d793787bd6047722014d803d6b66f6c6ff37faf93368",
       "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
       "assets/outlook-B-qerR2g.svg": "d67b8bb4bb8d7afe8e71e066112452d5d681ea7991fa1ec7c37df962246b2c31",
       "fonts/Kalam-OFL.txt": "f62ef357d3a1c3d27edd35a6e1ba350e8a8d13499797964eeadefbf0b3b15d1f",
       "fonts/Kalam-Regular.ttf": "57cecb63d4608019371954274ae1d8c397764debd5b19d4a33c1efa4dc923c0b",
-      "index.html": "822b285947b3b7c13593ca7496a782baa1f9c4556b7d4af83cfceae15c5a92c0"
+      "index.html": "ddc1e15950d8d94c37b7b79941bceb9fd2127fb6e4dbced56de8ef6540997d00"
     },
-    "builtAt": "2026-10-29T23:21:06.648Z",
-    "containerId": "5b15cd3941fea17175f9f99c9cc1af2a77de1a85c35b61910cc57edac12e86bb",
+    "builtAt": "2026-10-30T16:36:55.237Z",
+    "containerId": "e2324e3582dcd62138933580b7ff44dd906a03a778f483ff02d400bbe0a6dc72",
     "nodeVersion": "v24.20.0",
     "servedAssetsVerified": [
       "/assets/avatar-01-D7jqfrwr.webp",
@@ -405,8 +406,8 @@
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-05-BkiEJE6s.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-CS3HXALs.js",
-      "/assets/index-k5lsieFI.css",
+      "/assets/index-BXE1QUEo.css",
+      "/assets/index-GVrtt1cH.js",
       "/assets/nordic-dusk-v2-JZmjLCmU.png",
       "/assets/outlook-B-qerR2g.svg"
     ],
@@ -416,8 +417,8 @@
       "/assets/avatar-03-DA7Jq2DZ.webp",
       "/assets/avatar-04-Bl-4M4Ux.webp",
       "/assets/avatar-06-DnQiLfLt.webp",
-      "/assets/index-CS3HXALs.js",
-      "/assets/index-k5lsieFI.css"
+      "/assets/index-BXE1QUEo.css",
+      "/assets/index-GVrtt1cH.js"
     ],
     "authorizedDynamicImages": [
       {
@@ -436,8 +437,8 @@
   },
   "screenshots": [
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:11.511Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:09.400Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -463,11 +464,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "899dbb96e7845e97c85f6a5825aa14aa02140e48fe3b761deda4fed8a225da4a"
+      "sha256": "6d8b111b5c011e541a6c7a20b2c2ea40c127f041ac363d7c1c27b7346da38498"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:11.781Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:09.708Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -492,11 +493,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "a9b0c3989c381851056794f9f7a435ff9b31c55e03d1a3ed412811d58ef8826a"
+      "sha256": "ab63dae30d4c4c4bbf1e313741471ec27cd033cae519ea5c9d87e0cb6d4139e6"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:12.273Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:10.110Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -522,11 +523,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "3c2c772bf6f4e468ac0007beade0f46c558afec7e9e29400f7f1e113bd0df81e"
+      "sha256": "18e861d16a6e50a70cb53ddcea3a020b57762ead043bc50b84b69511fe44e932"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:12.609Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:10.426Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -552,11 +553,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "88750ede073d083e7a80425a1742a43daf9aa7b41f840ee1057a8edf7a4bdf76"
+      "sha256": "0b6ddf49d14ad7316c9c265d1249a91aab77046368932651ea64f2e0366162f6"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:12.930Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:10.704Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -582,11 +583,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "7102e4e8eb51f72550bfca381b45a76c65e711f643ef0bfc8c180f0dcb0cc66d"
+      "sha256": "0ac712adb3501dd88b5f9e48b65df9c088b4ca668da60d0515d92423baaa728f"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:13.324Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:11.052Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -611,11 +612,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "de6c21c83bc751220bfb0cf3b0d9663131b01ceb8e71da6c97c31ccf808a5793"
+      "sha256": "322d11c63e081125e93183745b69a5db2d1341c03219c3117a09ac54ce5ab172"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:13.958Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:11.867Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -641,11 +642,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "899dbb96e7845e97c85f6a5825aa14aa02140e48fe3b761deda4fed8a225da4a"
+      "sha256": "0b58ed7e6c6b0ed237a633336b5ad9e508d36c81f4be3cf00f2b0b51d83474dc"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:15.015Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:13.052Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -671,11 +672,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "0991f1484aa9499f927d862eb087d578de4ae6cf6aa9fd0d8def0f3488d72c8c"
+      "sha256": "64bb2c1d7ad829d3ac07175d0d81b11c433b9e01fe28819f0bdbb7af4c4d74a9"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:15.296Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:13.319Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -700,11 +701,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "5ca8d3db960f057f055f9cb242f9f293bab8dd075b7f4fa3bc45046548b03cab"
+      "sha256": "b8e20b6ae775725135455e2a5ec354ec256eb82fe16258cb0fb838127362e8cb"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:15.779Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:13.771Z",
       "viewport": {
         "width": 820,
         "height": 1180
@@ -730,11 +731,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "a7282a2d8765d86dd9ac3c18c451379451ac305b788240e4df94bd38183613b7"
+      "sha256": "47931470205035c781a9b575efacedd2729b64667dbce4cc5cd4d19b264074c8"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:16.262Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:14.096Z",
       "viewport": {
         "width": 1180,
         "height": 820
@@ -760,11 +761,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "35df84cf97f3816c0b33f19363ff85eff2e85ca07f2332717869053b96e60fa9"
+      "sha256": "d85b88593ed43a2ec49ded1715e737380ce2363208d99fd7081347c0c565ce8e"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:16.755Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:14.442Z",
       "viewport": {
         "width": 1280,
         "height": 752
@@ -790,11 +791,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "959a05b3f4f3757b87ad7674e2e41e0533d3f96025d1211eef8242e4c7356c66"
+      "sha256": "f0d57a5b041441a28834e8e2852d603354be401297bce5df6f78676040eb017f"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:17.131Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:14.809Z",
       "viewport": {
         "width": 390,
         "height": 844
@@ -819,11 +820,11 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "a4ef1045e9ba59739feb5f5605aa6ce862bc02409e1a74894e85dab0a33513c1"
+      "sha256": "8420dabe408f8f9226a4dc46e6361bf895bc61e8e427ff180f6edcf9c8052e28"
     },
     {
-      "commitSha": "000bf7ab03db3f4f34c2da09e20ad18d5a78b027",
-      "capturedAt": "2026-10-29T23:22:17.852Z",
+      "commitSha": "9f3e83b7e3102d04bcf3569330f81475afd5076c",
+      "capturedAt": "2026-10-30T16:38:15.550Z",
       "viewport": {
         "width": 1920,
         "height": 1080
@@ -849,7 +850,7 @@
         "week-person-filter",
         "week-source-filter"
       ],
-      "sha256": "0991f1484aa9499f927d862eb087d578de4ae6cf6aa9fd0d8def0f3488d72c8c"
+      "sha256": "9862feefb56f8d1e7c4ed3fb657b884b39e38e4671226f9e099cbc6925a8e36b"
     }
   ]
 }
