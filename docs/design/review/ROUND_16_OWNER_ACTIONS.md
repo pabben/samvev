@@ -1,6 +1,6 @@
 # Round 16 — remaining owner actions
 
-These are unresolved validation or account/device steps. Public R16 test deployment, HTTPS smoke, backup and isolated restore have passed; none of the owner actions below was performed. School task A/B diagnosis and #17 integrated two-display-session acceptance remain engineering work, not owner actions.
+These are unresolved validation or account/device steps. Public R16 test deployment, HTTPS smoke, backup and isolated restore have passed; none of the owner actions below was performed. School task A/B diagnosis and live fridge/preview parity remain engineering work, not owner actions. #17 integrated synthetic old/new paired-browser acceptance passed separately; the actual target screen still needs owner validation.
 
 | Action | Why it remains open | Boundary |
 |---|---|---|
