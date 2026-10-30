@@ -450,10 +450,11 @@ try {
  await screen.getByText('Synthetic tomatoes',{exact:true}).waitFor({state:'visible'});
  await previewDom.getByText('Synthetic pantry item',{exact:true}).waitFor({state:'visible'});
  for(const name of ['Synthetic adult','Synthetic adult two','Synthetic child one','Synthetic child two','Synthetic child three','Synthetic child four']) {
-   const expectedCount=name==='Synthetic adult'?2:1;
-   assert.equal(await previewDom.getByText(name,{exact:true}).count(),expectedCount,`preview renders ${name} and message author identity`);
-   assert.equal(await screen.getByText(name,{exact:true}).count(),expectedCount,`display renders ${name} and message author identity`);
+   assert.equal(await previewDom.locator('.hub-person-section').getByText(name,{exact:true}).count(),1,`preview renders one selected roster card for ${name}`);
+   assert.equal(await screen.locator('.hub-person-section').getByText(name,{exact:true}).count(),1,`display renders one selected roster card for ${name}`);
  }
+ assert.ok(await previewDom.locator('.hub-message').getByText('Synthetic adult',{exact:true}).count()>=1,'preview renders the separate author identity');
+ assert.ok(await screen.locator('.hub-message').getByText('Synthetic adult',{exact:true}).count()>=1,'display renders the separate author identity');
  for(const [surface,tomorrowSelector] of [[previewDom,'.display-preview-tomorrow'],[screen.locator('body'),'.display-day-card-tomorrow']]){
    assert.equal(await surface.getByText('Synthetic pantry item',{exact:true}).count(),1,'authorized paired display reads the synthetic grocery board');
    assert.equal(await surface.getByText('Synthetic tomatoes',{exact:true}).count(),1);
