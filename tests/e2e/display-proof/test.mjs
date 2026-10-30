@@ -538,6 +538,14 @@ try {
  assert.ok(!deniedMedia.body.assets.some(asset=>asset.id===backgroundAsset),'denied display media projection contains no selected background asset');
  const revokedMedia=await old.evaluate(async()=>{const response=await fetch('/api/v1/display/media');return{status:response.status,body:await response.json()};});
  assert.equal(revokedMedia.status,401,'re-paired old credential cannot read the custom background');
+ const savedSetup=(await db.query('SELECT cards,card_order FROM display_setups WHERE id=$1',[setup])).rows[0];
+ await db.query(`UPDATE display_setups SET cards='["people"]'::jsonb,card_order='["people"]'::jsonb WHERE id=$1`,[setup]);
+ try{
+   const peopleOnlyLive=await screen.evaluate(async ids=>{const response=await fetch('/api/v1/display/projection');return{status:response.status,body:await response.json(),ids};},people);
+   assert.equal(peopleOnlyLive.status,200);assert.deepEqual(peopleOnlyLive.body.setup.cards,['people']);assert.ok(peopleOnlyLive.body.familyLayout.people.some(person=>peopleOnlyLive.ids.includes(person.id)),'people-only live projection retains the authorized person roster');assert.ok(peopleOnlyLive.body.schoolActivities.some(activity=>activity.id===schoolEvent),'people-only live projection retains the authorized school summary');
+   const peopleOnlyPreview=await admin.evaluate(async({household,display,setup})=>{const response=await fetch(`/api/v1/households/${household}/displays/${display}/preview`,{method:'POST',headers:{'content-type':'application/json','x-csrf-token':'synthetic-display-csrf'},body:JSON.stringify({setupId:setup})});return{status:response.status,body:await response.json()};},{household,display,setup});
+   assert.equal(peopleOnlyPreview.status,200);assert.deepEqual(peopleOnlyPreview.body.setup.cards,['people']);assert.ok(peopleOnlyPreview.body.schoolActivities.some(activity=>activity.id===schoolEvent),'people-only manager preview retains the authorized school summary');
+ }finally{await db.query('UPDATE display_setups SET cards=$2,card_order=$3 WHERE id=$1',[setup,JSON.stringify(savedSetup.cards),JSON.stringify(savedSetup.card_order)]);}
 
 } finally {shuttingDown=true;releaseRedeem();for(const context of contexts) await context.unrouteAll({behavior:'ignoreErrors'});await browser?.close();await new Promise(resolve=>server.close(resolve));await db.end();}
 console.log('PASS real browser re-pair, six-person parity, read-only board access, hidden child/message ACL, denied-display privacy, and synthetic calendar single/batch removal, snapshot isolation, authorization and window UI.');
