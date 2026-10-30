@@ -117,7 +117,9 @@ test("rich six-person family projection deduplicates roster and withholds unshar
   } as any;
   const html = previewMarkup(result);
   assert.match(html, /data-person-count="6"/);
-  for (const person of people) assert.equal((html.match(new RegExp(person.displayName, "g")) ?? []).length, 1, `${person.displayName} should render once despite duplicated projection sources`);
+  for (const person of people) {
+    assert.equal((html.match(new RegExp(`id="hub-person-${person.id}"`, "g")) ?? []).length, 1, `${person.id} should have one semantic person card despite duplicated projection sources`);
+  }
   assert.equal((html.match(/class="display-preview-card display-preview-today"/g) ?? []).length, 1);
   assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 0, "explicit Today card replaces the hub's implicit Today section");
   assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
