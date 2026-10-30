@@ -158,6 +158,7 @@ export interface Projection {
   householdBoards?: { groceries?:Array<{id:string;label:string;checked:boolean;revision?:number}>; dinners?:Array<{id:string;localDate:string;title:string|null;emoji?:string|null;revision?:number;cleared?:boolean}>; from?:string; to?:string; readable?: { groceries?: boolean; dinners?: boolean }; writable?: { groceries?: boolean; dinners?: boolean } };
   actionAvailability?: { newMessage?:boolean; homeAssistantControl?:boolean };
   weekActivities?: unknown;
+  schoolActivities?: import("./home-types").SchoolTimelineActivity[];
   nextActivity?: unknown;
   media?: import("./media-adapters").DisplayMediaProjection;
   preview?: boolean;

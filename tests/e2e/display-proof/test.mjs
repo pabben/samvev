@@ -262,7 +262,8 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await assertCurrentWeek(preview);
    assert.ok(await preview.getByText('Synthetic adult',{exact:true}).count()>=1,'admin preview has loaded synthetic people');
    for(const surface of [preview,screen.locator('body')]) {
-     assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),1,'paired display message appears in live UI and preview');
+     assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),0,'school notice stays out of family message cards in live UI and preview');
+     assert.ok(await surface.locator('.hub-person-section').getByText('Synthetic school activity',{exact:true}).count()>=1,'school activity appears in the authorized person summary');
      assert.ok(await surface.locator('.hub-message .avatar img').count()>=1,'authorized message author has a local illustrated avatar');
      assert.equal(await surface.getByText('Synthetic evening landscape',{exact:true}).count(),1,'granted synthetic landscape image is visible');
      assert.equal(await surface.locator('.media-slide img').count(),1,'synthetic album image loaded through the isolated media API');
@@ -296,11 +297,11 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      if(width>=651) { await preview.locator('.hub-person-section').waitFor();assert.equal(await preview.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'admin preview screenshot has loaded all synthetic people'); }
      else assert.equal(await preview.locator('.hub-hero').count(),1,'mobile admin preview screenshot has loaded its display hub');
      const previewFile=`admin-preview-${theme}-${size}.png`;
-     await captureCalendar(previewPage,preview,{readiness:{preview:true},capture:{id:`admin-preview-${theme}-${size}`,file:previewFile,surface:'admin-preview',theme,viewport:{width,height},verified:width>=651?['six synthetic people','household note and child-targeted school notice','read-only synthetic grocery and dinner boards','synthetic evening landscape']:['manager preview hub','mobile viewport'],scrollSelector:'.display-preview'}});
+     await captureCalendar(previewPage,preview,{readiness:{preview:true},capture:{id:`admin-preview-${theme}-${size}`,file:previewFile,surface:'admin-preview',theme,viewport:{width,height},verified:width>=651?['six synthetic people','household note and person school summary','read-only synthetic grocery and dinner boards','synthetic evening landscape']:['manager preview hub','mobile viewport'],scrollSelector:'.display-preview'}});
      if(theme==='light'&&size==='wall-landscape') {
        await capture(admin,{id:'member-home-light-wall-landscape-full',file:'member-home-light-wall-landscape-full.png',surface:'member-home',theme,viewport:{width,height},verified:['full Home layout','synthetic household note'],fullPage:true});
        await captureCalendar(screen,screen.locator('body'),{capture:{id:'paired-display-light-wall-landscape-full',file:'paired-display-light-wall-landscape-full.png',surface:'paired-display',theme,viewport:{width,height},verified:['full paired display layout','person-targeted school notice','synthetic evening landscape'],fullPage:true}});
-       await captureCalendar(previewPage,preview,{readiness:{preview:true},capture:{id:'admin-preview-light-wall-landscape-full',file:'admin-preview-light-wall-landscape-full.png',surface:'admin-preview',theme,viewport:{width,height},verified:['full manager preview layout','household note and child-targeted school notice','synthetic evening landscape'],scrollSelector:'.display-preview',fullPage:true}});
+       await captureCalendar(previewPage,preview,{readiness:{preview:true},capture:{id:'admin-preview-light-wall-landscape-full',file:'admin-preview-light-wall-landscape-full.png',surface:'admin-preview',theme,viewport:{width,height},verified:['full manager preview layout','household note and person school summary','synthetic evening landscape'],scrollSelector:'.display-preview',fullPage:true}});
      }
    }
  }
@@ -426,7 +427,11 @@ try {
  const preview=previewResult.body,live=liveResult.body;
  const messageSummary=value=>value.cards.map(card=>({id:card.id,body:card.body,author:card.author})).sort((a,b)=>a.id.localeCompare(b.id));
  assert.deepEqual(messageSummary(preview),messageSummary(live),'manager preview and paired display expose the same authorized messages');
- assert.deepEqual(messageSummary(preview).map(card=>card.body).sort(),['Synthetic household note','Synthetic school notice']);
+ assert.equal(messageSummary(live).some(card=>card.body==='Synthetic school notice'),false,'server display projection excludes school notice from family message cards');
+ assert.equal(messageSummary(preview).some(card=>card.body==='Synthetic school notice'),false,'server manager preview excludes school notice from family message cards');
+ assert.ok(live.schoolActivities.some(activity=>activity.id===schoolEvent),'server display projection retains school activity in authorized person area');
+ assert.ok(preview.schoolActivities.some(activity=>activity.id===schoolEvent),'server manager preview retains school activity in authorized person area');
+ assert.deepEqual(messageSummary(preview).map(card=>card.body).sort(),['Synthetic household note']);
  const semantic=value=>({cards:value.setup.cardOrder,selectedPeople:[...value.setup.personIds].sort(),profiles:value.familyLayout.people.map(person=>person.id).sort(),boardReadable:value.householdBoards.readable,boardWritable:value.householdBoards.writable,groceries:value.householdBoards.groceries.map(item=>item.label).sort(),dinners:value.householdBoards.dinners.map(item=>item.title).sort()});
  assert.deepEqual(semantic(preview),semantic(live));
  assert.deepEqual(semantic(live),{cards:['household_messages','family_layout','today','tomorrow','week','groceries','dinners','photos'],selectedPeople:[...people].sort(),profiles:[...people].sort(),boardReadable:{groceries:true,dinners:true},boardWritable:{groceries:false,dinners:false},groceries:['Synthetic pantry item','Synthetic tomatoes','Synthetic tortillas'],dinners:['Synthetic tomato pasta','Synthetic veggie tacos']});
@@ -464,7 +469,8 @@ try {
    assert.equal(await surface.getByText('Denne tavlen er ikke delt med skjermen.',{exact:true}).count(),0,'authorized paired display has no board denial fallback');
    assert.ok(await surface.getByText('Kalenderinnhold er slått av for denne skjermen. Slå det på under Datatilgang.',{exact:true}).count()<=1,'no duplicate calendar warning');
    assert.ok(await surface.getByText('Synthetic school activity',{exact:true}).count()>=1,'Today activity appears in the rendered surface');
-   assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),1,'synthetic household message appears once');
+   assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),0,'school notice stays in the person school area, not family message cards');
+   assert.ok(await surface.locator('.hub-person-section').getByText('Synthetic school activity',{exact:true}).count()>=1,'school activity appears in the authorized person summary');
    assert.ok(await surface.locator('.hub-message .avatar img').count()>=1,'person-targeted notice has an illustrated author avatar');
    assert.equal(await surface.getByText('Synthetic evening landscape',{exact:true}).count(),1,'synthetic album landscape appears once');
    assert.equal(await surface.locator('.media-slide img').count(),1,'synthetic album image is loaded');
@@ -495,7 +501,7 @@ try {
  assert.ok(!negativeLive.body.familyLayout.people.some(selected=>selected.id===hiddenPerson),'unselected child is absent from live profile projection');
  await screen.goto('/display');
  await screen.locator('.family-hub').waitFor();
- await screen.getByText('Synthetic school activity',{exact:true}).waitFor({state:'visible'});
+ await screen.locator('.hub-person-section').getByText('Synthetic school activity',{exact:true}).waitFor({state:'visible'});
  await admin.goto('/?tab=displays');
  await admin.getByRole('heading',{name:'Et felles blikk på hjemmet.',exact:true}).waitFor();
  await admin.locator('summary').filter({hasText:'Datatilgang'}).click();

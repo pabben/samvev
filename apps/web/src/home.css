@@ -610,6 +610,7 @@ body{font-family:var(--font-sans)}
 .family-hub.hub-display-compact-people .hub-person-name>strong{display:flex;align-items:center;justify-content:space-between;gap:5px;min-width:0;font-size:clamp(14px,1.25vw,18px);line-height:1.25;overflow-wrap:anywhere}
 .family-hub.hub-display-compact-people .hub-person-name .icon{position:static;flex:0 0 auto;margin-left:auto}
 .family-hub.hub-display-compact-people .hub-person-name>.hub-person-activity{display:none}
+.family-hub.hub-display-compact-people .hub-person-name>.hub-person-school-activity{display:block;margin-top:2px;font-size:12px;line-height:1.3;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .family-hub.hub-display-compact-people .hub-person-birthday{font-size:12px;line-height:1.25;overflow-wrap:anywhere}
 .family-hub.hub-display-compact-people .hub-grid .hub-messages{min-width:0;padding:10px}
 .family-hub.hub-display-compact-people .hub-grid .hub-message-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:8px}

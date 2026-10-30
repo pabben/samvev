@@ -1000,6 +1000,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
       LEFT JOIN memberships ms ON ms.id=m.author_membership_id LEFT JOIN persons p ON p.id=ms.person_id AND p.household_id=m.household_id
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE t.display_id=$1 AND m.household_id=$2 AND m.state='published' AND t.delivery_state IN ('queued','delivered','displayed')
+        AND NOT EXISTS(SELECT 1 FROM monitor_events school_event JOIN monitor_tasks school_task ON school_task.id=school_event.task_id AND school_task.household_id=school_event.household_id WHERE school_event.message_id=m.id AND school_task.presentation_kind='school')
         AND (m.audience_household OR NOT EXISTS(SELECT 1 FROM message_person_audiences restricted WHERE restricted.message_id=m.id)
           OR EXISTS(SELECT 1 FROM message_person_audiences selected WHERE selected.message_id=m.id AND selected.person_id=ANY($3::uuid[])))
         AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
@@ -1032,6 +1033,8 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
   const upcomingBirthdays=birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday);
   const contentReadiness=await displayContentReadiness(pool,display);
+  const schoolActivities=(!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout')&&display.profilePersonIds.length)
+    ?(await personActivities({householdId:display.householdId,personIds:display.profilePersonIds.filter((id)=>display.selectedPersonIds.includes(id)),viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from:localToday,to:dateOffset(localToday,1),limit:200,maxDays:2,display})).activities.filter((activity)=>activity.type==='school'):[];
   const [boardGrant,boardActions]=await Promise.all([
     pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id]),
     pool.query<{grocery_write:boolean;dinner_write:boolean;home_assistant_control:boolean}>(`SELECT grocery_write,dinner_write,home_assistant_control FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])
@@ -1068,7 +1071,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
     familyLayout:{enabled:!display.privacyMode&&display.familyLayoutEnabled&&display.cards.includes('family_layout'),
       people:familyProfiles.map((person)=>({id:person.id,displayName:person.display_name,avatarKey:person.avatar_key,colorToken:person.color_token,photo:options.preview?previewPhotoProjection(display.householdId,display.id,person.id,person.photo_revision,options.previewTag??''):displayPhotoProjection(person.id,person.photo_revision)})),
       upcomingBirthdays},
-    cards,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd,readable:boardReadable,writable:boardWritable},...(hub?{hub:options.preview?{...hub,people:(hub.people as Array<Record<string,unknown>>).map((person)=>{const photo=person.photo as {revision?:number}|null;return{...person,photo:previewPhotoProjection(display.householdId,display.id,String(person.id),photo?.revision??null,options.previewTag??'')};})}:hub}:{}),
+    cards,schoolActivities,householdBoards:{groceries,dinners,from:localToday,to:boardWeekEnd,readable:boardReadable,writable:boardWritable},...(hub?{hub:options.preview?{...hub,people:(hub.people as Array<Record<string,unknown>>).map((person)=>{const photo=person.photo as {revision?:number}|null;return{...person,photo:previewPhotoProjection(display.householdId,display.id,String(person.id),photo?.revision??null,options.previewTag??'')};})}:hub}:{}),
     actionAvailability:{newMessage:await displayCanComposeMessage(display),homeAssistantControl:!options.preview&&!display.privacyMode&&display.cards.includes('home_assistant')&&boardActions?.home_assistant_control===true},serverNow:now.toISOString(),generatedAt:now.toISOString(),cacheUntil:hardCache.toISOString(),maxStaleSeconds:900
   };
 }
