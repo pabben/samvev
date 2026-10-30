@@ -17,12 +17,21 @@ const installation=await id("INSERT INTO installations(claimed_at,setup_step) VA
 const household=await id("INSERT INTO households(installation_id,name,timezone,default_locale) VALUES($1,'Synthetic household','Europe/Oslo','nb') RETURNING id",[installation]);
 const person=await id("INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic adult','adult') RETURNING id",[household]);
 const account=await id("INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,'display-proof@test.invalid','unused','nb','light') RETURNING id",[installation]);
-await id("INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'household_admin',$4) RETURNING id",[household,account,person,JSON.stringify(roleCapabilityPresets.household_admin)]);
+const membership=await id("INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'household_admin',$4) RETURNING id",[household,account,person,JSON.stringify(roleCapabilityPresets.household_admin)]);
 await db.query("INSERT INTO sessions(account_id,token_hash,csrf_hash,expires_at) VALUES($1,$2,$3,clock_timestamp()+interval '1 hour')",[account,hash('synthetic-display-manager'),hash('synthetic-display-csrf')]);
-const setup=await id("INSERT INTO display_setups(household_id,name,locale,theme,cards,card_order) VALUES($1,'Synthetic shared setup','nb','dark','[\"today\"]','[\"today\"]') RETURNING id",[household]);
-await db.query('INSERT INTO display_setup_people(household_id,setup_id,person_id) VALUES($1,$2,$3)',[household,setup,person]);
+const people=[person];
+for(const [name,age] of [['Synthetic adult two','adult'],['Synthetic child one','child'],['Synthetic child two','child'],['Synthetic child three','child'],['Synthetic child four','child']]) people.push(await id('INSERT INTO persons(household_id,display_name,age_group) VALUES($1,$2,$3) RETURNING id',[household,name,age]));
+const setup=await id("INSERT INTO display_setups(household_id,name,locale,theme,cards,card_order,family_layout_enabled) VALUES($1,'Synthetic shared setup','nb','dark','[\"family_layout\",\"today\",\"groceries\"]','[\"family_layout\",\"today\",\"groceries\"]',true) RETURNING id",[household]);
+for(const selected of people) await db.query('INSERT INTO display_setup_people(household_id,setup_id,person_id) VALUES($1,$2,$3)',[household,setup,selected]);
 const display=await id("INSERT INTO displays(household_id,setup_id,name,locale,theme,credential_hash,credential_expires_at) VALUES($1,$2,'Synthetic wall display','nb',NULL,$3,clock_timestamp()+interval '1 hour') RETURNING id",[household,setup,hash('synthetic-old-display')]);
-await db.query('INSERT INTO display_person_grants(household_id,display_id,person_id,profile_allowed) VALUES($1,$2,$3,true)',[household,display,person]);
+for(const selected of people) await db.query('INSERT INTO display_person_grants(household_id,display_id,person_id,profile_allowed) VALUES($1,$2,$3,true)',[household,display,selected]);
+await db.query("INSERT INTO household_grocery_items(household_id,label,created_by_actor_type,created_by_actor_id) VALUES($1,'Synthetic unshared grocery','member',$2)",[household,membership]);
+const task=await id("INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,state,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier,revision,approved_revision,presentation_kind) VALUES($1,$2,'Synthetic school task','Synthetic instructions','https://school.test.invalid/source','active',60,0,'08:00','default','routine',1,1,'school') RETURNING id",[household,membership]);
+await db.query('INSERT INTO monitor_task_subjects(household_id,task_id,person_id) VALUES($1,$2,$3)',[household,task,people[2]]);
+const message=await id("INSERT INTO messages(household_id,author_membership_id,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at) VALUES($1,$2,'Synthetic school notice','normal',false,clock_timestamp()-interval '1 minute',clock_timestamp()+interval '2 days','published','synthetic-proof-school',clock_timestamp()) RETURNING id",[household,membership]);
+await db.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES($1,$2,$3)',[household,message,people[2]]);
+await db.query("INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES($1,$2,$3,'delivered')",[household,message,display]);
+const schoolEvent=await id("INSERT INTO monitor_events(household_id,task_id,event_key,event_date,event_type,description,actions,evidence,confidence,source_fingerprint,message_id,school_expires_at) VALUES($1,$2,'synthetic-proof-school',(clock_timestamp() AT TIME ZONE 'Europe/Oslo')::date,'preparation','Synthetic school activity','[\"Pack synthetic item\"]',$3,0.9,'synthetic-proof-fingerprint',$4,clock_timestamp()+interval '2 days') RETURNING id",[household,task,JSON.stringify({sourceUrl:'https://school.test.invalid/event',quote:'Synthetic saved evidence'}),message]);
 const snapshot=async()=> (await db.query("SELECT to_jsonb(d)-ARRAY['credential_hash','credential_expires_at','credential_generation','last_seen_at'] AS display,(SELECT jsonb_agg(to_jsonb(g) ORDER BY g.person_id) FROM display_person_grants g WHERE g.display_id=d.id) AS grants FROM displays d WHERE d.id=$1",[display])).rows[0];
 const before=await snapshot();
 const root=resolve('apps/web/dist');
@@ -66,6 +75,7 @@ try {
  await adminCtx.addCookies([{name:'samvev_session',value:'synthetic-display-manager',url:origin},{name:'samvev_csrf',value:'synthetic-display-csrf',url:origin}]);
  await oldCtx.addCookies([{name:'samvev_display',value:'synthetic-old-display',domain:'127.0.0.1',path:'/api/v1/display'}]);
  const admin=await adminCtx.newPage(),old=await oldCtx.newPage(),screen=await newCtx.newPage();
+ await screen.setViewportSize({width:752,height:1280});
  const projection=page=>page.evaluate(async()=> (await fetch('/api/v1/display/projection')).status);
  await old.goto('/display');assert.equal(await projection(old),200);
  await admin.goto('/?tab=displays');await admin.getByRole('heading',{name:'Et felles blikk på hjemmet.',exact:true}).waitFor();
@@ -83,5 +93,48 @@ try {
  assert.equal(await projection(old),401);assert.equal(await projection(screen),200);
  assert.deepEqual(await snapshot(),before);
  assert.equal((await db.query('SELECT credential_generation FROM displays WHERE id=$1',[display])).rows[0].credential_generation,2);
+
+ // Compare the persisted setup's authoritative manager preview with the new device.
+ const previewResult=await admin.evaluate(async({household,display,setup})=>{
+   const response=await fetch(`/api/v1/households/${household}/displays/${display}/preview`,{method:'POST',headers:{'content-type':'application/json','x-csrf-token':'synthetic-display-csrf'},body:JSON.stringify({setupId:setup})});
+   return {status:response.status,body:await response.json()};
+ },{household,display,setup});
+ assert.equal(previewResult.status,200);
+ const liveResult=await screen.evaluate(async()=>{const response=await fetch('/api/v1/display/projection');return {status:response.status,body:await response.json()};});
+ assert.equal(liveResult.status,200);
+ const preview=previewResult.body,live=liveResult.body;
+ const semantic=value=>({cards:value.setup.cardOrder,selectedPeople:[...value.setup.personIds].sort(),profiles:value.familyLayout.people.map(person=>person.id).sort(),boardReadable:value.householdBoards.readable,boardWritable:value.householdBoards.writable,groceries:value.householdBoards.groceries.length});
+ assert.deepEqual(semantic(preview),semantic(live));
+ assert.deepEqual(semantic(live),{cards:['family_layout','today','groceries'],selectedPeople:[...people].sort(),profiles:[...people].sort(),boardReadable:{groceries:false,dinners:false},boardWritable:{groceries:false,dinners:false},groceries:0});
+ const date=preview.householdBoards.from;
+ const liveDay=await screen.evaluate(async date=>{const response=await fetch(`/api/v1/display/activities?from=${date}&to=${date}&limit=50`);return {status:response.status,body:await response.json()};},date);
+ assert.equal(liveDay.status,200);
+ const previewToday=preview.dayActivities.activities.filter(activity=>activity.date===date);
+ assert.equal(liveDay.body.activities.length,1,'one synthetic school activity is visible today');
+ assert.deepEqual(previewToday.map(activity=>({id:activity.id,type:activity.type})),liveDay.body.activities.map(activity=>({id:activity.id,type:activity.type})), 'Today preview and live activity counts and identity');
+ assert.equal(previewToday[0].id,schoolEvent);
+ await screen.locator('.hub-person-section').waitFor();
+ await admin.locator('dialog button.button').filter({hasText:'Lukk'}).click();
+ await admin.locator('summary').filter({hasText:'Datatilgang'}).click();
+ await admin.getByRole('button',{name:'Forhåndsvis denne skjermen'}).click();
+ const previewDom=admin.locator('.display-preview');await previewDom.waitFor();
+ await admin.getByLabel('Retning for forhåndsvisning').selectOption('portrait');
+ assert.equal(await admin.locator('.display-preview-portrait').count(),1);
+ for(const name of ['Synthetic adult','Synthetic adult two','Synthetic child one','Synthetic child two','Synthetic child three','Synthetic child four']) {
+   assert.equal(await previewDom.getByText(name,{exact:true}).count(),1,`preview renders ${name} once`);
+   assert.equal(await screen.getByText(name,{exact:true}).count(),1,`display renders ${name} once`);
+ }
+ for(const surface of [previewDom,screen.locator('body')]){
+   assert.equal(await surface.getByText('Synthetic unshared grocery',{exact:true}).count(),0);
+   assert.equal(await surface.getByText('Denne tavlen er ikke delt med skjermen.',{exact:true}).count(),1);
+   assert.ok(await surface.getByText('Kalenderinnhold er slått av for denne skjermen. Slå det på under Datatilgang.',{exact:true}).count()<=1,'no duplicate calendar warning');
+   assert.equal(await surface.getByText('Synthetic school activity',{exact:true}).count(),1,'Today activity appears once');
+   assert.ok(await surface.locator('.hub-hero').count()<=1,'no duplicate welcome');
+   assert.ok(await surface.locator('.hub-hero-clock').count()<=1,'no duplicate clock');
+   assert.equal(await surface.locator('.board-add-row').count(),0,'no unshared board actions');
+ }
+ assert.equal(await previewDom.locator('.display-preview-today').count(),1);
+ assert.equal(await screen.locator('section[aria-label="I dag"]').count(),1);
+
 } finally {shuttingDown=true;releaseRedeem();for(const context of contexts) await context.unrouteAll({behavior:'ignoreErrors'});await browser?.close();await new Promise(resolve=>server.close(resolve));await db.end();}
-console.log('PASS real browser re-pair; old 401, replacement 200, same display, setup and grants.');
+console.log('PASS real browser re-pair and six-person preview/live parity; unshared grocery remains hidden.');
