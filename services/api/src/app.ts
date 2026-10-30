@@ -798,7 +798,7 @@ async function displayHub(display:DisplayContext,db:DbClient=pool,lockRows=false
 
 async function displayPersonPhotoVisible(display:DisplayContext,personId:string,db:DbClient=pool,lockRows=false):Promise<boolean>{
   if(display.privacyMode||!display.selectedPersonIds.includes(personId))return false;
-  if(display.familyLayoutEnabled&&display.cards.includes('family_layout')&&display.profilePersonIds.includes(personId))return true;
+  if(((display.familyLayoutEnabled&&display.cards.includes('family_layout'))||display.cards.includes('people'))&&display.profilePersonIds.includes(personId))return true;
   if(display.cards.includes('household_messages')){
     const message=await db.query<{id:string;acl_witness:string}>(`SELECT msg.id,${displayMessageWitnessSql('$3','$4')} AS acl_witness FROM messages msg JOIN memberships author ON author.id=msg.author_membership_id
       JOIN message_display_targets target ON target.message_id=msg.id AND target.household_id=msg.household_id
@@ -1018,7 +1018,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
       AND (t.delivery_state='queued' OR t.delivered_revision IS DISTINCT FROM m.revision)`,[display.id,cardIds,display.credentialHash,display.credentialGeneration]);
   }
   const hub=await displayHub(display);
-  const familyProfiles=(!display.privacyMode && display.familyLayoutEnabled && (display.cards.includes('family_layout')||display.cards.includes('people')) && display.profilePersonIds.length)
+  const familyProfiles=(!display.privacyMode && ((display.familyLayoutEnabled&&display.cards.includes('family_layout'))||display.cards.includes('people')) && display.profilePersonIds.length)
     ?(await pool.query<{id:string;display_name:string;avatar_key:string|null;color_token:string;photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.color_token,ph.revision AS photo_revision FROM persons p
       JOIN display_person_grants profile ON profile.household_id=p.household_id AND profile.person_id=p.id AND profile.display_id=$4 AND profile.profile_allowed
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
@@ -1033,7 +1033,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
   const upcomingBirthdays=birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday);
   const contentReadiness=await displayContentReadiness(pool,display);
-  const schoolActivities=(!display.privacyMode&&(display.cards.includes('family_layout')||display.cards.includes('people'))&&display.profilePersonIds.length)
+  const schoolActivities=(!display.privacyMode&&((display.familyLayoutEnabled&&display.cards.includes('family_layout'))||display.cards.includes('people'))&&display.profilePersonIds.length)
     ?(await personActivities({householdId:display.householdId,personIds:display.profilePersonIds.filter((id)=>display.selectedPersonIds.includes(id)),viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from:localToday,to:dateOffset(localToday,1),limit:200,maxDays:2,display})).activities.filter((activity)=>activity.type==='school'):[];
   const [boardGrant,boardActions]=await Promise.all([
     pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id]),
