@@ -16,6 +16,7 @@ import type {MonitorActor} from './service.ts';
 import {selectRelevantSource,type MonitorSourceFetcher,type SourceDocument} from './source-fetcher.ts';
 import {nextMonitorCheckAt} from './schedule.ts';
 import {AiAdminService} from '../ai/admin-service.ts';
+import {weatherEvidenceText} from './weather.ts';
 
 const guard=new URL(process.env.DATABASE_URL??'');assert.equal(guard.hostname,'test-db');assert.equal(guard.pathname,'/samvev_test');
 let actor:MonitorActor;let taskId:string;let now=Date.parse('2026-09-13T12:00:00Z');let app:FastifyInstance;let sessionToken:string;let csrfToken:string;
@@ -104,14 +105,45 @@ test('first approved answer run keeps unrelated linked PDF out of model evidence
   const html:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',title:'Synthetic school page',headings:[quote],text:quote,fingerprint:'synthetic-answer-html',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(quote),links:[{url:'https://example.com/files/other-school.pdf',label:'Other school timetable'}],evidenceComplete:true,evidenceKind:'web'};
   const pdf:SourceDocument={finalUrl:'https://example.com/files/other-school.pdf',contentType:'application/pdf',title:'Unrelated school timetable',headings:[],text:unrelated,fingerprint:'synthetic-answer-unrelated-pdf',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(unrelated),links:[],evidenceComplete:true,evidenceKind:'web'};
   const fetchOptions:any[]=[];const fetcher={fetch:async(_url:string,options:any)=>{fetchOptions.push(options);return options.followLinkedPdf?pdf:html;}} as unknown as MonitorSourceFetcher;
-  let turn=0;let visible='';let maxOutputTokens=0;
-  const ai={createTaskSession:async(_householdId:string,task:any)=>{maxOutputTokens=task.maxOutputTokens;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
+  let turn=0;let visible='';let maxOutputTokens=0;let answerPrompt='';
+  const ai={createTaskSession:async(_householdId:string,task:any)=>{maxOutputTokens=task.maxOutputTokens;answerPrompt=task.input;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
     turn++;if(turn===1)return{toolCalls:[{id:'open-school',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};
     visible=results[0]?.output??'';return{output:JSON.stringify({version:1,outputLocale:'nb',answer:quote,evidence:{quote,sourceUrl:html.finalUrl,claims:[quote]},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};
   }};}};
   const result=await new MonitorEngine(fetcher,ai as any).runManual(actor,taskId,1,'manual');
   assert.equal(result.resultKind,'answer');assert.deepEqual(fetchOptions.map((item)=>item.followLinkedPdf),[false]);assert.equal(turn,2);
-  assert.match(visible,/Synthetic answer heading in the approved HTML page/);assert.doesNotMatch(visible,/Unrelated PDF: another school timetable/);assert.equal(maxOutputTokens,1024);
+  assert.match(visible,/Synthetic answer heading in the approved HTML page/);assert.doesNotMatch(visible,/Unrelated PDF: another school timetable/);assert.equal(maxOutputTokens,2048);
+  const answerInstructions=answerPrompt.split('\nSamvev already opened and validated the explicitly approved root source.')[0]!;
+  assert.ok(answerInstructions.length<2_000,`answer instructions stay compact (${answerInstructions.length} chars)`);
+  assert.match(answerPrompt,/Set outputLocale exactly/);assert.match(answerPrompt,/exact surfaced same-origin URL/);
+  assert.match(answerPrompt,/answer and occur verbatim in evidence\.quote/);assert.match(answerPrompt,/when supplied, each claim must be exact and one claim must equal answer/);assert.match(answerPrompt,/Samvev binds evidence to opened sources/);
+  assert.match(answerPrompt,/first editorial heading in document order, excluding title, navigation and section labels/);
+  assert.match(answerPrompt,/via Yr.*use weather\.forecast, never scrape Yr/);
+  assert.match(answerPrompt,/If web evidence determines a weather date, open it first and request weather only for that exact date/);
+  assert.doesNotMatch(answerPrompt,/conditional event|For each relevant conditional event/);
+});
+
+test('weather answer uses an exact official sentence and approved weather scope',async()=>{
+  await fixture();
+  const rule={version:1,resultKind:'answer',summary:'Read the Oslo forecast tomorrow.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['weather.forecast'],location:{query:'Oslo',canonicalName:'Oslo',country:'Norge'},weatherScope:{location:'Oslo',period:'tomorrow',timeWindow:'all'}};
+  await pool.query(`UPDATE monitor_tasks SET instruction='Tell me the weather in Oslo tomorrow via Yr.',interpreted_rule=$2,tool_plan='["weather.forecast"]'::jsonb WHERE id=$1`,[taskId,JSON.stringify(rule)]);
+  const forecast={sourceUrl:'https://api.met.no/weatherapi/locationforecast/2.0/compact',attribution:'MET Norway Locationforecast' as const,retrievedAt:'2026-09-13T12:00:00.000Z',updatedAt:null,validFrom:'2030-09-20T00:00:00.000Z',validTo:'2030-09-21T00:00:00.000Z',location:{query:'Oslo',canonicalName:'Oslo',municipality:null,region:null,country:'Norge' as const,latitude:59.9,longitude:10.7,placeId:'synthetic-oslo'},points:[{at:'2030-09-20T12:00:00.000Z',temperatureC:10,precipitationMm:2,windSpeedMps:3,symbolCode:'rain'}],fingerprint:'synthetic-oslo-forecast',httpStatus:200 as const,cacheStatus:'miss' as const};
+  const quote=weatherEvidenceText(forecast).split('\n').find((line:string)=>line.startsWith('Norwegian presentation:'))!.replace('Norwegian presentation: ','');
+  let answerPrompt='';let maxOutputTokens=0;let turn=0;
+  const ai={createTaskSession:async(_householdId:string,task:any)=>{answerPrompt=task.input;maxOutputTokens=task.maxOutputTokens;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{
+    turn++;return{output:JSON.stringify({version:1,outputLocale:'nb',answer:quote,evidence:{quote},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};
+  }};}};
+  const requests:any[]=[];const weather={forecast:async(request:any)=>{requests.push(request);return forecast;}};
+  const result=await new MonitorEngine({fetch:async()=>{throw new Error('weather-only answer must not fetch web');}} as any,ai as any,weather as any).runManual(actor,taskId,1,'test');
+  assert.equal(result.resultKind,'answer');assert.equal(maxOutputTokens,2048);assert.equal(turn,1);
+  assert.deepEqual(requests,[{location:'Oslo',period:'tomorrow',timeWindow:'all'}]);
+  assert.match(answerPrompt,/first editorial heading in document order, excluding title, navigation and section labels/);
+  assert.match(answerPrompt,/via Yr.*use weather\.forecast, never scrape Yr/);
+  assert.match(answerPrompt,/If web evidence determines a weather date, open it first and request weather only for that exact date/);
+  const answerInstructions=answerPrompt.split('\nSamvev already executed the approved weather.forecast call.')[0]!;
+  assert.ok(answerInstructions.length<2_000,`weather answer instructions stay compact (${answerInstructions.length} chars)`);
+  assert.match((result.result as any).answer,/Vær for Oslo, Norge/);
+  assert.deepEqual((await pool.query<{state:string}>('SELECT state FROM monitor_tasks WHERE id=$1',[taskId])).rows[0]!.state,'draft');
 });
 
 test('output limit response fails safely without an automatic higher-tier retry',async()=>{
