@@ -38,6 +38,15 @@ test('OpenAI-compatible response diagnostics classify only safe structural reaso
   }
 });
 
+test('OpenAI-compatible length finish reason rejects partial output while retaining usage and hiding content',()=>{
+  const partial='{"answer":"SYNTHETIC_PRIVATE_PARTIAL';
+  assert.throws(()=>chatCompletionTurn({choices:[{message:{content:partial},finish_reason:'length'}],usage:{prompt_tokens:23,completion_tokens:300}}),(error:unknown)=>
+    error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID'&&error.responseReason==='output_limit_reached'&&
+    error.usage?.inputTokens===23&&error.usage?.outputTokens===300&&!error.message.includes('SYNTHETIC_PRIVATE_PARTIAL'));
+  assert.equal(chatCompletionTurn({choices:[{message:{content:'{}'},finish_reason:'stop'}]}).output,'{}');
+  assert.equal(chatCompletionTurn({choices:[{message:{tool_calls:[{id:'call',function:{name:'tool',arguments:'{}'}}]},finish_reason:'tool_calls'}]}).toolCalls.length,1);
+});
+
 test('provider configuration requires credentials only when the provider contract does',()=>{
   assert.doesNotThrow(()=>validateAiProviderConfiguration({provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}));
   assert.throws(()=>validateAiProviderConfiguration({provider:'openai',model:'remote'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_CONFIGURATION_INVALID');

@@ -75,7 +75,7 @@ export type AiFailureCode = 'AI_DAILY_DISPATCH_LIMIT' | 'AI_CONFIGURATION_INVALI
   'AI_REAUTHORIZATION_REQUIRED' | 'AI_PLAN_PERMISSION_REQUIRED' | 'AI_PLAN_USAGE_LIMITED' | 'AI_PLAN_NOT_ELIGIBLE' | 'AI_STREAM_INTERRUPTED' |
   'AI_KEY_INVALID' | 'AI_PERMISSION_DENIED' | 'AI_BILLING_REQUIRED' | 'AI_PROVIDER_RATE_LIMITED' | 'AI_MODEL_UNAVAILABLE';
 export type AiProviderResponseReason=
-  'invalid_json_body'|'missing_choices'|'missing_message'|'invalid_tool_calls'|'empty_content'|'invalid_turn_shape'|'response_too_large'|
+  'invalid_json_body'|'missing_choices'|'missing_message'|'invalid_tool_calls'|'empty_content'|'invalid_turn_shape'|'response_too_large'|'output_limit_reached'|
   'upstream_http_4xx'|'upstream_http_5xx'|'upstream_http_other'|'upstream_invalid_json'|'upstream_response_too_large'|'upstream_context_limit'|'upstream_rate_limited'|'upstream_format_unsupported'|'upstream_tool_unsupported'|'network_error';
 export type AiProviderFallbackReason='transient'|'network_error'|'provider_rate_limited';
 

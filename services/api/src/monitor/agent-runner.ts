@@ -292,7 +292,7 @@ export class MonitorAgentRunner {
       }
       fail('MONITOR_TOOL_LIMIT');
     }catch(error){
-      const providerReasons=['invalid_json_body','missing_choices','missing_message','invalid_tool_calls','empty_content','invalid_turn_shape','response_too_large','upstream_http_4xx','upstream_http_5xx','upstream_http_other','upstream_invalid_json','upstream_response_too_large','upstream_context_limit','upstream_rate_limited','upstream_format_unsupported','upstream_tool_unsupported','network_error'] as const;
+      const providerReasons=['invalid_json_body','missing_choices','missing_message','invalid_tool_calls','empty_content','invalid_turn_shape','response_too_large','output_limit_reached','upstream_http_4xx','upstream_http_5xx','upstream_http_other','upstream_invalid_json','upstream_response_too_large','upstream_context_limit','upstream_rate_limited','upstream_format_unsupported','upstream_tool_unsupported','network_error'] as const;
       const providerReason=error instanceof DomainError&&typeof error.details?.providerResponseReason==='string'&&providerReasons.includes(error.details.providerResponseReason as typeof providerReasons[number])?error.details.providerResponseReason as typeof providerReasons[number]:undefined;
       const diagnosed=error instanceof DomainError&&((error.code==='AI_RESPONSE_INVALID')||(error.code==='AI_UPSTREAM_ERROR'&&providerReason))&&!sanitizedValidationDetails(error.details)
         ?validationError(error.code,error.status,'provider_response',providerReason??'invalid_provider_response')

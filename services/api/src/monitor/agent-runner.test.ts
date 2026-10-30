@@ -47,6 +47,11 @@ test('runner preserves an allowlisted provider response reason without raw provi
   await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='empty_content'&&!('providerResponseReason' in (error.details??{}))&&!('rawOutput' in (error.details??{}))&&!('reasoning' in (error.details??{})));
 });
 
+test('runner exposes a safe output limit diagnostic without raw partial JSON',async()=>{
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_RESPONSE_INVALID',502,{providerResponseReason:'output_limit_reached',rawOutput:'SYNTHETIC_PRIVATE_PARTIAL_JSON'});}})} as unknown as AiAdminService;
+  await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='output_limit_reached'&&!('providerResponseReason' in (error.details??{}))&&!('rawOutput' in (error.details??{})));
+});
+
 test('runner preserves only a safe upstream category',async()=>{
   const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_UPSTREAM_ERROR',502,{providerResponseReason:'upstream_http_5xx',body:'must not escape'});}})} as unknown as AiAdminService;
   await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_UPSTREAM_ERROR'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='upstream_http_5xx'&&!('providerResponseReason' in (error.details??{}))&&!('body' in (error.details??{})));

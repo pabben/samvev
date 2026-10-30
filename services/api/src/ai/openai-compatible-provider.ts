@@ -202,7 +202,9 @@ function upstreamReason(status:number,payload:Record<string,unknown>){
 export function chatCompletionTurn(payload: Record<string, unknown>): AiProviderTurn {
   const usage = normalizedUsage(payload.usage);
   if (!Array.isArray(payload.choices) || !payload.choices.length) throw new AiProviderFailure('AI_RESPONSE_INVALID', usage, 'missing_choices');
-  const message = (payload.choices[0] as { message?: unknown } | undefined)?.message;
+  const choice=payload.choices[0] as {message?:unknown;finish_reason?:unknown}|undefined;
+  if(choice?.finish_reason==='length')throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,'output_limit_reached');
+  const message = choice?.message;
   if (!message || typeof message !== 'object') throw new AiProviderFailure('AI_RESPONSE_INVALID', usage, 'missing_message');
   const row = message as Record<string, unknown>;
   if(row.tool_calls!==undefined&&!Array.isArray(row.tool_calls))throw new AiProviderFailure('AI_RESPONSE_INVALID',usage,'invalid_tool_calls');
