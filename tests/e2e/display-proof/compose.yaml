@@ -1,0 +1,51 @@
+name: samvev-m1
+services:
+  proof-db:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_DB: display_proof
+      POSTGRES_USER: display_proof
+      POSTGRES_PASSWORD: synthetic-display-proof-only
+    tmpfs: [/var/lib/postgresql/data]
+    networks: {proof: {aliases: [proof-db]}}
+  proof-api:
+    image: samvev-m1/workspace:local
+    working_dir: /source
+    environment:
+      DATABASE_URL: postgresql://display_proof:synthetic-display-proof-only@proof-db:5432/display_proof
+      SAMVEV_PUBLIC_ORIGIN: http://127.0.0.1:4174
+      SAMVEV_DEMO_MODE: 'true'
+      HOST: 0.0.0.0
+      PORT: '4173'
+    volumes:
+      - type: bind
+        source: ${SOURCE:?}
+        target: /source
+        read_only: true
+      - type: volume
+        source: deps
+        target: /source/node_modules
+        read_only: true
+    networks: {proof: {aliases: [proof-api]}}
+    command: [sh, -ec, 'node tests/e2e/display-proof/identity.mjs && npm run db:migrate && npm run dev:api']
+  proof-browser:
+    image: samvev-m1/browser:local
+    working_dir: /workspace
+    environment:
+      DATABASE_URL: postgresql://display_proof:synthetic-display-proof-only@proof-db:5432/display_proof
+      CI: 'true'
+    volumes:
+      - type: bind
+        source: ${SOURCE:?}
+        target: /source
+        read_only: true
+    networks: [proof]
+    command: [sh, -ec, 'tar -C /source --exclude=node_modules --exclude=dist -cf - package.json package-lock.json tsconfig.json apps packages services scripts tests/e2e/display-proof/test.mjs | tar -C /workspace -xf - && npm run build --workspace @samvev/web && node tests/e2e/display-proof/test.mjs']
+networks:
+  proof:
+    name: samvev-m1-display-proof-${PROOF_ID:?}
+    internal: true
+volumes:
+  deps:
+    external: true
+    name: samvev-m1-workspace-node-modules
