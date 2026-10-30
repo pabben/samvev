@@ -58,6 +58,114 @@ await db.query("INSERT INTO household_grocery_items(household_id,label,created_b
  await db.query('UPDATE display_setups SET cards=$2,card_order=$2 WHERE id=$1',[setup,'["household_messages","family_layout","today","tomorrow","groceries","dinners","photos"]']);
 const snapshot=async()=> (await db.query("SELECT to_jsonb(d)-ARRAY['credential_hash','credential_expires_at','credential_generation','last_seen_at'] AS display,(SELECT jsonb_agg(to_jsonb(g) ORDER BY g.person_id) FROM display_person_grants g WHERE g.display_id=d.id) AS grants FROM displays d WHERE d.id=$1",[display])).rows[0];
 const before=await snapshot();
+// Real browser calendar lifecycle proof. No subscription URL or credential is seeded.
+async function proveCalendarLifecycle(admin,capture) {
+ const base=`/api/v1/households/${household}/calendar-connections`;
+ const seed=async(provider,name,{householdId=household,disconnected=true}={})=>{
+   const integration=await id('INSERT INTO integration_connections(household_id,name,revoked_at) VALUES($1,$2,CASE WHEN $3 THEN clock_timestamp() ELSE NULL END) RETURNING id',[householdId,name,disconnected]);
+   const connection=await id("INSERT INTO calendar_connections(household_id,integration_connection_id,owner_account_id,provider,name,state,disconnected_at) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $7 THEN clock_timestamp() ELSE NULL END) RETURNING id",[householdId,integration,account,provider,name,disconnected?'disconnected':'setup',disconnected]);
+   const source=await id("INSERT INTO calendar_sources(household_id,connection_id,external_id,name,subject_household,target_household) VALUES($1,$2,$3,$4,true,true) RETURNING id",[householdId,connection,`synthetic-${provider}-source`,`${name} source`]);
+   return {id:connection,source,expectedRevision:1,name};
+ };
+ const removed=[];
+ for(const provider of ['google','microsoft','ics'])removed.push(await seed(provider,`Synthetic disconnected ${provider}`));
+ const active=await seed('ics','Synthetic setup ICS',{disconnected:false});
+ const foreignHousehold=await id("INSERT INTO households(installation_id,name,timezone,default_locale) VALUES($1,'Synthetic foreign calendar household','Europe/Oslo','nb') RETURNING id",[installation]);
+ const foreign=await seed('ics','Synthetic foreign ICS',{householdId:foreignHousehold});
+ const request=(method,path,payload)=>admin.evaluate(async({method,path,payload})=>{const response=await fetch(path,{method,headers:{'content-type':'application/json','x-csrf-token':'synthetic-display-csrf'},...(payload?{body:JSON.stringify(payload)}:{})});return{status:response.status,body:await response.json()};},{method,path,payload});
+ const activeDelete=await request('DELETE',`${base}/${active.id}`,{expectedRevision:1});
+ assert.equal(activeDelete.status,409);assert.equal(activeDelete.body.error.details.reason,'calendar_connection_must_be_disconnected');
+ const cross=await request('DELETE',`${base}/${foreign.id}`,{expectedRevision:1});assert.equal(cross.status,404);
+ assert.equal((await db.query('SELECT count(*)::int AS count FROM calendar_connections WHERE id=$1 AND removed_at IS NULL',[foreign.id])).rows[0].count,1,'cross-household request preserves foreign calendar');
+ const shot=async(id,theme,viewport,verified,scrollSelector,simulation)=>{if(capture)await capture(admin,{id,file:`${id}.png`,surface:'calendar-integrations',theme,viewport,verified,scrollSelector,...(simulation?{simulation}:{})});};
+ const desktop={width:1280,height:900},mobile={width:390,height:844};
+ await db.query("UPDATE accounts SET theme='light' WHERE id=$1",[account]);
+ await admin.setViewportSize(desktop);await admin.goto('/?tab=integrations');
+ const group=admin.locator('.calendar-disconnected');await group.waitFor();
+ assert.equal(await group.getAttribute('open'),null,'disconnected calendars start compact and closed');
+ assert.equal(await group.locator('li:visible').count(),0);
+ await shot('calendar-integrations-light-closed','light',desktop,['three disconnected synthetic providers collapsed','setup ICS preserved'],'.calendar-area');
+ await group.locator('summary').click();assert.equal(await group.locator('li').count(),3);
+ for(const fixture of removed)await group.getByText(`${fixture.name} source`,{exact:true}).waitFor({state:'visible'});
+ await shot('calendar-integrations-light-open','light',desktop,['three synthetic source names visible','Google Microsoft ICS removable'],'.calendar-disconnected');
+ await group.locator('li').filter({hasText:removed[0].name}).getByRole('button',{name:'Fjern kalender',exact:true}).click();
+ const single=admin.getByRole('dialog');await single.getByText(`${removed[0].name} source`,{exact:true}).waitFor();
+ await shot('calendar-remove-single-light','light',desktop,['single confirmation names synthetic Google source']);
+ const singleResponse=admin.waitForResponse(response=>response.request().method()==='DELETE'&&response.url().endsWith(`/${removed[0].id}`));
+ await single.getByRole('button',{name:'Fjern kalender',exact:true}).click();const singleResult=await singleResponse;assert.equal(singleResult.status(),200,await singleResult.text());
+ await single.waitFor({state:'hidden'});await admin.reload();await group.waitFor();
+ assert.equal(await group.getByText(removed[0].name,{exact:true}).count(),0,'single removal remains gone after reload');
+ await db.query("UPDATE accounts SET theme='dark' WHERE id=$1",[account]);
+ await admin.setViewportSize(mobile);await admin.reload();await group.waitFor();await group.locator('summary').click();
+ await group.getByRole('button',{name:'Fjern alle frakoblede',exact:true}).click();
+ const batch=admin.getByRole('dialog');await batch.getByRole('heading',{name:'Tilkoblinger som omfattes (2):',exact:true}).waitFor();
+ for(const fixture of removed.slice(1))await batch.getByText(`${fixture.name} source`,{exact:true}).waitFor();
+ await shot('calendar-remove-batch-dark-mobile','dark',mobile,['batch confirmation snapshots Microsoft and ICS source names']);
+ // A connection added after opening confirmation must not be silently included.
+ const late=await seed('google','Synthetic later disconnected google');
+ const batchResponse=admin.waitForResponse(response=>response.request().method()==='POST'&&response.url().endsWith('/remove-disconnected'));
+ await batch.getByRole('button',{name:'Fjern alle frakoblede',exact:true}).click();const response=await batchResponse;assert.equal(response.status(),200,await response.text());
+ assert.deepEqual(response.request().postDataJSON().connections,removed.slice(1).map(({id,expectedRevision})=>({id,expectedRevision})),'batch submits the exact visible snapshot');
+ await batch.waitFor({state:'hidden'});await admin.reload();await group.waitFor();
+ const remaining=await request('GET',base);
+ assert.equal(remaining.status,200);assert.deepEqual(remaining.body.connections.map(c=>c.id).sort(),[active.id,late.id].sort(),'all three removed providers stay gone while late and active connections survive');
+ for(const fixture of removed){assert.equal((await db.query('SELECT count(*)::int AS count FROM calendar_sources WHERE connection_id=$1',[fixture.id])).rows[0].count,0);assert.equal(await admin.getByText(fixture.name,{exact:true}).count(),0);}
+ await admin.locator('.calendar-sources').getByRole('button',{name:'Sett opp kalender',exact:true}).click();
+ const editor=admin.getByRole('dialog');await editor.getByRole('heading',{name:'Synthetic setup ICS source',exact:true}).waitFor();
+ await editor.getByLabel('Ta med tilbake i tid',{exact:true}).selectOption('28');
+ await editor.getByLabel('Ta med frem i tid',{exact:true}).selectOption('364');
+ for(const [label,value,text] of [['Ta med tilbake i tid','28','4 uker (28 dager)'],['Ta med frem i tid','364','52 uker (364 dager)']]){
+   assert.equal(await editor.getByLabel(label,{exact:true}).inputValue(),value);assert.equal(await editor.getByLabel(label,{exact:true}).locator('option:checked').innerText(),text);
+ }
+ await editor.getByText('For ICS-kalendere må Samvev laste ned hele abonnementet før hendelser innenfor tidsrommet kan velges. Tidsrommet reduserer ikke nedlastingsstørrelsen.',{exact:true}).waitFor();
+ await shot('calendar-window-dark-mobile','dark',mobile,['real setup source editor','28 day past and 364 day future selected','ICS full download explanation']);
+ await editor.getByRole('button',{name:'Lukk',exact:true}).last().click();
+ await db.query("UPDATE accounts SET theme='light' WHERE id=$1",[account]);await admin.setViewportSize(desktop);await admin.reload();
+ await admin.locator('.calendar-sources').getByRole('button',{name:'Sett opp kalender',exact:true}).click();await editor.getByLabel('Ta med frem i tid',{exact:true}).waitFor();
+ await editor.getByLabel('Ta med tilbake i tid',{exact:true}).selectOption('28');
+ await editor.getByLabel('Ta med frem i tid',{exact:true}).selectOption('364');
+ await shot('calendar-window-light-desktop','light',desktop,['real setup source editor','28 day past and 364 day future selected','ICS full download explanation']);
+ await editor.getByRole('button',{name:'Lukk',exact:true}).last().click();
+ // Two explicitly simulated transport errors exercise the actual error renderer.
+ // Temporarily permit Preview in this credential-free fixture; the source stays
+ // disabled and every exact preview POST is fulfilled locally, never forwarded.
+ const previewUrl=`**${base}/${active.id}/sources/${active.source}/preview`;
+ let errorDetails,intercepted=0;
+ const interceptPreview=async route=>{
+   assert.equal(route.request().method(),'POST');
+   assert.equal(route.request().postDataJSON().expectedSourceRevision,1);
+   intercepted++;
+   await route.fulfill({status:413,contentType:'application/json',body:JSON.stringify({error:{code:'CALENDAR_ICS_TOO_LARGE',details:errorDetails}})});
+ };
+ await admin.route(previewUrl,interceptPreview);
+ await db.query("UPDATE calendar_connections SET state='connected' WHERE id=$1",[active.id]);
+ try{
+   for(const scenario of [
+     {id:'calendar-ics-size-observed-dark-mobile',theme:'dark',viewport:mobile,details:{observedBytes:11010048,maxBytes:8388608},expected:'Nedlastingen ble stoppet etter at 10,5 MiB var mottatt. Den konfigurerte grensen er 8 MiB.'},
+     {id:'calendar-ics-size-declared-light-desktop',theme:'light',viewport:desktop,details:{declaredBytes:12582912,maxBytes:8388608},expected:'Kalenderen oppgir en totalstørrelse på 12 MiB. Den konfigurerte nedlastingsgrensen er 8 MiB.'},
+   ]){
+     errorDetails=scenario.details;
+     await db.query('UPDATE accounts SET theme=$2 WHERE id=$1',[account,scenario.theme]);
+     await admin.setViewportSize(scenario.viewport);await admin.reload();
+     await admin.locator('.calendar-sources').getByRole('button',{name:'Sett opp kalender',exact:true}).click();
+     await editor.getByRole('heading',{name:'Synthetic setup ICS source',exact:true}).waitFor();
+     const response=admin.waitForResponse(response=>response.url().endsWith(`/${active.source}/preview`)&&response.request().method()==='POST');
+     await editor.getByRole('button',{name:'Forhåndsvis avtaler',exact:true}).click();
+     assert.equal((await response).status(),413);
+     const alert=editor.getByRole('alert');await alert.waitFor({state:'visible'});
+     const text=await alert.innerText();assert.ok(text.includes(scenario.expected),text);
+     assert.doesNotMatch(text,/\{(?:observedBytes|maxBytes|declaredBytes|observedMiB|maxMiB|declaredMiB)\}/,'localized size errors contain no raw interpolation placeholders');
+     await shot(scenario.id,scenario.theme,scenario.viewport,['actual localized error renderer','synthetic intercepted HTTP 413','MiB values interpolated without raw placeholders'],'.calendar-source-editor [role="alert"]',{type:'ui-only-intercepted-preview-error',httpStatus:413,code:'CALENDAR_ICS_TOO_LARGE',details:scenario.details,providerFetchPerformed:false,sourceEnabled:false});
+     await editor.getByRole('button',{name:'Lukk',exact:true}).last().click();
+   }
+   assert.equal(intercepted,2,'only the two intended source preview POSTs are intercepted');
+ }finally{
+   await admin.unroute(previewUrl,interceptPreview);
+   await db.query("UPDATE calendar_connections SET state='setup' WHERE id=$1",[active.id]);
+ }
+ assert.equal((await db.query('SELECT enabled FROM calendar_sources WHERE id=$1',[active.source])).rows[0].enabled,false,'UI error simulation never enables or saves the source');
+ assert.equal((await request('GET',base)).status,200,'manager session and calendar authorization survive removal');
+}
 async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,household,display,setup,account,schoolEvent,tomorrowEvent,today,tomorrow,backgroundAlbum,backgroundAsset}) {
  const out=process.env.VISUAL_OUTPUT;
  assert.equal(out,'/visual','visual bind mount must be the verified /visual target');
@@ -100,7 +208,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    else await page.evaluate(()=>window.scrollTo({left:0,top:0,behavior:'instant'}));
    await page.evaluate(()=>{if(document.activeElement instanceof HTMLElement)document.activeElement.blur();});
  };
- const capture=async(page,{id,file,surface,theme,viewport,verified,scrollSelector,fullPage=false,background,prepared=false})=>{
+ const capture=async(page,{id,file,surface,theme,viewport,verified,scrollSelector,fullPage=false,background,simulation,prepared=false})=>{
    if(!prepared)await prepareCapture(page,{scrollSelector});
    const path=resolve(out,file);
    await page.screenshot({path,fullPage,animations:'disabled'});
@@ -108,7 +216,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    assert.equal(bytes.subarray(0,8).toString('hex'),'89504e470d0a1a0a',`${file} is a PNG`);
    const pngDimensions={width:bytes.readUInt32BE(16),height:bytes.readUInt32BE(20)};
    if(!fullPage) assert.deepEqual(pngDimensions,viewport,`${file} matches its requested viewport`);
-   manifest.push({id,file,surface,theme,viewport,pngDimensions,captureMode:fullPage?'full-page-supplement':'viewport',sha256:hash(bytes),source:{headSha:process.env.SOURCE_HEAD_SHA,dirty:process.env.SOURCE_DIRTY==='true'},fixture:{id:'r17-rich-capture-synthetic-household',type:'six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures'},...(background?{background}:{}),messageAudit,verified});
+   manifest.push({id,file,surface,theme,viewport,pngDimensions,captureMode:fullPage?'full-page-supplement':'viewport',sha256:hash(bytes),source:{headSha:process.env.SOURCE_HEAD_SHA,dirty:process.env.SOURCE_DIRTY==='true'},fixture:{id:'r17-rich-capture-synthetic-household',type:'six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures'},...(background?{background}:{}),...(simulation?{simulation}:{}),messageAudit,verified});
  };
  const captureCalendar=async(page,calendarSurface,options)=>{
    await assertPairedActivitiesReady(calendarSurface,options.readiness);
@@ -236,8 +344,9 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await previewBackground.evaluate(async image=>{if(!image.complete)await new Promise((resolve,reject)=>{image.addEventListener('load',resolve,{once:true});image.addEventListener('error',reject,{once:true});});if(!image.naturalWidth)throw new Error('custom preview background image failed to load');});
    await captureCalendar(previewPage,customPreview,{readiness:{preview:true},capture:{id:`admin-preview-custom-background-${theme}-wall-landscape`,file:`admin-preview-custom-background-${theme}-wall-landscape.png`,surface:'admin-preview',theme,viewport,scrollSelector:'.display-preview',verified:['synthetic selected custom background','same selected background as paired display','Today and Tomorrow activities settled'],background:{assetId:backgroundAsset,albumId:backgroundAlbum,householdReadGranted:true,displayReadGranted:true}}});
  }
+ await proveCalendarLifecycle(admin,capture);
  await writeFile(resolve(out,'manifest.json'),`${JSON.stringify({source:'isolated synthetic display proof',sourceHeadSha:process.env.SOURCE_HEAD_SHA,sourceDirty:process.env.SOURCE_DIRTY==='true',fixture:{id:'r17-rich-capture-synthetic-household',type:'six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures'},aclNegativeFixture:{unselectedChildAddedAfterCaptures:true,targetedMessageAddedAfterCaptures:true},background:{assetId:backgroundAsset,albumId:backgroundAlbum,selectedForSetup:true,householdReadGranted:true,pairedDisplayReadGranted:true,deniedDisplayReadGranted:false},messageAudit,capturedAt:new Date().toISOString(),timezone:'Europe/Oslo',locale:'nb-NO',screenshots:manifest},null,2)}\n`);
- assert.equal(manifest.length,37,'30 viewport screenshots, three named full-page supplements, and four custom-background captures are captured');
+ assert.equal(manifest.length,45,'37 existing display screenshots, six synthetic calendar UI captures and two explicitly simulated size-error UI captures are captured');
 }
 const root=resolve('apps/web/dist');
 const server=createServer(async(req,res)=>{
@@ -360,6 +469,7 @@ try {
  assert.equal(await previewDom.locator('.display-preview-today').count(),1);
  assert.equal(await screen.locator('section[aria-label="I dag"]').count(),1);
 
+ if(process.env.SCREENSHOT_MODE!=='1') await proveCalendarLifecycle(admin);
  if(process.env.SCREENSHOT_MODE==='1') await captureVisualEvidence({admin,old,screen,denied,adminCtx,db,household,display,setup,account,schoolEvent,tomorrowEvent,today,tomorrow,backgroundAlbum,backgroundAsset});
 
  const hiddenPerson=await id("INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic unselected child','child') RETURNING id",[household]);
@@ -418,4 +528,4 @@ try {
  assert.equal(revokedMedia.status,401,'re-paired old credential cannot read the custom background');
 
 } finally {shuttingDown=true;releaseRedeem();for(const context of contexts) await context.unrouteAll({behavior:'ignoreErrors'});await browser?.close();await new Promise(resolve=>server.close(resolve));await db.end();}
-console.log('PASS real browser re-pair, six-person parity, read-only board access, hidden child/message ACL, and denied-display privacy.');
+console.log('PASS real browser re-pair, six-person parity, read-only board access, hidden child/message ACL, denied-display privacy, and synthetic calendar single/batch removal, snapshot isolation, authorization and window UI.');

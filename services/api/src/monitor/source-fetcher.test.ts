@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { MAX_SUBSCRIPTION_BYTES, MonitorSourceFetcher, SecretSubscriptionFetcher, isBlockedMonitorAddress, isCalendarSubscriptionUrl, isGoogleCalendarViewUrl, normalizeMonitorUrl, normalizeSecretSubscriptionUrl, selectRelevantSource, sourceUrlFromInstruction } from './source-fetcher.ts';
+import { MAX_SUBSCRIPTION_BYTES, maxIcsSubscriptionBytes, MonitorSourceFetcher, SecretSubscriptionFetcher, isBlockedMonitorAddress, isCalendarSubscriptionUrl, isGoogleCalendarViewUrl, normalizeMonitorUrl, normalizeSecretSubscriptionUrl, selectRelevantSource, sourceUrlFromInstruction } from './source-fetcher.ts';
 
 const resolver=async()=>[{address:'93.184.216.34',family:4 as const}];
 const response=(body:string|Buffer,type:string,status=200,location?:string)=>({status,headers:{'content-type':type,location,etag:undefined,'last-modified':undefined},body:Buffer.isBuffer(body)?body:Buffer.from(body)});
@@ -166,6 +166,47 @@ test('secret calendar responses require bounded calendar content',async()=>{
   assert.match(await valid.fetch('https://calendar.example/feed.ics?token=opaque'),/BEGIN:VCALENDAR/);
   const invalid=new SecretSubscriptionFetcher(resolver,async()=>response('<html>not a calendar</html>','text/html'));
   await assert.rejects(()=>invalid.fetch('https://calendar.example/feed.ics'),(error:any)=>error.code==='CALENDAR_ICS_UNSUPPORTED'&&error.details.reason==='calendar_ics_media_type_unsupported');
+});
+
+test('ICS fetch admission caps whole downloads across instances and releases successful slots',async()=>{
+  const valid=Buffer.from('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n');let calls=0,waiting=0,holding=true,release!:()=>void,started!:()=>void;
+  const gate=new Promise<void>(resolve=>{release=resolve;}),fourStarted=new Promise<void>(resolve=>{started=resolve;});
+  const transport=async()=>{calls++;if(holding){waiting++;if(waiting===4)started();await gate;}return response(valid,'text/calendar');};
+  const first=new SecretSubscriptionFetcher(resolver,transport),second=new SecretSubscriptionFetcher(resolver,transport);
+  const pending=Array.from({length:4},()=>first.fetch('https://calendar.example/held.ics'));await fourStarted;
+  await assert.rejects(()=>second.fetch('https://calendar.example/overflow.ics'),(error:any)=>error.code==='CALENDAR_ICS_BUSY'&&error.status===503&&error.details.reason==='calendar_ics_fetch_busy'&&error.details.maxConcurrent===4);
+  assert.equal(calls,4,'over-cap fetches fail immediately without starting or queueing another transport');
+  holding=false;release();await Promise.all(pending);assert.match(await second.fetch('https://calendar.example/released.ics'),/BEGIN:VCALENDAR/);assert.equal(calls,5,'the slot is reusable after successful fetch and conversion');
+});
+
+test('ICS fetch admission slots are released on network errors and timeouts',async()=>{
+  const valid=()=>response('BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n','text/calendar');let fail=true;
+  const failing=new SecretSubscriptionFetcher(resolver,async()=>{if(fail){fail=false;throw new Error('synthetic fetch failure');}return valid();});
+  await assert.rejects(()=>failing.fetch('https://calendar.example/error.ics'),(error:any)=>error.code==='CALENDAR_ICS_NETWORK_ERROR');assert.match(await failing.fetch('https://calendar.example/released-after-error.ics'),/BEGIN:VCALENDAR/);
+  let block=true;const timed=new SecretSubscriptionFetcher(resolver,async(_url,_target,signal)=>block?new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})):valid(),20);
+  await assert.rejects(()=>timed.fetch('https://calendar.example/timeout.ics'),(error:any)=>error.code==='CALENDAR_ICS_TIMEOUT');block=false;assert.match(await timed.fetch('https://calendar.example/released-after-timeout.ics'),/BEGIN:VCALENDAR/);
+});
+
+test('ICS fetch accepts synthetic files above 5 MiB within the configured bounded cap',async()=>{
+  const large=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-PADDING:${'x'.repeat(5*1024*1024+128)}\r\nEND:VCALENDAR\r\n`;
+  assert.ok(Buffer.byteLength(large)>5*1024*1024);assert.ok(Buffer.byteLength(large)<=MAX_SUBSCRIPTION_BYTES);
+  const fetcher=new SecretSubscriptionFetcher(resolver,async()=>response(Buffer.from(large),'text/calendar'));
+  const fetched=await fetcher.fetch('https://calendar.example/large-synthetic.ics');assert.equal(Buffer.byteLength(fetched),Buffer.byteLength(large));
+});
+
+test('ICS cap can be raised to 10 MiB but values above the hard ceiling fall back to 8 MiB',async()=>{
+  const previous=process.env.SAMVEV_ICS_MAX_BYTES;
+  try{
+    process.env.SAMVEV_ICS_MAX_BYTES=String(10*1024*1024);assert.equal(maxIcsSubscriptionBytes(),10*1024*1024);
+    const large=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nX-PADDING:${'x'.repeat(9*1024*1024)}\r\nEND:VCALENDAR\r\n`;
+    let options:any;const within=new SecretSubscriptionFetcher(resolver,async(_url,_target,_signal,limits)=>{options=limits;return response(Buffer.from(large),'text/calendar');});
+    assert.equal(Buffer.byteLength(await within.fetch('https://calendar.example/configured-large.ics')),Buffer.byteLength(large));assert.equal(options.maxBytes,10*1024*1024);
+    process.env.SAMVEV_ICS_MAX_BYTES=String(16*1024*1024);assert.equal(maxIcsSubscriptionBytes(),16*1024*1024);
+    process.env.SAMVEV_ICS_MAX_BYTES=String(17*1024*1024);assert.equal(maxIcsSubscriptionBytes(),8*1024*1024);
+    process.env.SAMVEV_ICS_MAX_BYTES=String(4*1024*1024);assert.equal(maxIcsSubscriptionBytes(),8*1024*1024);
+    const bounded=new SecretSubscriptionFetcher(resolver,async()=>response(Buffer.from(large),'text/calendar'));
+    await assert.rejects(()=>bounded.fetch('https://calendar.example/over-hard-cap.ics'),(error:any)=>error.code==='CALENDAR_ICS_TOO_LARGE'&&error.details.observedBytes===Buffer.byteLength(large)&&error.details.maxBytes===8*1024*1024);
+  }finally{if(previous===undefined)delete process.env.SAMVEV_ICS_MAX_BYTES;else process.env.SAMVEV_ICS_MAX_BYTES=previous;}
 });
 
 test('ICS fetch selects calendar media types without changing monitor transport defaults',async()=>{

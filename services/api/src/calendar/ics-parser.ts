@@ -1,12 +1,14 @@
 import {Worker} from 'node:worker_threads';
 import {DomainError} from '@samvev/core';
 import type {CalendarEvent} from './service.ts';
-import {MAX_SUBSCRIPTION_BYTES} from '../monitor/source-fetcher.ts';
+import {maxIcsSubscriptionBytes} from '../monitor/source-fetcher.ts';
 
 const WORKER_TIMEOUT_MS=5_000;
 const MAX_ACTIVE_WORKERS=2;
 const MAX_QUEUED_WORKERS=4;
 const PARSER_HEAP_MB=128;
+// In combination with the 16 MiB ICS byte ceiling, bound parser memory, time,
+// and concurrency independently of event expansion (which has its own cap).
 type Window={from:string;to:string};
 type Job={text:string;window:Window;resolve:(events:CalendarEvent[])=>void;reject:(error:unknown)=>void};
 type WorkerMessage={ok:true;events:CalendarEvent[]}|{ok:false;code:string;status:number;details?:unknown};
@@ -37,8 +39,8 @@ function start(job:Job){
 }
 
 export function parseIcsEvents(text:string,window:Window):Promise<CalendarEvent[]>{
-  const bytes=Buffer.byteLength(text,'utf8');
-  if(bytes>MAX_SUBSCRIPTION_BYTES)return Promise.reject(icsError('CALENDAR_ICS_TOO_LARGE',413,'calendar_ics_response_too_large',{observedBytes:bytes,maxBytes:MAX_SUBSCRIPTION_BYTES}));
+  const bytes=Buffer.byteLength(text,'utf8'),maxBytes=maxIcsSubscriptionBytes();
+  if(bytes>maxBytes)return Promise.reject(icsError('CALENDAR_ICS_TOO_LARGE',413,'calendar_ics_response_too_large',{observedBytes:bytes,maxBytes}));
   return new Promise((resolve,reject)=>{
     const job={text,window,resolve,reject};
     if(active<MAX_ACTIVE_WORKERS)start(job);

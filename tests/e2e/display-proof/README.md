@@ -20,8 +20,12 @@ checked synthetic content. Screenshot mode produces 30 viewport captures: member
 Home, paired display and admin preview in light and dark at 1920×1080, 390×844,
 820×1180, 1280×752 and 752×1280. It also writes three clearly named full-page
 supplements at wall landscape size and four custom-background captures (live display
-and admin preview, light and dark) at 1280×752. No screenshot is captured from a
-mocked UI or a direct DOM replacement.
+and admin preview, light and dark) at 1280×752. Six additional calendar captures
+show the compact disconnected group closed and
+open, single-removal confirmation in light desktop, the batch snapshot in dark
+mobile, and the source editor in dark mobile and light desktop. Two explicitly
+simulated size-error UI captures bring the total to 45 PNGs.
+No screenshot is captured from a mocked UI or a direct DOM replacement.
 
 The admin preview uses its real page at the requested viewport, with display
 orientation set to match. The capture blurs the active control so a focus ring or
@@ -39,3 +43,31 @@ Before running, screenshot mode accepts an empty output directory or a prior com
 Before each paired-display and preview screenshot, the proof waits until the exact synthetic Today and Tomorrow activities remain present together for a bounded stable window; a missing event, disabled-calendar fallback or loading placeholder fails the proof. It then pauses that browser page's Playwright clock for the capture, repeats the checks immediately before and after the screenshot, and resumes the clock. It checks that each member Home screenshot contains exactly six primary synthetic people. The custom-background screenshots record the selected asset and household/display read grants in the manifest.
 
 The script requires the existing `samvev-m1/workspace:local` and `samvev-m1/browser:local` images, `postgres:17.11-bookworm`, and `samvev-m1-workspace-node-modules` volume. Their dependencies are not verified against the current lockfile. Browser locale and timezone are pinned to Norwegian Bokmål and Europe/Oslo where browser context settings apply; server fixtures use the household's Europe/Oslo timezone. The screenshot timestamp itself is informational. This is a browser simulation, not a test on a physical wall display. All fixture names, credentials and data are synthetic and test-only.
+
+The calendar browser proof seeds disconnected Google, Microsoft and ICS connections
+with synthetic source names, plus one setup ICS source. It seeds no provider
+credentials or subscription URLs and performs no external fetch. It removes Google
+through the real single-removal dialog, then Microsoft and ICS through the real
+batch dialog, and reloads to verify all three stay absent. A connection inserted
+after batch confirmation opens remains present, proving the request uses the exact
+visible snapshot. Direct API checks reject removal of the setup connection (409)
+and a foreign-household connection (404); the manager session stays authorized.
+Removed sources are checked in the isolated database. Both source-editor captures
+verify browser-selected draft values of 4 weeks (28 days) past and 52 weeks
+(364 days) future, plus the ICS full-download explanation. These draft selections
+are not saved and are not asserted to be database defaults. The setup fixture deliberately cannot fetch or
+activate a calendar; this proof covers the real window controls, not a provider
+integration or a physical-device calendar sync.
+
+Two additional error screenshots exercise the real localized source-editor error
+renderer with narrowly intercepted preview POST responses: observed 10.5 MiB over
+an 8 MiB limit (dark mobile), and declared 12 MiB over an 8 MiB limit (light desktop).
+These API-shaped HTTP 413 responses are synthetic UI-only evidence, not evidence
+of a provider download or the backend size guard. Each manifest entry records the
+simulation and exact synthetic byte details. The isolated credential-free fixture
+is temporarily marked connected so Preview is available; its source stays disabled,
+no credentials or subscription URL exist, the exact two preview POSTs never reach
+the API, and the connection is restored to setup afterward. All other lifecycle
+and ACL requests continue to use the real isolated API. Assertions check localized
+MiB values and reject raw byte/MiB interpolation placeholders. The existing window
+captures remain setup-only and use unsaved browser-selected 28/364 values.

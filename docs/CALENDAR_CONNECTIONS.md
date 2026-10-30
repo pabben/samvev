@@ -12,7 +12,7 @@ Samvev leser Google Kalender, Outlook/Microsoft 365 og HTTPS-baserte ICS-abonnem
 4. Aktiver abonnementet. Status viser siste vellykkede synk, pågående synk, feil eller behov for ny innlogging. Oppdater henter på nytt uten AI.
 5. Koble fra når tilgangen skal avsluttes. Nye hentinger stoppes og de importerte visningene trekkes tilbake; egne Samvev-beskjeder og avtaler slettes ikke. Microsofts lokale frakobling er ikke en bekreftelse på at samtykket er fjernet hos Microsoft; fjern også Samvev i kontoens apprettigheter hvis ønskelig.
 
-Første adapterversjon henter fullstendige, paginerte snapshots av et avgrenset vindu: siste 7 og neste 180 dager. Bare en komplett henting kan erstatte kalenderinnhold. Ved nettverks-/sidefeil beholdes siste gyldige innhold. Gjentatt synk gir ikke nye kopier. En avlyst og senere gjenopprettet forekomst får en ny intern incarnation, mens den gamle withdrawal-tombstonen beholdes. Ulike kilder slås ikke sammen bare fordi titlene ligner.
+Nye kilder foreslår et vindu på siste 28 og neste 364 dager. Forhåndsvisning og synk bruker samme valgte vindu; eldre lagrede valg beholdes. Bare en komplett henting kan erstatte kalenderinnhold. Ved nettverks-/sidefeil beholdes siste gyldige innhold. Gjentatt synk gir ikke nye kopier. En avlyst og senere gjenopprettet forekomst får en ny intern incarnation, mens den gamle withdrawal-tombstonen beholdes. Ulike kilder slås ikke sammen bare fordi titlene ligner.
 
 Henting er avgrenset til 100 sider, 10 000 hendelser og 8 MiB per snapshot;
 provider-JSON har også en strømmet bytegrense. ICS-regler per time, minutt eller
@@ -21,12 +21,18 @@ støttes innenfor vinduet og forekomstgrensen. For store svar gir en synlig feil
 og beholder siste gyldige innhold. Maksimalt 12 aktive kalenderforbindelser per
 husstand og varige konto-/husstands-/IP-grenser beskytter tunge operasjoner.
 
-ICS laster hele svaret innenfor **5 MiB**, **15 sekunder** og høyst **tre
-omdirigeringer**. Forekomstvinduet reduserer ikke nedlastingsstørrelsen.
+ICS laster hele svaret før datovinduet filtreres. Størrelsesgrensen er **8 MiB
+som standard**, og kan settes mellom 5 og 16 MiB med `SAMVEV_ICS_MAX_BYTES`
+(byte); ugyldige verdier eller verdier utenfor intervallet bruker 8 MiB.
+Henting er tidsavgrenset til **15 sekunder** og høyst **tre omdirigeringer**.
+Forekomstvinduet reduserer ikke nedlastingsstørrelsen, og oppdateringsforsinkelse
+hos ICS-utgiveren er utenfor Samvevs kontroll.
 Historiske enkeltavtaler utenfor vinduet bruker ikke forekomstgrensen på 10 000.
 Gjentakelser beholder opprinnelig start, COUNT, unntak og flyttede forekomster.
-Parsing skjer i høyst to arbeidstråder per prosess, med fire ventende jobber; nye jobber
-utover dette avvises som opptatt. Hver arbeidstråd har fem sekunders frist og
+Høyst fire ICS-nedlastinger/konverteringer kjører samtidig per API-prosess;
+ekstra kall avvises umiddelbart som opptatt uten ventekø. Parsing skjer i høyst
+to arbeidstråder per prosess, med fire ventende parserjobber; nye jobber utover
+dette avvises som opptatt. Hver arbeidstråd har fem sekunders frist og
 128 MiB grense for V8s gamle heap, i tillegg til 16 MiB for den unge heapen.
 Dette er ikke en total RSS-grense for hele appen. Siste gyldige kalender beholdes
 ved hente- eller parserfeil. Feiltypene skiller tilgang, feil lenketype, ugyldig

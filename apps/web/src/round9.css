@@ -77,3 +77,20 @@
 .calendar-provider-ics>svg{grid-row:1/span 2;color:var(--teal)}
 .calendar-connected-provider{display:flex;align-items:center;gap:9px}.calendar-connected-provider .calendar-provider-mark{width:28px;height:28px}.calendar-connected-provider .calendar-provider-mark-spond{width:88px}.calendar-connected-provider .calendar-provider-mark-spond .calendar-provider-image{width:84px}
 .calendar-registration-provider{display:flex;align-items:center;gap:9px}.calendar-registration-provider .calendar-provider-mark{width:28px;height:28px}
+.calendar-disconnected.surface-card{margin-block:18px 28px;padding:16px 20px;background:var(--glass);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.calendar-disconnected>summary{display:flex;align-items:center;gap:10px;min-height:44px;padding:2px 0;color:var(--text);font-weight:700;cursor:pointer}
+.calendar-disconnected>summary:focus-visible,.calendar-disconnected button:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+.calendar-disconnected-count{display:inline-flex;min-width:26px;height:26px;align-items:center;justify-content:center;padding-inline:7px;border:1px solid var(--line);border-radius:999px;background:var(--canvas);color:var(--muted);font-size:13px;font-weight:650}
+.calendar-disconnected-toolbar{display:flex;justify-content:flex-end;padding:10px 0 12px;border-bottom:1px solid var(--line)}
+.calendar-disconnected-list{display:grid;gap:0;list-style:none;margin:0;padding:0}
+.calendar-disconnected-row{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:18px;padding:13px 2px}
+.calendar-disconnected-row+.calendar-disconnected-row{border-top:1px solid var(--line)}
+.calendar-disconnected-copy{display:grid;gap:6px;min-width:0}
+.calendar-disconnected-name{color:var(--text);overflow-wrap:anywhere}
+.calendar-disconnected-detail{display:flex;flex-wrap:wrap;align-items:center;gap:5px 14px;min-width:0;color:var(--muted);font-size:13px;line-height:1.45}
+.calendar-disconnected-provider{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.calendar-disconnected-provider .calendar-provider-mark{width:20px;height:20px}
+.calendar-disconnected-provider .calendar-provider-image{width:18px;height:18px}
+.calendar-disconnected-sources{min-width:0;overflow-wrap:anywhere}
+.calendar-disconnected-remove{min-width:148px;white-space:normal}
+@media(max-width:640px){.calendar-disconnected.surface-card{padding:12px 14px}.calendar-disconnected-toolbar{justify-content:stretch}.calendar-disconnected-toolbar>.button{width:100%;white-space:normal}.calendar-disconnected-row{grid-template-columns:minmax(0,1fr);gap:10px;padding:14px 0}.calendar-disconnected-remove{width:100%;min-width:0}.calendar-disconnected-detail{display:grid;gap:4px}.calendar-disconnected-provider{white-space:normal}}

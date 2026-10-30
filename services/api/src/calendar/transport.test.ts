@@ -27,6 +27,28 @@ test('confidential web registrations require both provider credentials and publi
   await assert.rejects(()=>new DefaultCalendarTransport().exchangeCode('google',{code:'code',verifier:'verifier',redirectUri:'https://samvev.test.invalid/api/v1/calendar/oauth/google/callback'}),(error:any)=>error.code==='CONFLICT'&&error.details.reason==='google_calendar_registration_missing');
 });
 
+test('ICS parser accepts a bounded synthetic snapshot above 5 MiB and reports the configured cap',async()=>{
+  const {MAX_SUBSCRIPTION_BYTES}=await import('../monitor/source-fetcher.ts');
+  const window={from:'2026-10-01T00:00:00Z',to:'2027-10-01T00:00:00Z'};
+  const base='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:large-synthetic\r\nDTSTART:20261025T090000Z\r\nDTEND:20261025T100000Z\r\nSUMMARY:Large synthetic calendar\r\nEND:VEVENT\r\n';
+  const filler=`X-SYNTHETIC:${'x'.repeat(5*1024*1024+128)}\r\nEND:VCALENDAR\r\n`;
+  const large=base+filler;assert.ok(Buffer.byteLength(large)>5*1024*1024);assert.ok(Buffer.byteLength(large)<=MAX_SUBSCRIPTION_BYTES);
+  const parsed=await parseIcsEvents(large,window);assert.equal(parsed.length,1);assert.equal(parsed[0]!.uid,'large-synthetic');
+  const tooLarge=`${large}${'x'.repeat(MAX_SUBSCRIPTION_BYTES)}`;
+  await assert.rejects(()=>parseIcsEvents(tooLarge,window),(error:any)=>error.code==='CALENDAR_ICS_TOO_LARGE'&&error.status===413&&error.details.reason==='calendar_ics_response_too_large'&&error.details.observedBytes>error.details.maxBytes&&error.details.maxBytes===MAX_SUBSCRIPTION_BYTES);
+});
+
+test('ICS parser follows the bounded configured cap, including lowering it after module load',async()=>{
+  const prior=process.env.SAMVEV_ICS_MAX_BYTES;
+  try{
+    process.env.SAMVEV_ICS_MAX_BYTES=String(10*1024*1024);
+    const large=`BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:configured-large\r\nDTSTART:20261025T090000Z\r\nDTEND:20261025T100000Z\r\nEND:VEVENT\r\nX-PADDING:${'x'.repeat(9*1024*1024)}\r\nEND:VCALENDAR\r\n`;
+    assert.equal((await parseIcsEvents(large,{from:'2026-10-01T00:00:00Z',to:'2027-10-01T00:00:00Z'})).length,1);
+    process.env.SAMVEV_ICS_MAX_BYTES=String(8*1024*1024);
+    await assert.rejects(()=>parseIcsEvents(large,{from:'2026-10-01T00:00:00Z',to:'2027-10-01T00:00:00Z'}),(error:any)=>error.code==='CALENDAR_ICS_TOO_LARGE'&&error.details.maxBytes===8*1024*1024);
+  }finally{if(prior===undefined)delete process.env.SAMVEV_ICS_MAX_BYTES;else process.env.SAMVEV_ICS_MAX_BYTES=prior;}
+});
+
 test('Home Assistant calendar parsing preserves provider UIDs and gives UID-less snapshots exact local identities',()=>{
   const events=parseHomeAssistantCalendarEvents([
     {uid:'stable-event',summary:'🟡 Synthetic practice',start:{dateTime:'2026-10-25T10:00:00+01:00'},end:{dateTime:'2026-10-25T11:00:00+01:00'},description:'must be discarded',location:'Synthetic hall'},

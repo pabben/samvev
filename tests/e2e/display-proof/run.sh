@@ -100,7 +100,7 @@ docker exec -e LANDSCAPE_SOURCE=/source/apps/web/src/assets/nordic-dusk-v2.png -
 if [[ "$SCREENSHOT_MODE" == 1 ]]; then
   [[ -f "$VISUAL_DIR/manifest.json" ]] || { echo 'visual proof did not write its manifest through the bind mount' >&2; exit 1; }
   count=$(find "$VISUAL_DIR" -maxdepth 1 -type f -name '*.png' | wc -l)
-  [[ "$count" -eq 37 ]] || { echo "expected 30 viewport captures, 3 full-page supplements and 4 custom-background captures, found $count PNGs" >&2; exit 1; }
+  [[ "$count" -eq 45 ]] || { echo "expected 37 display captures, 6 synthetic calendar captures and 2 simulated error UI captures, found $count PNGs" >&2; exit 1; }
   rm -f "$VISUAL_DIR/$LANDSCAPE_FILENAME"
   validate_visual_directory post
 fi

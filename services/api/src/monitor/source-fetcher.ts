@@ -6,8 +6,27 @@ import { isIP } from 'node:net';
 import { DomainError } from '@samvev/core';
 import { createPinnedLookup } from '../pinned-lookup.ts';
 
-export const MAX_SUBSCRIPTION_BYTES = 5 * 1024 * 1024;
-const MAX_BYTES = MAX_SUBSCRIPTION_BYTES;
+const MAX_BYTES = 5 * 1024 * 1024;
+const DEFAULT_MAX_ICS_BYTES = 8 * 1024 * 1024;
+const MAX_ICS_BYTES = 16 * 1024 * 1024;
+const MAX_ACTIVE_ICS_FETCHES = 4;
+let activeIcsFetches = 0;
+/**
+ * ICS downloads default to 8 MiB and may be raised to 16 MiB with
+ * SAMVEV_ICS_MAX_BYTES. Values outside 5–16 MiB fall back to the 8 MiB
+ * default. Fetches remain pinned, streamed, and time-limited to 15 seconds;
+ * at most four downloads/conversions run in this process at once, with no
+ * waiting queue. Parsing is isolated in a worker with a 128 MiB heap and a
+ * 5 second timeout.
+ */
+export function maxIcsSubscriptionBytes():number{
+  const raw=process.env.SAMVEV_ICS_MAX_BYTES?.trim();
+  if(!raw)return DEFAULT_MAX_ICS_BYTES;
+  if(!/^\d+$/.test(raw))return DEFAULT_MAX_ICS_BYTES;
+  const configured=Number(raw);
+  return Number.isSafeInteger(configured)&&configured>=5*1024*1024&&configured<=MAX_ICS_BYTES?configured:DEFAULT_MAX_ICS_BYTES;
+}
+export const MAX_SUBSCRIPTION_BYTES = maxIcsSubscriptionBytes();
 const MAX_TEXT = 250_000;
 const MAX_AI_TEXT = 20_000;
 const MAX_REDIRECTS = 3;
@@ -115,7 +134,7 @@ function fetchPinned(url:URL,target:{address:string;family:4|6},signal:AbortSign
     const fn=url.protocol==='https:'?httpsRequest:httpRequest;
     const options:RequestOptions={method:'GET',headers:{accept:limits?.accept??'text/html,application/xhtml+xml,application/pdf;q=0.9','user-agent':'Samvev-Monitor/1.0'},signal,lookup:createPinnedLookup(target)};
     const maxBytes=limits?.maxBytes??MAX_BYTES,tooLargeCode=limits?.tooLargeCode??'MONITOR_SOURCE_TOO_LARGE';
-    const req=fn(url,options,(res)=>{const chunks:Buffer[]=[];let size=0;res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>maxBytes)res.destroy(new DomainError(tooLargeCode,413,{reason:tooLargeCode==='CALENDAR_ICS_TOO_LARGE'?'calendar_ics_response_too_large':'source_response_too_large',observedBytes:size,maxBytes}));else chunks.push(chunk);});res.on('error',reject);res.on('end',()=>resolve({status:res.statusCode??502,headers:{location:res.headers.location,'content-type':res.headers['content-type'],'etag':res.headers.etag,'last-modified':res.headers['last-modified']},body:Buffer.concat(chunks)}));});
+    const req=fn(url,options,(res)=>{const chunks:Buffer[]=[];let size=0;const declared=res.headers['content-length'];if(declared&&/^\d+$/.test(declared)&&Number(declared)>maxBytes){res.destroy(new DomainError(tooLargeCode,413,{reason:tooLargeCode==='CALENDAR_ICS_TOO_LARGE'?'calendar_ics_response_too_large':'source_response_too_large',declaredBytes:Number(declared),maxBytes}));return;}res.on('data',(chunk:Buffer)=>{size+=chunk.length;if(size>maxBytes)res.destroy(new DomainError(tooLargeCode,413,{reason:tooLargeCode==='CALENDAR_ICS_TOO_LARGE'?'calendar_ics_response_too_large':'source_response_too_large',observedBytes:size,maxBytes}));else chunks.push(chunk);});res.on('error',reject);res.on('end',()=>resolve({status:res.statusCode??502,headers:{location:res.headers.location,'content-type':res.headers['content-type'],'etag':res.headers.etag,'last-modified':res.headers['last-modified']},body:Buffer.concat(chunks)}));});
     req.on('error',reject);req.end();
   });
 }
@@ -205,13 +224,16 @@ export function normalizeSecretSubscriptionUrl(value:string):string{
 export class SecretSubscriptionFetcher{
   constructor(private readonly resolver:MonitorResolver=defaultResolver,private readonly transport:PinnedTransport=fetchPinned,private readonly timeoutMs=TIMEOUT_MS){}
   async fetch(rawUrl:string):Promise<string>{
-    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),this.timeoutMs);
+    if(activeIcsFetches>=MAX_ACTIVE_ICS_FETCHES)throw new DomainError('CALENDAR_ICS_BUSY',503,{reason:'calendar_ics_fetch_busy',maxConcurrent:MAX_ACTIVE_ICS_FETCHES});
+    activeIcsFetches++;
+    let controller:AbortController|undefined,timeout:NodeJS.Timeout|undefined;
     try{
+      const activeController=new AbortController();controller=activeController;timeout=setTimeout(()=>activeController.abort(),this.timeoutMs);
       let url=new URL(normalizeSecretSubscriptionUrl(rawUrl));let response:Awaited<ReturnType<typeof fetchPinned>>|undefined;
       for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){
         if(isGoogleCalendarViewUrl(url))throw new DomainError('CALENDAR_ICS_GOOGLE_VIEW_URL',422,{reason:'calendar_google_view_url_not_ics'});
-        const target=await resolvePublic(url,this.resolver,controller.signal);response=await this.transport(url,target,controller.signal,{maxBytes:MAX_SUBSCRIPTION_BYTES,tooLargeCode:'CALENDAR_ICS_TOO_LARGE',accept:'text/calendar, text/plain, application/octet-stream'});
-        if(response.body.length>MAX_BYTES)throw new DomainError('CALENDAR_ICS_TOO_LARGE',413,{reason:'calendar_ics_response_too_large',observedBytes:response.body.length,maxBytes:MAX_SUBSCRIPTION_BYTES});
+        const maxBytes=maxIcsSubscriptionBytes();const target=await resolvePublic(url,this.resolver,activeController.signal);response=await this.transport(url,target,activeController.signal,{maxBytes,tooLargeCode:'CALENDAR_ICS_TOO_LARGE',accept:'text/calendar, text/plain, application/octet-stream'});
+        if(response.body.length>maxBytes)throw new DomainError('CALENDAR_ICS_TOO_LARGE',413,{reason:'calendar_ics_response_too_large',observedBytes:response.body.length,maxBytes});
         if(response.status>=300&&response.status<400){if(!response.headers.location)throw new DomainError('CALENDAR_ICS_HTTP_ERROR',502,{reason:'calendar_ics_redirect_invalid',httpStatus:response.status});if(redirects===MAX_REDIRECTS)throw new DomainError('CALENDAR_ICS_HTTP_ERROR',502,{reason:'calendar_ics_redirect_limit',httpStatus:response.status});url=new URL(normalizeSecretSubscriptionUrl(new URL(response.headers.location,url).toString()));continue;}break;
       }
       if(!response)throw new DomainError('CALENDAR_ICS_NETWORK_ERROR',502,{reason:'calendar_ics_response_missing'});
@@ -219,7 +241,7 @@ export class SecretSubscriptionFetcher{
       if(response.status<200||response.status>=300)throw new DomainError('CALENDAR_ICS_HTTP_ERROR',502,{reason:'calendar_ics_http_error',httpStatus:response.status});
       const type=(response.headers['content-type']??'').split(';')[0]!.trim().toLowerCase();if(type&&!['text/calendar','text/plain','application/octet-stream'].includes(type))throw new DomainError('CALENDAR_ICS_UNSUPPORTED',422,{reason:'calendar_ics_media_type_unsupported'});
       const text=response.body.toString('utf8');if(!/^BEGIN:VCALENDAR\r?$/m.test(text)||!/^END:VCALENDAR\r?$/m.test(text))throw new DomainError('CALENDAR_ICS_INVALID',422,{reason:'calendar_ics_format_invalid'});return text;
-    }catch(error){if(controller.signal.aborted)throw new DomainError('CALENDAR_ICS_TIMEOUT',504,{reason:'calendar_ics_request_timeout'});if(error instanceof DomainError)throw error;throw new DomainError('CALENDAR_ICS_NETWORK_ERROR',502,{reason:'calendar_ics_network_error'});}finally{clearTimeout(timeout);}
+    }catch(error){if(controller?.signal.aborted)throw new DomainError('CALENDAR_ICS_TIMEOUT',504,{reason:'calendar_ics_request_timeout'});if(error instanceof DomainError)throw error;throw new DomainError('CALENDAR_ICS_NETWORK_ERROR',502,{reason:'calendar_ics_network_error'});}finally{if(timeout)clearTimeout(timeout);activeIcsFetches=Math.max(0,activeIcsFetches-1);}
   }
 }
 

@@ -17,7 +17,7 @@ import {
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
   integrationConnectionCreateSchema, integrationConnectionRevisionSchema, integrationConnectionUpdateSchema,
   integrationCredentialCreateSchema, integrationCredentialRevokeSchema, integrationItemUpsertSchema, integrationItemWithdrawSchema,
-  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarSyncScheduleSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,calendarIcsUrlUpdateSchema,
+  calendarConnectionCreateSchema,calendarConnectionRevisionSchema,calendarConnectionDeleteSchema,calendarConnectionDeleteBatchSchema,calendarSyncScheduleSchema,calendarOAuthCompleteSchema,calendarPreviewSchema,calendarSourceUpdateSchema,calendarProviderConfigurationSchema,calendarSourceRefreshSchema,calendarIcsUrlUpdateSchema,
   temperatureSensorDiscoverySchema,temperatureSensorSelectSchema,temperatureSensorUpdateSchema,temperatureSensorRevisionSchema,
   homeAssistantControlDiscoverySchema,homeAssistantControlSelectSchema,homeAssistantControlGrantSchema,homeAssistantControlRevisionSchema,homeAssistantControlDispatchSchema,
   groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,dinnerOptionCreateSchema,dinnerOptionUpdateSchema,dinnerAssignmentSchema,displayBoardReadGrantSchema,
@@ -2208,7 +2208,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'temperature_sensor_sync',{account:30,household:90,ip:60,windowSeconds:3600});const body=parse(temperatureSensorRevisionSchema,request.body);return reply.status(200).send({result:await calendars.syncTemperatureSensor(auth,params(request).connectionId!,params(request).sensorId!,body.expectedRevision),connection:await calendars.get(auth,params(request).connectionId!)});
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/sources/:sourceId/preview',async(request,reply)=>{
-    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_preview',{account:60,household:180,ip:120,windowSeconds:3600});const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body.expectedSourceRevision);
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');await operationRateLimit(request,auth,'calendar_preview',{account:60,household:180,ip:120,windowSeconds:3600});const body=parse(calendarPreviewSchema,request.body);reply.header('Cache-Control','private, no-store');return calendars.preview(auth,params(request).connectionId!,params(request).sourceId!,body);
   });
   app.post('/api/v1/households/:householdId/calendar-connections/oauth/:provider/complete',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft'&&provider!=='home_assistant')throw new DomainError('NOT_FOUND',404);const body=parse(calendarOAuthCompleteSchema,request.body);await calendars.completeOAuth(auth,provider,body.completionToken);reply.header('Cache-Control','private, no-store');return{connection:await calendars.list(auth)};
@@ -2218,6 +2218,12 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   });
   app.post('/api/v1/households/:householdId/calendar-connections/:connectionId/disconnect',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const body=parse(calendarConnectionRevisionSchema,request.body);return{connection:await calendars.disconnect(auth,params(request).connectionId!,body.expectedRevision)};
+  });
+  app.delete('/api/v1/households/:householdId/calendar-connections/:connectionId',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const body=parse(calendarConnectionDeleteSchema,request.body);return calendars.removeDisconnected(auth,params(request).connectionId!,body.expectedRevision);
+  });
+  app.post('/api/v1/households/:householdId/calendar-connections/remove-disconnected',async(request)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');const body=parse(calendarConnectionDeleteBatchSchema,request.body);return calendars.removeDisconnectedBatch(auth,body.connections);
   });
   app.get('/api/v1/calendar/oauth/:provider/callback',async(request,reply)=>{
     await durableRateLimit('calendar_oauth_callback_ip',request.ip,60,900);const provider=params(request).provider;if(provider!=='google'&&provider!=='microsoft'&&provider!=='home_assistant')throw new DomainError('NOT_FOUND',404);const query=request.query as Record<string,unknown>;if(typeof query.state!=='string'||query.state.length>512||(typeof query.code==='string'&&query.code.length>4096)||(typeof query.error==='string'&&query.error.length>256))throw new DomainError('VALIDATION_FAILED',400);const staged=await calendars.stageOAuthCallback(provider,query.state,typeof query.code==='string'?query.code:undefined,typeof query.error==='string'?query.error:undefined);reply.header('Cache-Control','private, no-store');if(staged.denied)return reply.redirect(`${runtime.publicOrigin}/integrations?calendar=consent_denied`);return reply.redirect(`${runtime.publicOrigin}/integrations#calendar-oauth=${encodeURIComponent(staged.completionToken)}`);

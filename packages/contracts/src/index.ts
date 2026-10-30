@@ -449,7 +449,9 @@ export const homeAssistantControlDispatchSchema=z.object({
 export const calendarConnectionRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
 export const calendarSyncScheduleSchema=z.object({expectedRevision:z.number().int().positive(),syncIntervalMinutes:z.union([z.literal(5),z.literal(15),z.literal(30)])}).strict();
 export const calendarOAuthCompleteSchema=z.object({completionToken:z.string().min(32).max(256)}).strict();
-export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive()}).strict();
+export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive(),syncWindowDays:z.object({past:z.number().int().min(0).max(31),future:z.number().int().min(1).max(366)}).strict().optional()}).strict();
+export const calendarConnectionDeleteSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const calendarConnectionDeleteBatchSchema=z.object({connections:z.array(z.object({id:uuidSchema,expectedRevision:z.number().int().positive()}).strict()).min(1).max(12)}).strict().superRefine((value,ctx)=>{if(new Set(value.connections.map(row=>row.id)).size!==value.connections.length)ctx.addIssue({code:'custom',path:['connections'],message:'duplicate_calendar_connection'});});
 export const calendarProviderConfigurationSchema=z.object({
   expectedRevision:z.number().int().nonnegative(),
   status:z.enum(['active','disabled']),
