@@ -79,6 +79,27 @@ test('linked PDF discovery follows a link inside main and ignores one outside ma
   const source=await fetcher.fetch('https://example.com/');assert.equal(fetchedPath,'/main.pdf');assert.equal(source.finalUrl,'https://example.com/main.pdf');assert.equal(source.contentType,'application/pdf');assert.match(source.text,/Main PDF content/);
 });
 
+test('linked PDFs must remain on the HTML page origin before any foreign request',async()=>{
+  const requests:string[]=[];const resolutions:string[]=[];
+  const fetcher=new MonitorSourceFetcher(async(hostname)=>{resolutions.push(hostname);return resolver();},async(url)=>{requests.push(url.toString());return response('<main><a href="https://other.example/plan.pdf">Plan PDF</a></main>','text/html');});
+  let failure:unknown;try{await fetcher.fetch('https://example.com/index');}catch(error){failure=error;}
+  assert.equal((failure as any)?.code,'AI_ENDPOINT_BLOCKED');assert.ok(!JSON.stringify((failure as any)?.details??{}).includes('other.example'));
+  assert.deepEqual(requests,['https://example.com/index']);assert.deepEqual(resolutions,['example.com'],'the foreign linked origin must be rejected before DNS or transport');
+});
+
+test('linked PDF redirects are origin-checked before DNS and same-origin redirects still work',async()=>{
+  const foreignRequests:string[]=[];const foreignResolutions:string[]=[];let foreignCall=0;
+  const foreign=new MonitorSourceFetcher(async(hostname)=>{foreignResolutions.push(hostname);return resolver();},async(url)=>{foreignRequests.push(url.toString());foreignCall++;return foreignCall===1?response('<main><a href="/plan.pdf">Plan PDF</a></main>','text/html'):response('','application/pdf',302,'https://other.example/private.pdf');});
+  let failure:unknown;try{await foreign.fetch('https://example.com/index');}catch(error){failure=error;}
+  assert.equal((failure as any)?.code,'AI_ENDPOINT_BLOCKED');assert.ok(!JSON.stringify((failure as any)?.details??{}).includes('other.example'));
+  assert.deepEqual(foreignRequests,['https://example.com/index','https://example.com/plan.pdf']);assert.deepEqual(foreignResolutions,['example.com','example.com'],'the foreign redirect target must be rejected before DNS or transport');
+
+  const sameOriginRequests:string[]=[];let sameOriginCall=0;
+  const sameOrigin=new MonitorSourceFetcher(resolver,async(url)=>{sameOriginRequests.push(url.toString());sameOriginCall++;if(sameOriginCall===1)return response('<main><a href="/plan.pdf">Plan PDF</a></main>','text/html');if(sameOriginCall===2)return response('','application/pdf',302,'/files/plan.pdf');return response('synthetic pdf bytes','application/pdf');},15_000,async()=> 'Same-origin PDF text');
+  const source=await sameOrigin.fetch('https://example.com/index');
+  assert.deepEqual(sameOriginRequests,['https://example.com/index','https://example.com/plan.pdf','https://example.com/files/plan.pdf']);assert.equal(source.finalUrl,'https://example.com/files/plan.pdf');assert.equal(source.text,'Same-origin PDF text');
+});
+
 test('approved rule terms ignore unrelated source chrome changes',()=>{
   const base={finalUrl:'https://example.com/plan',contentType:'text/html' as const,text:'Header version 1\nNavigation\nTrip day 2030-09-20\nBring boots\nFooter',fingerprint:'raw-one'};
   const rule={eventTypes:['trip day'],keywords:['trip'],people:[]};const first=selectRelevantSource(base,rule);const chrome=selectRelevantSource({...base,text:base.text.replace('Header version 1','Header version 2'),fingerprint:'raw-two'},rule);const relevant=selectRelevantSource({...base,text:base.text.replace('2030-09-20','2030-09-21'),fingerprint:'raw-three'},rule);
@@ -151,6 +172,13 @@ test('linked PDF redirect timeout keeps redirect phase after destination DNS res
 test('agent link fetches reject cross-origin redirects before following them',async()=>{
   let calls=0;const fetcher=new MonitorSourceFetcher(resolver,async()=>{calls++;return response('', 'text/html',302,'https://other.example/path');});
   await assert.rejects(()=>fetcher.fetch('https://example.com/news',{followLinkedPdf:false,redirectOrigin:'https://example.com'}),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');assert.equal(calls,1);
+});
+
+test('approved root redirects reject foreign origins before DNS or transport',async()=>{
+  const requests:string[]=[];const resolutions:string[]=[];
+  const fetcher=new MonitorSourceFetcher(async(hostname)=>{resolutions.push(hostname);return resolver();},async(url)=>{requests.push(url.toString());return response('','text/html',302,'https://b.example/redirected');});
+  await assert.rejects(()=>fetcher.fetch('https://a.example/start',{followLinkedPdf:true,redirectOrigin:'https://a.example'}),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
+  assert.deepEqual(requests,['https://a.example/start']);assert.deepEqual(resolutions,['a.example']);
 });
 
 test('secret calendar URLs preserve opaque query credentials but keep the pinned SSRF boundary',async()=>{

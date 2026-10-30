@@ -13,7 +13,7 @@ import {MonitorExecutionQueue,runMonitorExecutionBatch} from './execution.ts';
 import {MonitorEngine} from './engine.ts';
 import {MonitorService,monitorTaskDto,selectMonitorTask} from './service.ts';
 import type {MonitorActor} from './service.ts';
-import type {MonitorSourceFetcher,SourceDocument} from './source-fetcher.ts';
+import {selectRelevantSource,type MonitorSourceFetcher,type SourceDocument} from './source-fetcher.ts';
 import {nextMonitorCheckAt} from './schedule.ts';
 import {AiAdminService} from '../ai/admin-service.ts';
 
@@ -70,6 +70,78 @@ test('daily 08:00 schedule stays on the Europe/Oslo wall clock across both DST c
   assert.equal((await nextMonitorCheckAt(pool as any,{interpretedRule,checkIntervalMinutes:1440},new Date('2026-03-28T08:00:00Z'))).toISOString(),'2026-03-29T06:00:00.000Z');
   assert.equal((await nextMonitorCheckAt(pool as any,{interpretedRule,checkIntervalMinutes:1440},new Date('2026-10-24T08:00:00Z'))).toISOString(),'2026-10-25T07:00:00.000Z');
   assert.equal((await nextMonitorCheckAt(pool as any,{interpretedRule,checkIntervalMinutes:1440},new Date('2026-09-19T05:00:00Z'))).toISOString(),'2026-09-19T06:00:00.000Z');
+});
+
+test('first production event run seeds the linked PDF before model-visible web evidence',async()=>{
+  await fixture();
+  const rule={version:1,resultKind:'events',summary:'Read synthetic school calendar.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision WHERE id=$1`,[taskId,JSON.stringify(rule)]);
+  const pdfText='Synthetic school calendar: 2030-09-20 school event';
+  const pdf:SourceDocument={finalUrl:'https://example.com/files/calendar.pdf',contentType:'application/pdf',title:'Synthetic school calendar',headings:[],text:pdfText,fingerprint:'raw-pdf-fingerprint',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(pdfText),links:[],evidenceComplete:true,evidenceKind:'web'};
+  const fetchOptions:Array<{followLinkedPdf?:boolean}> = [];
+  const fetcher={fetch:async(_url:string,options:any)=>{fetchOptions.push(options);return pdf;}} as unknown as MonitorSourceFetcher;
+  let turn=0;let visibleToolEvidence='';
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
+    turn++;
+    if(turn===1)return{toolCalls:[{id:'open-calendar',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};
+    visibleToolEvidence=results[0]?.output??'';
+    return{output:JSON.stringify({version:1,outputLocale:'nb',events:[]}),toolCalls:[],generatedAt:new Date().toISOString()};
+  }})};
+  const engine=new MonitorEngine(fetcher,ai as any);
+  const result=await engine.runManual(actor,taskId,1,'manual');
+  assert.equal(result.outcome,'changed');
+  assert.deepEqual(fetchOptions.map((options)=>options.followLinkedPdf),[true],'the first approved-source events run must follow linked PDFs');
+  assert.match(visibleToolEvidence,/Synthetic school calendar: 2030-09-20 school event/,'the model tool result must contain the prefetched PDF text');
+  assert.equal((await pool.query<{source_dependency_manifest:any[]}>('SELECT source_dependency_manifest FROM monitor_tasks WHERE id=$1',[taskId])).rows[0]!.source_dependency_manifest[0].fingerprint,'raw-pdf-fingerprint','the raw fetched fingerprint remains the dependency fingerprint');
+  assert.deepEqual((await pool.query<{final_url:string;fingerprint:string}>(`SELECT provenance->0->>'finalUrl' AS final_url,provenance->0->>'fingerprint' AS fingerprint FROM monitor_tool_audits WHERE task_id=$1 AND phase='manual'`,[taskId])).rows[0],{final_url:'https://example.com/files/calendar.pdf',fingerprint:'raw-pdf-fingerprint'});
+});
+
+test('test preview with a matching prior fingerprint still runs AI analysis',async()=>{
+  await fixture();
+  const rule={version:1,resultKind:'events',summary:'Preview synthetic school calendar.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  const pdfText='Synthetic school calendar: 2030-09-20 school event';
+  const pdf:SourceDocument={finalUrl:'https://example.com/files/calendar.pdf',contentType:'application/pdf',title:'Synthetic school calendar',headings:[],text:pdfText,fingerprint:'raw-pdf-fingerprint',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(pdfText),links:[],evidenceComplete:true,evidenceKind:'web'};
+  const relevantFingerprint=selectRelevantSource(pdf,rule).fingerprint;
+  await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,last_processed_fingerprint=$3 WHERE id=$1`,[taskId,JSON.stringify(rule),relevantFingerprint]);
+  const taskBefore=(await pool.query<{state:string;next_check_at:Date|null;last_processed_fingerprint:string|null;source_dependency_manifest:unknown[]}>(`SELECT state,next_check_at,last_processed_fingerprint,source_dependency_manifest FROM monitor_tasks WHERE id=$1`,[taskId])).rows[0]!;
+  const messagesBefore=(await pool.query<{count:number}>('SELECT count(*)::int AS count FROM messages')).rows[0]!.count;
+  let fetchCalls=0;const fetcher={fetch:async()=>{fetchCalls++;return pdf;}} as unknown as MonitorSourceFetcher;
+  let turn=0;const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{
+    turn++;
+    if(turn===1)return{toolCalls:[{id:'open-calendar',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};
+    return{output:JSON.stringify({version:1,outputLocale:'nb',events:[]}),toolCalls:[],generatedAt:new Date().toISOString()};
+  }})};
+  const result=await new MonitorEngine(fetcher,ai as any).runManual(actor,taskId,1,'test');
+  assert.equal(result.outcome,'changed');
+  assert.equal(result.resultKind,'events','a matching source fingerprint must not bypass preview analysis');
+  assert.equal(fetchCalls,1);
+  assert.equal(turn,2);
+  assert.deepEqual((await pool.query<{outcome:string;ai_called:boolean}>(`SELECT outcome,ai_called FROM monitor_runs WHERE task_id=$1 AND run_kind='test'`,[taskId])).rows,[{outcome:'changed',ai_called:true}]);
+  assert.deepEqual((await pool.query<{state:string;next_check_at:Date|null;last_processed_fingerprint:string|null;source_dependency_manifest:unknown[]}>(`SELECT state,next_check_at,last_processed_fingerprint,source_dependency_manifest FROM monitor_tasks WHERE id=$1`,[taskId])).rows[0],taskBefore);
+  assert.equal((await pool.query<{count:number}>('SELECT count(*)::int AS count FROM messages')).rows[0]!.count,messagesBefore);
+});
+
+test('separate monitor tasks receive only their own prefetched PDF evidence',async()=>{
+  await fixture();
+  const rule={version:1,resultKind:'events',summary:'Read synthetic school calendar.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb WHERE id=$1`,[taskId,JSON.stringify(rule)]);
+  const secondTaskId=(await pool.query<{id:string}>(`INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,tool_plan,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier,interpreted_rule) VALUES($1,$2,'Second synthetic fixture','Read another synthetic calendar.','https://other.example/plan','["web.open"]',60,1,'18:00','local','routine',$3) RETURNING id`,[actor.householdId,actor.membershipId,JSON.stringify(rule)])).rows[0]!.id;
+  const sources=[
+    {url:'https://example.com/plan',document:{finalUrl:'https://example.com/files/calendar.pdf',contentType:'application/pdf' as const,title:'First synthetic calendar',headings:[],text:'Only evidence for first task',fingerprint:'first-task-fingerprint',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:28,links:[],evidenceComplete:true,evidenceKind:'web' as const}},
+    {url:'https://other.example/plan',document:{finalUrl:'https://other.example/files/calendar.pdf',contentType:'application/pdf' as const,title:'Second synthetic calendar',headings:[],text:'Only evidence for second task',fingerprint:'second-task-fingerprint',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:29,links:[],evidenceComplete:true,evidenceKind:'web' as const}}
+  ];
+  const fetcher={fetch:async(url:string)=>sources.find((item)=>item.url===url)!.document} as unknown as MonitorSourceFetcher;
+  let sessionIndex=0;const visibleEvidence:string[]=[];
+  const ai={createTaskSession:async()=>{const source=sources[sessionIndex++]!;let turn=0;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
+    turn++;
+    if(turn===1)return{toolCalls:[{id:'open-calendar',name:'web.open' as const,arguments:{url:source.url}}],generatedAt:new Date().toISOString()};
+    visibleEvidence.push(results[0]?.output??'');return{output:JSON.stringify({version:1,outputLocale:'nb',events:[]}),toolCalls:[],generatedAt:new Date().toISOString()};
+  }};}};
+  const engine=new MonitorEngine(fetcher,ai as any);
+  await engine.runManual(actor,taskId,1,'test');await engine.runManual(actor,secondTaskId,1,'test');
+  assert.equal(visibleEvidence.length,2);
+  assert.match(visibleEvidence[0]!,/Only evidence for first task/);assert.doesNotMatch(visibleEvidence[0]!,/Only evidence for second task/);
+  assert.match(visibleEvidence[1]!,/Only evidence for second task/);assert.doesNotMatch(visibleEvidence[1]!,/Only evidence for first task/);
 });
 
 test('durable enqueue returns one stable run, survives request completion and keeps a bounded lease',async()=>{
