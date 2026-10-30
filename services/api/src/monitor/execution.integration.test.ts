@@ -96,38 +96,22 @@ test('first production event run seeds the linked PDF before model-visible web e
   assert.deepEqual((await pool.query<{final_url:string;fingerprint:string}>(`SELECT provenance->0->>'finalUrl' AS final_url,provenance->0->>'fingerprint' AS fingerprint FROM monitor_tool_audits WHERE task_id=$1 AND phase='manual'`,[taskId])).rows[0],{final_url:'https://example.com/files/calendar.pdf',fingerprint:'raw-pdf-fingerprint'});
 });
 
-test('first approved answer run prefetches a linked PDF once and gives its evidence to the model',async()=>{
+test('first approved answer run keeps unrelated linked PDF out of model evidence and uses bounded answer tokens',async()=>{
   await fixture();
   const rule={version:1,resultKind:'answer',summary:'Read synthetic school answer.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
   await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision WHERE id=$1`,[taskId,JSON.stringify(rule)]);
-  const quote='Synthetic school timetable: first class starts at 08:30';
-  const pdf:SourceDocument={finalUrl:'https://example.com/files/school.pdf',contentType:'application/pdf',title:'Synthetic school timetable',headings:[],text:quote,fingerprint:'synthetic-answer-pdf',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(quote),links:[],evidenceComplete:true,evidenceKind:'web'};
-  const fetchOptions:any[]=[];const fetcher={fetch:async(_url:string,options:any)=>{fetchOptions.push(options);return pdf;}} as unknown as MonitorSourceFetcher;
+  const quote='Synthetic answer heading in the approved HTML page';const unrelated='Unrelated PDF: another school timetable';
+  const html:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',title:'Synthetic school page',headings:[quote],text:quote,fingerprint:'synthetic-answer-html',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(quote),links:[{url:'https://example.com/files/other-school.pdf',label:'Other school timetable'}],evidenceComplete:true,evidenceKind:'web'};
+  const pdf:SourceDocument={finalUrl:'https://example.com/files/other-school.pdf',contentType:'application/pdf',title:'Unrelated school timetable',headings:[],text:unrelated,fingerprint:'synthetic-answer-unrelated-pdf',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(unrelated),links:[],evidenceComplete:true,evidenceKind:'web'};
+  const fetchOptions:any[]=[];const fetcher={fetch:async(_url:string,options:any)=>{fetchOptions.push(options);return options.followLinkedPdf?pdf:html;}} as unknown as MonitorSourceFetcher;
   let turn=0;let visible='';let maxOutputTokens=0;
   const ai={createTaskSession:async(_householdId:string,task:any)=>{maxOutputTokens=task.maxOutputTokens;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
     turn++;if(turn===1)return{toolCalls:[{id:'open-school',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};
-    visible=results[0]?.output??'';return{output:JSON.stringify({version:1,outputLocale:'nb',answer:quote,evidence:{quote,sourceUrl:pdf.finalUrl,claims:[quote]},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};
+    visible=results[0]?.output??'';return{output:JSON.stringify({version:1,outputLocale:'nb',answer:quote,evidence:{quote,sourceUrl:html.finalUrl,claims:[quote]},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};
   }};}};
   const result=await new MonitorEngine(fetcher,ai as any).runManual(actor,taskId,1,'manual');
-  assert.equal(result.resultKind,'answer');assert.deepEqual(fetchOptions.map((item)=>item.followLinkedPdf),[true]);assert.equal(turn,2);
-  assert.match(visible,/Synthetic school timetable: first class starts at 08:30/);assert.equal(maxOutputTokens,1024);
-});
-
-test('answer test preview prefetches and reuses linked PDF evidence without activation',async()=>{
-  await fixture();
-  const rule={version:1,resultKind:'answer',summary:'Preview synthetic school answer.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
-  await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb WHERE id=$1`,[taskId,JSON.stringify(rule)]);
-  const quote='Synthetic school timetable: first class starts at 08:30';
-  const pdf:SourceDocument={finalUrl:'https://example.com/files/school.pdf',contentType:'application/pdf',title:'Synthetic school timetable',headings:[],text:quote,fingerprint:'synthetic-answer-preview-pdf',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(quote),links:[],evidenceComplete:true,evidenceKind:'web'};
-  const fetchOptions:any[]=[];const fetcher={fetch:async(_url:string,options:any)=>{fetchOptions.push(options);return pdf;}} as unknown as MonitorSourceFetcher;
-  let turn=0;let visible='';const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
-    turn++;if(turn===1)return{toolCalls:[{id:'open-school',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};
-    visible=results[0]?.output??'';return{output:JSON.stringify({version:1,outputLocale:'nb',answer:quote,evidence:{quote,sourceUrl:pdf.finalUrl,claims:[quote]},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};
-  }})};
-  const result=await new MonitorEngine(fetcher,ai as any).runManual(actor,taskId,1,'test');
-  assert.equal(result.resultKind,'answer');assert.deepEqual(fetchOptions.map((item)=>item.followLinkedPdf),[true]);assert.equal(turn,2);
-  assert.match(visible,/Synthetic school timetable: first class starts at 08:30/);
-  assert.equal((await pool.query<{state:string}>('SELECT state FROM monitor_tasks WHERE id=$1',[taskId])).rows[0]!.state,'draft');
+  assert.equal(result.resultKind,'answer');assert.deepEqual(fetchOptions.map((item)=>item.followLinkedPdf),[false]);assert.equal(turn,2);
+  assert.match(visible,/Synthetic answer heading in the approved HTML page/);assert.doesNotMatch(visible,/Unrelated PDF: another school timetable/);assert.equal(maxOutputTokens,1024);
 });
 
 test('output limit response fails safely without an automatic higher-tier retry',async()=>{
