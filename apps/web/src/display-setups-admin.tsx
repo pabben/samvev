@@ -11,7 +11,7 @@ import { advanceHomeBirthdays } from "./home-presentation";
 import { dateOffset } from "./household-board-adapters";
 import { FamilyHub } from "./family-hub";
 import { DisplayCard, DisplayDayCardContent, DisplayNextActivitySnapshot } from "./display";
-import { HouseholdActivityWeekRows } from "./home-activities";
+import { HouseholdActivityWeekHeading, HouseholdActivityWeekRows } from "./home-activities";
 import type { HouseholdTimelineActivity } from "./home-types";
 import { homeWeekEnd, homeWeekStart, mergeTimelineEntries, timelineDayHistoryVisible } from "./home-activity-presentation";
 import { applyDisplayReviewWrites, displayActionHasMessageRecipients, displayCalendarSourceUpdate, displayFamilyCardPlan, displayFamilyContentVisible, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupPeopleSelection, savePrivateDisplaySetupDraft } from "./display-admin-presentation";
@@ -89,14 +89,14 @@ function ReadonlyPreviewBody({ result, displayName, orientation }: { result: Pre
           const readinessCard = displayReadinessCard(result.setup.cards);
           content = <DisplayDayCardContent date={targetDate} zone={zone} people={people} birthdays={birthdays} labelKey={card} now={Date.parse(result.serverNow)} activities={dayActivities} dinners={dayDinners} readiness={card===readinessCard?result.contentReadiness?.calendar:undefined} empty={!entries.length&&!due.length}/>;
         }
-        else if (card === "week") { const weekStart=today,weekEnd=homeWeekEnd(today),weekDinners=(board?.dinners??[]).filter(dinner=>dinner.localDate>=weekStart&&dinner.localDate<=weekEnd).map(dinner=>({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false}));const weekEntries=mergeTimelineEntries(result.weekActivities?.activities??[],weekDinners,zone,weekStart,weekEnd);content=<section className="hub-week hub-panel hub-display-week" aria-label={t("hubWeekTitle")} data-testid="home-activity-week"><header className="hub-week-heading"><div><h2>{t("hubWeekTitle")}</h2><p>{weekStart} – {weekEnd}</p></div></header><HouseholdActivityWeekRows entries={weekEntries} from={weekStart} to={weekEnd} people={people} zone={zone} locale={result.display.locale} now={Date.parse(result.serverNow)} readOnly/></section>; }
+        else if (card === "week") { const weekStart=today,weekEnd=homeWeekEnd(today),weekDinners=(board?.dinners??[]).filter(dinner=>dinner.localDate>=weekStart&&dinner.localDate<=weekEnd).map(dinner=>({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false}));const weekEntries=mergeTimelineEntries(result.weekActivities?.activities??[],weekDinners,zone,weekStart,weekEnd);content=<section className="hub-week hub-panel hub-display-week" aria-label={t("hubWeekTitle")} data-testid="home-activity-week"><HouseholdActivityWeekHeading from={weekStart} to={weekEnd} locale={result.display.locale} title={t("hubWeekTitle")}/><HouseholdActivityWeekRows entries={weekEntries} from={weekStart} to={weekEnd} people={people} zone={zone} locale={result.display.locale} now={Date.parse(result.serverNow)} readOnly/></section>; }
         else if (card === "next") content = <DisplayNextActivitySnapshot activity={result.nextActivity ?? null} zone={zone} people={people} now={Date.parse(result.serverNow)}/>;
         else if (card === "groceries") content = <DisplayBoardPreviewCard kind="groceries" readable={board?.readable?.groceries===true} groceries={(board?.groceries??[]).map(item=>({...item,revision:item.revision??0}))} localDate={today} weekStart={homeWeekStart(today)}/>;
         else if (card === "dinners") { if (!board?.readable?.dinners && result.setup.cards.includes("groceries")) return null; content = <DisplayBoardPreviewCard kind="dinners" readable={board?.readable?.dinners===true} dinners={(board?.dinners??[]).map(item=>({...item,emoji:item.emoji??null,revision:item.revision??0,cleared:item.cleared??false}))} localDate={today} weekStart={homeWeekStart(today)}/>; }
         else if (card === "photos") content = <DisplayMediaPlayback displayId={result.display.id} snapshot={result.media} readOnly/>;
         else if (card === "home_assistant") content = <p className="field-hint">{t("displayPreviewHaReadonly")}</p>;
         if (!displayPreviewContentVisible(content)) return null;
-        return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}>{card !== "family_layout" && <h4>{t(PREVIEW_CARD_LABEL_KEYS[card] as never)}</h4>}{content}</article>;
+        return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}>{card !== "family_layout" && card !== "week" && <h4>{t(PREVIEW_CARD_LABEL_KEYS[card] as never)}</h4>}{content}</article>;
       })}
       </div>
     </div>

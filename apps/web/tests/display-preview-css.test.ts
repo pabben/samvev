@@ -27,6 +27,12 @@ test("portrait preview lets family and people cards span the full preview width"
   assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-day-plan \.hub-tomorrow\{border-top:0;border-left:1px solid var\(--hub-line\)\}/);
 });
 
+test("portrait week preview matches paired display columns and keeps read-only rows legible", () => {
+  assert.match(homeStyles, /\.display-preview-portrait \.display-preview-week\{grid-column:1\/-1\}/);
+  assert.match(homeStyles, /\.display-preview-portrait \.hub-display-week \.hub-week-days\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.match(homeStyles, /\.display-preview \.hub-display-week \.hub-week-row-button:disabled\{opacity:1;cursor:default\}/);
+});
+
 test("preview declares its own semantic theme and explicit system-light variables", () => {
   assert.match(styles, /\.display-preview\[data-theme="light"\],\.display-preview\[data-theme="system"\][^{]*\{[^}]*--teal:#35665d;[^}]*--soft-teal:#e5efeb;[^}]*--person-teal:#168477/);
   assert.match(styles, /@media\(prefers-color-scheme:dark\)\{\.display-preview\[data-theme="system"\][^{]*\{[^}]*--teal:#a9d7cb;[^}]*--soft-teal:#203b3c;[^}]*--person-teal:#89d6c7/);

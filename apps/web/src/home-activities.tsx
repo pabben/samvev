@@ -2,6 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import { dateOffset, memberHouseholdBoardAdapter, type DinnerAssignment } from "./household-board-adapters";
 import type { CSSProperties } from "react";
+import type { ReactNode } from "react";
 import type { HomeBirthday, HomeSchoolActivity, HouseholdTimelineActivity, HubPerson } from "./home-types";
 import { calendarActivityEnded, collectActivitySourcePages, dedupeTimelineActivities, homeWeekEnd, homeWeekStart, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, timelineActivityVisible, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
 import { CalendarFreshness } from "./calendar-freshness";
@@ -199,10 +200,9 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
   }, [householdId, personId, sourceId, weekStart, localDate, display, showNext, showNextActivity, refreshTick]);
   const entries = mergeTimelineEntries(activities, dinners, zone, weekStart, to);
   const currentNextActivity=nextActivity&&timelineActivityVisible(nextActivity,now,zone,true)?nextActivity:null;
-  const currentWeekTitle = `${shortDate(weekStart, locale)} – ${shortDate(to, locale)}`;
   if(!showWeekCard)return null;
   return <section className={`hub-week hub-panel ${display?"hub-display-week":"hub-member-week"}`} aria-label={t("hubWeekTitle")} data-testid="home-activity-week">
-    <header className="hub-week-heading"><div><h2><Icon name="calendar"/>{t(isCurrentWindow ? "hubWeekTitle" : "hubFutureWeekTitle")}</h2><p>{currentWeekTitle}</p></div><div className="hub-week-nav"><button className="hub-icon-button" type="button" aria-label={t("hubPreviousWeek")} disabled={weekStart <= localDate || loading} onClick={() => setSelectedWeekStart(value => dateOffset(value, -7))}><Icon name="back" size={16}/></button><button className="hub-icon-button" type="button" aria-label={t("hubNextWeek")} disabled={loading} onClick={() => setSelectedWeekStart(value => dateOffset(isCurrentWindow ? currentWeekStart : value, 7))}><Icon name="arrow" size={16}/></button></div></header>
+    <HouseholdActivityWeekHeading from={weekStart} to={to} locale={locale} title={t(isCurrentWindow ? "hubWeekTitle" : "hubFutureWeekTitle")}><div className="hub-week-nav"><button className="hub-icon-button" type="button" aria-label={t("hubPreviousWeek")} disabled={weekStart <= localDate || loading} onClick={() => setSelectedWeekStart(value => dateOffset(value, -7))}><Icon name="back" size={16}/></button><button className="hub-icon-button" type="button" aria-label={t("hubNextWeek")} disabled={loading} onClick={() => setSelectedWeekStart(value => dateOffset(isCurrentWindow ? currentWeekStart : value, 7))}><Icon name="arrow" size={16}/></button></div></HouseholdActivityWeekHeading>
     <label className="hub-week-person-filter">{t("hubWeekPersonFilter")}<select data-review-private="week-person-filter" value={personId} onChange={event => setPersonId(event.target.value)}><option value="">{t("hubWeekEveryone")}</option>{people.map(person => <option key={person.id} value={person.id}>{person.displayName}</option>)}</select></label>
     {!display && sources.length > 0 && <label className="hub-week-source-filter">{t("hubWeekSourceFilter")}<select data-review-private="week-source-filter" value={sourceId} onChange={event => setSourceId(event.target.value)}><option value="">{t("hubWeekEverySource")}</option>{sources.map(source => <option key={source.id} value={source.id}>{source.label}</option>)}</select></label>}
     {sourceCatalogError&&<p className="hub-week-error" role="status">{t("hubWeekLoadError")}</p>}
@@ -212,6 +212,11 @@ export function HouseholdActivityWeek({ householdId, localDate, zone, people, di
       {showNext && (nextLoading ? <p className="field-hint">{t("loading")}</p> : nextError ? <p role="status" className="hub-week-error">{t("hubWeekLoadError")} <button type="button" onClick={() => void loadNext()}>{t("retry")}</button></p> : currentNextActivity ? <><p className="hub-next-date" data-review-private="next-activity-date">{isTimelineActivityOngoing(currentNextActivity, localDate, now) ? `${t("hubOngoing")} · ` : ""}{dateHeading(currentNextActivity.type === "school" ? currentNextActivity.date : currentNextActivity.metadata.allDay ? currentNextActivity.startsAt?.slice(0,10) ?? "" : currentNextActivity.startsAt ? wallInput(currentNextActivity.startsAt, zone).slice(0,10) : "", locale)}</p><TimelineRow row={mergeTimelineEntries([currentNextActivity], [], zone)[0]!} people={people} family={t("hubFamily")} zone={zone} locale={locale} now={now}/></> : <p className="field-hint">{t("hubNextEmpty")}</p>)}
     </div>}
   </section>;
+}
+
+/** Shared localized heading and date range for live week cards and snapshot previews. */
+export function HouseholdActivityWeekHeading({from,to,locale,title,children}:{from:string;to:string;locale:string;title:string;children?:ReactNode}){
+ return <header className="hub-week-heading"><div><h2><Icon name="calendar"/>{title}</h2><p>{`${shortDate(from,locale)} – ${shortDate(to,locale)}`}</p></div>{children}</header>;
 }
 
 /** Shared server-projected week rows for live displays and read-only admin preview. */

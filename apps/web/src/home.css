@@ -639,6 +639,9 @@ body{font-family:var(--font-sans)}
 @media(max-width:900px) and (orientation:landscape){.family-hub.hub-display-compact-people .hub-person-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .display-preview-landscape .family-hub.hub-display-compact-people .hub-person-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .display-preview-portrait .family-hub.hub-display-compact-people .hub-person-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.display-preview-portrait .display-preview-week{grid-column:1/-1}
+.display-preview-portrait .hub-display-week .hub-week-days{grid-template-columns:repeat(2,minmax(0,1fr))}
+.display-preview .hub-display-week .hub-week-row-button:disabled{opacity:1;cursor:default}
 @media(max-width:640px){.display-preview .family-hub.hub-display-compact-people .hub-grid{grid-template-columns:minmax(0,1fr);grid-auto-rows:min-content;align-content:start;align-items:start}.display-preview .family-hub.hub-display-compact-people .hub-grid .hub-person-section,.display-preview .family-hub.hub-display-compact-people .hub-grid .hub-messages{grid-column:1;grid-row:auto;min-height:0;height:auto}.display-preview .family-hub.hub-display-compact-people .hub-person-grid{grid-template-columns:minmax(0,1fr)}.display-preview .family-hub.hub-display-compact-people .hub-person-name>strong{overflow-wrap:anywhere;word-break:normal}}
 
 /* Explicit Today and Tomorrow remain in saved order, then share one row. */

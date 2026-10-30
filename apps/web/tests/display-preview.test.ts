@@ -274,12 +274,26 @@ test("snapshot cards reuse live week, board and media renderers with read-only c
         assets: [{ id: "photo-1", albumId: "album-1", title: "Synthetic photo", previewUrl: "/synthetic-photo.webp" }],
         background: null, householdBackground: null,
       },
-      weekActivities: { activities: [] },
+      weekActivities: { activities: [
+        { type: "school", id: "week-first", taskId: "task-week-first", personId: familyPeople[0]!.id, personIds: [familyPeople[0]!.id], date: today, time: "08:15", startsAt: `${today}T08:15:00+01:00`, kind: "school", title: "Synthetic week first", actions: [], evidence: {}, confidence: null, uncertainty: null, sourceUrl: null, recordedAt: null, expiresAt: "2026-11-02T00:00:00.000Z" },
+        { type: "school", id: "week-later", taskId: "task-week-later", personId: familyPeople[0]!.id, personIds: [familyPeople[0]!.id], date: "2026-10-31", time: "09:00", startsAt: "2026-10-31T09:00:00+01:00", kind: "school", title: "Synthetic week later", actions: [], evidence: {}, confidence: null, uncertainty: null, sourceUrl: null, recordedAt: null, expiresAt: "2026-11-02T00:00:00.000Z" },
+      ] },
       nextActivity: null,
     } as any;
     const html = previewMarkup(result);
     assert.match(html, /data-testid="home-activity-week"/);
     assert.match(html, /class="hub-week-days"/);
+    const week = html.slice(html.indexOf('class="display-preview-card display-preview-week"'), html.indexOf('class="display-preview-card display-preview-next"'));
+    assert.equal((week.match(/<h2/g) ?? []).length, 1, "preview has one week heading");
+    assert.doesNotMatch(week, /<h4/ , "the outer card does not duplicate the live week title");
+    assert.match(week, /Denne uken/);
+    assert.match(week, /29\. okt\./, "week range uses the selected Norwegian locale");
+    assert.match(week, /torsdag 29\. oktober/);
+    assert.match(week, /fredag 30\. oktober/);
+    assert.match(week, /lørdag 31\. oktober/);
+    assert.match(week, /søndag 1\. november/);
+    assert.ok(week.indexOf("Synthetic week first") < week.indexOf("Synthetic week later"), "snapshot rows retain day order");
+    assert.equal((week.match(/<h3><time dateTime=/g) ?? []).length, 4, "the rolling week window contains its four ordered days");
     assert.match(html, /class="board-list"/);
     assert.match(html, /board-day-picker/);
     assert.match(html, /class="hub-week-row-button[^\"]*" type="button" disabled/);
