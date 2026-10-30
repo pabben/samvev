@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { AiModelTier, AiProviderId, AiProviderTurn, AiTask, AiToolResult, MonitorProviderPolicy, MonitorToolName } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
-import type { AiAdminService, AiExecutionContext } from '../ai/admin-service.ts';
+import type { AiAdminService, AiExecutionContext, AiSessionMode } from '../ai/admin-service.ts';
 import { isCalendarSubscriptionUrl, MonitorSourceFetcher, normalizeMonitorUrl, type SourceDocument } from './source-fetcher.ts';
 import { monitorToolRegistry, monitorWebTool, webOpenArgsSchema, type ApprovedWeatherScope } from './tool-registry.ts';
 import { MET_PUBLIC_FORECAST_URL, MetWeatherClient, norwegianWeatherDate, weatherEvidenceText, type WeatherForecast, type WeatherForecastArgs } from './weather.ts';
@@ -134,7 +134,7 @@ export class MonitorAgentRunner {
 
   async run(input:{
     householdId:string;task:AiTask;policy:MonitorProviderPolicy;rootUrl?:string;toolNames?:MonitorToolName[];requiredTools?:MonitorToolName[];expectedProvider?:AiProviderId;approvedWeatherScope?:ApprovedWeatherScope;
-    seedDocuments?:SourceDocument[];preloadSeedDocuments?:boolean;signal?:AbortSignal;requireTool?:boolean;maxTurns?:number;maxToolExecutions?:number;observer?:MonitorExecutionObserver;executionContext?:AiExecutionContext;
+    seedDocuments?:SourceDocument[];preloadSeedDocuments?:boolean;sessionMode?:AiSessionMode;signal?:AbortSignal;requireTool?:boolean;maxTurns?:number;maxToolExecutions?:number;observer?:MonitorExecutionObserver;executionContext?:AiExecutionContext;
   }):Promise<MonitorAgentResult>{
     const rootUrl=input.rootUrl?canonical(input.rootUrl):undefined;const toolNames=input.toolNames??(rootUrl?['web.open']:[]);if(!toolNames.length)fail('MONITOR_TOOL_INVALID',422);if(toolNames.includes('web.open')&&!rootUrl)fail('MONITOR_TOOL_INVALID',422);if(rootUrl&&toolNames.includes('web.open')&&isCalendarSubscriptionUrl(new URL(rootUrl)))throw new DomainError('CALENDAR_SOURCE_USE_ICS',422);const contracts=monitorToolRegistry.select(toolNames);if(contracts.length!==new Set(toolNames).size)fail('MONITOR_TOOL_INVALID',422);const requiredTools=new Set(input.requiredTools??(input.requireTool?toolNames:[]));
     const controller=new AbortController();const abort=()=>controller.abort();if(input.signal?.aborted)controller.abort();else input.signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(abort,this.deadlineMs);
@@ -195,7 +195,7 @@ export class MonitorAgentRunner {
       session=await this.ai.createTaskSession(
         input.householdId,sessionTask,input.policy,
         contracts.filter((item)=>(item.name==='web.open'&&allowFollowLinks)||!usedTools.has(item.name)).map((item)=>item.definition),
-        controller.signal,input.preloadSeedDocuments?'format_repair':'analysis',input.executionContext
+        controller.signal,input.preloadSeedDocuments?'format_repair':input.sessionMode??'analysis',input.executionContext
       );
       if(input.expectedProvider&&session.provider!==input.expectedProvider)throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
       let results:AiToolResult[]=[];let terminalRepairAttempted=false;

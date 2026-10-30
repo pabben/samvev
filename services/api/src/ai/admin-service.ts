@@ -53,7 +53,7 @@ export interface AiSettingsPatch {
   dailyDispatchLimit?: number|null;
 }
 
-export type AiSessionMode='analysis'|'format_repair';
+export type AiSessionMode='analysis'|'format_repair'|'extractive_answer';
 export interface AiExecutionContext{
   ownerAccountId?:string;ownerMembershipId?:string;taskId?:string;taskRevision?:number;
   taskLeaseToken?:string;workerLeaseToken?:string;
@@ -249,7 +249,7 @@ export class AiAdminService {
     let active=settings;let activeProvider=provider;let wire:AiProviderSession|undefined;let closed=false;
     const registrationId=settings.active_chatgpt_registration_id??undefined;let registrationGeneration:number|undefined;
     let reserve:SettingsRow|undefined;
-    if(settings.fallback_provider&&policy==='default'&&mode==='analysis'&&settings.provider!=='chatgpt_subscription'){
+    if(settings.fallback_provider&&policy==='default'&&mode!=='format_repair'&&settings.provider!=='chatgpt_subscription'){
       const row=(await pool.query<any>('SELECT api_key_ciphertext,base_url,default_model,strong_model,default_reasoning_effort,strong_reasoning_effort,revision AS configuration_revision FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2',[householdId,settings.fallback_provider])).rows[0];
       if(!row||row.configuration_revision!==settings.fallback_configuration_revision)throw new DomainError('AI_CONFIGURATION_INVALID',422);
       reserve={...settings,...row,provider:settings.fallback_provider};
@@ -263,7 +263,8 @@ export class AiAdminService {
         const access=await this.chatgpt.accessToken({householdId,installationId:'',accountId:context.ownerAccountId,membershipId:context.ownerMembershipId},registrationId);apiKey=access.token;registrationGeneration=access.generation;
       }else if(active.api_key_ciphertext){try{apiKey=await this.vault.decrypt(householdId,active.api_key_ciphertext);}catch{throw new DomainError('AI_CONFIGURATION_INVALID',422);}}
       const configuredReasoning=task.modelTier==='strong'?active.strong_reasoning_effort:active.default_reasoning_effort;
-      const configuration={provider:active.provider,model:actualModel(),apiKey,baseUrl:active.base_url??undefined,reasoningEffort:active.provider==='chatgpt_subscription'?(mode==='format_repair'?'low':configuredReasoning==='none'?'low':configuredReasoning):mode==='format_repair'?'none':configuredReasoning,beforeDispatch:async()=>{
+      const reasoningEffort=active.provider==='openai_compatible'&&mode==='extractive_answer'?'none':active.provider==='chatgpt_subscription'?(mode==='format_repair'?'low':configuredReasoning==='none'?'low':configuredReasoning):mode==='format_repair'?'none':configuredReasoning;
+      const configuration={provider:active.provider,model:actualModel(),apiKey,baseUrl:active.base_url??undefined,reasoningEffort,beforeDispatch:async()=>{
         if(closed||authorized||wireStarted||!pendingAttemptId)throw new AiProviderFailure('AI_RESPONSE_INVALID');
         if(active.provider==='chatgpt_subscription'&&registrationId){const access=await this.chatgpt.accessToken({householdId,installationId:'',accountId:context.ownerAccountId!,membershipId:context.ownerMembershipId!},registrationId);if(access.generation!==registrationGeneration)throw new AiProviderFailure('AI_REAUTHORIZATION_REQUIRED');configuration.apiKey=access.token;}
         await this.authorizeAndCreateAttempt(pendingAttemptId,householdId,active,actualModel(),task,turn,{...context,...(usedFallback?{fallbackFromProvider:settings.provider,fallbackReason}:{})},true,registrationId,registrationGeneration,settings);authorized=true;

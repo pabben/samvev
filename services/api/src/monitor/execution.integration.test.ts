@@ -105,13 +105,13 @@ test('first approved answer run keeps unrelated linked PDF out of model evidence
   const html:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',title:'Synthetic school page',headings:[quote],text:quote,fingerprint:'synthetic-answer-html',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(quote),links:[{url:'https://example.com/files/other-school.pdf',label:'Other school timetable'}],evidenceComplete:true,evidenceKind:'web'};
   const pdf:SourceDocument={finalUrl:'https://example.com/files/other-school.pdf',contentType:'application/pdf',title:'Unrelated school timetable',headings:[],text:unrelated,fingerprint:'synthetic-answer-unrelated-pdf',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:Buffer.byteLength(unrelated),links:[],evidenceComplete:true,evidenceKind:'web'};
   const fetchOptions:any[]=[];const fetcher={fetch:async(_url:string,options:any)=>{fetchOptions.push(options);return options.followLinkedPdf?pdf:html;}} as unknown as MonitorSourceFetcher;
-  let turn=0;let visible='';let maxOutputTokens=0;let answerPrompt='';
-  const ai={createTaskSession:async(_householdId:string,task:any)=>{maxOutputTokens=task.maxOutputTokens;answerPrompt=task.input;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
+  let turn=0;let visible='';let maxOutputTokens=0;let answerPrompt='';let sessionMode:unknown;let exposedTools:string[]=[];
+  const ai={createTaskSession:async(_householdId:string,task:any,_policy:unknown,tools:any[],_signal:unknown,mode:unknown)=>{maxOutputTokens=task.maxOutputTokens;answerPrompt=task.input;sessionMode=mode;exposedTools=tools.map((item)=>item.name);return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async(results:any[])=>{
     turn++;if(turn===1)return{toolCalls:[{id:'open-school',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};
     visible=results[0]?.output??'';return{output:JSON.stringify({version:1,outputLocale:'nb',answer:quote,evidence:{quote,sourceUrl:html.finalUrl,claims:[quote]},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};
   }};}};
   const result=await new MonitorEngine(fetcher,ai as any).runManual(actor,taskId,1,'manual');
-  assert.equal(result.resultKind,'answer');assert.deepEqual(fetchOptions.map((item)=>item.followLinkedPdf),[false]);assert.equal(turn,2);
+  assert.equal(result.resultKind,'answer');assert.deepEqual(fetchOptions.map((item)=>item.followLinkedPdf),[false]);assert.equal(turn,2);assert.equal(sessionMode,'extractive_answer');assert.deepEqual(exposedTools,['web.open']);
   assert.match(visible,/Synthetic answer heading in the approved HTML page/);assert.doesNotMatch(visible,/Unrelated PDF: another school timetable/);assert.equal(maxOutputTokens,2048);
   const answerInstructions=answerPrompt.split('\nSamvev already opened and validated the explicitly approved root source.')[0]!;
   assert.ok(answerInstructions.length<2_000,`answer instructions stay compact (${answerInstructions.length} chars)`);
