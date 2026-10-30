@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { registerHooks } from "node:module";
 
 registerHooks({ load(url, context, nextLoad) { return url.endsWith(".webp") ? { format: "module", source: 'export default "synthetic-avatar.webp"', shortCircuit: true } : nextLoad(url, context); } });
-const [{ ReadonlyPreview }, { LocaleProvider }] = await Promise.all([import("../src/display-setups-admin"), import("../src/ui")]);
+const [{ ReadonlyPreview }, { LocaleProvider }, { DisplayWallBackground, displayWallBackgroundAfterRefresh, displayWallBackgroundGeneration }] = await Promise.all([import("../src/display-setups-admin"), import("../src/ui"), import("../src/display")]);
 (globalThis as typeof globalThis & { React: typeof React }).React = React;
 
 function previewMarkup(result: any, orientation: "portrait" | "landscape" = "portrait") {
@@ -26,6 +26,40 @@ const base = {
   householdBoards: { from: "2026-10-29", groceries: [], dinners: [], readable: { groceries: false, dinners: false } },
   media: { assets: [] }, cards: [], serverNow: "2026-10-29T12:00:00.000Z", generatedAt: "2026-10-29T12:00:00.000Z", cacheUntil: "2026-10-29T12:15:00.000Z", maxStaleSeconds: 900,
 } as any;
+
+test("paired wall background uses the server-filtered selected background in both themes and falls back to the household selection", () => {
+  const asset = (id: string, title: string, previewUrl: string) => ({ id, albumId: "synthetic-background-album", kind: "backgrounds" as const, revision: 1, title, description: "Synthetic fixture", mimeType: "image/webp" as const, width: 1280, height: 752, url: previewUrl, previewUrl });
+  const setupBackground = asset("synthetic-setup-background", "Synthetic setup background", "/synthetic-setup-background.webp");
+  const householdBackground = asset("synthetic-household-background", "Synthetic household background", "/synthetic-household-background.webp");
+  for (const theme of ["light", "dark"] as const) {
+    const media = { albums: [], assets: [], background: setupBackground, householdBackground };
+    const live = renderToStaticMarkup(createElement(DisplayWallBackground, { media, theme }));
+    const preview = previewMarkup({ ...base, display: { ...base.display, theme }, media }, "landscape");
+    assert.match(live, new RegExp(`data-theme="${theme}"`));
+    assert.match(live, /class="display-wall-background"/);
+    assert.match(live, /src="\/synthetic-setup-background\.webp" alt=""/);
+    assert.doesNotMatch(live, /synthetic-household-background/);
+    assert.match(preview, /src="\/synthetic-setup-background\.webp" alt=""/);
+  }
+  const householdOnly = renderToStaticMarkup(createElement(DisplayWallBackground, { media: { albums: [], assets: [], background: null, householdBackground }, theme: "light" }));
+  assert.match(householdOnly, /src="\/synthetic-household-background\.webp" alt=""/);
+  assert.equal(renderToStaticMarkup(createElement(DisplayWallBackground, { media: { albums: [], assets: [], background: null, householdBackground: null }, theme: "dark" })), "");
+});
+
+test("wall background disappears immediately for privacy mode and fresh denied media generations", () => {
+  const asset = { id: "synthetic-background", albumId: "synthetic-background-album", kind: "backgrounds" as const, revision: 1, title: "Synthetic background", description: "Synthetic fixture", mimeType: "image/webp" as const, width: 1280, height: 752, url: "/synthetic-background.webp", previewUrl: "/synthetic-background.webp" };
+  const media = { albums: [], assets: [], background: asset, householdBackground: null };
+  const visible = renderToStaticMarkup(createElement(DisplayWallBackground, { media, theme: "light", privacyMode: false }));
+  assert.match(visible, /synthetic-background\.webp/);
+  assert.equal(renderToStaticMarkup(createElement(DisplayWallBackground, { media, theme: "light", privacyMode: true })), "", "the live root drops the layer in the same render that enables privacy mode");
+  const generation = displayWallBackgroundGeneration(base, 2);
+  const freshProjection = { ...base, generatedAt: "2026-10-29T12:01:00.000Z" };
+  assert.notEqual(displayWallBackgroundGeneration(freshProjection, 2), generation, "a fresh projection remounts the loader with empty media state");
+  assert.equal(displayWallBackgroundAfterRefresh({ media: null }), null, "a fresh media projection with a revoked grant drops the old image");
+  for (const status of [401, 403, 500]) {
+    assert.equal(displayWallBackgroundAfterRefresh({ error: Object.assign(new Error("synthetic media refresh failure"), { status }) }), null, `HTTP ${status} does not retain previously decoded background media`);
+  }
+});
 
 test("family plus People preview has one hub clock/heading and disables action affordances", () => {
   const html = previewMarkup(base);
@@ -138,6 +172,34 @@ test("preview uses selected display locale/theme and orientation while keeping t
   assert.match(html, /hub-light hub-wide hub-low-height/);
 });
 
+test("landscape preview keeps metadata outside the screen and renders the selected backdrop behind ordered display cards", () => {
+  const result = {
+    ...base,
+    setup: { ...base.setup, cards: ["family_layout", "today", "tomorrow"], cardOrder: ["today", "family_layout", "tomorrow"] },
+    media: { ...base.media, background: { id: "synthetic-background", title: "Synthetic private backdrop", previewUrl: "/synthetic-private-background.webp" } },
+    cards: [
+      { id: "synthetic-message-1", body: "Synthetic note one", importance: "normal", author: "Synthetic sender", publishAt: "2026-10-29T11:00:00Z", expiresAt: "2026-10-29T23:00:00Z", revision: 1 },
+      { id: "synthetic-message-2", body: "Synthetic note two", importance: "normal", author: "Synthetic sender", publishAt: "2026-10-29T11:00:00Z", expiresAt: "2026-10-29T23:00:00Z", revision: 1 },
+    ],
+  } as any;
+  result.setup.cards.push("household_messages");
+  result.setup.cardOrder.splice(2, 0, "household_messages");
+  const html = previewMarkup(result, "landscape");
+  const metadata = html.indexOf('class="display-preview-meta"');
+  const screen = html.indexOf('class="display-preview-screen"');
+  const backdrop = html.indexOf('class="display-preview-backdrop"');
+  const layout = html.indexOf('class="display-preview-layout"');
+  const today = html.indexOf('class="display-preview-card display-preview-today"');
+  const family = html.indexOf('class="display-preview-card display-preview-family_layout"');
+  const tomorrow = html.indexOf('class="display-preview-card display-preview-tomorrow"');
+  assert.ok(metadata >= 0 && metadata < html.indexOf('class="display-preview display-preview-landscape"'));
+  assert.ok(screen > metadata && screen < backdrop && backdrop < layout, "the selected image is a screen backdrop behind display content");
+  assert.match(html, /src="\/synthetic-private-background\.webp" alt=""/);
+  assert.ok(today < family && family < tomorrow, "the preview preserves the setup's configured card order");
+  assert.equal((html.match(/Synthetic note (?:one|two)/g) ?? []).length, 2);
+  assert.match(html, /class="hub-message-grid"/);
+});
+
 test("People-only preview matches the live roster-only sections", () => {
   const result = { ...base, setup: { ...base.setup, cards: ["people"], cardOrder: ["people"], familyLayoutEnabled: false } };
   const html = previewMarkup(result);
@@ -167,6 +229,29 @@ test("today, tomorrow and external cards show one calendar sharing reason", () =
   };
   const html = previewMarkup(result);
   assert.equal((html.match(/Ingen relevant valgt kalender/g) ?? []).length, 1);
+});
+
+test("preview keeps school activities in their local Today or Tomorrow card", () => {
+  const today = "2026-10-29";
+  const schoolActivity = (id: string, date: string, title: string) => ({
+    type: "school", id, taskId: `task-${id}`, personId: familyPeople[0]!.id, personIds: [familyPeople[0]!.id],
+    date, time: "08:15", startsAt: `${date}T08:15:00+01:00`, kind: "school", title, actions: [], evidence: {},
+    confidence: null, uncertainty: null, sourceUrl: null, recordedAt: null, expiresAt: "2026-11-01T00:00:00.000Z",
+  });
+  const result = {
+    ...base,
+    setup: { ...base.setup, cards: ["today", "tomorrow"], cardOrder: ["today", "tomorrow"] },
+    dayActivities: { activities: [schoolActivity("today", today, "Synthetic activity today"), schoolActivity("tomorrow", "2026-10-30", "Synthetic activity tomorrow")] },
+  } as any;
+  const html = previewMarkup(result, "landscape");
+  const todayCard = html.indexOf('class="display-preview-card display-preview-today"');
+  const todayActivity = html.indexOf("Synthetic activity today");
+  const tomorrowCard = html.indexOf('class="display-preview-card display-preview-tomorrow"');
+  const tomorrowActivity = html.indexOf("Synthetic activity tomorrow");
+  assert.ok(todayCard >= 0 && todayCard < todayActivity && todayActivity < tomorrowCard);
+  assert.ok(tomorrowCard < tomorrowActivity);
+  assert.equal((html.match(/Synthetic activity today/g) ?? []).length, 1);
+  assert.equal((html.match(/Synthetic activity tomorrow/g) ?? []).length, 1);
 });
 
 test("snapshot cards reuse live week, board and media renderers with read-only controls", () => {

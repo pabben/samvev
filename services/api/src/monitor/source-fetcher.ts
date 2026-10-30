@@ -160,15 +160,15 @@ async function pdfText(bytes:Uint8Array,signal:AbortSignal):Promise<string>{
 }
 
 export class MonitorSourceFetcher {
-  constructor(private readonly resolver:MonitorResolver=defaultResolver,private readonly transport=fetchPinned,private readonly timeoutMs=TIMEOUT_MS){}
+  constructor(private readonly resolver:MonitorResolver=defaultResolver,private readonly transport=fetchPinned,private readonly timeoutMs=TIMEOUT_MS,private readonly extractPdfText=pdfText){}
   async fetch(rawUrl:string,options:{followLinkedPdf?:boolean;signal?:AbortSignal;redirectOrigin?:string}={}):Promise<SourceDocument>{
-    const controller=new AbortController();const abort=()=>controller.abort();if(options.signal?.aborted)controller.abort();else options.signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(()=>controller.abort(),this.timeoutMs);
+    const controller=new AbortController();let abortCause:'source_deadline'|'caller_abort'|undefined;let phase:'dns'|'request'|'redirect'|'pdf'='dns';const abort=(cause:'source_deadline'|'caller_abort')=>{abortCause??=cause;controller.abort();};const callerAbort=()=>abort('caller_abort');if(options.signal?.aborted)callerAbort();else options.signal?.addEventListener('abort',callerAbort,{once:true});const timeout=setTimeout(()=>abort('source_deadline'),this.timeoutMs);
     try{
     try{if(isCalendarSubscriptionUrl(new URL(rawUrl)))throw new DomainError('CALENDAR_SOURCE_USE_ICS',422);}catch(error){if(error instanceof DomainError)throw error;}
       let url=new URL(normalizeMonitorUrl(rawUrl));let response:Awaited<ReturnType<typeof fetchPinned>>|undefined;
       for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){
-        const target=await resolvePublic(url,this.resolver,controller.signal);response=await this.transport(url,target,controller.signal);if(response.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);
-        if(response.status>=300&&response.status<400&&response.headers.location){if(redirects===MAX_REDIRECTS)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);const redirect=new URL(normalizeMonitorUrl(new URL(response.headers.location,url).toString()));if(options.redirectOrigin&&redirect.origin!==options.redirectOrigin)throw new DomainError('AI_ENDPOINT_BLOCKED',422);url=redirect;continue;}break;
+        if(redirects>0)phase='redirect';else phase='dns';const target=await resolvePublic(url,this.resolver,controller.signal);phase=redirects>0?'redirect':'request';response=await this.transport(url,target,controller.signal);if(response.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);
+        if(response.status>=300&&response.status<400&&response.headers.location){if(redirects===MAX_REDIRECTS)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);phase='redirect';const redirect=new URL(normalizeMonitorUrl(new URL(response.headers.location,url).toString()));if(options.redirectOrigin&&redirect.origin!==options.redirectOrigin)throw new DomainError('AI_ENDPOINT_BLOCKED',422);url=redirect;continue;}break;
       }
       if(!response||response.status<200||response.status>=300)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);
       let kind=(response.headers['content-type']??'').split(';')[0]!.trim().toLowerCase();
@@ -178,17 +178,17 @@ export class MonitorSourceFetcher {
         const html=response.body.toString('utf8');const content=semanticHtml(html);structure=htmlStructure(html,content,url);const pdf=options.followLinkedPdf===false?undefined:linkedPdf(content,url);
         if(pdf){
           let safePdf=new URL(normalizeMonitorUrl(pdf.toString()));let linked:Awaited<ReturnType<typeof fetchPinned>>|undefined;
-          for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){const target=await resolvePublic(safePdf,this.resolver,controller.signal);linked=await this.transport(safePdf,target,controller.signal);if(linked.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);if(linked.status>=300&&linked.status<400&&linked.headers.location){if(redirects===MAX_REDIRECTS)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);safePdf=new URL(normalizeMonitorUrl(new URL(linked.headers.location,safePdf).toString()));continue;}break;}
+          for(let redirects=0;redirects<=MAX_REDIRECTS;redirects++){phase=redirects?'redirect':'dns';const target=await resolvePublic(safePdf,this.resolver,controller.signal);phase=redirects?'redirect':'request';linked=await this.transport(safePdf,target,controller.signal);if(linked.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);if(linked.status>=300&&linked.status<400&&linked.headers.location){if(redirects===MAX_REDIRECTS)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);phase='redirect';safePdf=new URL(normalizeMonitorUrl(new URL(linked.headers.location,safePdf).toString()));continue;}break;}
           if(!linked)throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);
           if(linked.body.length>MAX_BYTES)throw new DomainError('MONITOR_SOURCE_TOO_LARGE',413);const linkedType=(linked.headers['content-type']??'').split(';')[0]!.toLowerCase();
-          if(linked.status>=200&&linked.status<300&&linkedType==='application/pdf'){text=await pdfText(linked.body,controller.signal);kind='application/pdf';finalUrl=safePdf.toString();metadata=linked;}else text=htmlText(content);
+          if(linked.status>=200&&linked.status<300&&linkedType==='application/pdf'){phase='pdf';text=await this.extractPdfText(linked.body,controller.signal);kind='application/pdf';finalUrl=safePdf.toString();metadata=linked;}else text=htmlText(content);
         }else text=htmlText(content);
-      }else if(kind==='application/pdf'){text=await pdfText(response.body,controller.signal);}else throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
+      }else if(kind==='application/pdf'){phase='pdf';text=await this.extractPdfText(response.body,controller.signal);}else throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
       if(!text)throw new DomainError('MONITOR_SOURCE_UNSUPPORTED',422);
       if(controller.signal.aborted)throw new DomainError('MONITOR_SOURCE_TIMEOUT',504);const normalized=text.normalize('NFKC').replace(/\r/g,'').trim();
       return {finalUrl,contentType:kind==='application/pdf'?'application/pdf':'text/html',text:normalized,fingerprint:createHash('sha256').update(normalized).digest('hex'),fetchedAt:new Date().toISOString(),httpStatus:metadata.status,byteSize:metadata.body.length,...(structure??{}),...(metadata.headers.etag?{etag:metadata.headers.etag}:{}),...(metadata.headers['last-modified']?{lastModified:metadata.headers['last-modified']}:{})};
-    }catch(error){if(controller.signal.aborted)throw new DomainError('MONITOR_SOURCE_TIMEOUT',504);if(error instanceof DomainError)throw error;throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);}
-    finally{clearTimeout(timeout);options.signal?.removeEventListener('abort',abort);}
+    }catch(error){if(controller.signal.aborted)throw new DomainError('MONITOR_SOURCE_TIMEOUT',504,{sourceFetchCause:abortCause??'caller_abort',sourceFetchPhase:phase});if(error instanceof DomainError)throw error;throw new DomainError('MONITOR_SOURCE_UNAVAILABLE',502);}
+    finally{clearTimeout(timeout);options.signal?.removeEventListener('abort',callerAbort);}
   }
 }
 

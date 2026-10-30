@@ -61,10 +61,12 @@ function ReadonlyPreviewBody({ result, displayName, orientation }: { result: Pre
   const familySelected = displayFamilyContentVisible(familyCardPlan.familyLayout,people.length,messages.length,items.length,birthdays.length);
   const snapshotDinners=board?.readable?.dinners===true&&!result.setup.cards.includes("dinners")?(board.dinners??[]).map(dinner=>({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false})):[];
   const familyView = (roster: boolean, withMessages = false, peopleOnly = false) => <fieldset className="display-preview-family-readonly" disabled><legend className="sr-only">{t("displayPreviewReadonly")}</legend><FamilyHub display displayCompactPeople displaySnapshot={{dinners:snapshotDinners,composition:{theme:result.display.theme,orientation}}} displaySections={{people:roster,today:!peopleOnly&&!result.setup.cards.includes("today"),tomorrow:!peopleOnly&&!result.setup.cards.includes("tomorrow"),important:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} people={people} items={peopleOnly?[]:items} messages={withMessages&&!peopleOnly?messages:[]} birthdays={birthdays} birthdaySourceLocalDate={today} localDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} /></fieldset>;
-  return <section className={`display-preview display-preview-${orientation}`} data-theme={result.display.theme} aria-label={t("displayPreviewTitle")}>
-    <header><h3>{t("displayPreviewFor", { name: displayName })}</h3><p>{t("displaySetup")}: {result.display.setupName ?? t("defaultDisplaySetup")} · {t("displayPreviewTitle")} · {t("displayPreviewReadonly")}</p></header>
-    {background && <img className="display-preview-background" src={background.previewUrl} alt={background.title} referrerPolicy="no-referrer"/>}
-    <div className="display-preview-layout">
+  return <>
+    <header className="display-preview-meta"><h3>{t("displayPreviewFor", { name: displayName })}</h3><p>{t("displaySetup")}: {result.display.setupName ?? t("defaultDisplaySetup")} · {t("displayPreviewTitle")} · {t("displayPreviewReadonly")}</p></header>
+    <section className={`display-preview display-preview-${orientation}`} data-theme={result.display.theme} aria-label={t("displayPreviewTitle")}>
+    <div className="display-preview-screen">
+      {background && <img className="display-preview-backdrop" src={background.previewUrl} alt="" referrerPolicy="no-referrer"/>}
+      <div className="display-preview-layout">
       {result.setup.cardOrder.map((cardValue, index) => {
         const card = cardValue as CardId;
         if (!CARD_IDS.includes(card)) return null;
@@ -78,7 +80,7 @@ function ReadonlyPreviewBody({ result, displayName, orientation }: { result: Pre
         else if (card === "worth_remembering") content = items.filter(item => item.kind === "summary" || item.kind === "list").map(item => <article className="display-preview-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p></article>);
         else if (card === "today" || card === "tomorrow") {
           const targetDate = card === "today" ? today : new Date(Date.parse(`${today}T12:00:00Z`) + 86400000).toISOString().slice(0,10);
-          const dayActivities = (result.dayActivities?.activities ?? []).filter(activity => timelineDayHistoryVisible(activity, Date.parse(result.serverNow)));
+          const dayActivities = (result.dayActivities?.activities ?? []).filter(activity => timelineDayHistoryVisible(activity, Date.parse(result.serverNow)) && (activity.type === "school" ? activity.date === targetDate : mergeTimelineEntries([activity], [], zone, targetDate, targetDate).length > 0));
           const dayDinners = (board?.dinners ?? []).filter(dinner => dinner.localDate === targetDate).map(dinner => ({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false}));
           const entries = mergeTimelineEntries(dayActivities,dayDinners,zone,targetDate,targetDate);
           const birthdayDue = card === "today" ? "today" : "tomorrow";
@@ -93,10 +95,12 @@ function ReadonlyPreviewBody({ result, displayName, orientation }: { result: Pre
         else if (card === "photos") content = <DisplayMediaPlayback displayId={result.display.id} snapshot={result.media} readOnly/>;
         else if (card === "home_assistant") content = <p className="field-hint">{t("displayPreviewHaReadonly")}</p>;
         if (!displayPreviewContentVisible(content)) return null;
-        return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}><h4>{t(PREVIEW_CARD_LABEL_KEYS[card] as never)}</h4>{content}</article>;
+        return <article className={`display-preview-card display-preview-${card}`} key={card} style={{ order: index + 1 }}>{card !== "family_layout" && <h4>{t(PREVIEW_CARD_LABEL_KEYS[card] as never)}</h4>}{content}</article>;
       })}
+      </div>
     </div>
-  </section>;
+    </section>
+  </>;
 }
 
 export function DisplaySetupsAdmin({ householdId, member, people, displays, onChanged, openSetupId, onOpenSetupHandled, openPolicyDisplayId, onOpenPolicyHandled, previewDisplayId, onPreviewHandled }: { householdId: string; member: Membership; people: Person[]; displays: Display[]; onChanged: () => Promise<void>; openSetupId?: string | null; onOpenSetupHandled?: () => void; openPolicyDisplayId?: string | null; onOpenPolicyHandled?: () => void; previewDisplayId?: string | null; onPreviewHandled?: () => void }) {

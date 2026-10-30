@@ -22,6 +22,9 @@ services:
         source: ${SOURCE:?}
         target: /source
         read_only: true
+      - type: bind
+        source: ${VISUAL_DIR:?}
+        target: /visual
       - type: volume
         source: deps
         target: /source/node_modules
@@ -34,11 +37,19 @@ services:
     environment:
       DATABASE_URL: postgresql://display_proof:synthetic-display-proof-only@proof-db:5432/display_proof
       CI: 'true'
+      SCREENSHOT_MODE: ${SCREENSHOT_MODE:-0}
+      VISUAL_OUTPUT: /visual
+      SOURCE_HEAD_SHA: ${SOURCE_HEAD_SHA:?}
+      SOURCE_DIRTY: ${SOURCE_DIRTY:?}
+      SYNTHETIC_LANDSCAPE_PATH: /visual/${LANDSCAPE_FILENAME:?}
     volumes:
       - type: bind
         source: ${SOURCE:?}
         target: /source
         read_only: true
+      - type: bind
+        source: ${VISUAL_DIR:?}
+        target: /visual
     networks: [proof]
     command: [sh, -ec, 'tar -C /source --exclude=node_modules --exclude=dist -cf - package.json package-lock.json tsconfig.json apps packages services scripts tests/e2e/display-proof/test.mjs | tar -C /workspace -xf - && npm run build --workspace @samvev/web && node tests/e2e/display-proof/test.mjs']
 networks:

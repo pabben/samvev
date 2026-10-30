@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { schoolProjectionMetadata, type SchoolProvenanceRow } from './school-projection.ts';
 import { generatedClothingAdvice, schoolPresentationActions } from './practical-actions.ts';
-import { interpretationFromAi } from './service.ts';
+import { interpretationFromAi, sanitizedMonitorErrorDetails, sanitizedStoredMonitorErrorDetails } from './service.ts';
+import { monitorOutputDiagnostic, sanitizedSourceFetchDiagnostic } from './validation-diagnostics.ts';
+import { DomainError } from '@samvev/core';
 
 test('known generated school advice is hidden only when absent from the saved school quote',()=>{
   for(const advice of generatedClothingAdvice){
@@ -32,8 +34,25 @@ test('bounded final-schema diagnostics distinguish invalid JSON, schema mismatch
   for(const [output,reason] of [['<html>synthetic unexpected response</html>','invalid_json'],['{"summary":"missing required fields"}','schema_mismatch'],['x'.repeat(32_001),'response_too_large']]){
     assert.throws(()=>interpretationFromAi(output!),(error:any)=>{
       assert.equal(error.details.validationStage,'final_schema');assert.equal(error.details.validationReason,reason);
+      assert.ok(['empty','object','array','string','number','boolean','null','markdown','html','other'].includes(error.details.outputShape));
+      assert.ok(['empty','1_256','257_2k','2k_8k','8k_32k','over_limit'].includes(error.details.outputSizeBucket));
+      assert.ok(['likely_truncated','not_indicated','unknown'].includes(error.details.outputTruncation));
       if(reason==='schema_mismatch'){assert.ok(Array.isArray(error.details.validationIssues));assert.ok(error.details.validationIssues.length>0);assert.ok(error.details.validationIssues.every((issue:any)=>typeof issue.path==='string'&&typeof issue.code==='string'));}
       assert.equal('rawOutput' in error.details,false);assert.equal('output' in error.details,false);return true;
     });
   }
+});
+
+test('failed model output telemetry contains only bounded shape, size and truncation categories',()=>{
+  assert.deepEqual(monitorOutputDiagnostic('{"events":[{"date":"secret'),{outputShape:'object',outputSizeBucket:'1_256',outputTruncation:'likely_truncated'});
+  assert.deepEqual(monitorOutputDiagnostic('<html>private prompt text</html>'),{outputShape:'html',outputSizeBucket:'1_256',outputTruncation:'not_indicated'});
+  assert.deepEqual(monitorOutputDiagnostic('x'.repeat(32_001)),{outputShape:'other',outputSizeBucket:'over_limit',outputTruncation:'unknown'});
+  const safe=sanitizedSourceFetchDiagnostic({sourceFetchCause:'caller_abort',sourceFetchPhase:'pdf',url:'https://private.example/?token=secret',body:'private body',prompt:'private prompt'});
+  assert.deepEqual(safe,{sourceFetchCause:'caller_abort',sourceFetchPhase:'pdf'});
+  assert.equal(sanitizedSourceFetchDiagnostic({sourceFetchCause:'secret',sourceFetchPhase:'https://private.example/'}),null);
+  const publicSource=sanitizedMonitorErrorDetails(new DomainError('MONITOR_SOURCE_TIMEOUT',504,{sourceFetchCause:'caller_abort',sourceFetchPhase:'pdf',url:'https://private.example/?token=secret',body:'private body'}));
+  assert.deepEqual(publicSource,{sourceFetchCause:'caller_abort',sourceFetchPhase:'pdf'});
+  assert.deepEqual(sanitizedStoredMonitorErrorDetails('MONITOR_SOURCE_TIMEOUT',{sourceFetchCause:'source_deadline',sourceFetchPhase:'dns',url:'https://private.example/?token=secret'}),{sourceFetchCause:'source_deadline',sourceFetchPhase:'dns'});
+  const publicModel=sanitizedMonitorErrorDetails(new DomainError('AI_RESPONSE_INVALID',502,{validationStage:'final_schema',validationReason:'invalid_json',outputShape:'object',outputSizeBucket:'1_256',outputTruncation:'likely_truncated',rawOutput:'secret payload',hash:'secret hash',snippet:'secret snippet',sourceUrl:'https://private.example'}));
+  assert.deepEqual(publicModel,{validationStage:'final_schema',validationReason:'invalid_json',outputShape:'object',outputSizeBucket:'1_256',outputTruncation:'likely_truncated'});
 });

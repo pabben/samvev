@@ -104,7 +104,26 @@ test('redirect destinations are revalidated and response types and sizes are bou
 
 test('source fetch has a network and DNS deadline',async()=>{
   const fetcher=new MonitorSourceFetcher(resolver,async(_url,_target,signal)=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})),20);
-  await assert.rejects(()=>fetcher.fetch('https://example.com/slow'),(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT');
+  await assert.rejects(()=>fetcher.fetch('https://example.com/slow'),(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT'&&error.details.sourceFetchCause==='source_deadline'&&error.details.sourceFetchPhase==='request'&&Object.keys(error.details).sort().join(',')==='sourceFetchCause,sourceFetchPhase');
+});
+
+test('source fetch timeout diagnostics distinguish caller abort, DNS deadline and redirect phase without URL data',async()=>{
+  const caller=new AbortController();const callerFetcher=new MonitorSourceFetcher(resolver,async(_url,_target,signal)=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})),200);
+  const callerRun=callerFetcher.fetch('https://example.com/private?page=never-report',{signal:caller.signal});setTimeout(()=>caller.abort(),5);
+  await assert.rejects(()=>callerRun,(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT'&&error.details.sourceFetchCause==='caller_abort'&&error.details.sourceFetchPhase==='request'&&!JSON.stringify(error.details).includes('private')&&!JSON.stringify(error.details).includes('token'));
+
+  const dnsFetcher=new MonitorSourceFetcher((_hostname)=>new Promise((_resolve,reject)=>setTimeout(()=>reject(new Error('synthetic resolver failure')),80)),async()=>response('unused','text/html'),10);
+  await assert.rejects(()=>dnsFetcher.fetch('https://example.com/private'),(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT'&&error.details.sourceFetchCause==='source_deadline'&&error.details.sourceFetchPhase==='dns'&&Object.keys(error.details).sort().join(',')==='sourceFetchCause,sourceFetchPhase');
+
+  let requests=0;const redirectFetcher=new MonitorSourceFetcher(resolver,async(_url,_target,signal)=>{requests++;if(requests===1)return response('','text/html',302,'/next');return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}));},10);
+  await assert.rejects(()=>redirectFetcher.fetch('https://example.com/start'),(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT'&&error.details.sourceFetchCause==='source_deadline'&&error.details.sourceFetchPhase==='redirect'&&requests===2&&Object.keys(error.details).sort().join(',')==='sourceFetchCause,sourceFetchPhase');
+
+  const pdfFetcher=new MonitorSourceFetcher(resolver,async()=>response('%PDF synthetic','application/pdf'),10,async(_bytes,signal)=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true})));
+  await assert.rejects(()=>pdfFetcher.fetch('https://example.com/plan.pdf'),(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT'&&error.details.sourceFetchCause==='source_deadline'&&error.details.sourceFetchPhase==='pdf'&&Object.keys(error.details).sort().join(',')==='sourceFetchCause,sourceFetchPhase');
+
+  const slowPdfParser=new MonitorSourceFetcher(resolver,async()=>response('%PDF synthetic','application/pdf'),5,async()=>new Promise((resolve)=>setTimeout(()=>resolve('late synthetic extraction'),30)));
+  const laterCallerAbort=new AbortController();const slowPdfRun=slowPdfParser.fetch('https://example.com/slow.pdf',{signal:laterCallerAbort.signal});setTimeout(()=>laterCallerAbort.abort(),10);
+  await assert.rejects(()=>slowPdfRun,(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT'&&error.details.sourceFetchCause==='source_deadline'&&error.details.sourceFetchPhase==='pdf');
 });
 
 test('DNS answers are all validated and the accepted address is pinned',async()=>{
@@ -117,6 +136,16 @@ test('linked PDF redirects and redirect exhaustion use the same URL policy',asyn
   const linkedPrivate=new MonitorSourceFetcher(resolver,async(url)=>url.pathname==='/index'?response('<a href="/plan.pdf">PDF</a>','text/html'):response('','application/pdf',302,'http://192.168.1.2/private.pdf'));
   await assert.rejects(()=>linkedPrivate.fetch('https://example.com/index'),(error:any)=>error.code==='AI_ENDPOINT_BLOCKED');
   let calls=0;const endless=new MonitorSourceFetcher(resolver,async()=>{calls++;return response('','text/html',302,'/again');});await assert.rejects(()=>endless.fetch('https://example.com/start'),(error:any)=>error.code==='MONITOR_SOURCE_UNAVAILABLE');assert.equal(calls,4);
+});
+
+test('linked PDF redirect timeout keeps redirect phase after destination DNS resolves',async()=>{
+  const paths:string[]=[];const fetcher=new MonitorSourceFetcher(resolver,async(url,_target,signal)=>{
+    paths.push(url.pathname);
+    if(url.pathname==='/index')return response('<main><a href="/plan.pdf">Plan</a></main>','text/html');
+    if(url.pathname==='/plan.pdf')return response('','application/pdf',302,'/cdn-plan.pdf');
+    return new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('aborted','AbortError')),{once:true}));
+  },10);
+  await assert.rejects(()=>fetcher.fetch('https://example.com/index'),(error:any)=>error.code==='MONITOR_SOURCE_TIMEOUT'&&error.details.sourceFetchCause==='source_deadline'&&error.details.sourceFetchPhase==='redirect'&&paths.join(',')==='/index,/plan.pdf,/cdn-plan.pdf');
 });
 
 test('agent link fetches reject cross-origin redirects before following them',async()=>{

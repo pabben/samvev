@@ -98,7 +98,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   const collectionTitle=(id:HubCollection)=>t(({important:'hubImportant',briefs:'hubBriefs',messages:'hubMessages',today:'hubToday',tomorrow:'hubTomorrow',waste:'hubUpcomingWaste'} as const)[id]);
   const collectionButton=(id:HubCollection,count:number)=><button className="hub-collection-link" data-hub-detail={id} data-hub-detail-kind="collection" onClick={event=>detailAccess.open({kind:'collection',id},event.currentTarget)}>{t('hubViewCollection',{section:collectionTitle(id),count})}<Icon name="arrow" size={16}/></button>;
   const sections: Record<string, ReactNode> = {
-    people: mobile || (!display&&people.length===0) ? null : <section key="people" className={`hub-person-section ${peopleLayout?'hub-adaptive-people':''} ${peopleLayout&&peopleLayout.rows>1?'hub-people-multirow':''} ${concisePeople?'hub-people-summary':''}`} aria-labelledby="hub-people-title"><PanelTitle id="hub-people-title" icon="people" title={t(dark&&!compact?'hubFamilyHeading':'hubPeople')} count={people.length}/><div ref={peopleGrid} className="hub-person-grid" style={peopleLayout?{'--hub-people-columns':peopleLayout.columns} as CSSProperties:undefined}>{people.map((person,index)=>{
+    people: mobile&&!display || (!display&&people.length===0) ? null : <section key="people" className={`hub-person-section ${peopleLayout?'hub-adaptive-people':''} ${peopleLayout&&peopleLayout.rows>1?'hub-people-multirow':''} ${concisePeople?'hub-people-summary':''}`} aria-labelledby="hub-people-title"><PanelTitle id="hub-people-title" icon="people" title={t(dark&&!compact?'hubFamilyHeading':'hubPeople')} count={people.length}/><div ref={peopleGrid} className="hub-person-grid" style={peopleLayout?{'--hub-people-columns':peopleLayout.columns} as CSSProperties:undefined}>{people.map((person,index)=>{
       const personal=personalPreviewItems(active,person.id,now,zone);
       const school=currentSchool.filter(activity=>activity.personIds.includes(person.id));
       const birthday=currentBirthdays.find(activity=>activity.personId===person.id);
@@ -129,7 +129,15 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   }
   const orderedSections:ReactNode[]=[];
   const sectionOrder=hubSectionOrder(dark,compact,mobile);
-  if(mobile&&!dark)sectionOrder.splice(1,0,'quickActions');
+  if(display&&mobile&&!sectionOrder.includes('people'))sectionOrder.unshift('people');
+  if(displayCompactPeople){
+    const peopleIndex=sectionOrder.indexOf('people'),messagesIndex=sectionOrder.indexOf('messages');
+    if(peopleIndex>=0&&messagesIndex>=0&&messagesIndex<peopleIndex){
+      sectionOrder.splice(messagesIndex,1);
+      sectionOrder.splice(sectionOrder.indexOf('people')+1,0,'messages');
+    }
+  }
+  if(mobile&&!display)sectionOrder.splice(0,sectionOrder.length,'today','tomorrow','important','messages','quickActions','support');
   for(const key of sectionOrder){
     if(!display&&key==='important'&&!important.length)continue;
     if(key==='dayPlan'){
@@ -149,23 +157,25 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
       <div className="hub-hero-clock"><span>{formatDate(now,locale,zone,{weekday:'long',day:'numeric',month:'long'})}</span><strong>{formatDate(now,locale,zone,{hour:'2-digit',minute:'2-digit'})}</strong>{connection&&<span className={`connection-pill ${connection===t('live')?'hub-live-status':''}`} role="status"><span className="live-dot"/>{connection}</span>}</div>
       {compose&&!mobile&&<button className="button hub-compose" onClick={compose}><Icon name="plus"/>{t('newMessage')}</button>}
     </section>
-    {mobile&&people.length>0&&displaySections?.people!==false&&<nav className="hub-identities" aria-label={t('hubPeople')}>{people.map((p,i)=>{const birthday=currentBirthdays.find(item=>item.personId===p.id);return <button key={p.id} type="button" data-person-id={p.id} data-hub-detail={p.id} data-hub-detail-kind="person" aria-label={t('hubPersonDetails',{name:p.displayName})} onClick={event=>detailAccess.open({kind:'person',id:p.id},event.currentTarget)}><Avatar name={p.displayName} index={i} personId={p.id} colorToken={p.colorToken} avatarKey={p.avatarKey} photo={p.photo}/><strong>{p.displayName}</strong>{birthday&&<span className="hub-person-birthday" data-review-private="birthday-badge">🎂 {t(birthday.due==='today'?'hubBirthdayToday':'hubBirthdayTomorrow')}</span>}</button>})}</nav>}
     {!display?<>
       {mobile?<>
         <div className="hub-home-primary-grid hub-home-mobile">{orderedSections}<div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div></div>
         <div className="hub-home-secondary-grid">{homePhoto}</div>
+        {people.length>0&&displaySections?.people!==false&&<nav className="hub-identities" aria-label={t('hubPeople')}>{people.map((p,i)=>{const birthday=currentBirthdays.find(item=>item.personId===p.id);return <button key={p.id} type="button" data-person-id={p.id} data-hub-detail={p.id} data-hub-detail-kind="person" aria-label={t('hubPersonDetails',{name:p.displayName})} onClick={event=>detailAccess.open({kind:'person',id:p.id},event.currentTarget)}><Avatar name={p.displayName} index={i} personId={p.id} colorToken={p.colorToken} avatarKey={p.avatarKey} photo={p.photo}/><strong>{p.displayName}</strong>{birthday&&<span className="hub-person-birthday" data-review-private="birthday-badge">🎂 {t(birthday.due==='today'?'hubBirthdayToday':'hubBirthdayTomorrow')}</span>}</button>})}</nav>}
       </>:<>
         <div className="hub-home-board">
           <div className="hub-home-left-column">
             <div className="hub-home-agenda">
               <div className="hub-home-column hub-home-today">{sections.today}</div>
-              <div className="hub-home-column hub-home-tomorrow">{sections.tomorrow}{sections.messages}</div>
+              <div className="hub-home-column hub-home-tomorrow">{sections.tomorrow}</div>
             </div>
-            {weekCard&&<div className="hub-home-week" data-testid="home-week-column">{weekCard}</div>}
+            {sections.messages}
           </div>
           {sections.people&&<div className="hub-home-column hub-home-people">{sections.people}</div>}
-          <div className="hub-home-column hub-home-services"><div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div>{homePhoto}</div>
-          <div className="hub-home-modules">{homeModules}{sections.support}</div>
+          {homePhoto&&<div className="hub-home-photo-column">{homePhoto}</div>}
+          {weekCard&&<div className="hub-home-week" data-testid="home-week-column">{weekCard}</div>}
+          <div className="hub-home-column hub-home-services"><div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div>{sections.support}</div>
+          <div className="hub-home-modules">{homeModules}</div>
         </div>
         {important.length>0&&sections.important}
       </>}

@@ -124,6 +124,20 @@ It binds the local app only to `http://127.0.0.1:4173`; PostgreSQL is not
 published to the host. See [M1 local operations](docs/implementation/M1_OPERATIONS.md)
 for scoped status, logs, tests, synthetic-data reset and rollback guidance.
 
+The isolated display proof uses synthetic household data and checks display
+re-pairing, read-only boards, selected-person permissions and denied-display
+privacy:
+
+```bash
+./tests/e2e/display-proof/run.sh --screenshots
+```
+
+It writes 37 PNGs and a SHA-256 manifest under the ignored
+`.local/m3/round17/visual/` directory, including light and dark wall displays,
+manager previews and selected custom backgrounds. The denied display is checked
+against its ready display shell and board privacy fallback; it has no person or
+board grants.
+
 ## Contributing
 
 Contributions are welcome from developers, designers, translators, testers and documentation writers.

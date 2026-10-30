@@ -6,6 +6,7 @@ import { dateOffset, displayHouseholdBoardAdapter } from "./household-board-adap
 import { calendarActivityEnded, mergeTimelineEntries, timelineActivityVisible, timelineDayHistoryVisible } from "./home-activity-presentation";
 import type { HouseholdTimelineActivity, HubPerson } from "./home-types";
 import { DisplayMediaPlayback } from "./media-library";
+import { displayMediaAdapter, type DisplayMediaProjection } from "./media-adapters";
 import { DeviceHomeAssistantControls } from "./home-assistant-controls";
 import { secureUuid } from "./secure-uuid";
 import { sha256 } from "@noble/hashes/sha2.js";
@@ -85,6 +86,45 @@ export function DisplayApp() {
     </LocaleProvider>
   );
 }
+
+/** Draws only the display-scoped media projection's selected, readable background. */
+export function DisplayWallBackground({ media, theme, privacyMode = false }: { media?: DisplayMediaProjection | null; theme: "light" | "dark" | "system"; privacyMode?: boolean }) {
+  const background = media?.background ?? media?.householdBackground ?? null;
+  if (privacyMode || !background) return null;
+  return <div className="display-wall-background" data-theme={theme} data-review-private="wall-background" aria-hidden="true"><img src={background.previewUrl} alt="" referrerPolicy="no-referrer"/></div>;
+}
+
+export function displayWallBackgroundGeneration(projection: Pick<Projection, "display" | "setup" | "generatedAt">, sourceEpoch: number): string {
+  return JSON.stringify([sourceEpoch, projection.display.id, projection.display.privacyMode, projection.display.setupId ?? null, projection.setup?.id ?? null, projection.setup?.backgroundId ?? null, projection.generatedAt]);
+}
+
+export function displayWallBackgroundAfterRefresh(result: { media: DisplayMediaProjection | null } | { error: unknown }): DisplayMediaProjection | null {
+  return "error" in result ? null : result.media;
+}
+
+function DisplayWallBackgroundLayer({ displayId, generation, theme, privacyMode }: { displayId: string; generation: string; theme: "light" | "dark" | "system"; privacyMode: boolean }) {
+  const adapter = useMemo(() => displayMediaAdapter(displayId, true), [displayId]);
+  const [media, setMedia] = useState<DisplayMediaProjection | null>(null);
+  useEffect(() => {
+    let active = true;
+    let latestRequest = 0;
+    setMedia(null);
+    const refresh = async () => {
+      const request = ++latestRequest;
+      try {
+        const value = await adapter.projection();
+        if (active && request === latestRequest) setMedia(displayWallBackgroundAfterRefresh({ media: value }));
+      } catch (error) {
+        if (active && request === latestRequest) setMedia(displayWallBackgroundAfterRefresh({ error }));
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30_000);
+    return () => { active = false; latestRequest++; window.clearInterval(timer); };
+  }, [adapter, generation]);
+  return <DisplayWallBackground media={media} theme={theme} privacyMode={privacyMode}/>;
+}
+
 function DisplayRuntime({
   prefs,
   setPrefs,
@@ -408,6 +448,8 @@ function DisplayRuntime({
   ]);
   const hub = projection && clock.current ? currentHub(projection, clock.current, performance.now()) : undefined;
   const selectedCards=projection?.setup?.cardOrder??[];
+  const wallBackgroundGeneration = projection ? displayWallBackgroundGeneration(projection, sourceEpoch) : "";
+  const hasExplicitDayPair=Boolean(projection&&!projection.display.privacyMode&&projection.setup?.cards.includes("today")&&projection.setup?.cards.includes("tomorrow"));
   const activityScope:DisplayActivityScope|null=projection&&clock.current?{generation:JSON.stringify([sourceEpoch,projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt]),clock:clock.current,maxAgeMs:projection.maxStaleSeconds*1000}:null;
   const displayNow=clock.current?serverTime(clock.current,performance.now()):Number.NaN;
   const zone = projection?.display.timezone ?? "UTC";
@@ -454,6 +496,7 @@ function DisplayRuntime({
         projection ? "current" : cacheExpired ? "expired" : "unavailable"
       }
     >
+      {projection && !projection.display.privacyMode && <DisplayWallBackgroundLayer key={wallBackgroundGeneration} displayId={projection.display.id} generation={wallBackgroundGeneration} theme={projection.display.theme} privacyMode={projection.display.privacyMode}/>}
       <header className="display-header">
         <div>
           <Brand />
@@ -487,7 +530,7 @@ function DisplayRuntime({
           <Icon name="settings" />
         </button>
       </header>
-      <main className="display-main">
+      <main className={`display-main ${hasExplicitDayPair?"has-explicit-day-pair":""}`}>
         {Boolean(policyError)&&<div><ErrorNotice error={policyError}/><button className="text-button" type="button" onClick={()=>void refreshRef.current()}>{t("retry")}</button></div>}
         {!familyDisplay && !hub && <div className="display-section-title">
           <div>
@@ -583,7 +626,7 @@ function DisplayRuntime({
           if(card==="today"||card==="tomorrow"){
             const localToday=displayLocalDate;const date=card==="today"?localToday:dateOffset(localToday,1);
             const readiness=displayReadinessCard(selectedCards)===card?projection.contentReadiness?.calendar:undefined;
-            return <div className="display-ordered-card" style={{order}} key={card}>{activityScope&&<DisplayDayCard scope={activityScope} date={date} zone={zone} people={familyPeople} birthdays={displayBirthdays} readiness={readiness} dinnersReadable={projection.householdBoards?.readable?.dinners===true} labelKey={card}/>}</div>
+            return <div className={`display-ordered-card display-day-card display-day-card-${card}`} style={{order}} key={card}>{activityScope&&<DisplayDayCard scope={activityScope} date={date} zone={zone} people={familyPeople} birthdays={displayBirthdays} readiness={readiness} dinnersReadable={projection.householdBoards?.readable?.dinners===true} labelKey={card}/>}</div>
           }
           if(card==="week")return <div className="display-ordered-card" key={card} style={{order}}><HouseholdActivityWeek localDate={displayLocalDate} zone={zone} people={familyPeople} display now={displayNow} householdBoardsReadableDinners={projection.householdBoards?.readable?.dinners===true} showNextActivity={false}/></div>;
           if(card==="next")return <div className="display-ordered-card" key={card} style={{order}}>{activityScope&&<DisplayNextActivity scope={activityScope} zone={zone} people={familyPeople}/>}</div>;

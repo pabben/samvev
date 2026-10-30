@@ -47,11 +47,10 @@ test("rich Home retains six people, authorized human messages, smart content and
  });
  assert.equal((html.match(/data-review-private="person-card"/g)??[]).length,6);
  assert.ok(html.indexOf("hub-today")<html.indexOf("hub-tomorrow"));
- assert.ok(html.indexOf("hub-tomorrow")<html.indexOf("hub-person-section"));
  assert.ok(html.indexOf("hub-tomorrow")<html.indexOf("hub-messages"));
- assert.ok(html.indexOf("hub-messages")<html.indexOf("hub-person-section"));
+ assert.ok(html.indexOf("hub-messages")<html.indexOf("hub-person-section"),"the desktop agenda and message occupy the left column before the roster column");
  assert.ok(html.indexOf("hub-person-section")<html.indexOf("synthetic-smart"));
- assert.match(html,/<div class="hub-home-column hub-home-tomorrow"><section[^>]*hub-tomorrow[\s\S]*?<\/section><section[^>]*hub-messages/);
+ assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><section class="hub-messages/);
  assert.ok(html.indexOf("hub-messages")<html.indexOf("hub-home-photos"));
  assert.match(html,/Synthetic sender/);
 });
@@ -63,19 +62,36 @@ test("mobile Home retains birthday identities and uses the single-column mobile 
  assert.match(html,/data-review-private="birthday-badge"/);
 });
 
-test("desktop Home places one activity week below the two agenda cards beside the People column",()=>{
+test("desktop Home keeps agenda and message first, then balances week beside photo and people",()=>{
  setViewport(false,"light",false);
- const html=homeMarkup(Array.from({length:6},(_,i)=>({id:`synthetic-${i}`,displayName:`Synthetic person ${i+1}`})),{householdId:"synthetic-household",displaySections:{week:true}});
+ const html=homeMarkup(Array.from({length:6},(_,i)=>({id:`synthetic-${i}`,displayName:`Synthetic person ${i+1}`})),{householdId:"synthetic-household",messages:[{id:"synthetic-home-message",body:"Synthetic household note",importance:"normal",authorName:"Synthetic sender",publishAt:"2026-10-28T11:00:00Z",expiresAt:"2026-10-29T00:00:00Z",revision:1}],homePhoto:createElement("section",{className:"hub-home-photos"},"Synthetic photo"),displaySections:{week:true}});
  assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
- assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column"><section class="hub-week[\s\S]*?<\/div><\/div><div class="hub-home-column hub-home-people">/);
+ const agenda=html.indexOf("hub-home-agenda"),message=html.indexOf("hub-messages"),people=html.indexOf("hub-home-people"),photo=html.indexOf("hub-home-photo-column"),week=html.indexOf("hub-home-week");
+ assert.ok(agenda<message&&message<people&&people<photo&&photo<week,`DOM reading order keeps the primary agenda and message ahead of the subordinate row (${agenda}, ${message}, ${people}, ${photo}, ${week})`);
+ assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><section class="hub-messages[\s\S]*?<\/section><\/div><div class="hub-home-column hub-home-people">/);
+ assert.match(homeStyles,/\.family-hub\.hub-member \.hub-home-photo-column\{grid-column:2;grid-row:2/);
+ assert.match(homeStyles,/\.family-hub\.hub-member \.hub-home-week\{grid-column:1;grid-row:2/);
  assert.doesNotMatch(html,/class="hub-member-week-outside"/);
 });
 
-test("tablet Home keeps People beside the agenda and puts the week beneath the agenda",()=>{
+test("tablet Home keeps People in the first row and balances week beside the photo in the next",()=>{
  setViewport(false,"dark",true);
- const html=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{householdId:"synthetic-household",displaySections:{week:true}});
+ const html=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{householdId:"synthetic-household",homePhoto:createElement("section",{className:"hub-home-photos"},"Synthetic photo"),displaySections:{week:true}});
  assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
- assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><div class="hub-home-week" data-testid="home-week-column">[\s\S]*?<\/div><\/div><div class="hub-home-column hub-home-people">/);
+ assert.ok(html.indexOf("hub-home-people")<html.indexOf("hub-home-photo-column")&&html.indexOf("hub-home-photo-column")<html.indexOf("hub-home-week"));
+ assert.match(homeStyles,/@media\(min-width:641px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-week\{grid-column:1;grid-row:2\}[\s\S]*?\.family-hub\.hub-member \.hub-home-photo-column\{grid-column:2;grid-row:2\}/);
+});
+
+test("portrait compact display keeps roster before messages in both themes",()=>{
+ const people=Array.from({length:6},(_,i)=>({id:`synthetic-${i}`,displayName:`Synthetic person ${i+1}`}));
+ const message={id:"synthetic-display-message",body:"Synthetic display note",importance:"normal" as const,authorName:"Synthetic sender",publishAt:"2026-10-28T11:00:00Z",expiresAt:"2026-10-29T00:00:00Z",revision:1};
+ for(const theme of ["light","dark"] as const){
+  setViewport(false,theme,true);
+  const html=homeMarkup(people,{display:true,displayCompactPeople:true,messages:[message],displaySections:{people:true,messages:true,today:false,tomorrow:false,important:false,support:false,week:false}});
+  assert.ok(html.indexOf("hub-person-section")<html.indexOf("hub-messages"),`${theme}: roster precedes messages in DOM order`);
+ }
+ assert.match(homeStyles,/\.family-hub\.hub-display-compact-people \.hub-grid:has\(>\.hub-person-section\):has\(>\.hub-messages\):not\(:has\(>\.hub-day,>\.hub-day-plan\)\)>\.hub-person-section\{grid-row:1\}/);
+ assert.match(homeStyles,/\.family-hub\.hub-display-compact-people \.hub-grid:has\(>\.hub-person-section\):has\(>\.hub-messages\):not\(:has\(>\.hub-day,>\.hub-day-plan\)\)>\.hub-messages\{grid-column:1\/-1;grid-row:2\}/);
 });
 
 test("Home week layout fills the agenda column on desktop and tablet without changing mobile",()=>{

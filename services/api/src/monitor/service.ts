@@ -14,7 +14,7 @@ import { MonitorSourceFetcher, normalizeMonitorUrl, sourceUrlFromInstruction, ty
 import { MetWeatherClient, type WeatherForecastArgs } from './weather.ts';
 import type { ApprovedWeatherScope } from './tool-registry.ts';
 import { isConditionalInstruction, remainingEscalationBudget, routeMonitorInterpretationQuality, type MonitorQualityReason } from './quality-router.ts';
-import { defaultValidationDiagnostic, validationError, withValidationDiagnostic } from './validation-diagnostics.ts';
+import { defaultValidationDiagnostic, sanitizedSourceFetchDiagnostic, validationError, withValidationDiagnostic } from './validation-diagnostics.ts';
 import { monitorInterpretationResponseSchema } from './response-schemas.ts';
 import { nextMonitorCheckAt } from './schedule.ts';
 
@@ -41,14 +41,14 @@ function balancedObjectCandidates(text:string):string[]{
   return candidates.sort((left,right)=>right.end-left.end||left.start-right.start).map((candidate)=>candidate.text);
 }
 function schemaMonitorJsonDetailed<T>(text:string,schema:ZodType<T>,invalidCode:string):{data:T;raw:unknown}{
-  if(text.length>MAX_MONITOR_OUTPUT_CHARS)throw validationError(invalidCode,502,'final_schema','response_too_large');
+  if(text.length>MAX_MONITOR_OUTPUT_CHARS)throw validationError(invalidCode,502,'final_schema','response_too_large',undefined,text);
   let validJson=false;let issues:unknown;
   const trimmed=text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/,'');
   try{const raw=JSON.parse(trimmed);validJson=true;const exact=schema.safeParse(raw);if(exact.success)return{data:exact.data,raw};issues??=exact.error.issues.map((issue)=>({path:issue.path,code:issue.code}));}catch{/* bounded candidate recovery below */}
   for(const candidate of balancedObjectCandidates(text)){
     try{const raw=JSON.parse(candidate);validJson=true;const parsed=schema.safeParse(raw);if(parsed.success)return{data:parsed.data,raw};issues??=parsed.error.issues.map((issue)=>({path:issue.path,code:issue.code}));}catch{/* try the next balanced object */}
   }
-  throw validationError(invalidCode,502,'final_schema',validJson?'schema_mismatch':'invalid_json',issues);
+  throw validationError(invalidCode,502,'final_schema',validJson?'schema_mismatch':'invalid_json',issues,text);
 }
 function schemaMonitorJson<T>(text:string,schema:ZodType<T>,invalidCode:string):T{return schemaMonitorJsonDetailed(text,schema,invalidCode).data;}
 function assertModelLocaleContract(text:string,field:'answer'|'events',locale:Locale):void{
@@ -75,6 +75,7 @@ function safeInterpretationError(error:unknown):string{const code=error instance
 export function sanitizedMonitorErrorDetails(error:unknown):Record<string,unknown>|null{
   if(!(error instanceof DomainError))return null;
   const safe:Record<string,unknown>={};const diagnostic=defaultValidationDiagnostic(error);if(diagnostic)Object.assign(safe,diagnostic);
+  if(error.code==='MONITOR_SOURCE_TIMEOUT'){const source=sanitizedSourceFetchDiagnostic(error.details);if(source)Object.assign(safe,source);}
   if(error.code==='MONITOR_LOCATION_AMBIGUOUS'&&Array.isArray(error.details?.candidates)){
     const candidates=error.details.candidates.slice(0,5).flatMap((candidate)=>{if(!candidate||typeof candidate!=='object')return[];const value=candidate as Record<string,unknown>;if(typeof value.name!=='string'||!value.name||value.name.length>200)return[];return[{name:value.name,municipality:typeof value.municipality==='string'?value.municipality.slice(0,120):null,region:typeof value.region==='string'?value.region.slice(0,120):null}];});if(candidates.length)safe.candidates=candidates;
   }
@@ -89,7 +90,9 @@ export function sanitizedStoredMonitorErrorDetails(errorCode:unknown,details:unk
   // Legacy rows may predate the allowlist. Preserve explicit safe diagnostics,
   // without inferring a validation stage or cause from their old error code.
   const code=errorCode==='MONITOR_LOCATION_AMBIGUOUS'?errorCode:'MONITOR_EXECUTION_FAILED';
-  return sanitizedMonitorErrorDetails(new DomainError(code,502,details as Record<string,unknown>));
+  const safe=sanitizedMonitorErrorDetails(new DomainError(code,502,details as Record<string,unknown>))??{};
+  if(errorCode==='MONITOR_SOURCE_TIMEOUT'){const source=sanitizedSourceFetchDiagnostic(details as Record<string,unknown>);if(source)Object.assign(safe,source);}
+  return Object.keys(safe).length?safe:null;
 }
 function publicStoredExecution(value:unknown):Record<string,unknown>|null{
   if(!value||typeof value!=='object'||Array.isArray(value))return null;
