@@ -284,7 +284,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      await screen.setViewportSize({width,height});
      await screen.locator('.family-hub').waitFor();
      await assertPairedActivitiesReady(screen);
-     if(width>=651) { await screen.locator('.hub-person-section').waitFor();assert.equal(await screen.getByText('Synthetic child four',{exact:true}).count(),1,'paired display screenshot has loaded all synthetic people'); }
+     if(width>=651) { await screen.locator('.hub-person-section').waitFor();assert.equal(await screen.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'paired display screenshot has loaded all synthetic people'); }
      else assert.equal(await screen.locator('.hub-hero').count(),1,'mobile display screenshot has loaded the paired display hub');
      assert.equal((await db.query('SELECT theme FROM display_setups WHERE id=$1',[setup])).rows[0].theme,theme);
      const displayFile=`paired-display-${theme}-${size}.png`;
@@ -293,7 +293,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      await previewPage.setViewportSize({width,height});
      await previewPage.getByLabel('Retning for forhåndsvisning').selectOption(width>height?'landscape':'portrait');
      await preview.waitFor();
-     if(width>=651) { await preview.locator('.hub-person-section').waitFor();assert.equal(await preview.getByText('Synthetic child four',{exact:true}).count(),1,'admin preview screenshot has loaded all synthetic people'); }
+     if(width>=651) { await preview.locator('.hub-person-section').waitFor();assert.equal(await preview.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'admin preview screenshot has loaded all synthetic people'); }
      else assert.equal(await preview.locator('.hub-hero').count(),1,'mobile admin preview screenshot has loaded its display hub');
      const previewFile=`admin-preview-${theme}-${size}.png`;
      await captureCalendar(previewPage,preview,{readiness:{preview:true},capture:{id:`admin-preview-${theme}-${size}`,file:previewFile,surface:'admin-preview',theme,viewport:{width,height},verified:width>=651?['six synthetic people','household note and child-targeted school notice','read-only synthetic grocery and dinner boards','synthetic evening landscape']:['manager preview hub','mobile viewport'],scrollSelector:'.display-preview'}});
