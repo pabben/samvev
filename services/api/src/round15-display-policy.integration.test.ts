@@ -431,18 +431,20 @@ for(const transient of ['connection','sensor-target','sensor-reader'] as const)t
   try{const denied=await projection(f.cookie);assert.equal(armed,false,'the actual content SELECT must run during the transient grant');assert.equal(denied.statusCode,409,denied.body);assert.doesNotMatch(denied.body,/Synthetic witnessed private/);}finally{pool.query=original;}
 });
 
-async function messageSchoolFixture(){
+async function messageSchoolFixture(options:{ordinaryMessage?:boolean}={}){
   const f=await policyFenceFixture();
+  const messageBody=options.ordinaryMessage?'Synthetic witnessed ordinary message':'Synthetic witnessed school message';
   const message=(await pool.query<{id:string}>(`INSERT INTO messages(household_id,author_membership_id,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at)
-    VALUES($1,$2,'Synthetic witnessed school message','attention',false,clock_timestamp()-interval '1 minute',clock_timestamp()+interval '1 hour','published','synthetic-message-school-witness',clock_timestamp()) RETURNING id`,[f.household,f.membership])).rows[0]!.id;
+    VALUES($1,$2,$3,'attention',false,clock_timestamp()-interval '1 minute',clock_timestamp()+interval '1 hour','published','synthetic-message-school-witness',clock_timestamp()) RETURNING id`,[f.household,f.membership,messageBody])).rows[0]!.id;
   await pool.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES($1,$2,$3),($1,$2,$4)',[f.household,message,f.selected,f.unselected]);
   await pool.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES($1,$2,$3,'queued')`,[f.household,message,f.display]);
   const task=(await pool.query<{id:string}>(`INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,tool_plan,state,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier,revision,approved_revision,presentation_kind)
     VALUES($1,$2,'Synthetic school witness task','Keep synthetic source-supported school reminders.','https://school-witness.test.invalid/plan','["web.open"]','active',60,0,'08:00','default','routine',1,1,'school') RETURNING id`,[f.household,f.membership])).rows[0]!.id;
+  if(options.ordinaryMessage)await pool.query('UPDATE monitor_tasks SET presentation_kind=NULL WHERE id=$1',[task]);
   await pool.query('INSERT INTO monitor_task_subjects(household_id,task_id,person_id) VALUES($1,$2,$3),($1,$2,$4)',[f.household,task,f.selected,f.unselected]);
   const event=(await pool.query<{id:string}>(`INSERT INTO monitor_events(household_id,task_id,event_key,event_date,event_type,description,actions,evidence,confidence,source_fingerprint,message_id,school_expires_at)
     VALUES($1,$2,'synthetic-school-witness',$3,'preparation','Synthetic witnessed school event','["Bring synthetic boots."]',$4,0.9,$5,$6,clock_timestamp()+interval '30 minutes') RETURNING id`,[f.household,task,f.today,JSON.stringify({quote:'Bring synthetic boots.',sourceUrl:'https://school-witness.test.invalid/plan'}),hash('school-witness'),message])).rows[0]!.id;
-  return{...f,message,task,event};
+  return{...f,message,task,event,messageBody};
 }
 type MessageSchoolFixture=Awaited<ReturnType<typeof messageSchoolFixture>>;
 async function afterMessageSchoolSelect(f:MessageSchoolFixture,url:string,school:boolean,change:()=>Promise<void>){
@@ -461,14 +463,14 @@ async function afterMessageSchoolSelect(f:MessageSchoolFixture,url:string,school
   }finally{if(timer)clearTimeout(timer);resume();try{await pending;}finally{pool.query=original;}}
 }
 for(const change of ['target','audience','state'] as const)test(`message card content SELECT witness rejects late ${change} revocation`,async()=>{
-  const f=await messageSchoolFixture();const allowed=await projection(f.cookie);assert.equal(allowed.statusCode,200,allowed.body);assert.ok(allowed.body.includes('Synthetic witnessed school message'));
+  const f=await messageSchoolFixture({ordinaryMessage:true});const allowed=await projection(f.cookie);assert.equal(allowed.statusCode,200,allowed.body);assert.ok(allowed.body.includes(f.messageBody));
   const denied=await afterMessageSchoolSelect(f,'/api/v1/display/projection',false,async()=>{
     if(change==='target')await pool.query('DELETE FROM message_display_targets WHERE message_id=$1 AND display_id=$2',[f.message,f.display]);
     if(change==='audience')await pool.query('DELETE FROM message_person_audiences WHERE message_id=$1 AND person_id=$2',[f.message,f.selected]);
     if(change==='state')await pool.query("UPDATE messages SET state='withdrawn',ended_at=clock_timestamp() WHERE id=$1",[f.message]);
   });
-  assert.equal(denied.statusCode,409,denied.body);assert.doesNotMatch(denied.body,/Synthetic witnessed school/);assert.equal(denied.headers.etag,undefined);assert.match(denied.headers['content-type']??'',/application\/json/);
-  const fresh=await projection(f.cookie);assert.equal(fresh.statusCode,200,fresh.body);assert.ok(!fresh.body.includes('Synthetic witnessed school message'));
+  assert.equal(denied.statusCode,409,denied.body);assert.ok(!denied.body.includes(f.messageBody));assert.equal(denied.headers.etag,undefined);assert.match(denied.headers['content-type']??'',/application\/json/);
+  const fresh=await projection(f.cookie);assert.equal(fresh.statusCode,200,fresh.body);assert.ok(!fresh.body.includes(f.messageBody));
 });
 for(const [suffix,change] of [
   ['activities','owner'],['activities/next','subject'],['people/PERSON/activities','target'],['people/PERSON/activities/next','audience'],

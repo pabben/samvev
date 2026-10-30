@@ -1033,8 +1033,9 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   const localToday=localDateInTimezone(now,label.rows[0]?.timezone??'UTC');
   const upcomingBirthdays=birthdaysDueSoon(birthdayPeople.map((person)=>({id:person.id,displayName:person.display_name,birthDate:person.birth_date})),localToday);
   const contentReadiness=await displayContentReadiness(pool,display);
-  const schoolActivities=(!display.privacyMode&&((display.familyLayoutEnabled&&display.cards.includes('family_layout'))||display.cards.includes('people'))&&display.profilePersonIds.length)
-    ?(await personActivities({householdId:display.householdId,personIds:display.profilePersonIds.filter((id)=>display.selectedPersonIds.includes(id)),viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from:localToday,to:dateOffset(localToday,1),limit:200,maxDays:2,display})).activities.filter((activity)=>activity.type==='school'):[];
+  const hasPersonSummary=(display.familyLayoutEnabled&&display.cards.includes('family_layout'))||display.cards.includes('people');
+  const schoolActivities=(!display.privacyMode&&hasPersonSummary&&display.selectedPersonIds.length)
+    ?(await personActivities({householdId:display.householdId,personIds:display.selectedPersonIds,viewer:{personId:display.id,membershipId:display.id},canViewAll:false,from:localToday,to:dateOffset(localToday,1),limit:200,maxDays:2,display})).activities.filter((activity)=>activity.type==='school'):[];
   const [boardGrant,boardActions]=await Promise.all([
     pool.query<{grocery_read:boolean;dinner_read:boolean}>(`SELECT grocery_read,dinner_read FROM display_board_read_grants WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id]),
     pool.query<{grocery_write:boolean;dinner_write:boolean;home_assistant_control:boolean}>(`SELECT grocery_write,dinner_write,home_assistant_control FROM display_action_policies WHERE household_id=$1 AND display_id=$2`,[display.householdId,display.id])
