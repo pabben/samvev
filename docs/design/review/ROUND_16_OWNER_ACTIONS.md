@@ -1,6 +1,6 @@
 # Round 16 — remaining owner actions
 
-These are unresolved validation or account/device steps. None was performed as part of the Round 16 source/test work. Public test deployment is already authorized; engineering release checks and backup/restore gates remain pending and are tracked in the Round 16 report, not as an owner action. School task A/B diagnosis is also unresolved engineering work, not an owner action.
+These are unresolved validation or account/device steps. Public R16 test deployment, HTTPS smoke, backup and isolated restore have passed; none of the owner actions below was performed. School task A/B diagnosis and #17 integrated two-display-session acceptance remain engineering work, not owner actions.
 
 | Action | Why it remains open | Boundary |
 |---|---|---|
