@@ -1,5 +1,7 @@
 # Round 17 — public test review
 
+The focused R17g school diagnostic deployment is recorded in [school status](ROUND_17F_SCHOOL_STATUS.md) and the [cumulative requirements matrix](ROUND_17_REQUIREMENTS.md). Its verified public source is `971c6267740d9ac7f267e91126427c11a7f7d076`; the visual comparisons and R17e statements below are historical, and no new UI capture is attributed to R17g. A real R17g school success is not yet verified.
+
 ## Checkpoint and publication
 
 Candidate source: `9f3e83b7e3102d04bcf3569330f81475afd5076c`. Canonical capture Round ID: `20261030163806-9f3e83b7-50a1fe1f`. The R17 rich visual set contains 45 hash-valid, clean-source synthetic browser captures in [`round-17/after/`](round-17/after/), with eight comparable R16 captures in [`round-17/before/`](round-17/before/). It spans member Home, paired display, admin preview, themes, desktop/mobile/tablet/wall viewports, and focused calendar/error/access states; it supplements rather than replaces the canonical 14 captures in [`latest/`](latest/). Hash/source and fixture metadata are in the [canonical manifest](latest/manifest.json) and [rich manifest](round-17/after/manifest.json). No private household data was used.

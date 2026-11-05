@@ -2,7 +2,7 @@
 
 ## Checkpoint
 
-R17g focused school A follow-up (2026-11-05): last verified public source is R17f `bc2baefc5046020637bdaa79530e8643d813b6de`; a scheduled A run on that worker failed at `evidence_anchor/quote` after starting at 19:15:38 UTC. The candidate distinguishes five safe technical answer-evidence reasons without weakening validation. Synthetic local tests passed 61/61 domain/runner, 38/38 durable execution, complete isolated QA 725/725, and workspace typecheck. This is not a live A repair. See [school status](ROUND_17F_SCHOOL_STATUS.md). B and all other requirements remain outside this focused change.
+R17g focused school A follow-up (2026-11-05): verified public source is `971c6267740d9ac7f267e91126427c11a7f7d076`; a scheduled A run on prior R17f failed at `evidence_anchor/quote` after starting at 19:15:38 UTC. R17g distinguishes five safe technical answer-evidence reasons without weakening validation. Synthetic local tests passed 61/61 domain/runner, 38/38 durable execution, complete isolated QA 725/725, and workspace typecheck. Public guarded code-only prepare/cutover/postrestore, backups and isolated restores, healthy exact runtime, synthetic HTTPS smoke 11/11, and 13/13 frozen asset hashes passed. Rollback image is prior R17f. This is not a live A repair; no R17g natural school success is claimed. See [school status](ROUND_17F_SCHOOL_STATUS.md). B and all other requirements remain outside this focused change.
 
 The following R17c–R17f paragraphs are historical checkpoints.
 
