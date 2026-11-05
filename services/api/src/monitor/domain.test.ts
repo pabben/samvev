@@ -209,6 +209,22 @@ test('server anchors omitted evidence URLs only to an opened document supporting
   assert.throws(()=>answerFromAi(JSON.stringify(irrelevant),[first,second]),(error:any)=>error.code==='AI_RESPONSE_INVALID');
 });
 
+test('answer evidence diagnostics distinguish missing quotes, source binding and unsupported answers',()=>{
+  const first={finalUrl:'https://example.test/plan',contentType:'text/html' as const,text:'Mandag: Husk gymsko. Tirsdag: Ta med matpakke.',fingerprint:'synthetic-plan'};
+  const second={finalUrl:'https://example.test/other',contentType:'application/pdf' as const,text:'Fredag: Turdag.',fingerprint:'synthetic-pdf'};
+  const output=(answer:string,quote:string,sourceUrl?:string)=>JSON.stringify({version:1,outputLocale:'nb',answer,evidence:{quote,...(sourceUrl?{sourceUrl}:{})},confidence:0.9,uncertainty:null});
+  assert.equal(answerFromAi(output('Husk gymsko.','Husk gymsko.'),[first,second]).evidence.sourceUrl,first.finalUrl);
+  const rejected=[
+    [output('Oppdiktet beskjed.','Oppdiktet beskjed.'),'quote_not_in_source'],
+    [output('Husk gymsko.','Husk gymsko.',second.finalUrl),'quote_not_in_source'],
+    [output('Sjekk badehette.','Husk gymsko.'),'answer_not_in_source'],
+    [output('Turdag.','Husk gymsko.'),'answer_not_in_quoted_source'],
+    [output('Ta med matpakke.','Husk gymsko.'),'answer_not_in_quote'],
+    [output('Husk gymsko.','Husk gymsko.','https://example.test/unopened'),'source_unopened']
+  ] as const;
+  for(const [value,reason] of rejected)assert.throws(()=>answerFromAi(value,[first,second]),(error:any)=>error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='evidence_anchor'&&error.details?.validationReason===reason,reason);
+});
+
 test('missing model confidence metadata is conservatively normalized without weakening strict values',()=>{
   const source={finalUrl:'https://example.com/',contentType:'text/html' as const,text:'Verified headline\nTrip day 2030-09-20 A Bring boots',fingerprint:'source'};
   const answer=answerFromAi(JSON.stringify({version:1,outputLocale:'nb',answer:'Verified headline',evidence:{quote:'Verified headline'}}),source);assert.equal(answer.confidence,0);assert.equal(answer.uncertainty,null);assert.equal(answer.evidence.sourceUrl,source.finalUrl);

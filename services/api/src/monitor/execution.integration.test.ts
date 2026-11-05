@@ -123,6 +123,25 @@ test('first approved answer run keeps unrelated linked PDF out of model evidence
   assert.doesNotMatch(answerPrompt,/conditional event|For each relevant conditional event|optional exact fetched URL|optional exact atomic source claim/);
 });
 
+test('scheduled worker persists only the safe reason when a synthetic answer has no source quote',async()=>{
+  await fixture();
+  const rule={version:1,resultKind:'answer',summary:'Read synthetic school answer.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision,next_check_at=clock_timestamp()-interval '1 minute' WHERE id=$1`,[taskId,JSON.stringify(rule)]);
+  const source:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',text:'Mandag: Husk gymsko.',fingerprint:'synthetic-school-answer',fetchedAt:new Date().toISOString(),evidenceComplete:true,evidenceKind:'web'};
+  const fetcher={fetch:async()=>source} as unknown as MonitorSourceFetcher;
+  const ai={createTaskSession:async(_household:string,_task:unknown,_policy:unknown,tools:any[])=>{let turn=0;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{if(turn++===0&&tools.length)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:source.finalUrl}}],generatedAt:new Date().toISOString()};return{output:JSON.stringify({version:1,outputLocale:'nb',answer:'Oppdiktet beskjed.',evidence:{quote:'Oppdiktet beskjed.'},confidence:0.9,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};}};}};
+  const queue=new MonitorExecutionQueue({interpret:async()=>{throw new Error('unused');}} as any,new MonitorEngine(fetcher,ai as any),profile,()=>now);
+  assert.equal(await queue.enqueueScheduled(),1);
+  assert.equal(await queue.runOne(),'failed');
+  const run=(await pool.query<{id:string}>(`SELECT id FROM monitor_executions WHERE task_id=$1 AND kind='scheduled'`,[taskId])).rows[0]!;
+  const completed=await queue.get(actor,taskId,run.id);
+  assert.equal(completed.errorCode,'AI_RESPONSE_INVALID');
+  assert.equal(completed.errorDetails?.validationStage,'evidence_anchor');
+  assert.equal(completed.errorDetails?.validationReason,'quote_not_in_source');
+  assert.doesNotMatch(JSON.stringify(completed.errorDetails),/Oppdiktet|Husk gymsko|https:\/\/|rawOutput|modelAnswer/,'no source text or model answer is persisted in safe diagnostics');
+  assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM messages WHERE household_id=$1`,[actor.householdId])).rows[0]!.count,0);
+});
+
 test('weather answer uses an exact official sentence and approved weather scope',async()=>{
   await fixture();
   const rule={version:1,resultKind:'answer',summary:'Read the Oslo forecast tomorrow.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['weather.forecast'],location:{query:'Oslo',canonicalName:'Oslo',country:'Norge'},weatherScope:{location:'Oslo',period:'tomorrow',timeWindow:'all'}};

@@ -1,4 +1,10 @@
-# Round 17f school checkpoint — 2026-11-05
+# Round 17g school diagnostic checkpoint — 2026-11-05
+
+Last verified public source is R17f `bc2baefc5046020637bdaa79530e8643d813b6de`. A natural R17f school A run began at 19:15:38 UTC and failed at `AI_RESPONSE_INVALID` / `evidence_anchor/quote`; it did not prove the prompt change fixed A. A narrow R17g diagnostic candidate separates five answer-evidence rejection reasons while retaining exact source/quote/answer validation and without logging private content. Synthetic local agent-runner/domain 61/61, scheduled-worker integration 38/38, complete isolated QA 725/725 and workspace typecheck passed. No real A success is claimed. R17f public smoke remains attributed to R17f. B, display rights, recipients and schedules were not changed. See [school status](../design/review/ROUND_17F_SCHOOL_STATUS.md). The full goal remains open.
+
+---
+
+# Historical Round 17f checkpoint — 2026-11-05
 
 The last independently verified public source remains R17e `f99c68876f4c766cf09cdd92d2ccdef4c90d6721`, with signed review `e523eeaeab878be4fb382f079ed6c92ee67107af`. Read-only scheduled evidence shows School A now reaches exact evidence validation but still fails (`quote` on 2026-11-05 18:15 UTC; recent `source`/`claim`/schema failures). School B is paused after `MONITOR_OWNER_UNAUTHORIZED` on 2026-11-03: its selected display is revoked, while its owner account and required capabilities remain present. Earlier B source request timeouts remain a separate unresolved issue. A narrow answer-prompt candidate removes contradictory optional URL/claim examples while retaining all server validation; it is not yet a proven live repair. No real task, source, recipients, approval, schedule, family content or background was changed. See [current school status](../design/review/ROUND_17F_SCHOOL_STATUS.md) and [owner actions](../design/review/ROUND_17_OWNER_ACTIONS.md). The full goal remains open.
 

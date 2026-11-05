@@ -2,13 +2,17 @@
 
 ## Checkpoint
 
+R17g focused school A follow-up (2026-11-05): last verified public source is R17f `bc2baefc5046020637bdaa79530e8643d813b6de`; a scheduled A run on that worker failed at `evidence_anchor/quote` after starting at 19:15:38 UTC. The candidate distinguishes five safe technical answer-evidence reasons without weakening validation. Synthetic local tests passed 61/61 domain/runner, 38/38 durable execution, complete isolated QA 725/725, and workspace typecheck. This is not a live A repair. See [school status](ROUND_17F_SCHOOL_STATUS.md). B and all other requirements remain outside this focused change.
+
+The following R17c–R17f paragraphs are historical checkpoints.
+
 Historical R17c public deployment and verification **PASS** for source `a0bdb1ffd45740ce2e5ffeefe4f1e48478dc10b9`: code-only cutover, predeploy backup and isolated restore, postdeploy schema46 backup and isolated restore, app/worker/database healthy on the exact runtime image, public health HTTP 200, and HTTPS browser smoke 11/11 with 13/13 exact asset hashes. It was the immediate app-code rollback target for R17d; no live DB restore was performed. R17b guarded QA passed 718/718; R17c isolated QA passed 722/722. Visual evidence remains attributed to source `9f3e83b7e3102d04bcf3569330f81475afd5076c`, canonical Round ID `20261030163806-9f3e83b7-50a1fe1f` (latest14, rich45, before8; hashes unchanged). No private credential was copied into Git; the temporary local copy was deleted. No full-goal PASS is claimed.
 
 Historical R17d source `4ad3273b09e3b77e0ccbe33e7f7c763f47e6058a` raised the answer output cap to 2048 and shortened the answer prompt while preserving source, quote, headline and weather content. Its public deployment verification passed: code-only prepare/cutover/postrestore, schema46, exact runtime app/worker/database health, HTTPS health 200, browser smoke 11/11 and 13/13 assets. Isolated QA passed 723/723, `npm run check` passed, focused checks passed 95/95, and scoped security/requirements/UX reviews and the predeploy gate passed. Scheduled A on R17d at 19:52:09 UTC failed `AI_RESPONSE_INVALID` at `provider_response/output_limit_reached` after two calls (final-turn output_tokens 2048; initial 215); R17c's 18:47 failure was earlier. B remains unverified.
 
 R17e six-file candidate (source `f99c68876f4c766cf09cdd92d2ccdef4c90d6721`) adds request-local `extractive_answer` mode, sending `reasoning_effort=none` only for compatible answer tasks and preserving configured reasoning/fallback for other tasks. It changes no settings, tasks or schedules. Full isolated QA passed 723/723, `npm run check` passed, focused checks passed 95/95, and scoped security/requirements/UX reviews and the predeploy gate passed. Public deployment and verification passed; no R17e scheduled outcome is observed yet.
 
-R17f observation on 2026-11-05: the public R17e source remains `f99c68876f4c766cf09cdd92d2ccdef4c90d6721`. School A now reaches evidence validation but still fails; School B is paused because its chosen display was revoked. A narrow answer-prompt candidate has targeted synthetic tests; no live repair is claimed. See [current school diagnosis](ROUND_17F_SCHOOL_STATUS.md).
+R17f predeployment observation on 2026-11-05: the public R17e source was `f99c68876f4c766cf09cdd92d2ccdef4c90d6721`. School A reached evidence validation but still failed; School B was paused because its chosen display was revoked. The answer-prompt change later deployed as R17f; its scheduled A failure and the current diagnosis are recorded in [school status](ROUND_17F_SCHOOL_STATUS.md).
 
 ## Cumulative feature set preserved from R13–R16
 
