@@ -116,11 +116,11 @@ test('first approved answer run keeps unrelated linked PDF out of model evidence
   const answerInstructions=answerPrompt.split('\nSamvev already opened and validated the explicitly approved root source.')[0]!;
   assert.ok(answerInstructions.length<2_000,`answer instructions stay compact (${answerInstructions.length} chars)`);
   assert.match(answerPrompt,/Set outputLocale exactly/);assert.match(answerPrompt,/exact surfaced same-origin URL/);
-  assert.match(answerPrompt,/answer and occur verbatim in evidence\.quote/);assert.match(answerPrompt,/when supplied, each claim must be exact and one claim must equal answer/);assert.match(answerPrompt,/Samvev binds evidence to opened sources/);
+  assert.match(answerPrompt,/Set evidence\.quote to exactly the same copied text as answer/);assert.match(answerPrompt,/Do not add evidence\.sourceUrl or evidence\.claims/);assert.match(answerPrompt,/Samvev binds the quote to the opened source/);
   assert.match(answerPrompt,/first editorial heading in document order, excluding title, navigation and section labels/);
   assert.match(answerPrompt,/via Yr.*use weather\.forecast, never scrape Yr/);
   assert.match(answerPrompt,/If web evidence determines a weather date, open it first and request weather only for that exact date/);
-  assert.doesNotMatch(answerPrompt,/conditional event|For each relevant conditional event/);
+  assert.doesNotMatch(answerPrompt,/conditional event|For each relevant conditional event|optional exact fetched URL|optional exact atomic source claim/);
 });
 
 test('weather answer uses an exact official sentence and approved weather scope',async()=>{
