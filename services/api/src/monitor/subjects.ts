@@ -31,11 +31,12 @@ function resultHasFindings(kind:unknown,value:unknown):boolean{
   if(kind==='events')return Array.isArray(result.events)&&result.events.length>0;
   return kind==='answer'&&typeof result.answer==='string'&&result.answer.trim().length>0;
 }
+function answerHasNoFindings(kind:unknown,value:unknown):boolean{return kind==='answer'&&Boolean(value&&typeof value==='object'&&(value as Record<string,unknown>).status==='none');}
 function taskStatus(row:Record<string,unknown>):'running'|'not_run'|'no_findings'|'no_change'|'failed'|'findings'|'superseded'{
   if(row.active_status==='queued'||row.active_status==='running')return'running';
   if(!row.last_outcome)return'not_run';
   if(row.last_outcome==='failed')return'failed';
-  if(row.last_outcome==='unchanged')return resultHasFindings(row.stored_result_kind,row.stored_result)?'findings':'no_change';
+  if(row.last_outcome==='unchanged')return answerHasNoFindings(row.stored_result_kind,row.stored_result)?'no_findings':resultHasFindings(row.stored_result_kind,row.stored_result)?'findings':'no_change';
   return row.last_outcome==='changed'?(resultHasFindings(row.last_result_kind,row.last_run_result)?'findings':'no_findings'):'superseded';
 }
 function safeAttemptError(row:Record<string,unknown>):string|null{if(row.last_outcome!=='failed')return null;return typeof row.last_error_code==='string'&&/^[A-Z][A-Z0-9_]{1,63}$/.test(row.last_error_code)?row.last_error_code:'MONITOR_EXECUTION_FAILED';}

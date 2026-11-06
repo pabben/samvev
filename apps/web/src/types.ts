@@ -135,7 +135,7 @@ export interface MonitorSource {
 }
 export interface MonitorRunResult {
   outcome:'changed'|'unchanged';resultKind:'events'|'answer'|null;
-  result:{answer?:string;events?:MonitorTask['events'];evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
+  result:{answer?:string;events?:MonitorTask['events'];status?:'none';evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
   sourceUrl:string|null;checkedAt:string;
   sources?:MonitorSource[];
 }

@@ -11,6 +11,7 @@ import {pool} from '../db.ts';
 import {migrate} from '../db/migrate.ts';
 import {MonitorExecutionQueue,runMonitorExecutionBatch} from './execution.ts';
 import {MonitorEngine} from './engine.ts';
+import {personMonitorSummaries} from './subjects.ts';
 import {MonitorService,monitorTaskDto,selectMonitorTask} from './service.ts';
 import type {MonitorActor} from './service.ts';
 import {selectRelevantSource,type MonitorSourceFetcher,type SourceDocument} from './source-fetcher.ts';
@@ -136,8 +137,9 @@ test('scheduled worker persists only the safe reason when a synthetic answer has
   const run=(await pool.query<{id:string}>(`SELECT id FROM monitor_executions WHERE task_id=$1 AND kind='scheduled'`,[taskId])).rows[0]!;
   const completed=await queue.get(actor,taskId,run.id);
   assert.equal(completed.errorCode,'AI_RESPONSE_INVALID');
-  assert.equal(completed.errorDetails?.validationStage,'evidence_anchor');
-  assert.equal(completed.errorDetails?.validationReason,'quote_not_in_source');
+  assert.equal(completed.errorDetails?.validationStage,'evidence_selection');
+  assert.equal(completed.errorDetails?.validationReason,'selection_schema');
+  assert.equal((await pool.query<{ai_call_count:number}>(`SELECT ai_call_count FROM monitor_runs WHERE task_id=$1 AND run_kind='scheduled' ORDER BY checked_at DESC LIMIT 1`,[taskId])).rows[0]!.ai_call_count,3);
   assert.doesNotMatch(JSON.stringify(completed.errorDetails),/Oppdiktet|Husk gymsko|https:\/\/|rawOutput|modelAnswer/,'no source text or model answer is persisted in safe diagnostics');
   assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM messages WHERE household_id=$1`,[actor.householdId])).rows[0]!.count,0);
 });
@@ -278,6 +280,46 @@ test('interpretation publication is fenced when the AI route changes after the f
 test('manual publication keeps usage but rejects the result when AI is disabled after the last response',async()=>{
   await fixture();const rule={version:1,resultKind:'answer',summary:'Read synthetic source.',eventTypes:[],keywords:[],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};await pool.query(`UPDATE monitor_tasks SET interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision WHERE id=$1`,[taskId,JSON.stringify(rule)]);let turn=0;const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{turn++;if(turn===1)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:'https://example.com/plan'}}],generatedAt:new Date().toISOString()};await pool.query(`UPDATE ai_settings SET enabled=false,revision=revision+1 WHERE household_id=$1`,[actor.householdId]);return{output:JSON.stringify({version:1,outputLocale:'nb',answer:'Synthetic heading',evidence:{quote:'Synthetic heading',sourceUrl:'https://example.com/plan',claims:['Synthetic heading']},confidence:1,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};}})};const document:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',title:'Synthetic page',headings:['Synthetic heading'],text:'Synthetic heading',fingerprint:'synthetic-v1',fetchedAt:'2026-09-13T12:00:00.000Z',httpStatus:200,byteSize:17,links:[],evidenceComplete:true,evidenceKind:'web'};const engine=new MonitorEngine({fetch:async()=>document} as unknown as MonitorSourceFetcher,ai as any);
   await assert.rejects(()=>engine.runManual(actor,taskId,1,'manual'),(error:any)=>error.code==='CONFLICT');assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_runs WHERE task_id=$1 AND outcome='changed'`,[taskId])).rows[0].count,0);assert.equal((await pool.query(`SELECT count(*)::int count FROM messages`,[])).rows[0].count,0);
+});
+
+test('scheduled answer repair selects a server-owned school excerpt without copying model text',async()=>{
+  await fixture();
+  const sourceText='School trip on 2030-09-20 at 09:00.';
+  const document:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',text:sourceText,fingerprint:'school-synthetic-v1',fetchedAt:new Date().toISOString(),links:[],evidenceComplete:true,evidenceKind:'web'};
+  const rule={version:1,resultKind:'answer',summary:'Synthetic school update.',eventTypes:[],keywords:['school'],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  await pool.query(`UPDATE monitor_tasks SET instruction='Find the synthetic school trip.',interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision,next_check_at=clock_timestamp()-interval '1 minute' WHERE id=$1`,[taskId,JSON.stringify(rule)]);
+  let sessions=0;
+  const ai={createTaskSession:async(_household:string,request:{input:string})=>{
+    sessions++;const selection=request.input.includes('Select only an exact source excerpt');let turns=0;
+    return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{
+      turns++;
+      if(!selection&&turns===1)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:document.finalUrl}}],generatedAt:new Date().toISOString()};
+      if(!selection)return{output:JSON.stringify({version:1,outputLocale:'nb',answer:'Invented school answer',evidence:{quote:'Invented school answer'},confidence:0.9,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};
+      const segmentId=request.input.match(/ev1_[A-Za-z0-9_-]+/)?.[0];assert.ok(segmentId);
+      return{output:JSON.stringify({version:1,outputLocale:'nb',status:'found',sourceUrl:document.finalUrl,segmentId,date:'2030-09-20',confidence:0.9}),toolCalls:[],generatedAt:new Date().toISOString()};
+    }};
+  }};
+  const engine=new MonitorEngine({fetch:async()=>document} as unknown as MonitorSourceFetcher,ai as any);
+  assert.equal(await engine.runScheduled(taskId,1),'changed');
+  assert.equal(sessions,2);
+  const run=(await pool.query<{result_kind:string;result:{answer:string;evidence:{quote:string;sourceUrl:string}};ai_call_count:number}>(`SELECT result_kind,result,ai_call_count FROM monitor_runs WHERE task_id=$1 AND run_kind='scheduled' ORDER BY checked_at DESC LIMIT 1`,[taskId])).rows[0]!;
+  assert.equal(run.result_kind,'answer');assert.equal(run.result.answer,sourceText);assert.equal(run.result.evidence.quote,sourceText);assert.equal(run.result.evidence.sourceUrl,document.finalUrl);assert.equal(run.ai_call_count,3);
+});
+
+test('scheduled answer can record checked source with no special finding without erasing error semantics',async()=>{
+  await fixture();
+  const document:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',text:'Ordinary school day. No special notice.',fingerprint:'quiet-school-v1',fetchedAt:new Date().toISOString(),links:[],evidenceComplete:true,evidenceKind:'web'};
+  const rule={version:1,resultKind:'answer',summary:'Synthetic school update.',eventTypes:[],keywords:['school'],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
+  await pool.query(`UPDATE monitor_tasks SET instruction='Find special school notices.',interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision,next_check_at=clock_timestamp()-interval '1 minute' WHERE id=$1`,[taskId,JSON.stringify(rule)]);
+  const ai={createTaskSession:async(_household:string,request:{input:string})=>{const selection=request.input.includes('Select only an exact source excerpt');let turns=0;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{turns++;if(!selection&&turns===1)return{toolCalls:[{id:'open',name:'web.open' as const,arguments:{url:document.finalUrl}}],generatedAt:new Date().toISOString()};return{output:selection?JSON.stringify({version:1,outputLocale:'nb',status:'none',sourceUrl:null,segmentId:null,date:null,confidence:0.9}):JSON.stringify({version:1,outputLocale:'nb',answer:'Invented',evidence:{quote:'Invented'},confidence:0.9,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};}};}};
+  const engine=new MonitorEngine({fetch:async()=>document} as unknown as MonitorSourceFetcher,ai as any);
+  assert.equal(await engine.runScheduled(taskId,1),'changed');
+  const run=(await pool.query<{result_kind:string;result:{status:string};error_code:string|null}>(`SELECT result_kind,result,error_code FROM monitor_runs WHERE task_id=$1 AND run_kind='scheduled' ORDER BY checked_at DESC LIMIT 1`,[taskId])).rows[0]!;
+  assert.equal(run.result_kind,'answer');assert.equal(run.result.status,'none');assert.equal(run.error_code,null);
+  const personId=(await pool.query<{person_id:string}>('SELECT person_id FROM monitor_task_person_targets WHERE task_id=$1',[taskId])).rows[0]!.person_id;
+  await pool.query('INSERT INTO monitor_task_subjects(household_id,task_id,person_id) VALUES($1,$2,$3)',[actor.householdId,taskId,personId]);
+  const summaries=await personMonitorSummaries(pool as any,actor.householdId,personId,actor.accountId);
+  assert.equal(summaries.find((item)=>item.id===taskId)?.status,'no_findings');
 });
 
 test('production HTTP actions return durable 202 runs and expose the authenticated run projection',async()=>{

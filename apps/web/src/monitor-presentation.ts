@@ -23,7 +23,7 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (validationStage === 'provider_response' && validationReason === 'network_error') return 'monitorErrorProviderNetwork';
   if (validationStage === 'provider_response') return 'monitorErrorProviderResponse';
   if (validationStage === 'final_schema' && ['invalid_json', 'schema_mismatch', 'response_too_large', 'invalid_json_or_schema'].includes(String(validationReason))) return 'monitorErrorResponseFormat';
-  if (validationStage === 'evidence_anchor') return 'monitorErrorVerification';
+  if (validationStage === 'evidence_anchor' || validationStage === 'evidence_selection') return 'monitorErrorVerification';
   if (code === 'MONITOR_LOCATION_REQUIRED') return 'monitorErrorLocationRequired';
   if (code === 'MONITOR_LOCATION_AMBIGUOUS') return 'monitorErrorLocationAmbiguous';
   if (code === 'MONITOR_LOCATION_NOT_FOUND') return 'monitorErrorLocationNotFound';
@@ -114,9 +114,10 @@ export function monitorResultNotice(execution: { status: string; resultSummary?:
   if (execution?.status === 'failed' && hasPreviousResult) return 'stale_previous_success';
   if (execution?.status !== 'succeeded' || !execution.resultSummary || typeof execution.resultSummary !== 'object') return null;
   const summary = execution.resultSummary as { outcome?: unknown; resultKind?: unknown; result?: unknown };
-  if (summary.outcome !== 'changed' || summary.resultKind !== 'events' || !summary.result || typeof summary.result !== 'object') return null;
-  const result = summary.result as { events?: unknown };
-  return Array.isArray(result.events) && result.events.length === 0 ? 'success_no_findings' : null;
+  if (summary.outcome !== 'changed' || !summary.result || typeof summary.result !== 'object') return null;
+  const result = summary.result as { events?: unknown; status?: unknown };
+  if (summary.resultKind === 'answer' && result.status === 'none') return 'success_no_findings';
+  return summary.resultKind === 'events' && Array.isArray(result.events) && result.events.length === 0 ? 'success_no_findings' : null;
 }
 
 export function monitorResultNoticeKey(notice: 'success_no_findings' | 'stale_previous_success' | null): TranslationKey | null {

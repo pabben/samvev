@@ -105,7 +105,7 @@ function boundedPayload(source:SourceDocument,rootOrigin:string):{output:string;
   const text=truncateUtf8(source.text,MAX_TOOL_TEXT_BYTES);let low=0;let high=text.length;let output=JSON.stringify(base);
   while(low<=high){const middle=Math.floor((low+high)/2);const candidate=JSON.stringify({...base,text:text.slice(0,middle)});if(Buffer.byteLength(candidate)<=MAX_TOOL_PAYLOAD_BYTES){output=candidate;low=middle+1;}else high=middle-1;}
   if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
-  const visible=JSON.parse(output) as typeof base;visible.contentComplete=visible.text===source.text;output=JSON.stringify(visible);if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
+  const visible=JSON.parse(output) as typeof base;visible.contentComplete=source.evidenceComplete!==false&&visible.text===source.text;output=JSON.stringify(visible);if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
   return{output,links,evidenceDocument:{finalUrl:visible.url,contentType:visible.contentType,text:visible.text,fingerprint:visible.fingerprint,fetchedAt:visible.fetchedAt,evidenceComplete:visible.contentComplete,...(visible.title?{title:visible.title}:{}),headings:visible.headings,links:visible.links}};
 }
 

@@ -61,6 +61,7 @@ test('sanitized AI diagnostics distinguish response formatting from source evide
   }
   assert.equal(taskErrorKey(new ApiError('MONITOR_INTERPRETATION_SCHEMA_INVALID', 502, { validationStage: 'final_schema', validationReason: 'invalid_json_or_schema' })), 'monitorErrorResponseFormat');
   assert.equal(taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'evidence_anchor', validationReason: 'claim' })), 'monitorErrorVerification');
+  assert.equal(taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'evidence_selection', validationReason: 'selection_source' })), 'monitorErrorVerification');
   assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response' })), 'monitorErrorProviderResponse');
   assert.equal(taskErrorKey(new ApiError('MONITOR_EXECUTION_FAILED')), 'monitorErrorGeneric');
   assert.match(en.monitorErrorResponseFormat, /required format/i);
@@ -116,6 +117,7 @@ test('provider connection failures and safe schema issue summaries are distinct 
 
 test('monitor result notices distinguish an empty successful check from a stale result', () => {
   assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'events', result: { events: [] } } }, false), 'success_no_findings');
+  assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'answer', result: { version: 1, status: 'none' } } }, false), 'success_no_findings');
   assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'events', result: { events: [{ date: '2030-01-01' }] } } }, false), null);
   assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, true), 'stale_previous_success');
   assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, false), null);
