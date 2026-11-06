@@ -168,7 +168,7 @@ export class MonitorAgentRunner {
       // authority in Samvev, preserves the normal fetch limits, and guarantees
       // that the required web evidence exists without trusting provider-specific
       // tool-choice behaviour.
-      const preopenApprovedRoot=Boolean(rootUrl&&toolNames.length>1&&toolNames.includes('web.open')&&requiredTools.has('web.open'));
+      const preopenApprovedRoot=Boolean(!input.preloadSeedDocuments&&rootUrl&&toolNames.includes('web.open')&&requiredTools.has('web.open')&&(toolNames.length>1||(input.sessionMode==='extractive_answer'&&input.seedDocuments?.length)));
       if(preopenApprovedRoot&&rootUrl&&!usedTools.has('web.open')){
         if(toolExecutions>=maxToolExecutions)fail('MONITOR_TOOL_LIMIT');
         attemptedToolCount++;toolExecutions++;
