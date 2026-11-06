@@ -103,7 +103,26 @@ test("family-only preview renders projected implicit agendas and dinners without
   }
 });
 
-test("family preview leaves explicit day cards outside the hub and keeps the other implicit day once", () => {
+test("empty default family setup shows one safe scaffold and accurate calendar grant or empty-state notice", () => {
+  const emptyFamily = {
+    ...base,
+    setup: { ...base.setup, cards: ["family_layout", "household_messages", "external_items"], cardOrder: ["family_layout", "household_messages", "external_items"] },
+    familyLayout: { people: [], upcomingBirthdays: [] },
+    hub: { people: [], items: [] },
+    birthdays: { mode: "all", localDate: "2026-10-29", entries: [] },
+    cards: [],
+  } as any;
+  const unshared = previewMarkup({ ...emptyFamily, contentReadiness: { calendar: "not_shared" } });
+  assert.match(unshared, /Det er ikke noe innhold på denne skjermen ennå/);
+  assert.equal((unshared.match(/Ingen relevant valgt kalender er delt med denne skjermen/g) ?? []).length, 1);
+  assert.equal((unshared.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 0, "the no-content scaffold does not invent daily items");
+
+  const emptyCalendar = previewMarkup({ ...emptyFamily, contentReadiness: { calendar: "ready" } });
+  assert.match(emptyCalendar, /Ingen kalenderaktiviteter er tilgjengelige i denne visningen/);
+  assert.doesNotMatch(emptyCalendar, /Ingen relevant valgt kalender er delt med denne skjermen/);
+});
+
+test("family preview keeps both authorized days in the hub and suppresses duplicate explicit day cards", () => {
   const today = "2026-10-29";
   const result = {
     ...base,
@@ -111,10 +130,10 @@ test("family preview leaves explicit day cards outside the hub and keeps the oth
     birthdays: { mode: "all", localDate: today, entries: [{ personId: familyPeople[0]!.id, displayName: familyPeople[0]!.displayName, due: "today" }] },
   } as any;
   const html = previewMarkup(result);
-  assert.equal((html.match(/class="display-preview-card display-preview-today"/g) ?? []).length, 1);
-  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 0);
+  assert.equal((html.match(/class="display-preview-card display-preview-today"/g) ?? []).length, 0);
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 1);
   assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
-  assert.equal((html.match(/data-review-private="birthday-name"/g) ?? []).length, 1);
+  assert.equal((html.match(/data-review-private="birthday-person"/g) ?? []).length, 1);
 });
 
 test("rich six-person family projection deduplicates roster and withholds unshared board content", () => {
@@ -154,8 +173,8 @@ test("rich six-person family projection deduplicates roster and withholds unshar
   for (const person of people) {
     assert.equal((html.match(new RegExp(`id="hub-person-${person.id}"`, "g")) ?? []).length, 1, `${person.id} should have one semantic person card despite duplicated projection sources`);
   }
-  assert.equal((html.match(/class="display-preview-card display-preview-today"/g) ?? []).length, 1);
-  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 0, "explicit Today card replaces the hub's implicit Today section");
+  assert.equal((html.match(/class="display-preview-card display-preview-today"/g) ?? []).length, 0);
+  assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-today"/g) ?? []).length, 1, "the family overview owns Today even when an explicit Today card is also selected");
   assert.equal((html.match(/class="hub-agenda hub-day hub-panel hub-tomorrow"/g) ?? []).length, 1);
   assert.match(html, /not shared/i);
   assert.doesNotMatch(html, /Synthetic unshared grocery/);
@@ -191,11 +210,10 @@ test("landscape preview keeps metadata outside the screen and renders the select
   const layout = html.indexOf('class="display-preview-layout"');
   const today = html.indexOf('class="display-preview-card display-preview-today"');
   const family = html.indexOf('class="display-preview-card display-preview-family_layout"');
-  const tomorrow = html.indexOf('class="display-preview-card display-preview-tomorrow"');
   assert.ok(metadata >= 0 && metadata < html.indexOf('class="display-preview display-preview-landscape"'));
   assert.ok(screen > metadata && screen < backdrop && backdrop < layout, "the selected image is a screen backdrop behind display content");
   assert.match(html, /src="\/synthetic-private-background\.webp" alt=""/);
-  assert.ok(today < family && family < tomorrow, "the preview preserves the setup's configured card order");
+  assert.ok(family >= 0 && today === -1 && !html.includes('class="display-preview-card display-preview-tomorrow"'), "the family overview is first and legacy explicit day cards are folded into it");
   assert.equal((html.match(/Synthetic note (?:one|two)/g) ?? []).length, 2);
   assert.match(html, /class="hub-message-grid"/);
 });
@@ -274,6 +292,7 @@ test("snapshot cards reuse live week, board and media renderers with read-only c
         assets: [{ id: "photo-1", albumId: "album-1", title: "Synthetic photo", previewUrl: "/synthetic-photo.webp" }],
         background: null, householdBackground: null,
       },
+      homeAssistantPreview: { items: [{ name: "Synthetic reading lamp", domain: "light", state: "on", stateStatus: "current", lastChangedAt: "2026-10-29T11:30:00Z" }] },
       weekActivities: { activities: [
         { type: "school", id: "week-first", taskId: "task-week-first", personId: familyPeople[0]!.id, personIds: [familyPeople[0]!.id], date: today, time: "08:15", startsAt: `${today}T08:15:00+01:00`, kind: "school", title: "Synthetic week first", actions: [], evidence: {}, confidence: null, uncertainty: null, sourceUrl: null, recordedAt: null, expiresAt: "2026-11-02T00:00:00.000Z" },
         { type: "school", id: "week-later", taskId: "task-week-later", personId: familyPeople[0]!.id, personIds: [familyPeople[0]!.id], date: "2026-10-31", time: "09:00", startsAt: "2026-10-31T09:00:00+01:00", kind: "school", title: "Synthetic week later", actions: [], evidence: {}, confidence: null, uncertainty: null, sourceUrl: null, recordedAt: null, expiresAt: "2026-11-02T00:00:00.000Z" },
@@ -300,7 +319,17 @@ test("snapshot cards reuse live week, board and media renderers with read-only c
     assert.match(html, /media-display-playback/);
     assert.match(html, /class="media-slideshow"/);
     assert.match(html, /Home Assistant-styring/);
-    assert.match(html, /Home Assistant-tilstand lastes ikke i administratorens forhåndsvisning/);
+    const ha = html.slice(html.indexOf('class="display-preview-card display-preview-home_assistant"'));
+    assert.match(ha, /data-testid="home-assistant-preview-card"/);
+    assert.match(ha, /Synthetic reading lamp/);
+    assert.match(ha, /Home Assistant rapporterer · on/);
+    assert.doesNotMatch(ha, /entity_id|homeassistant\.turn_|<button/);
+    const next = html.slice(html.indexOf('class="display-preview-card display-preview-next"'), html.indexOf('class="display-preview-card display-preview-groceries"'));
+    const groceries = html.slice(html.indexOf('class="display-preview-card display-preview-groceries"'), html.indexOf('class="display-preview-card display-preview-dinners"'));
+    const dinners = html.slice(html.indexOf('class="display-preview-card display-preview-dinners"'), html.indexOf('class="display-preview-card display-preview-photos"'));
+    assert.doesNotMatch(next, /<h4/, "Next uses the renderer's own heading");
+    assert.doesNotMatch(groceries, /<h4/, "Groceries uses the renderer's own heading");
+    assert.doesNotMatch(dinners, /<h4/, "Dinners uses the renderer's own heading");
     assert.match(html, /<input[^>]*type="checkbox"[^>]*disabled/);
     assert.match(html, /<button[^>]*disabled/);
     assert.equal(displayFetches, 0);

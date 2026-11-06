@@ -19,6 +19,22 @@ test('weather and location failures have dedicated NB/EN recovery copy', () => {
   assert.equal(taskErrorKey('REVISION_CONFLICT'), 'monitorErrorConflict');
 });
 
+test('stored owner authorization failures stay distinct from the current actor permission error', () => {
+  assert.equal(taskErrorKey('MONITOR_OWNER_UNAUTHORIZED'), 'monitorStoredOwnerUnauthorized');
+  assert.equal(taskErrorKey(new ApiError('FORBIDDEN', 403)), 'monitorErrorPermission');
+  assert.doesNotMatch(en.monitorErrorPermission, /account|sign in|log in/i);
+  assert.doesNotMatch(nb.monitorErrorPermission, /konto|logg inn/i);
+  assert.match(en.monitorStoredOwnerUnauthorized, /could not verify.*authorization.*recipients or screens.*paused/i);
+  assert.match(nb.monitorStoredOwnerUnauthorized, /kunne ikke bekrefte.*tilgang.*mottakere eller skjermer.*pause/i);
+  assert.match(en.monitorFailureLastChecked, /Last checked \{time\}/);
+  assert.match(nb.monitorFailureLastChecked, /Sist kontrollert \{time\}/);
+  assert.match(en.monitorErrorTargetsChecked, /recipient and display access.*Last checked \{time\}/i);
+  assert.match(nb.monitorErrorTargetsChecked, /tilgang.*Sist kontrollert \{time\}/i);
+  assert.match(en.displayEmptyBody, /calendars.*household.*home/i);
+  assert.match(nb.displayEmptyBody, /Kalendere.*husstand.*hjem/i);
+  assert.ok(en.monitorSourceEvidence); assert.ok(nb.monitorSourceEvidence);
+});
+
 test('ambiguity projects only bounded, human-readable place fields', () => {
   const candidate = { name: 'Testvik', municipality: 'Eksempelkommune', region: 'Eksempelfylke', latitude: 60.1234, longitude: 10.4321, internalId: 'hidden' };
   assert.deepEqual(locationCandidates(new ApiError('MONITOR_LOCATION_AMBIGUOUS', 422, { candidates: [candidate, candidate, null, {name: 123}, {name: 'x'.repeat(201)}] })), ['Testvik, Eksempelkommune, Eksempelfylke']);

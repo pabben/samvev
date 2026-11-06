@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applyDisplayReviewWrites, birthdayInputState, birthdayModePatch, calendarReadinessMessage, changedDevicePeople, displayActionHasMessageRecipients, displayActionPolicyRevocationPlan, displayCalendarSourceUpdate, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySetupPeopleSelection, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, savePrivateDisplaySetupDraft, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
+import { applyDisplayReviewWrites, birthdayInputState, birthdayModePatch, calendarEmptyMessage, calendarReadinessMessage, changedDevicePeople, displayActionHasMessageRecipients, displayActionPolicyRevocationPlan, displayCalendarSourceUpdate, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayLocalePatch, displayPresentationOnlyChange, displayPreviewContentVisible, displayReadinessCard, displayReviewAccessPlan, displayReviewCanApply, displayReviewCardChange, displaySecondaryCalendarItems, displaySetupPeopleSelection, displayThemePatch, effectiveDisplayLocale, effectiveDisplayTheme, familyLayoutBirthdayEntries, inheritDevicePeople, noDevicePeople, recommendedDisplayLayout, savePrivateDisplaySetupDraft, selectedDevicePeople, visibleDisplayBirthdays } from "../src/display-admin-presentation.ts";
 
 test("display locale and theme inherit from their assigned setup unless a raw override is present", () => {
   assert.equal(effectiveDisplayLocale(null, "nb", "en"), "nb");
@@ -48,12 +48,41 @@ test("calendar readiness explains configuration without claiming provider failur
   assert.equal(calendarReadinessMessage("not_shared"), "displayReadinessNotShared");
   assert.equal(calendarReadinessMessage("ready"), "displayReadinessReady");
   assert.equal(calendarReadinessMessage(undefined), "displayReadinessUnknown");
+  assert.equal(calendarEmptyMessage("not_shared"), "displayReadinessNotShared");
+  assert.equal(calendarEmptyMessage("ready"), "displayCalendarEmpty");
+  assert.equal(calendarEmptyMessage(undefined), "displayReadinessUnknown");
 });
 
 test("family layout and People selection share one roster and one hero; People remains standalone otherwise", () => {
   assert.deepEqual(displayFamilyCardPlan(["family_layout", "people"], true, false), { familyLayout: true, peopleCard: false, rosterInFamilyLayout: true });
   assert.deepEqual(displayFamilyCardPlan(["people"], false, false), { familyLayout: false, peopleCard: true, rosterInFamilyLayout: false });
   assert.deepEqual(displayFamilyCardPlan(["family_layout", "people"], true, true), { familyLayout: false, peopleCard: false, rosterInFamilyLayout: false });
+});
+
+test("recommended layout leads with the family overview and preserves per-screen access and customization", () => {
+  const current = { name: "Kitchen display", cards: ["today"], cardOrder: ["today"], familyLayoutEnabled: false, personIds: ["person-a"], sourceIds: ["source-a"], calendarSourceIds: ["calendar-a"], sensorIds: ["sensor-a"], albumIds: ["album-a"], backgroundId: "background-a", locale: "nb" as const, theme: "dark" as const, allSources: false, allSensors: false };
+  const next = displayPresentationOnlyChange(current);
+  assert.deepEqual(next.cards, ["family_layout", "household_messages", "week", "external_items", "today"]);
+  assert.deepEqual(next.cardOrder, next.cards);
+  for (const key of ["name", "personIds", "sourceIds", "calendarSourceIds", "sensorIds", "albumIds", "backgroundId", "locale", "theme", "allSources", "allSensors"] as const) assert.deepEqual(next[key], current[key]);
+});
+
+test("recommended layout preserves already selected optional cards after the family-first core", () => {
+  const selected = { cards: ["home_assistant", "photos", "dinners", "groceries"], cardOrder: ["dinners", "groceries", "photos", "home_assistant"], familyLayoutEnabled: false };
+  const next = recommendedDisplayLayout(selected);
+  assert.deepEqual(next.cards, ["family_layout", "household_messages", "week", "external_items", "dinners", "groceries", "photos", "home_assistant"]);
+  assert.deepEqual(next.cardOrder, next.cards);
+});
+
+test("family overview keeps daily calendar items and leaves only later calendar events for its secondary card", () => {
+  const items = [
+    { id: "today", startsAt: "2026-10-29T10:00:00Z", metadata: { calendar: {} } },
+    { id: "tomorrow", startsAt: "2026-10-30T10:00:00Z", metadata: { calendar: {} } },
+    { id: "later", startsAt: "2026-10-31T10:00:00Z", metadata: { calendar: {} } },
+    { id: "reminder", startsAt: "2026-10-31T10:00:00Z", metadata: {} },
+  ];
+  assert.deepEqual(displaySecondaryCalendarItems(items, true, "2026-10-29", "UTC").map(item => item.id), ["later"]);
+  assert.deepEqual(displaySecondaryCalendarItems(items, false, "2026-10-29", "UTC").map(item => item.id), ["today", "tomorrow", "later"]);
 });
 
 test("preview suppresses empty optional card content while preserving real content", () => {

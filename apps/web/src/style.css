@@ -2817,4 +2817,59 @@ details[open] > summary:before {
 .ai-anthropic-guidance,.ai-policy-settings{display:grid;gap:12px;padding:16px;border:1px solid var(--glass-border);border-radius:16px;background:var(--glass)}.ai-anthropic-guidance h3,.ai-policy-settings h3{margin:0}.ai-anthropic-guidance p,.ai-policy-settings>p{margin:0;line-height:1.5}.ai-policy-settings .field{margin-block:2px}.ai-model-name{display:block;margin-top:4px;color:var(--muted)}
 .display-bulk-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.display-bulk-actions .button,.display-bulk-actions .text-button{min-height:44px}.display-birthday-setting{display:grid;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px}.display-birthday-setting .check{min-height:44px}.display-birthday-setting .notice{margin:0;line-height:1.5}.display-session-details{display:grid;gap:8px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.display-session-details p{margin:0;line-height:1.5}.display-admin-section .display-person-filter{gap:10px}.display-person-filter .check{min-height:44px}
 .display-preview .display-preview-family-readonly{color:inherit;opacity:1}.display-preview .display-preview-family-readonly :disabled{opacity:1}
+
+/* Keep the admin mockup inside its host column. On narrow screens it keeps
+   real text size and scrolls inside the screen instead of squeezing cards. */
+.display-preview-meta,.display-preview,.display-preview-screen,.display-preview-layout{box-sizing:border-box;min-width:0;max-width:100%}
+.display-preview{container-name:display-preview;container-type:inline-size}
+.display-preview-screen{overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+.display-preview-layout>*{box-sizing:border-box;min-width:0;max-width:100%;overflow-wrap:anywhere}
+.display-preview-screen :where(*){writing-mode:horizontal-tb;word-break:normal}
+@container display-preview (max-width:1000px){
+  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan{grid-column:1/-1!important;grid-row:auto!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan .hub-today,.display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan .hub-tomorrow{grid-column:auto!important;grid-row:auto!important}
+  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan .hub-tomorrow{border-top:0!important;border-left:1px solid var(--hub-line)!important}
+  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-person-section,.display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-messages,.display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-display-photo{grid-column:1/-1!important;grid-row:auto!important;min-width:0!important}
+  .display-preview-screen .family-hub.hub-display-compact-people .hub-person-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:640px){
+  .display-preview-landscape .display-preview-layout,.display-preview-portrait .display-preview-layout{grid-template-columns:minmax(0,1fr)!important}
+  .display-preview-landscape .display-preview-layout>.display-preview-card,.display-preview-portrait .display-preview-layout>.display-preview-card{grid-column:1/-1!important}
+  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid,.display-preview-screen .family-hub.hub-display-compact-people .hub-person-grid,.display-preview-screen .family-hub.hub-display-compact-people .hub-grid .hub-day-plan,.display-preview-screen .hub-display-week .hub-week-days{grid-template-columns:minmax(0,1fr)!important}
+  .display-preview-screen .family-hub.hub-display-compact-people .hub-grid .hub-day-plan .hub-tomorrow{border-left:0!important;border-top:1px solid var(--hub-line)!important}
+  .display-preview-screen{max-height:min(72vh,760px)}
+  .display-preview-controls{grid-template-columns:minmax(0,1fr)}
+}
+
+/* Compact administration cards keep identity and actions together while
+   preserving the existing 44px touch targets. */
+.person-grid{gap:14px}
+.person-card{padding:16px 18px;display:flex;flex-direction:column;align-items:flex-start}
+.person-card>.avatar{width:56px;height:56px;margin-bottom:9px}
+.person-card h2{font-size:18px;line-height:1.3}
+.person-card>p{margin:3px 0 8px;line-height:1.45;overflow-wrap:anywhere}
+.person-card .person-login{margin-top:2px;min-height:28px}
+.person-card .person-birth-date,.person-card .person-email{margin-block:4px}
+.person-card .permission-summary{width:100%;margin-top:8px}
+.person-card .permission-summary>summary{min-height:44px;display:flex;align-items:center}
+.person-card>.button{margin-top:7px;min-height:44px}
+@media(max-width:900px){.person-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.person-grid{grid-template-columns:minmax(0,1fr);gap:10px}.person-card{display:grid;grid-template-columns:56px minmax(0,1fr);column-gap:12px;align-items:center}.person-card>.avatar{grid-column:1;grid-row:1/span 3;margin:0}.person-card>h2,.person-card>p,.person-card>.person-login,.person-card>.person-birth-date,.person-card>.person-email,.person-card>.permission-summary,.person-card>.button,.person-card>.person-tasks{grid-column:2}.person-card>h2{align-self:end}.person-card>p{align-self:start}.person-card>.button{width:100%;text-align:center}.person-card>.permission-summary{align-self:stretch}}
+
+/* Calendar source choices read as a concise introduction, then a clear set of
+   equal touch targets instead of a second oversized page header. */
+.calendar-area>.section-heading{margin:0 0 12px;align-items:center}
+.calendar-area>.section-heading h2{font-size:22px;line-height:1.25}
+.calendar-area>.section-heading p{max-width:64ch;margin-top:5px;line-height:1.5}
+.calendar-provider-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,205px),1fr));gap:10px;margin:0 0 16px}
+.calendar-provider-grid>.calendar-provider{min-width:0;min-height:104px;padding:12px 14px;text-align:left;display:grid;grid-template-columns:32px minmax(0,1fr);align-content:center;align-items:center;gap:3px 10px;border-radius:16px}
+.calendar-provider-grid>.calendar-provider>.icon,.calendar-provider-grid>.calendar-provider>img,.calendar-provider-grid>.calendar-provider>span:first-child{grid-column:1;grid-row:1/span 2;width:28px;height:28px;align-self:center}
+.calendar-provider-grid>.calendar-provider>strong,.calendar-provider-grid>.calendar-provider>span:last-child{grid-column:2;min-width:0;overflow-wrap:anywhere}
+.calendar-provider-grid>.calendar-provider>strong{font-size:15px;line-height:1.3}
+.calendar-provider-grid>.calendar-provider>span:last-child{font-size:13px;line-height:1.4;color:var(--muted)}
+.calendar-provider-grid>.calendar-provider:focus-visible{outline:3px solid var(--focus);outline-offset:3px}
+@media(max-width:640px){.calendar-area>.section-heading h2{font-size:19px}.calendar-provider-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.calendar-provider-grid>.calendar-provider{min-height:96px;padding:10px;grid-template-columns:24px minmax(0,1fr);gap:3px 8px}.calendar-provider-grid>.calendar-provider>.icon,.calendar-provider-grid>.calendar-provider>img,.calendar-provider-grid>.calendar-provider>span:first-child{width:22px;height:22px}.calendar-provider-grid>.calendar-provider>strong{font-size:14px}.calendar-provider-grid>.calendar-provider>span:last-child{font-size:12px}}
+@media(max-width:360px){.calendar-provider-grid{grid-template-columns:minmax(0,1fr)}}
 .display-preview-meta{margin:0 0 8px}.display-preview-meta h3,.display-preview-meta p{margin:0}.display-preview{display:block;width:min(100%,1280px);margin-inline:auto;padding:0;border:0;border-radius:0;background:transparent}.display-preview-screen{position:relative;isolation:isolate;box-sizing:border-box;width:100%;aspect-ratio:1280/752;min-height:0;overflow:auto;border:2px dashed var(--glass-border);border-radius:14px;background:var(--canvas);scrollbar-width:thin}.display-preview-screen:after{position:absolute;inset:0;z-index:1;content:"";pointer-events:none;background:linear-gradient(180deg,#fffefb26,#fffefb72 100%)}.display-preview[data-theme="dark"] .display-preview-screen{background:linear-gradient(180deg,#07122285 0%,#071a2d90 28%,#061321c9 65%,#05101be8 100%),url('./assets/nordic-dusk-v2.png') center top/cover,#061321}.display-preview[data-theme="dark"] .display-preview-screen:after{background:linear-gradient(180deg,#06132145 0%,#06132170 60%,#05101b99 100%)}.display-preview-screen>.display-preview-backdrop{position:absolute;inset:0;z-index:0;width:100%;height:100%;max-width:none;max-height:none;object-fit:cover;border-radius:inherit}.display-preview-screen>.display-preview-layout{position:relative;z-index:2;min-height:100%;padding:10px;box-sizing:border-box}.display-preview-portrait{width:min(100%,752px)}.display-preview-portrait .display-preview-screen{aspect-ratio:752/1280}.display-preview-portrait .display-preview-layout{grid-template-columns:repeat(2,minmax(0,1fr))}@media(min-width:760px){.display-preview-landscape .display-preview-screen .family-hub.hub-display-compact-people .hub-grid .hub-message-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.display-preview .display-preview-family_layout{padding:0;border:0;background:transparent;box-shadow:none}

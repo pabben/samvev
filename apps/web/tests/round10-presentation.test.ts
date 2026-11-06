@@ -63,7 +63,7 @@ test('a retained result stays explicitly older after failure, interruption or a 
 test('early and interrupted failures show localized safe explanations, never raw error text',()=>{
  assert.equal(personTaskErrorKey('MONITOR_EXECUTION_FAILED'),'personTaskExecutionFailed');
  assert.equal(personTaskErrorKey('MONITOR_WORKER_INTERRUPTED'),'personTaskInterrupted');
- assert.equal(personTaskErrorKey('MONITOR_OWNER_UNAUTHORIZED'),'monitorErrorPermission');
+ assert.equal(personTaskErrorKey('MONITOR_OWNER_UNAUTHORIZED'),'monitorStoredOwnerUnauthorized');
  assert.equal(personTaskErrorKey('unexpected private diagnostic text'),'monitorErrorGeneric');
  assert.equal(personTaskErrorKey('AI_RESPONSE_INVALID',{validationStage:'final_schema',validationReason:'schema_mismatch',raw:'private'}),'monitorErrorResponseFormat');
  assert.equal(personTaskErrorKey('AI_RESPONSE_INVALID',{validationStage:'evidence_anchor',validationReason:'claim'}),'monitorErrorVerification');

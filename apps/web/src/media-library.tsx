@@ -110,7 +110,7 @@ export function DisplayMediaProjectionView({projection,selectedAlbum="",onAlbumC
   const photos = projection.assets.filter(asset => asset.albumId === albumId);
   return <section className="hub-panel media-display-playback" aria-label={t("mediaPhotosTitle")}>
     {refreshError && <p className="household-board-error" role="status">{t("mediaActionError")}</p>}
-    {!readOnly&&<button type="button" className="media-control" disabled={refreshing} onClick={onRefresh}>{t("mediaRefresh")}</button>}
+    <button type="button" className="media-control" disabled={readOnly||refreshing} onClick={onRefresh}>{t("mediaRefresh")}</button>
     {projection.albums.length > 1 && <label className="media-display-album-select">{t("mediaChooseAlbum")}<select disabled={readOnly} data-review-private="album-selection" value={albumId} onChange={event => onAlbumChange?.(event.target.value)}>{projection.albums.map(album => <option value={album.id} key={album.id}>{album.name}</option>)}</select></label>}
     <MediaSlideshow assets={photos} label={label||t("mediaPhotosTitle")} readOnly={readOnly}/>
     {(projection.background || projection.householdBackground) && <div className="media-display-background" data-review-private="background-image"><img src={(projection.background ?? projection.householdBackground)!.previewUrl} alt={(projection.background ?? projection.householdBackground)!.title || t("mediaBackgroundAlt")} referrerPolicy="no-referrer"/></div>}

@@ -171,6 +171,29 @@ export function displayFamilyCardPlan(cards: readonly string[], familyLayoutEnab
   return { familyLayout, peopleCard: cards.includes('people') && !familyLayout && !privacyMode, rosterInFamilyLayout: familyLayout };
 }
 
+/** Family overview first, followed by optional weekly and calendar detail cards. */
+export function recommendedDisplayLayout<T extends { cards: string[]; cardOrder: string[]; familyLayoutEnabled: boolean }>(draft: T): T {
+  const coreCards = ['family_layout', 'household_messages', 'week', 'external_items'];
+  const optionalCards = [...draft.cardOrder, ...draft.cards].filter(card => draft.cards.includes(card) && !coreCards.includes(card));
+  const cards = [...coreCards, ...new Set(optionalCards)] as T['cards'];
+  return { ...draft, cards, cardOrder: cards, familyLayoutEnabled: true } as T;
+}
+
+/** A per-display recommendation edits presentation only; access and personalization stay intact. */
+export function displayPresentationOnlyChange<T extends { cards: string[]; cardOrder: string[]; familyLayoutEnabled: boolean; personIds: string[]; sourceIds: string[]; calendarSourceIds: string[]; sensorIds: string[]; albumIds: string[]; backgroundId: string | null }>(current: T): T {
+  return recommendedDisplayLayout(current);
+}
+
+export function displaySecondaryCalendarItems<T extends { metadata?: { calendar?: unknown }; startsAt?: string | null }>(items: T[], hasFamilyLayout: boolean, today: string, zone: string): T[] {
+  const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return items.filter(item => {
+    if (!item.metadata?.calendar) return false;
+    if (!hasFamilyLayout || !item.startsAt) return true;
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(Date.parse(item.startsAt));
+    return date > tomorrow;
+  }).slice(0, 8);
+}
+
 export function displayPreviewContentVisible(content: unknown): boolean {
   if (content === null || content === undefined || content === false) return false;
   if (Array.isArray(content)) return content.length > 0;
@@ -195,4 +218,9 @@ export function displayReadinessCard(cards: readonly string[]): 'external_items'
 export function calendarReadinessMessage(status: CalendarReadiness|undefined): 'displayReadinessUnknown'|'displayReadinessPrivacy'|'displayReadinessNoPeople'|'displayReadinessDisabled'|'displayReadinessNotShared'|'displayReadinessReady' {
   if (!status) return 'displayReadinessUnknown';
   return ({ privacy: 'displayReadinessPrivacy', none_selected: 'displayReadinessNoPeople', external_disabled: 'displayReadinessDisabled', not_shared: 'displayReadinessNotShared', ready: 'displayReadinessReady' } as const)[status];
+}
+
+/** Distinguish a configured empty calendar from a missing/unknown display grant. */
+export function calendarEmptyMessage(status: CalendarReadiness|undefined): 'displayCalendarEmpty'|'displayReadinessUnknown'|'displayReadinessPrivacy'|'displayReadinessNoPeople'|'displayReadinessDisabled'|'displayReadinessNotShared' {
+  return status === 'ready' ? 'displayCalendarEmpty' : calendarReadinessMessage(status) as Exclude<ReturnType<typeof calendarReadinessMessage>, 'displayReadinessReady'>;
 }

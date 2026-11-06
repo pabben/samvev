@@ -945,9 +945,10 @@ async function displayAdministrativeResponse(db:DbClient,householdId:string,disp
 async function defaultDisplaySetup(client:DbClient,householdId:string):Promise<string>{
   const household=(await client.query<{default_locale:'en'|'nb'}>('SELECT default_locale FROM households WHERE id=$1 FOR UPDATE',[householdId])).rows[0];
   if(!household)throw new DomainError('NOT_FOUND',404);
-  const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,locale,theme,is_default,all_sources,all_sensors)
-    VALUES($1,'Default display setup',$2,'system',true,true,true)
-    ON CONFLICT (household_id) WHERE is_default DO NOTHING RETURNING id`,[householdId,household.default_locale]);
+  const recommendedCards=['family_layout','household_messages','week','external_items'];
+  const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,locale,theme,is_default,all_sources,all_sensors,cards,card_order)
+    VALUES($1,'Default display setup',$2,'system',true,false,false,$3::jsonb,$3::jsonb)
+    ON CONFLICT (household_id) WHERE is_default DO NOTHING RETURNING id`,[householdId,household.default_locale,JSON.stringify(recommendedCards)]);
   if(inserted.rowCount){
     await client.query('INSERT INTO display_setup_people(household_id,setup_id,person_id) SELECT $1,$2,id FROM persons WHERE household_id=$1',[householdId,inserted.rows[0]!.id]);
     return inserted.rows[0]!.id;
@@ -2389,12 +2390,13 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const tag=previewContextTag(preview);const mediaActorDevice={id:preview.id,householdId,setupId:preview.setupId,privacyMode:preview.privacyMode,credentialHash:preview.credentialHash};
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone),weekTo=dateOffset(weekStart(today),6);
-    const [projection,previewMedia,week,next,day]=await Promise.all([
+    const [projection,previewMedia,week,next,day,homeAssistantPreview]=await Promise.all([
       projectionFor(preview,{markDelivered:false,preview:true,previewTag:tag}),
       media.previewProjection(mediaActor(auth),mediaActorDevice,{cards:preview.cards,albumIds:preview.albumIds,backgroundId:preview.backgroundId},tag),
       !preview.privacyMode&&preview.cards.includes('week')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:weekTo,limit:50,maxDays:7,display:preview}):Promise.resolve(null),
       !preview.privacyMode&&preview.cards.includes('next')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,365),limit:1,maxDays:366,upcomingOnly:true,display:preview}):Promise.resolve(null),
-      !preview.privacyMode&&preview.cards.some((card)=>card==='today'||card==='tomorrow')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,1),limit:100,maxDays:2,display:preview}):Promise.resolve(null)
+      !preview.privacyMode&&preview.cards.some((card)=>card==='today'||card==='tomorrow')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,1),limit:100,maxDays:2,display:preview}):Promise.resolve(null),
+      !preview.privacyMode&&preview.cards.includes('home_assistant')?homeAssistantControls.previewSnapshot({kind:'display',id:preview.id,credentialHash:preview.credentialHash,householdId:preview.householdId,privacyMode:preview.privacyMode,cards:preview.cards}):Promise.resolve({items:[]})
     ]);
     await transaction(async(client)=>{
       await recheckHouseholdAuth(client,request,auth,'display.manage');
@@ -2407,7 +2409,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
           AND device.privacy_mode=$7 AND device.external_items_enabled=$8`,[auth.sessionId,householdId,displayId,auth.accountId,auth.membershipId,device.credentialHash,device.privacyMode,device.externalItemsEnabled])).rows[0];
       if(!final)throw new DomainError('NOT_FOUND',404);
     });
-    const safeProjection={...projection,preview:true,media:previewMedia,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})} as Record<string,any>;
+    const safeProjection={...projection,preview:true,media:previewMedia,homeAssistantPreview,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})} as Record<string,any>;
     safeProjection.actionAvailability={...safeProjection.actionAvailability,newMessage:false,homeAssistantControl:false};
     safeProjection.householdBoards={...safeProjection.householdBoards,writable:{groceries:false,dinners:false}};
     return safeProjection;

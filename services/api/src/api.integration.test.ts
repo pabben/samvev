@@ -102,6 +102,10 @@ test('complete authorization, pairing, messaging and durable lifecycle flow',asy
   assert.equal(setupList.statusCode,200,setupList.body);
   const sharedSetup=setupList.json().setups[0];
   assert.ok(sharedSetup.id);
+  assert.deepEqual(sharedSetup.cards,['family_layout','household_messages','week','external_items']);
+  assert.deepEqual(sharedSetup.cardOrder,['family_layout','household_messages','week','external_items']);
+  assert.equal(sharedSetup.allSources,false);
+  assert.equal(sharedSetup.allSensors,false);
   const setupUpdate=await app.inject({method:'PATCH',url:`/api/v1/households/${householdId}/display-setups/${sharedSetup.id}`,headers:auth(adminCookie,adminCsrf),payload:{
     name:sharedSetup.name,cards:['household_messages','family_layout','external_items','worth_remembering'],cardOrder:['family_layout','household_messages','external_items','worth_remembering'],familyLayoutEnabled:true,
     allSources:false,allSensors:false,personIds:[avatarPersonId],sourceIds:[],calendarSourceIds:[],sensorIds:[],albumIds:[],backgroundId:null,

@@ -594,6 +594,29 @@ body{font-family:var(--font-sans)}
  .family-hub.hub-member .hub-home-left-column .hub-message .display-card-body{font-size:18px}
 }
 
+/* Member Home keeps the family roster glanceable at the common 1280px width.
+   The weekly strip is a secondary, full-width surface after the primary board. */
+@media(min-width:1001px){
+ .family-hub.hub-member .hub-home-board .hub-person-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .family-hub.hub-member>.hub-home-week.hub-member-week-outside{width:100%;margin-top:clamp(12px,1.4vw,20px)}
+}
+@media(min-width:641px) and (max-width:1000px){
+ .family-hub.hub-member>.hub-home-week.hub-member-week-outside{width:100%;margin-top:var(--hub-gap)}
+}
+.hub-home-smart .hub-temperature-grid:has(>.hub-temperature:only-child){grid-template-columns:minmax(0,1fr)}
+.hub-home-smart .hub-temperature:only-child{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:2px 12px;padding:8px 10px;border:1px solid var(--home-edge,var(--glass-border));border-radius:12px;background:color-mix(in srgb,var(--home-surface,var(--card)) 86%,transparent)}
+.hub-home-smart .hub-temperature:only-child>strong{grid-column:1;grid-row:1;font-size:13px}
+.hub-home-smart .hub-temperature:only-child>.hub-temperature-value{grid-column:2;grid-row:1;font-size:20px;line-height:1.2}
+.hub-home-smart .hub-temperature:only-child>:is(.calendar-stale,.field-hint){grid-column:1/-1}
+.hub-home-smart .hub-temperature:only-child>details{grid-column:1/-1}
+.hub-home-smart .hub-temperature:only-child>details>summary{min-height:44px;display:flex;align-items:center}
+
+/* Preview surfaces should show the family composition directly, without a
+   second page frame nested inside the configured screen. */
+.display-preview-screen .family-display-page{min-height:0;padding:0;background:transparent}
+.display-preview-screen .family-display-page .display-main{padding:0}
+
+
 /* Paired-display roster stays compact so the configured day cards remain
    visible in the first viewport. The preview uses the same orientation grid. */
 .family-hub.hub-display-compact-people .hub-grid .hub-person-section{grid-column:1/-1;min-width:0;min-height:0;height:auto;padding:12px;align-self:start}
@@ -652,3 +675,41 @@ body{font-family:var(--font-sans)}
 .display-preview-layout:has(>.display-preview-today):has(>.display-preview-tomorrow){grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .display-preview-layout:has(>.display-preview-today):has(>.display-preview-tomorrow)>:not(.display-preview-today):not(.display-preview-tomorrow){grid-column:1/-1}
 .display-page{position:relative;isolation:isolate}.display-wall-background{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}.display-wall-background img{display:block;width:100%;height:100%;object-fit:cover}.display-wall-background:after{position:absolute;inset:0;content:"";background:linear-gradient(180deg,#fffefb9e 0%,#f5f2ebbf 100%)}html[data-theme="dark"] .display-wall-background:after{background:linear-gradient(180deg,#07122288 0%,#071a2d99 35%,#061321c7 100%)}.display-page>.display-header,.display-page>.display-main,.display-page>.display-footer{position:relative;z-index:1}.display-page .media-display-background,.display-preview-screen .media-display-background{display:none}
+
+/* Final landscape board placement overrides older generic compact and wide
+   grids. Daily information and people share the first viewport. */
+@media(min-width:1001px) and (orientation:landscape){
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid{grid-template-columns:repeat(12,minmax(0,1fr));align-items:start}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan{grid-column:1/span 7;grid-row:1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-self:stretch;min-width:0}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan .hub-tomorrow{border-top:0;border-left:1px solid var(--hub-line)}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-person-section{grid-column:8/span 5;grid-row:1;min-height:0;height:auto}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-person-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-messages{grid-column:1/span 7;grid-row:2;min-height:0;height:auto}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-display-photo{grid-column:8/span 5;grid-row:2;min-width:0}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid:not(:has(>.hub-display-photo)) .hub-messages{grid-column:1/-1}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-display-photo .media-display-playback{padding:10px}
+ .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-display-photo .media-slide img{max-height:180px;object-fit:cover}
+}
+@media(orientation:portrait){
+ .family-hub.hub-display-compact-people:is(.hub-dark,.hub-light) .hub-grid .hub-day-plan{grid-column:1/-1;grid-row:1}
+ .family-hub.hub-display-compact-people:is(.hub-dark,.hub-light) .hub-grid .hub-person-section{grid-column:1/-1;grid-row:2}
+ .family-hub.hub-display-compact-people:is(.hub-dark,.hub-light) .hub-grid .hub-messages{grid-column:1/-1;grid-row:3}
+ .family-hub.hub-display-compact-people:is(.hub-dark,.hub-light) .hub-grid .hub-display-photo{grid-column:1/-1;grid-row:4;min-width:0}
+}
+.family-hub.hub-display-compact-people .hub-grid .hub-day-plan>.hub-today{grid-column:1;grid-row:1;min-width:0}
+.family-hub.hub-display-compact-people .hub-grid .hub-day-plan>.hub-tomorrow{grid-column:2;grid-row:1;min-width:0}
+
+/* Member photo follows the roster in the same column, independently of the
+   taller daily agenda and message column. */
+.family-hub.hub-member .hub-home-right-column{grid-column:2;grid-row:1;display:flex;flex-direction:column;align-self:start;gap:clamp(12px,1.4vw,20px);min-width:0}
+.family-hub.hub-member .hub-home-right-column>.hub-home-people,.family-hub.hub-member .hub-home-right-column>.hub-home-photo-column{grid-column:auto;grid-row:auto;min-width:0}
+
+/* The narrow administrator preview has its own width. Keep the two day cards
+   in one readable column even when a wide host window requests a landscape
+   screen and older light-theme placement rules remain active. */
+@media(max-width:640px){
+ .display-preview .family-hub.hub-display-compact-people .hub-grid .hub-day-plan{display:grid;grid-template-columns:minmax(0,1fr)!important;min-width:0}
+ .display-preview .family-hub.hub-display-compact-people .hub-grid .hub-day-plan>.hub-today{grid-column:1!important;grid-row:1!important;min-width:0}
+ .display-preview .family-hub.hub-display-compact-people .hub-grid .hub-day-plan>.hub-tomorrow{grid-column:1!important;grid-row:2!important;min-width:0;border-left:0;border-top:1px solid var(--hub-line)}
+}
+.media-library-disclosure>summary::before{content:none}

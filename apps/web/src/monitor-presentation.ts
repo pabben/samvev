@@ -57,7 +57,8 @@ export const taskErrorKey = (error: unknown): TranslationKey => {
   if (code === 'MONITOR_INTERPRETATION_SOURCE_REFUSAL') return 'monitorErrorSourceContext';
   if (code === 'MONITOR_INTERPRETATION_SCHEMA_INVALID' || code === 'MONITOR_INTERPRETATION_INVALID') return 'monitorErrorInterpretation';
   if (code === 'REVISION_CONFLICT' || code === 'CONFLICT') return 'monitorErrorConflict';
-  if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED' || code === 'MONITOR_OWNER_UNAUTHORIZED') return 'monitorErrorPermission';
+  if (code === 'MONITOR_OWNER_UNAUTHORIZED') return 'monitorStoredOwnerUnauthorized';
+  if (code === 'FORBIDDEN' || code === 'UNAUTHORIZED' || code === 'UNAUTHENTICATED') return 'monitorErrorPermission';
   return 'monitorErrorGeneric';
 };
 

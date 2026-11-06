@@ -62,13 +62,13 @@ export class HomeAssistantControlService{
     return this.managedEntity(actor,entityId);
   }
 
-  private async authorize(client:DbClient,actor:HomeAssistantControlActor,write:boolean,manage=false):Promise<{displayPolicyRevision:number|null;expiresAt:Date}>{
+  private async authorize(client:DbClient,actor:HomeAssistantControlActor,write:boolean,manage=false,preview=false):Promise<{displayPolicyRevision:number|null;expiresAt:Date}>{
     if(actor.kind==='member'){
       const row=(await client.query<{capabilities:string[];expires_at:Date}>(`SELECT membership.capabilities,session.expires_at FROM sessions session JOIN accounts account ON account.id=session.account_id JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2 JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id WHERE session.id=$1 AND session.account_id=$3 AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND account.disabled_at IS NULL AND membership.id=$4 AND membership.person_id=$5 FOR SHARE OF session,account,membership,person`,[actor.sessionId,actor.householdId,actor.accountId,actor.membershipId,actor.personId])).rows[0];
       if(!row)throw new DomainError('UNAUTHENTICATED',401);if(!row.capabilities.includes('household.view'))throw new DomainError('FORBIDDEN',403);if(manage&&!row.capabilities.includes('household.manage'))throw new DomainError('FORBIDDEN',403);return{displayPolicyRevision:null,expiresAt:row.expires_at};
     }
     const row=(await client.query<{revision:number;cards:string[];privacy_mode:boolean;credential_expires_at:Date}>(`SELECT policy.revision,setup.cards,device.privacy_mode,device.credential_expires_at FROM displays device JOIN display_action_policies policy ON policy.display_id=device.id AND policy.household_id=device.household_id JOIN display_setups setup ON setup.id=device.setup_id AND setup.household_id=device.household_id WHERE device.id=$1 AND device.household_id=$2 AND device.credential_hash=$3 AND device.revoked_at IS NULL AND device.credential_expires_at>clock_timestamp() FOR SHARE OF device,policy,setup`,[actor.id,actor.householdId,actor.credentialHash])).rows[0];
-    if(!row)throw new DomainError('UNAUTHENTICATED',401);if(row.privacy_mode||actor.privacyMode)throw new DomainError('FORBIDDEN',403,{reason:'display_privacy_mode'});if(!row.cards.includes('home_assistant')||!actor.cards.includes('home_assistant'))throw new DomainError('FORBIDDEN',403,{reason:'display_card_not_selected'});
+    if(!row)throw new DomainError('UNAUTHENTICATED',401);if(row.privacy_mode||actor.privacyMode)throw new DomainError('FORBIDDEN',403,{reason:'display_privacy_mode'});if((!preview&&!row.cards.includes('home_assistant'))||!actor.cards.includes('home_assistant'))throw new DomainError('FORBIDDEN',403,{reason:'display_card_not_selected'});
     if(write){const policy=(await client.query<{home_assistant_control:boolean}>('SELECT home_assistant_control FROM display_action_policies WHERE household_id=$1 AND display_id=$2',[actor.householdId,actor.id])).rows[0];if(!policy?.home_assistant_control)throw new DomainError('FORBIDDEN',403,{reason:'display_action_not_granted'});}
     return{displayPolicyRevision:row.revision,expiresAt:row.credential_expires_at};
   }
@@ -142,29 +142,41 @@ export class HomeAssistantControlService{
     return this.managedEntity(actor,entityId);
   }
 
-  async describe(actor:HomeAssistantControlActor,ref:{id:string;householdId:string},client:DbClient=pool){
-    await this.authorize(client,actor,false);const row=await this.entity(client,ref.householdId,ref.id),grant=await this.grant(client,actor,row);
+  async describe(actor:HomeAssistantControlActor,ref:{id:string;householdId:string},client:DbClient=pool,preview=false){
+    await this.authorize(client,actor,false,false,preview);const row=await this.entity(client,ref.householdId,ref.id),grant=await this.grant(client,actor,row);
     if(!selectedForOrigin(row))throw new DomainError('NOT_FOUND',404);
     if(!grant.can_read)throw new DomainError('FORBIDDEN',403,{reason:'home_assistant_control_read_required'});
-    await this.authorize(client,actor,false);
+    await this.authorize(client,actor,false,false,preview);
     return{id:row.id,connectionId:row.connection_id,registryId:row.entity_registry_id,entityId:row.entity_id,deviceRegistryId:row.device_registry_id,domain:row.domain,name:row.display_name??row.name,supportedActions:row.supported_actions.filter((action)=>grant[actionColumn(action)]),revision:row.revision,grantRevision:grant.revision};
   }
 
-  async list(actor:HomeAssistantControlActor){
-    await transaction(async(client)=>this.authorize(client,actor,false));const column=actor.kind==='member'?'person_id':'display_id',actorId=actor.kind==='member'?actor.personId:actor.id,table=actor.kind==='member'?'home_assistant_control_person_grants':'home_assistant_control_display_grants';
-    const rows=(await pool.query<{id:string}>(`SELECT entity.id FROM home_assistant_control_entities entity JOIN calendar_connections connection ON connection.id=entity.connection_id AND connection.household_id=entity.household_id JOIN ${table} grant_row ON grant_row.entity_id=entity.id AND grant_row.household_id=entity.household_id WHERE entity.household_id=$1 AND entity.selected AND entity.selected_origin_hash=connection.home_assistant_origin_hash AND grant_row.${column}=$2 AND grant_row.can_read ORDER BY entity.name,entity.id LIMIT 100`,[actor.householdId,actorId])).rows;
-    const entities=[];for(const row of rows)entities.push(await this.describe(actor,{id:row.id,householdId:actor.householdId}));return{entities};
+  async list(actor:HomeAssistantControlActor,preview=false,limit=100){
+    await transaction(async(client)=>this.authorize(client,actor,false,false,preview));const column=actor.kind==='member'?'person_id':'display_id',actorId=actor.kind==='member'?actor.personId:actor.id,table=actor.kind==='member'?'home_assistant_control_person_grants':'home_assistant_control_display_grants';
+    const rows=(await pool.query<{id:string}>(`SELECT entity.id FROM home_assistant_control_entities entity JOIN calendar_connections connection ON connection.id=entity.connection_id AND connection.household_id=entity.household_id JOIN ${table} grant_row ON grant_row.entity_id=entity.id AND grant_row.household_id=entity.household_id WHERE entity.household_id=$1 AND entity.selected AND entity.selected_origin_hash=connection.home_assistant_origin_hash AND grant_row.${column}=$2 AND grant_row.can_read ORDER BY entity.name,entity.id LIMIT $3`,[actor.householdId,actorId,limit])).rows;
+    const entities=[];for(const row of rows)entities.push(await this.describe(actor,{id:row.id,householdId:actor.householdId},pool,preview));return{entities};
   }
 
-  async read(actor:HomeAssistantControlActor,entityId:string){
-    const row=await this.entity(pool,actor.householdId,entityId);await transaction(async(client)=>{await this.authorize(client,actor,false);const current=await this.entity(client,actor.householdId,entityId,true),grant=await this.grant(client,actor,current);if(!grant.can_read)throw new DomainError('FORBIDDEN',403,{reason:'home_assistant_control_read_required'});if(!selectedForOrigin(current))throw new DomainError('NOT_FOUND',404);await this.authorize(client,actor,false);});
+  async read(actor:HomeAssistantControlActor,entityId:string,preview=false){
+    const row=await this.entity(pool,actor.householdId,entityId);await transaction(async(client)=>{await this.authorize(client,actor,false,false,preview);const current=await this.entity(client,actor.householdId,entityId,true),grant=await this.grant(client,actor,current);if(!grant.can_read)throw new DomainError('FORBIDDEN',403,{reason:'home_assistant_control_read_required'});if(!selectedForOrigin(current))throw new DomainError('NOT_FOUND',404);await this.authorize(client,actor,false,false,preview);});
     try{return await this.calendars.withHomeAssistantControlCredential(actor.householdId,row.connection_id,async(context)=>{
       const live=await this.transport.listEntities(context.accessToken,context.runtime),candidate=live.find((item)=>item.registryId===row.entity_registry_id);
       if(!candidate||candidate.entityId!==row.entity_id||candidate.deviceRegistryId!==row.device_registry_id||candidate.domain!==row.domain)throw new DomainError('CONFLICT',409,{reason:'home_assistant_control_identity_changed'});
       const state=await this.transport.readState(context.accessToken,row.entity_id,context.runtime);
-      await transaction(async(client)=>{await this.authorize(client,actor,false);const current=await this.entity(client,actor.householdId,entityId,true);await this.connectionCurrent(client,current,context);const grant=await this.grant(client,actor,current);if(!grant.can_read||current.revision!==row.revision)throw new DomainError('FORBIDDEN',403,{reason:'home_assistant_control_read_revoked'});await this.authorize(client,actor,false);});
-      const description=await this.describe(actor,{id:row.id,householdId:actor.householdId});return{...description,supportedActions:state.supportedActions.filter((action)=>description.supportedActions.includes(action)),state:state.stateStatus==='current'?state.state:null,stateStatus:state.stateStatus,lastChangedAt:state.lastChangedAt,readAt:new Date().toISOString(),stateAuthority:'home_assistant' as const,physicalConfirmation:'not_available' as const,errorCode:null};
-    });}catch(error){return{...await this.describe(actor,{id:row.id,householdId:actor.householdId}),state:null,stateStatus:'unknown' as const,lastChangedAt:null,readAt:null,stateAuthority:'home_assistant' as const,physicalConfirmation:'not_available' as const,errorCode:safeError(error)};}
+      await transaction(async(client)=>{await this.authorize(client,actor,false,false,preview);const current=await this.entity(client,actor.householdId,entityId,true);await this.connectionCurrent(client,current,context);const grant=await this.grant(client,actor,current);if(!grant.can_read||current.revision!==row.revision)throw new DomainError('FORBIDDEN',403,{reason:'home_assistant_control_read_revoked'});await this.authorize(client,actor,false,false,preview);});
+      const description=await this.describe(actor,{id:row.id,householdId:actor.householdId},pool,preview);return{...description,supportedActions:state.supportedActions.filter((action)=>description.supportedActions.includes(action)),state:state.stateStatus==='current'?state.state:null,stateStatus:state.stateStatus,lastChangedAt:state.lastChangedAt,readAt:new Date().toISOString(),stateAuthority:'home_assistant' as const,physicalConfirmation:'not_available' as const,errorCode:null};
+    });}catch(error){return{...await this.describe(actor,{id:row.id,householdId:actor.householdId},pool,preview),state:null,stateStatus:'unknown' as const,lastChangedAt:null,readAt:null,stateAuthority:'home_assistant' as const,physicalConfirmation:'not_available' as const,errorCode:safeError(error)};}
+  }
+
+  async previewSnapshot(actor:Extract<HomeAssistantControlActor,{kind:'display'}>){
+    const {entities}=await this.list(actor,true,8);
+    const items=[];
+    for(const entity of entities){
+      const snapshot=await this.read(actor,entity.id,true);
+      const allowed=entity.domain==='light'?new Set(['on','off']):new Set(['open','closed','opening','closing']);
+      const current=snapshot.stateStatus==='current'&&snapshot.state!==null&&allowed.has(snapshot.state);
+      items.push({name:entity.name,domain:entity.domain,state:current?snapshot.state:null,stateStatus:current?'current':snapshot.stateStatus==='unavailable'?'unavailable':'unknown',lastChangedAt:current?snapshot.lastChangedAt:null});
+    }
+    return {items};
   }
 
   async confirmOpen(actor:HomeAssistantControlActor,entityId:string,expectedRevision:number){

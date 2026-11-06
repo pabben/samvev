@@ -8,6 +8,7 @@ import { registerHooks } from "node:module";
 registerHooks({load(url,context,nextLoad){return url.endsWith(".webp")?{format:"module",source:'export default "synthetic-avatar.webp"',shortCircuit:true}:nextLoad(url,context)}});
 const [{FamilyHub},{LocaleProvider}]=await Promise.all([import("../src/family-hub"),import("../src/ui")]);
 const homeStyles=readFileSync(new URL("../src/home.css",import.meta.url),"utf8");
+const appStyles=readFileSync(new URL("../src/style.css",import.meta.url),"utf8");
 
 function setViewport(mobile=false,theme:"light"|"dark"="light",compact=mobile){
  Object.defineProperty(globalThis,"document",{configurable:true,value:{documentElement:{dataset:{theme}}}});
@@ -62,24 +63,26 @@ test("mobile Home retains birthday identities and uses the single-column mobile 
  assert.match(html,/data-review-private="birthday-badge"/);
 });
 
-test("desktop Home keeps agenda and message first, then balances week beside photo and people",()=>{
+test("desktop Home keeps agenda and message primary, with a full-width week below the board",()=>{
  setViewport(false,"light",false);
  const html=homeMarkup(Array.from({length:6},(_,i)=>({id:`synthetic-${i}`,displayName:`Synthetic person ${i+1}`})),{householdId:"synthetic-household",messages:[{id:"synthetic-home-message",body:"Synthetic household note",importance:"normal",authorName:"Synthetic sender",publishAt:"2026-10-28T11:00:00Z",expiresAt:"2026-10-29T00:00:00Z",revision:1}],homePhoto:createElement("section",{className:"hub-home-photos"},"Synthetic photo"),displaySections:{week:true}});
  assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
  const agenda=html.indexOf("hub-home-agenda"),message=html.indexOf("hub-messages"),people=html.indexOf("hub-home-people"),photo=html.indexOf("hub-home-photo-column"),week=html.indexOf("hub-home-week");
- assert.ok(agenda<message&&message<people&&people<photo&&photo<week,`DOM reading order keeps the primary agenda and message ahead of the subordinate row (${agenda}, ${message}, ${people}, ${photo}, ${week})`);
- assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><section class="hub-messages[\s\S]*?<\/section><\/div><div class="hub-home-column hub-home-people">/);
- assert.match(homeStyles,/\.family-hub\.hub-member \.hub-home-photo-column\{grid-column:2;grid-row:2/);
- assert.match(homeStyles,/\.family-hub\.hub-member \.hub-home-week\{grid-column:1;grid-row:2/);
- assert.doesNotMatch(html,/class="hub-member-week-outside"/);
+ assert.ok(agenda<message&&message<people&&people<photo&&photo<week,`DOM reading order keeps the primary agenda and message ahead of the subordinate week (${agenda}, ${message}, ${people}, ${photo}, ${week})`);
+ assert.match(html,/<div class="hub-home-left-column"><div class="hub-home-agenda">[\s\S]*?hub-today[\s\S]*?hub-tomorrow[\s\S]*?<\/div><section class="hub-messages[\s\S]*?<\/section><\/div><div class="hub-home-right-column"><div class="hub-home-column hub-home-people">[\s\S]*?<\/div><div class="hub-home-photo-column">/);
+ assert.match(homeStyles,/\.family-hub\.hub-member \.hub-home-right-column\{grid-column:2;grid-row:1;display:flex;flex-direction:column/);
+ assert.match(html,/class="hub-home-week hub-member-week-outside" data-testid="home-week-column"/);
+ assert.match(homeStyles,/\.family-hub\.hub-member>\.hub-home-week\.hub-member-week-outside\{width:100%;margin-top:/);
+ assert.match(homeStyles,/\.family-hub\.hub-member \.hub-home-board \.hub-person-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+ assert.match(homeStyles,/\.hub-home-smart \.hub-temperature-grid:has\(>\.hub-temperature:only-child\)\{grid-template-columns:minmax\(0,1fr\)\}/);
 });
 
-test("tablet Home keeps People in the first row and balances week beside the photo in the next",()=>{
+test("tablet Home keeps People and photo together before the secondary week",()=>{
  setViewport(false,"dark",true);
  const html=homeMarkup([{id:"synthetic-person",displayName:"Synthetic person"}],{householdId:"synthetic-household",homePhoto:createElement("section",{className:"hub-home-photos"},"Synthetic photo"),displaySections:{week:true}});
  assert.equal((html.match(/data-testid="home-activity-week"/g)??[]).length,1);
  assert.ok(html.indexOf("hub-home-people")<html.indexOf("hub-home-photo-column")&&html.indexOf("hub-home-photo-column")<html.indexOf("hub-home-week"));
- assert.match(homeStyles,/@media\(min-width:641px\) and \(max-width:1100px\)[\s\S]*?\.family-hub\.hub-member \.hub-home-week\{grid-column:1;grid-row:2\}[\s\S]*?\.family-hub\.hub-member \.hub-home-photo-column\{grid-column:2;grid-row:2\}/);
+ assert.match(html,/class="hub-home-week hub-member-week-outside" data-testid="home-week-column"/);
 });
 
 test("portrait compact display keeps roster before messages in both themes",()=>{
@@ -92,6 +95,26 @@ test("portrait compact display keeps roster before messages in both themes",()=>
  }
  assert.match(homeStyles,/\.family-hub\.hub-display-compact-people \.hub-grid:has\(>\.hub-person-section\):has\(>\.hub-messages\):not\(:has\(>\.hub-day,>\.hub-day-plan\)\)>\.hub-person-section\{grid-row:1\}/);
  assert.match(homeStyles,/\.family-hub\.hub-display-compact-people \.hub-grid:has\(>\.hub-person-section\):has\(>\.hub-messages\):not\(:has\(>\.hub-day,>\.hub-day-plan\)\)>\.hub-messages\{grid-column:1\/-1;grid-row:2\}/);
+});
+
+test("paired displays show the day plan before the compact family roster",()=>{
+ const people=Array.from({length:6},(_,i)=>({id:`synthetic-${i}`,displayName:`Synthetic person ${i+1}`}));
+ for(const theme of ["light","dark"] as const){
+  setViewport(false,theme,true);
+  const html=homeMarkup(people,{display:true,displayCompactPeople:true,displaySections:{people:true,today:true,tomorrow:true,messages:false,important:false,support:false,week:false}});
+  assert.ok(html.indexOf("hub-day-plan")<html.indexOf("hub-person-section"),`${theme}: day plan precedes roster in DOM order`);
+ }
+ assert.match(homeStyles,/\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-day-plan\{grid-column:1\/-1;grid-row:auto;display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+ assert.match(homeStyles,/\.display-preview-landscape \.family-hub\.hub-display-compact-people \.hub-person-grid\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}/);
+ assert.match(homeStyles,/\.display-preview-portrait \.family-hub\.hub-display-compact-people \.hub-person-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+ assert.match(homeStyles,/\.display-preview-screen \.family-display-page\{min-height:0;padding:0;background:transparent\}/);
+});
+
+test("people and calendar administration use compact responsive cards with touch targets",()=>{
+ assert.match(appStyles,/\.person-card\{padding:16px 18px;display:flex;flex-direction:column/);
+ assert.match(appStyles,/\.person-card>\.button\{margin-top:7px;min-height:44px\}/);
+ assert.match(appStyles,/\.calendar-provider-grid\{display:grid;grid-template-columns:repeat\(auto-fit/);
+ assert.match(appStyles,/\.calendar-provider-grid>\.calendar-provider:focus-visible\{outline:3px solid var\(--focus\);outline-offset:3px\}/);
 });
 
 test("Home week layout fills the agenda column on desktop and tablet without changing mobile",()=>{

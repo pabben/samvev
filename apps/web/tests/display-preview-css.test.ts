@@ -37,3 +37,11 @@ test("preview declares its own semantic theme and explicit system-light variable
   assert.match(styles, /\.display-preview\[data-theme="light"\],\.display-preview\[data-theme="system"\][^{]*\{[^}]*--teal:#35665d;[^}]*--soft-teal:#e5efeb;[^}]*--person-teal:#168477/);
   assert.match(styles, /@media\(prefers-color-scheme:dark\)\{\.display-preview\[data-theme="system"\][^{]*\{[^}]*--teal:#a9d7cb;[^}]*--soft-teal:#203b3c;[^}]*--person-teal:#89d6c7/);
 });
+
+test("admin preview adapts to its own frame width and keeps narrow text horizontal without widening the host", () => {
+  assert.match(styles, /\.display-preview\{container-name:display-preview;container-type:inline-size\}/);
+  assert.match(styles, /@container display-preview \(max-width:1000px\)/);
+  assert.match(styles, /\.display-preview-screen\{overflow-x:hidden;overflow-y:auto/);
+  assert.match(styles, /\.display-preview-screen :where\(\*\)\{writing-mode:horizontal-tb;word-break:normal\}/);
+  assert.match(styles, /@media\(max-width:640px\)\{[\s\S]*?\.display-preview-landscape \.display-preview-layout,\.display-preview-portrait \.display-preview-layout\{grid-template-columns:minmax\(0,1fr\)!important\}/);
+});

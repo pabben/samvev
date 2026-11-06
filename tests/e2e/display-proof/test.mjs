@@ -185,7 +185,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    assert.deepEqual([...new Set(names)].sort(),expectedHomePeople,'member Home visibly renders exactly the six primary synthetic people at this viewport');
  };
  const assertPairedActivitiesReady=async(page,{preview=false,stableWindowMs=500}={})=>{
-   const todayCard=page.locator(preview?'.display-preview-today':'.display-day-card-today'),tomorrowCard=page.locator(preview?'.display-preview-tomorrow':'.display-day-card-tomorrow');
+   const todayCard=page.locator('.hub-today'),tomorrowCard=page.locator('.hub-tomorrow');
    await todayCard.getByText('Synthetic school activity',{exact:true}).waitFor({state:'visible',timeout:15000});
    await tomorrowCard.getByText('Synthetic class trip tomorrow',{exact:true}).waitFor({state:'visible',timeout:15000});
    const deadline=Date.now()+4000;
@@ -460,11 +460,12 @@ try {
  }
  assert.ok(await previewDom.locator('.hub-message').getByText('Synthetic adult',{exact:true}).count()>=1,'preview renders the separate author identity');
  assert.ok(await screen.locator('.hub-message').getByText('Synthetic adult',{exact:true}).count()>=1,'display renders the separate author identity');
- for(const [surface,tomorrowSelector] of [[previewDom,'.display-preview-tomorrow'],[screen.locator('body'),'.display-day-card-tomorrow']]){
+ for(const [surface,tomorrowSelector] of [[previewDom,'.hub-tomorrow'],[screen.locator('body'),'.hub-tomorrow']]){
    assert.equal(await surface.getByText('Synthetic pantry item',{exact:true}).count(),1,'authorized paired display reads the synthetic grocery board');
    assert.equal(await surface.getByText('Synthetic tomatoes',{exact:true}).count(),1);
    assert.equal(await surface.getByText('Synthetic tortillas',{exact:true}).count(),1);
-   assert.ok(await surface.locator('[data-review-private="dinner-current"]').evaluateAll((elements,title)=>elements.some(element=>element.textContent?.includes(title)),'Synthetic veggie tacos'),'authorized paired display reads today\'s synthetic dinner');
+   await surface.locator('.hub-today').getByText('Synthetic veggie tacos',{exact:true}).waitFor({state:'visible',timeout:15000});
+   assert.equal(await surface.locator('.hub-today').getByText('Synthetic veggie tacos',{exact:true}).count(),1,'authorized paired display reads today\'s synthetic dinner once');
    assert.equal(await surface.locator(tomorrowSelector).evaluate(element=>element.textContent?.includes('Synthetic tomato pasta')??false),true,'authorized paired display reads tomorrow\'s synthetic dinner');
    assert.equal(await surface.getByText('Denne tavlen er ikke delt med skjermen.',{exact:true}).count(),0,'authorized paired display has no board denial fallback');
    assert.ok(await surface.getByText('Kalenderinnhold er slått av for denne skjermen. Slå det på under Datatilgang.',{exact:true}).count()<=1,'no duplicate calendar warning');
@@ -478,8 +479,8 @@ try {
    assert.ok(await surface.locator('.hub-hero-clock').count()<=1,'no duplicate clock');
    assert.equal(await surface.locator('.board-add-row').count(),0,'no unshared board actions');
  }
- assert.equal(await previewDom.locator('.display-preview-today').count(),1);
- assert.equal(await screen.locator('section[aria-label="I dag"]').count(),1);
+ assert.equal(await previewDom.locator('.hub-today').count(),1);
+ assert.equal(await screen.locator('.hub-today').count(),1);
 
  if(process.env.SCREENSHOT_MODE!=='1') await proveCalendarLifecycle(admin);
  if(process.env.SCREENSHOT_MODE==='1') await captureVisualEvidence({admin,old,screen,denied,adminCtx,db,household,display,setup,account,schoolEvent,tomorrowEvent,today,tomorrow,backgroundAlbum,backgroundAsset});
@@ -529,7 +530,7 @@ try {
  assert.equal(deniedProjection.body.householdBoards.dinners.length,0);
  for(const label of ['Synthetic pantry item','Synthetic tomatoes','Synthetic tortillas']) assert.equal(await denied.getByText(label,{exact:true}).count(),0,`no board item leaks to the second display: ${label}`);
  assert.equal(await denied.locator('[data-review-private="dinner-current"]').evaluateAll(elements=>elements.some(element=>element.textContent?.includes('Synthetic veggie tacos'))),false,'no current dinner title leaks to the second display');
- assert.equal(await denied.locator('.display-day-card-tomorrow').evaluate(element=>element.textContent?.includes('Synthetic tomato pasta')??false),false,'no tomorrow dinner title leaks to the second display');
+ assert.equal(await denied.getByText('Synthetic tomato pasta',{exact:true}).count(),0,'no tomorrow dinner title leaks to the second display');
  assert.equal(await denied.getByText('Denne tavlen er ikke delt med skjermen.',{exact:true}).count(),1,'second synthetic display renders the board privacy fallback');
  const deniedMedia=await denied.evaluate(async()=>{const response=await fetch('/api/v1/display/media');return{status:response.status,body:await response.json()};});
  assert.equal(deniedMedia.status,200);
