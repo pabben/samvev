@@ -1,4 +1,10 @@
-# Round 17g school diagnostic checkpoint — 2026-11-05
+# Round 17h grounded-answer candidate — 2026-11-06
+
+Public source/deploy `42c1a9995c540cd36264d7b7df486af00d3a9324` is verified on schema 46. A web-answer repair now binds a model-selected excerpt ID to the exact server-held source snapshot and constructs the extractive answer/quote on the server; incorrect source/date/unsupported selection remains rejected. Isolated QA 744/744, final affected tests 65/65 and workspace checks passed. Guarded pre/post backups with isolated restores, code-only cutover and public synthetic HTTPS smoke 11/11 with 13/13 assets passed. No ordinary school A execution had completed on the new worker at the single postdeploy check, so **A is not yet live-confirmed**. No real model test was run. B and the rest of Round 17 remain unchanged. See [Round 17h school status](../design/review/ROUND_17H_SCHOOL_STATUS.md).
+
+---
+
+# Historical Round 17g school diagnostic checkpoint — 2026-11-05
 
 Verified public source is R17g `971c6267740d9ac7f267e91126427c11a7f7d076`. Four natural R17g school A executions observed through 2026-11-06 00:32 UTC all failed: two final-schema failures, then `answer_not_in_source`, then `quote_not_in_source`. The latter two show distinct unsupported model outputs were correctly rejected; they do not prove why the model produced them. R17g retains exact source/quote/answer validation and stores no private content in diagnostics. Synthetic local agent-runner/domain 61/61, scheduled-worker integration 38/38, complete isolated QA 725/725 and workspace typecheck passed. Public code-only prepare/cutover/postrestore, backups with isolated restore checks, exact healthy app/worker/db runtime, synthetic HTTPS smoke 11/11 and 13/13 static asset hashes passed. Immediate rollback image is R17f `bc2baefc5046020637bdaa79530e8643d813b6de`. No real A success is claimed. No new code, task, provider, display rights, recipients or schedules were changed in the 2026-11-06 follow-up. See [school status](../design/review/ROUND_17F_SCHOOL_STATUS.md). The full goal remains open.
 
