@@ -1,4 +1,10 @@
-# Round 17h grounded-answer candidate — 2026-11-06
+# Round 18 design and external display test publication — 2026-11-06
+
+Public source/deploy is `eccb1554081c9600a6f3e63b9fc855854aaa9596`. A clean 45-image synthetic browser set, isolated full QA, TypeScript, security/requirements/UX review and release gate passed. Public code-only backup, isolated restore, cutover, postrestore, health and 13 exact asset hashes passed. A fresh authenticated public login test was unavailable because the prior temporary synthetic credential had been deleted; physical fridge testing remains owner-only. School A/B execution and schedules were not changed; unpublished AI source `727c8dc` was explicitly reverted before the design candidate. See [Round 18 report](../design/review/ROUND_18_REPORT.md) and [manifest](../design/review/round-18/after/manifest.json).
+
+---
+
+# Historical Round 17h grounded-answer candidate — 2026-11-06
 
 Public source/deploy `42c1a9995c540cd36264d7b7df486af00d3a9324` is verified on schema 46. A web-answer repair now binds a model-selected excerpt ID to the exact server-held source snapshot and constructs the extractive answer/quote on the server; incorrect source/date/unsupported selection remains rejected. Isolated QA 744/744, final affected tests 65/65 and workspace checks passed. Guarded pre/post backups with isolated restores, code-only cutover and public synthetic HTTPS smoke 11/11 with 13/13 assets passed. No ordinary school A execution had completed on the new worker at the single postdeploy check, so **A is not yet live-confirmed**. No real model test was run. B and the rest of Round 17 remain unchanged. See [Round 17h school status](../design/review/ROUND_17H_SCHOOL_STATUS.md).
 
