@@ -297,7 +297,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      if(width>=651) { await preview.locator('.hub-person-section').waitFor();assert.equal(await preview.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'admin preview screenshot has loaded all synthetic people'); }
      else assert.equal(await preview.locator('.hub-hero').count(),1,'mobile admin preview screenshot has loaded its display hub');
      if(width<=640) {
-       const dayGeometry=await preview.locator('.hub-day-plan').evaluate(node=>{const today=node.querySelector('.hub-today')?.getBoundingClientRect(),tomorrow=node.querySelector('.hub-tomorrow')?.getBoundingClientRect();return today&&tomorrow?{todayWidth:today.width,todayBottom:today.bottom,tomorrowWidth:tomorrow.width,tomorrowTop:tomorrow.top}:null});
+       const dayGeometry=await preview.locator('.family-hub').evaluate(node=>{const today=node.querySelector('.hub-today')?.getBoundingClientRect(),tomorrow=node.querySelector('.hub-tomorrow')?.getBoundingClientRect();return today&&tomorrow?{todayWidth:today.width,todayBottom:today.bottom,tomorrowWidth:tomorrow.width,tomorrowTop:tomorrow.top}:null});
        assert.ok(dayGeometry&&dayGeometry.todayWidth>=180&&dayGeometry.tomorrowWidth>=180&&dayGeometry.tomorrowTop>=dayGeometry.todayBottom-2,`narrow ${theme} preview stacks readable day cards: ${JSON.stringify(dayGeometry)}`);
      }
      const previewFile=`admin-preview-${theme}-${size}.png`;
