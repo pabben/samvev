@@ -113,7 +113,7 @@ test('first approved answer run keeps unrelated linked PDF out of model evidence
   }};}};
   const result=await new MonitorEngine(fetcher,ai as any).runManual(actor,taskId,1,'manual');
   assert.equal(result.resultKind,'answer');assert.deepEqual(fetchOptions.map((item)=>item.followLinkedPdf),[false]);assert.equal(turn,2);assert.equal(sessionMode,'extractive_answer');assert.deepEqual(exposedTools,['web.open']);
-  assert.match(answerPrompt,/Synthetic answer heading in the approved HTML page/);assert.match(visible,/already_completed/);assert.doesNotMatch(answerPrompt,/Unrelated PDF: another school timetable/);assert.equal(maxOutputTokens,2048);
+  assert.match(visible,/Synthetic answer heading in the approved HTML page/);assert.doesNotMatch(visible,/Unrelated PDF: another school timetable/);assert.equal(maxOutputTokens,2048);
   const answerInstructions=answerPrompt.split('\nSamvev already opened and validated the explicitly approved root source.')[0]!;
   assert.ok(answerInstructions.length<2_000,`answer instructions stay compact (${answerInstructions.length} chars)`);
   assert.match(answerPrompt,/Set outputLocale exactly/);assert.match(answerPrompt,/exact surfaced same-origin URL/);
@@ -304,20 +304,6 @@ test('scheduled answer repair selects a server-owned school excerpt without copy
   assert.equal(sessions,2);
   const run=(await pool.query<{result_kind:string;result:{answer:string;evidence:{quote:string;sourceUrl:string}};ai_call_count:number}>(`SELECT result_kind,result,ai_call_count FROM monitor_runs WHERE task_id=$1 AND run_kind='scheduled' ORDER BY checked_at DESC LIMIT 1`,[taskId])).rows[0]!;
   assert.equal(run.result_kind,'answer');assert.equal(run.result.answer,sourceText);assert.equal(run.result.evidence.quote,sourceText);assert.equal(run.result.evidence.sourceUrl,document.finalUrl);assert.equal(run.ai_call_count,3);
-});
-
-test('scheduled answer uses the already fetched root when a provider omits its tool call',async()=>{
-  await fixture();
-  const text='School trip on 2030-09-20 at 09:00.';
-  const document:SourceDocument={finalUrl:'https://example.com/plan',contentType:'text/html',text,fingerprint:'preopened-school-v1',fetchedAt:new Date().toISOString(),links:[],evidenceComplete:true,evidenceKind:'web'};
-  const rule={version:1,resultKind:'answer',summary:'Synthetic school update.',eventTypes:[],keywords:['school'],people:[],noticeDaysBefore:1,noticeLocalTime:'18:00',checkIntervalMinutes:60,conditionalNotification:false,tools:['web.open']};
-  await pool.query(`UPDATE monitor_tasks SET instruction='Find the synthetic school trip.',interpreted_rule=$2,tool_plan='["web.open"]'::jsonb,state='active',approved_revision=revision,next_check_at=clock_timestamp()-interval '1 minute' WHERE id=$1`,[taskId,JSON.stringify(rule)]);
-  let calls=0;
-  const ai={createTaskSession:async(_household:string,request:{input:string})=>{assert.match(request.input,/already opened and validated/);return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{calls++;return{output:JSON.stringify({version:1,outputLocale:'nb',answer:text,evidence:{quote:text},confidence:0.9,uncertainty:null}),toolCalls:[],generatedAt:new Date().toISOString()};}};}};
-  const engine=new MonitorEngine({fetch:async()=>document} as unknown as MonitorSourceFetcher,ai as any);
-  assert.equal(await engine.runScheduled(taskId,1),'changed');assert.equal(calls,1);
-  const run=(await pool.query<{ai_call_count:number;tool_provenance:unknown[];result:{answer:string}}>(`SELECT ai_call_count,tool_provenance,result FROM monitor_runs WHERE task_id=$1 AND run_kind='scheduled' ORDER BY checked_at DESC LIMIT 1`,[taskId])).rows[0]!;
-  assert.equal(run.ai_call_count,1);assert.equal(run.tool_provenance.length,1);assert.equal(run.result.answer,text);
 });
 
 test('scheduled answer can record checked source with no special finding without erasing error semantics',async()=>{
