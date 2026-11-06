@@ -708,8 +708,7 @@ body{font-family:var(--font-sans)}
    in one readable column even when a wide host window requests a landscape
    screen and older light-theme placement rules remain active. */
 @media(max-width:640px){
- .display-preview .family-hub.hub-display-compact-people .hub-grid .hub-day-plan{display:grid;grid-template-columns:minmax(0,1fr)!important;min-width:0}
- .display-preview .family-hub.hub-display-compact-people .hub-grid .hub-day-plan>.hub-today{grid-column:1!important;grid-row:1!important;min-width:0}
- .display-preview .family-hub.hub-display-compact-people .hub-grid .hub-day-plan>.hub-tomorrow{grid-column:1!important;grid-row:2!important;min-width:0;border-left:0;border-top:1px solid var(--hub-line)}
+ .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan{display:flex!important;flex-direction:column!important;min-width:0}
+ .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan>.hub-tomorrow{border-left:0!important;border-top:1px solid var(--hub-line)!important}
 }
 .media-library-disclosure>summary::before{content:none}

@@ -296,6 +296,10 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      await preview.waitFor();
      if(width>=651) { await preview.locator('.hub-person-section').waitFor();assert.equal(await preview.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'admin preview screenshot has loaded all synthetic people'); }
      else assert.equal(await preview.locator('.hub-hero').count(),1,'mobile admin preview screenshot has loaded its display hub');
+     if(width<=640) {
+       const dayGeometry=await preview.locator('.hub-day-plan').evaluate(node=>{const today=node.querySelector('.hub-today')?.getBoundingClientRect(),tomorrow=node.querySelector('.hub-tomorrow')?.getBoundingClientRect();return today&&tomorrow?{todayWidth:today.width,todayBottom:today.bottom,tomorrowWidth:tomorrow.width,tomorrowTop:tomorrow.top}:null});
+       assert.ok(dayGeometry&&dayGeometry.todayWidth>=180&&dayGeometry.tomorrowWidth>=180&&dayGeometry.tomorrowTop>=dayGeometry.todayBottom-2,`narrow ${theme} preview stacks readable day cards: ${JSON.stringify(dayGeometry)}`);
+     }
      const previewFile=`admin-preview-${theme}-${size}.png`;
      await captureCalendar(previewPage,preview,{readiness:{preview:true},capture:{id:`admin-preview-${theme}-${size}`,file:previewFile,surface:'admin-preview',theme,viewport:{width,height},verified:width>=651?['six synthetic people','household note and person school summary','read-only synthetic grocery and dinner boards','synthetic evening landscape']:['manager preview hub','mobile viewport'],scrollSelector:'.display-preview'}});
      if(theme==='light'&&size==='wall-landscape') {
