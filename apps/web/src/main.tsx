@@ -34,6 +34,7 @@ import "./home.css";
 import "./home-assistant-controls.css";
 import "./member-shell.css";
 import "./round9.css";
+import "./display-board.css";
 function App() {
   const [prefs, setPrefs, hadStoredPreferences] = usePreferences();
   const [me, setMe] = useState<Me | null>(null);

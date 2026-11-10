@@ -639,6 +639,8 @@ function DisplayRuntime({
           if(card==="external_items"){
             const calendarItems=displaySecondaryCalendarItems(hub?.items??[],showFamily,displayLocalDate,zone);
             const readiness=projection.contentReadiness?.calendar;
+            // The family board already shows these calendar items; an empty "nothing here" card would contradict it.
+            if(showFamily&&!calendarItems.length&&(hub?.items??[]).some(item=>item.metadata?.calendar))return null;
             return <section className="hub-panel display-selected-card display-ordered-card" style={{order}} key={card}><h2>{t("externalItems")}</h2>{calendarItems.length?calendarItems.map(item=><article key={item.id}><strong>{item.title}</strong></article>):<p className="field-hint" role="status">{t(calendarEmptyMessage(readiness))}</p>}</section>;
           }
           if(!hub)return null;

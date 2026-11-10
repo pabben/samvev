@@ -1,0 +1,515 @@
+/* Containers make the board scale with the real screen or the preview frame. */
+.display-preview-screen, .family-display-page .display-main { container-type: inline-size; }
+
+/* Prospect board for landscape shared displays and their previews (issue #22).
+   One readable row (today, tomorrow, family/school) above one low row where the
+   household note and the photo share a bottom edge. Scoped to .hub-board so
+   portrait, mobile and member Home keep their own compositions. */
+
+#root .family-hub.hub-display.hub-board {
+  --board-gap: clamp(12px, 1.1cqw, 20px);
+  --board-radius: clamp(14px, 1.2cqw, 20px);
+  --board-glass: rgb(13 22 36 / 0.66);
+  --board-glass-strong: rgb(13 22 36 / 0.78);
+  --board-edge: rgb(255 255 255 / 0.13);
+  --board-rule: rgb(255 255 255 / 0.085);
+  --board-text: #f3f6fa;
+  --board-muted: #b5c1cf;
+  --board-done: #3ccf7a;
+  --board-low-row: clamp(140px, 13cqw, 250px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--board-gap);
+  min-height: calc(100vh - 80px);
+  color: var(--board-text);
+}
+#root .family-hub.hub-display.hub-board.hub-light {
+  --board-glass: rgb(255 255 255 / 0.74);
+  --board-glass-strong: rgb(255 255 255 / 0.86);
+  --board-edge: rgb(20 40 60 / 0.12);
+  --board-rule: rgb(20 40 60 / 0.09);
+  --board-text: #13202e;
+  --board-muted: #4d5d6e;
+  --board-done: #16a05a;
+}
+#root .display-preview .family-hub.hub-display.hub-board { min-height: 0; }
+
+/* Hero: the greeting leads, the clock answers it on the right. */
+#root .family-hub.hub-board .hub-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: clamp(4px, 0.56cqw, 14px) 6px 0;
+  min-height: 0;
+}
+#root .family-hub.hub-board .hub-hero-copy { min-width: 0; }
+#root .family-hub.hub-board .hub-hero .hub-household {
+  margin: 0 0 4px;
+  font-size: clamp(14px, 1.1cqw, 20px);
+  color: var(--board-muted);
+  letter-spacing: 0.01em;
+}
+#root .family-hub.hub-board .hub-hero h1 {
+  margin: 0;
+  font-size: clamp(44px, 4.9cqw, 92px);
+  line-height: 1.04;
+  font-weight: 650;
+  letter-spacing: -0.025em;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.35);
+}
+#root .family-hub.hub-board.hub-light .hub-hero h1 { text-shadow: none; }
+#root .family-hub.hub-board .hub-hero .hub-subtitle {
+  display: block;
+  margin: 8px 0 0;
+  font-size: clamp(17px, 1.55cqw, 28px);
+  color: var(--board-muted);
+  font-weight: 400;
+}
+#root .family-hub.hub-board .hub-hero-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  text-align: right;
+  flex: none;
+}
+#root .family-hub.hub-board .hub-hero-clock > span:first-child {
+  font-size: clamp(15px, 1.25cqw, 22px);
+  color: var(--board-text);
+  opacity: 0.9;
+}
+#root .family-hub.hub-board .hub-hero-clock > span:first-child::first-letter { text-transform: uppercase; }
+#root .family-hub.hub-board .hub-hero-clock > strong {
+  font-size: clamp(46px, 4.4cqw, 84px);
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+#root .family-hub.hub-board .hub-hero-clock .connection-pill {
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  border: 0;
+  font-size: 13px;
+  color: var(--board-muted);
+}
+
+/* Board grid. Columns follow the cards that actually have content. */
+#root .family-hub.hub-board > .hub-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) var(--board-low-row);
+  grid-auto-rows: auto;
+  gap: var(--board-gap);
+  align-items: stretch;
+}
+#root .family-hub.hub-board > .hub-grid > * { grid-row: auto; min-width: 0; margin: 0; }
+#root .family-hub.hub-board > .hub-grid > .hub-today { grid-column: 1; grid-row: 1; }
+#root .family-hub.hub-board > .hub-grid > .hub-tomorrow { grid-column: 2; grid-row: 1; }
+#root .family-hub.hub-board > .hub-grid > .hub-person-section { grid-column: 3; grid-row: 1; }
+#root .family-hub.hub-board > .hub-grid > .hub-messages { grid-column: 1 / span 2; grid-row: 2; }
+#root .family-hub.hub-board > .hub-grid > .hub-display-photo { grid-column: 3; grid-row: 2; }
+/* A fourth column appears only when something important needs its own card. */
+#root .family-hub.hub-board > .hub-grid:has(> .hub-important) { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+#root .family-hub.hub-board > .hub-grid > .hub-important { grid-column: 4; grid-row: 1; }
+#root .family-hub.hub-board > .hub-grid:has(> .hub-important) > .hub-display-photo { grid-column: 3 / span 2; }
+/* Missing cards hand their space to the others. */
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-person-section)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-person-section)) > .hub-messages { grid-column: 1; }
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-person-section)) > .hub-display-photo { grid-column: 2; }
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-display-photo)) > .hub-messages { grid-column: 1 / -1; }
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-messages)) > .hub-display-photo { grid-column: 1 / -1; }
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-messages)):not(:has(> .hub-display-photo)) { grid-template-rows: minmax(0, 1fr); }
+#root .family-hub.hub-board > .hub-grid > .hub-support { grid-column: 1 / -1; }
+
+/* Glass cards. */
+#root .family-hub.hub-board .hub-grid > .hub-panel,
+#root .family-hub.hub-board .hub-grid > .hub-person-section,
+#root .family-hub.hub-board .hub-display-photo > .hub-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  padding: clamp(14px, 1.25cqw, 22px);
+  border: 1px solid var(--board-edge);
+  border-radius: var(--board-radius);
+  background: var(--board-glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15);
+  backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.22), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  overflow: hidden;
+}
+#root .family-hub.hub-board.hub-light .hub-grid > .hub-panel,
+#root .family-hub.hub-board.hub-light .hub-grid > .hub-person-section,
+#root .family-hub.hub-board.hub-light .hub-display-photo > .hub-panel { box-shadow: 0 14px 34px rgb(30 50 70 / 0.12); }
+#root .family-hub.hub-board .hub-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 clamp(6px, 0.45cqw, 12px);
+  min-height: 32px;
+}
+#root .family-hub.hub-board .hub-panel-title h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-size: clamp(19px, 1.6cqw, 30px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--board-text);
+}
+#root .family-hub.hub-board .hub-panel-title h2 svg { width: 1.1em; height: 1.1em; flex: none; opacity: 0.92; }
+#root .family-hub.hub-board .hub-today .hub-panel-title h2 svg { color: #f6c445; }
+#root .family-hub.hub-board .hub-count {
+  min-width: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  color: var(--board-muted);
+  font-size: clamp(12px, 0.95cqw, 17px);
+  font-weight: 600;
+}
+#root .family-hub.hub-board.hub-light .hub-count { background: rgb(20 40 60 / 0.07); }
+
+/* Day agenda: circle, time, title over people; ended rows get a check. */
+#root .family-hub.hub-board .hub-timeline { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+#root .family-hub.hub-board .hub-timeline > li {
+  display: grid;
+  grid-template-columns: clamp(22px, 1.75cqw, 32px) clamp(50px, 4.4cqw, 82px) minmax(0, 1fr);
+  align-items: start;
+  column-gap: clamp(10px, 0.9cqw, 16px);
+  margin: 0;
+  padding: clamp(8px, 0.65cqw, 14px) 0;
+  border: 0;
+  border-top: 1px solid var(--board-rule);
+  min-height: 0;
+}
+#root .family-hub.hub-board .hub-timeline > li:first-child { border-top: 0; padding-top: 2px; }
+#root .family-hub.hub-board .hub-timeline > li::before {
+  content: "";
+  position: static;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: start;
+  width: clamp(20px, 1.6cqw, 30px);
+  height: clamp(20px, 1.6cqw, 30px);
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 2px solid rgb(255 255 255 / 0.58);
+  background: transparent;
+  box-shadow: none;
+  box-sizing: border-box;
+}
+#root .family-hub.hub-board.hub-light .hub-timeline > li::before { border-color: rgb(20 40 60 / 0.4); }
+#root .family-hub.hub-board .hub-timeline > li:has(.hub-ended-label)::before {
+  border-color: var(--board-done);
+  background: var(--board-done) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 64% no-repeat;
+}
+#root .family-hub.hub-board .hub-timeline > li > time {
+  grid-column: 2;
+  grid-row: 1;
+  padding: 0;
+  min-width: 0;
+  font-size: clamp(15px, 1.25cqw, 23px);
+  line-height: 1.35;
+  color: var(--board-text);
+  opacity: 0.9;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+#root .family-hub.hub-board .hub-timeline > li > .hub-week-icon { display: none; }
+#root .family-hub.hub-board .hub-timeline > li > div { grid-column: 3; grid-row: 1; min-width: 0; }
+#root .family-hub.hub-board .hub-timeline .hub-item-title {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  font-size: clamp(16px, 1.3cqw, 24px);
+  line-height: 1.3;
+  text-align: left;
+}
+#root .family-hub.hub-board .hub-timeline .hub-item-title strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+#root .family-hub.hub-board .hub-timeline > li > div > p,
+#root .family-hub.hub-board .hub-timeline > li > div > small:not(.hub-ended-label) {
+  margin: 2px 0 0;
+  font-size: clamp(13px, 1.05cqw, 19px);
+  line-height: 1.3;
+  color: var(--board-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root .family-hub.hub-board .hub-timeline .hub-ended-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+/* Dinner reads like any other row: "Middag" in the time column, dish + emoji. */
+#root .family-hub.hub-board .hub-timeline > li.hub-day-dinner > strong { grid-column: 3; grid-row: 1; font-size: clamp(16px, 1.3cqw, 24px); line-height: 1.3; font-weight: 600; }
+#root .family-hub.hub-board .hub-timeline > li.hub-day-dinner > time { font-size: clamp(14px, 1.1cqw, 21px); }
+#root .family-hub.hub-board .hub-collection-link {
+  margin-top: auto;
+  padding: 8px 0 0;
+  min-height: 40px;
+  border-top: 1px solid var(--board-rule);
+  font-size: clamp(13px, 1cqw, 18px);
+  color: var(--board-muted);
+}
+#root .family-hub.hub-board .hub-empty { font-size: clamp(15px, 1.15cqw, 20px); color: var(--board-muted); }
+
+/* Family column: one person per row, avatar + name + the one thing to know. */
+#root .family-hub.hub-board .hub-person-section .hub-person-grid {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  overflow: hidden;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: 96px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--board-rule);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person:first-child { border-top: 0; }
+#root .family-hub.hub-board .hub-person-section .hub-person > header { width: 100%; }
+#root .family-hub.hub-board .hub-person-section .hub-person-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(10px, 0.95cqw, 16px);
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person-identity .avatar {
+  width: clamp(36px, 3cqw, 56px);
+  height: clamp(36px, 3cqw, 56px);
+  flex: none;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person-name { display: block; min-width: 0; }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: clamp(15px, 1.2cqw, 22px);
+  line-height: 1.25;
+  font-weight: 600;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong svg { opacity: 0.55; flex: none; }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > .hub-person-activity {
+  display: block;
+  margin-top: 1px;
+  font-size: clamp(13px, 1cqw, 18px);
+  line-height: 1.3;
+  color: var(--board-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#root .family-hub.hub-board .hub-person-school-mark { margin-right: 6px; font-size: 0.95em; }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > .hub-person-activity small { display: none; }
+
+/* Household note: large sender portrait, readable handwriting, quiet meta. */
+#root .family-hub.hub-board .hub-grid > .hub-messages { justify-content: center; padding-top: clamp(10px, 1cqw, 16px); padding-bottom: clamp(10px, 1cqw, 16px); }
+#root .family-hub.hub-board .hub-messages .hub-message-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+#root .family-hub.hub-board .hub-messages .hub-message-grid { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+#root .family-hub.hub-board .hub-messages .hub-message { flex: 1; min-height: 0; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+#root .family-hub.hub-board .hub-messages .hub-message-open {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(16px, 1.8cqw, 32px);
+  width: 100%;
+  height: 100%;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  text-align: left;
+  color: inherit;
+}
+#root .family-hub.hub-board .hub-messages .hub-message .avatar {
+  width: clamp(84px, calc(var(--board-low-row) - 44px), 190px);
+  height: clamp(84px, calc(var(--board-low-row) - 44px), 190px);
+  border-width: 3px;
+}
+#root .family-hub.hub-board .hub-messages .hub-message-copy { display: flex; flex-direction: column; min-width: 0; gap: 4px; }
+#root .family-hub.hub-board .hub-messages .hub-message-meta { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+#root .family-hub.hub-board .hub-messages .hub-message-meta strong { font-size: clamp(16px, 1.3cqw, 24px); font-weight: 600; }
+#root .family-hub.hub-board .hub-messages .hub-message-meta strong::after { content: " ♥"; color: #f1789b; font-size: 0.85em; }
+#root .family-hub.hub-board .hub-messages .hub-message-meta time { font-size: clamp(12px, 0.95cqw, 17px); color: var(--board-muted); }
+#root .family-hub.hub-board .hub-messages .display-card-body {
+  font-family: "Kalam", "Segoe Print", "Bradley Hand", cursive;
+  font-style: normal;
+  font-size: clamp(19px, 1.75cqw, 34px);
+  line-height: 1.38;
+  letter-spacing: 0;
+  color: var(--board-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+#root .family-hub.hub-board .hub-messages .hub-message-read {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+#root .family-hub.hub-board .hub-messages .hub-collection-link { flex: none; }
+
+/* Photo: the image is the card; controls appear on touch or keyboard focus. */
+#root .family-hub.hub-board .hub-display-photo { min-height: 0; height: 100%; }
+#root .family-hub.hub-board .hub-display-photo > .hub-panel.media-display-playback {
+  position: relative;
+  padding: 0;
+  gap: 0;
+}
+#root .family-hub.hub-board .media-display-playback .media-slideshow,
+#root .family-hub.hub-board .media-display-playback .media-slide { position: absolute; inset: 0; margin: 0; }
+#root .family-hub.hub-board .media-display-playback .media-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0;
+  display: block;
+}
+#root .family-hub.hub-board .media-display-playback .media-slide figcaption {
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 36px 18px 14px;
+  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 0.55));
+  color: #fff;
+  font-size: clamp(15px, 1.25cqw, 23px);
+  font-weight: 500;
+  text-align: center;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.5);
+}
+#root .family-hub.hub-board .media-display-playback > .media-control,
+#root .family-hub.hub-board .media-display-playback .media-display-album-select,
+#root .family-hub.hub-board .media-display-playback .media-playback-controls {
+  position: absolute;
+  z-index: 2;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+#root .family-hub.hub-board .media-display-playback > .media-control { top: 10px; left: 10px; }
+#root .family-hub.hub-board .media-display-playback .media-display-album-select { top: 10px; right: 10px; }
+#root .family-hub.hub-board .media-display-playback .media-playback-controls {
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgb(8 14 24 / 0.72);
+  white-space: nowrap;
+}
+#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) > .media-control,
+#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) .media-display-album-select,
+#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) .media-playback-controls { opacity: 1; pointer-events: auto; }
+#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) .media-slide figcaption { opacity: 0; }
+#root .family-hub.hub-board .media-display-playback .household-board-error { position: absolute; z-index: 3; top: 10px; left: 10px; right: 10px; margin: 0; }
+#root .family-hub.hub-board .media-display-playback > .field-hint { padding: 16px; }
+#root .family-hub.hub-board .media-display-background { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  #root .family-hub.hub-board .media-display-playback * { transition: none !important; }
+}
+/* Tall-enough wide screens (TVs) keep the same proportions, just larger. */
+@media (min-width: 1700px) and (min-height: 950px) {
+  #root .family-hub.hub-display.hub-board { --board-low-row: clamp(190px, 14.6cqw, 290px); }
+}
+#root .family-hub.hub-board .hub-person-section .hub-person,
+#root .family-hub.hub-board .hub-person-section .hub-person > header,
+#root .family-hub.hub-board .hub-person-section .hub-person-identity { width: 100%; max-width: none; }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong { width: 100%; }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong svg { margin-left: auto; }
+#root .family-hub.hub-board .media-display-playback .media-slideshow { position: absolute; inset: 0; display: block; height: auto; }
+#root .family-hub.hub-board .media-display-playback .media-slide { position: absolute; inset: 0; height: 100%; }
+#root .family-hub.hub-board .media-display-playback .media-slide img { position: absolute; inset: 0; height: 100%; max-height: none; aspect-ratio: auto; }
+#root .family-hub.hub-board .hub-person-section .hub-person-identity .avatar,
+#root .family-hub.hub-board .hub-messages .hub-message .avatar { aspect-ratio: 1; flex: none; border-radius: 50%; overflow: hidden; }
+/* Round 2: compact hero, uniform family rows, note-first message, legible caption. */
+#root .family-hub.hub-board .hub-hero .hub-household { display: none; }
+#root .family-hub.hub-board .hub-hero { padding-top: 0; margin-top: calc(-1 * clamp(26px, 1.91cqw, 44px)); }
+#root .family-hub.hub-board .hub-hero h1 { font-size: clamp(40px, 4.1cqw, 80px); }
+#root .family-hub.hub-board .hub-hero .hub-subtitle { margin-top: 4px; font-size: clamp(16px, 1.35cqw, 25px); }
+#root .family-hub.hub-board .hub-hero-clock > strong { font-size: clamp(42px, 4cqw, 78px); }
+#root .family-hub.hub-board .hub-hero-clock .connection-pill { margin-top: 2px; }
+#root .family-hub.hub-display.hub-board { --board-low-row: clamp(150px, 14.6cqw, 290px); }
+#root .family-hub.hub-board .hub-person-section .hub-person { flex: 1 1 0; max-height: 84px; border-top: 0; position: relative; }
+#root .family-hub.hub-board .hub-person-section .hub-person + .hub-person::before {
+  content: ""; position: absolute; top: 0; right: 0;
+  left: calc(clamp(40px, 3.3cqw, 60px) + clamp(12px, 1cqw, 18px));
+  border-top: 1px solid var(--board-rule);
+}
+#root .family-hub.hub-board .hub-person-section .hub-person-identity {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: clamp(12px, 1cqw, 18px);
+  height: 100%;
+  padding: 0 2px;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person-identity .avatar { width: clamp(40px, 3.3cqw, 60px); height: clamp(40px, 3.3cqw, 60px); }
+#root .family-hub.hub-board .hub-person-section .hub-person-name { display: flex; flex-direction: column; justify-content: center; }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong { display: block; }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong svg {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  width: clamp(16px, 1.3cqw, 24px); height: clamp(16px, 1.3cqw, 24px); opacity: 0.6;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person-name { padding-right: 28px; }
+#root .family-hub.hub-board .hub-person-nothing { opacity: 0.75; }
+#root .family-hub.hub-board .hub-messages .hub-message .avatar {
+  width: clamp(88px, calc(var(--board-low-row) - 70px), 170px);
+  height: clamp(88px, calc(var(--board-low-row) - 70px), 170px);
+}
+#root .family-hub.hub-board .hub-messages .display-card-body { font-size: clamp(22px, 2.15cqw, 40px); line-height: 1.32; max-width: 30ch; }
+#root .family-hub.hub-board .hub-messages .hub-message-copy { gap: 6px; }
+#root .family-hub.hub-board .media-display-playback .media-slide figcaption {
+  inset: 0; display: flex; align-items: center; justify-content: center;
+  padding: 18px 24px;
+  background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.42), rgb(0 0 0 / 0.12) 70%), linear-gradient(180deg, rgb(0 0 0 / 0.05), rgb(0 0 0 / 0.35));
+  font-size: clamp(18px, 1.75cqw, 32px); line-height: 1.3; font-weight: 500;
+  text-wrap: balance;
+}
+#root .family-hub.hub-board .media-display-playback .media-slide figcaption::before { content: "\201C"; }
+#root .family-hub.hub-board .media-display-playback .media-slide figcaption::after { content: "\201D"; }
+#root .family-hub.hub-board .media-display-playback .media-slide figcaption:empty { display: none; }
+#root .family-hub.hub-board .hub-hero { margin-top: 0; }
+#root .family-hub.hub-board .hub-messages .display-card-body { max-width: 38ch; }
+/* An album without photos gives its space to the note. */
+#root .family-hub.hub-board > .hub-grid > .hub-display-photo:not(:has(.media-slide img)) { display: none; }
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-display-photo .media-slide img)) > .hub-messages { grid-column: 1 / -1; }
+#root .family-hub.hub-board > .hub-grid:not(:has(> .hub-messages)):not(:has(> .hub-display-photo .media-slide img)) { grid-template-rows: minmax(0, 1fr); }
