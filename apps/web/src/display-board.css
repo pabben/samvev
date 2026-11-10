@@ -1,12 +1,12 @@
 /* Containers make the board scale with the real screen or the preview frame. */
-.display-preview-screen, .family-display-page .display-main { container-type: inline-size; }
+.display-preview-screen, .family-display-page .display-main, :has(> .family-hub.hub-member) { container-type: inline-size; }
 
 /* Prospect board for landscape shared displays and their previews (issue #22).
    One readable row (today, tomorrow, family/school) above one low row where the
    household note and the photo share a bottom edge. Scoped to .hub-board so
    portrait, mobile and member Home keep their own compositions. */
 
-#root .family-hub.hub-display.hub-board {
+#root .family-hub.hub-board {
   --board-gap: clamp(12px, 1.1cqw, 20px);
   --board-radius: clamp(14px, 1.2cqw, 20px);
   --board-glass: rgb(13 22 36 / 0.66);
@@ -128,7 +128,8 @@
 /* Glass cards. */
 #root .family-hub.hub-board .hub-grid > .hub-panel,
 #root .family-hub.hub-board .hub-grid > .hub-person-section,
-#root .family-hub.hub-board .hub-display-photo > .hub-panel {
+#root .family-hub.hub-board .hub-display-photo > .hub-panel,
+#root .family-hub.hub-board .hub-home-photos {
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -390,21 +391,21 @@
 
 /* Photo: the image is the card; controls appear on touch or keyboard focus. */
 #root .family-hub.hub-board .hub-display-photo { min-height: 0; height: 100%; }
-#root .family-hub.hub-board .hub-display-photo > .hub-panel.media-display-playback {
+#root .family-hub.hub-board .hub-display-photo > .hub-panel:is(.media-display-playback, .hub-home-photos) {
   position: relative;
   padding: 0;
   gap: 0;
 }
-#root .family-hub.hub-board .media-display-playback .media-slideshow,
-#root .family-hub.hub-board .media-display-playback .media-slide { position: absolute; inset: 0; margin: 0; }
-#root .family-hub.hub-board .media-display-playback .media-slide img {
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slideshow,
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide { position: absolute; inset: 0; margin: 0; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   border-radius: 0;
   display: block;
 }
-#root .family-hub.hub-board .media-display-playback .media-slide figcaption {
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide figcaption {
   position: absolute;
   inset: auto 0 0 0;
   padding: 36px 18px 14px;
@@ -415,18 +416,18 @@
   text-align: center;
   text-shadow: 0 1px 8px rgb(0 0 0 / 0.5);
 }
-#root .family-hub.hub-board .media-display-playback > .media-control,
-#root .family-hub.hub-board .media-display-playback .media-display-album-select,
-#root .family-hub.hub-board .media-display-playback .media-playback-controls {
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) > .media-control,
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-display-album-select,
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-playback-controls {
   position: absolute;
   z-index: 2;
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
 }
-#root .family-hub.hub-board .media-display-playback > .media-control { top: 10px; left: 10px; }
-#root .family-hub.hub-board .media-display-playback .media-display-album-select { top: 10px; right: 10px; }
-#root .family-hub.hub-board .media-display-playback .media-playback-controls {
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) > .media-control { top: 10px; left: 10px; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-display-album-select { top: 10px; right: 10px; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-playback-controls {
   left: 50%;
   bottom: 10px;
   transform: translateX(-50%);
@@ -438,15 +439,15 @@
   background: rgb(8 14 24 / 0.72);
   white-space: nowrap;
 }
-#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) > .media-control,
-#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) .media-display-album-select,
-#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) .media-playback-controls { opacity: 1; pointer-events: auto; }
-#root .family-hub.hub-board .media-display-playback:is(:hover, :focus-within) .media-slide figcaption { opacity: 0; }
-#root .family-hub.hub-board .media-display-playback .household-board-error { position: absolute; z-index: 3; top: 10px; left: 10px; right: 10px; margin: 0; }
-#root .family-hub.hub-board .media-display-playback > .field-hint { padding: 16px; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos):is(:hover, :focus-within) > .media-control,
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos):is(:hover, :focus-within) .media-display-album-select,
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos):is(:hover, :focus-within) .media-playback-controls { opacity: 1; pointer-events: auto; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos):is(:hover, :focus-within) .media-slide figcaption { opacity: 0; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .household-board-error { position: absolute; z-index: 3; top: 10px; left: 10px; right: 10px; margin: 0; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) > .field-hint { padding: 16px; }
 #root .family-hub.hub-board .media-display-background { display: none; }
 @media (prefers-reduced-motion: reduce) {
-  #root .family-hub.hub-board .media-display-playback * { transition: none !important; }
+  #root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) * { transition: none !important; }
 }
 /* Tall-enough wide screens (TVs) keep the same proportions, just larger. */
 @media (min-width: 1700px) and (min-height: 950px) {
@@ -457,9 +458,9 @@
 #root .family-hub.hub-board .hub-person-section .hub-person-identity { width: 100%; max-width: none; }
 #root .family-hub.hub-board .hub-person-section .hub-person-name > strong { width: 100%; }
 #root .family-hub.hub-board .hub-person-section .hub-person-name > strong svg { margin-left: auto; }
-#root .family-hub.hub-board .media-display-playback .media-slideshow { position: absolute; inset: 0; display: block; height: auto; }
-#root .family-hub.hub-board .media-display-playback .media-slide { position: absolute; inset: 0; height: 100%; }
-#root .family-hub.hub-board .media-display-playback .media-slide img { position: absolute; inset: 0; height: 100%; max-height: none; aspect-ratio: auto; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slideshow { position: absolute; inset: 0; display: block; height: auto; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide { position: absolute; inset: 0; height: 100%; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide img { position: absolute; inset: 0; height: 100%; max-height: none; aspect-ratio: auto; }
 #root .family-hub.hub-board .hub-person-section .hub-person-identity .avatar,
 #root .family-hub.hub-board .hub-messages .hub-message .avatar { aspect-ratio: 1; flex: none; border-radius: 50%; overflow: hidden; }
 /* Round 2: compact hero, uniform family rows, note-first message, legible caption. */
@@ -497,19 +498,222 @@
 }
 #root .family-hub.hub-board .hub-messages .display-card-body { font-size: clamp(22px, 2.15cqw, 40px); line-height: 1.32; max-width: 30ch; }
 #root .family-hub.hub-board .hub-messages .hub-message-copy { gap: 6px; }
-#root .family-hub.hub-board .media-display-playback .media-slide figcaption {
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide figcaption {
   inset: 0; display: flex; align-items: center; justify-content: center;
   padding: 18px 24px;
   background: radial-gradient(ellipse at center, rgb(0 0 0 / 0.42), rgb(0 0 0 / 0.12) 70%), linear-gradient(180deg, rgb(0 0 0 / 0.05), rgb(0 0 0 / 0.35));
   font-size: clamp(18px, 1.75cqw, 32px); line-height: 1.3; font-weight: 500;
   text-wrap: balance;
 }
-#root .family-hub.hub-board .media-display-playback .media-slide figcaption::before { content: "\201C"; }
-#root .family-hub.hub-board .media-display-playback .media-slide figcaption::after { content: "\201D"; }
-#root .family-hub.hub-board .media-display-playback .media-slide figcaption:empty { display: none; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide figcaption::before { content: "\201C"; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide figcaption::after { content: "\201D"; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide figcaption:empty { display: none; }
 #root .family-hub.hub-board .hub-hero { margin-top: 0; }
 #root .family-hub.hub-board .hub-messages .display-card-body { max-width: 38ch; }
 /* An album without photos gives its space to the note. */
 #root .family-hub.hub-board > .hub-grid > .hub-display-photo:not(:has(.media-slide img)) { display: none; }
 #root .family-hub.hub-board > .hub-grid:not(:has(> .hub-display-photo .media-slide img)) > .hub-messages { grid-column: 1 / -1; }
 #root .family-hub.hub-board > .hub-grid:not(:has(> .hub-messages)):not(:has(> .hub-display-photo .media-slide img)) { grid-template-rows: minmax(0, 1fr); }
+
+/* Member Home on desktop: the same board, with the column wrappers flattened
+   into one grid so day, tomorrow and family share a row and note + photo share
+   the next. Services, modules, week and lists follow at full width. */
+#root .family-hub.hub-member.hub-board .hub-home-board {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: minmax(clamp(340px, 24cqw, 470px), auto) var(--board-low-row);
+  grid-auto-rows: auto;
+  gap: var(--board-gap);
+  align-items: stretch;
+}
+#root .family-hub.hub-member.hub-board :is(.hub-home-left-column, .hub-home-agenda, .hub-home-right-column, .hub-home-photo-column, .hub-home-column:not(.hub-home-services)) { display: contents; }
+#root .family-hub.hub-member.hub-board .hub-home-board > * { min-width: 0; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-today { grid-column: 1; grid-row: 1; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-tomorrow { grid-column: 2; grid-row: 1; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-person-section { grid-column: 3; grid-row: 1; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-messages { grid-column: 1 / span 2; grid-row: 2; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-home-photos { grid-column: 3; grid-row: 2; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-home-photos .media-slide img)) .hub-messages { grid-column: 1 / -1; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-person-section)) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-person-section)) .hub-messages { grid-column: 1; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-person-section)) .hub-home-photos { grid-column: 2; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-messages)) .hub-home-photos { grid-column: 1 / -1; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-messages)):not(:has(.hub-home-photos .media-slide img)) { grid-template-rows: minmax(clamp(340px, 24cqw, 470px), auto); }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-home-photos:not(:has(.media-slide img)) { display: none; }
+#root .family-hub.hub-member.hub-board .hub-home-board > :is(.hub-home-services, .hub-home-modules) { grid-column: 1 / -1; grid-row: auto; }
+#root .family-hub.hub-member.hub-board .hub-home-board > .hub-home-services:not(:has(*)) ,
+#root .family-hub.hub-member.hub-board .hub-home-board > .hub-home-modules:empty { display: none; }
+#root .family-hub.hub-member.hub-board .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) {
+  display: flex; flex-direction: column; min-height: 0; height: 100%;
+  padding: clamp(14px, 1.25cqw, 22px);
+  border: 1px solid var(--board-edge); border-radius: var(--board-radius);
+  background: var(--board-glass);
+  -webkit-backdrop-filter: blur(16px) saturate(1.15); backdrop-filter: blur(16px) saturate(1.15);
+  box-shadow: 0 18px 40px rgb(0 0 0 / 0.22), inset 0 1px 0 rgb(255 255 255 / 0.06);
+  overflow: hidden;
+}
+#root .family-hub.hub-member.hub-board.hub-light .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) { box-shadow: 0 14px 34px rgb(30 50 70 / 0.12); }
+#root .family-hub.hub-member.hub-board .hub-home-photos { position: relative; padding: 0; height: 100%; min-height: 0; overflow: hidden; }
+#root .family-hub.hub-member.hub-board .hub-home-photos > .hub-panel-title {
+  position: absolute; z-index: 2; top: 10px; left: 12px; right: 12px; margin: 0;
+  opacity: 0; transition: opacity 0.2s ease; pointer-events: none;
+  color: #fff; text-shadow: 0 1px 6px rgb(0 0 0 / 0.6);
+}
+#root .family-hub.hub-member.hub-board .hub-home-photos:is(:hover, :focus-within) > .hub-panel-title { opacity: 1; }
+#root .family-hub.hub-member.hub-board .hub-home-photos > .hub-panel-title h2 { font-size: clamp(15px, 1.1cqw, 20px); color: inherit; }
+#root .family-hub.hub-member.hub-board .hub-hero { padding-top: 6px; }
+#root .family-hub.hub-member.hub-board .hub-hero .hub-compose { align-self: center; }
+
+/* Member phone: the same agenda rows and handwritten note as the board. */
+@media (max-width: 640px) {
+  #root .family-hub.hub-member {
+    --board-rule: rgb(255 255 255 / 0.085);
+    --board-muted: #b5c1cf;
+    --board-text: #f3f6fa;
+    --board-done: #3ccf7a;
+  }
+  #root .family-hub.hub-member.hub-light { --board-rule: rgb(20 40 60 / 0.09); --board-muted: #4d5d6e; --board-text: #13202e; --board-done: #16a05a; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li {
+    display: grid;
+    grid-template-columns: 22px 52px minmax(0, 1fr);
+    align-items: start;
+    column-gap: 10px;
+    margin: 0;
+    padding: 9px 0;
+    border: 0;
+    border-top: 1px solid var(--board-rule);
+  }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li:first-child { border-top: 0; padding-top: 2px; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li::before {
+    content: ""; position: static; grid-column: 1; grid-row: 1;
+    width: 20px; height: 20px; margin-top: 1px; border-radius: 50%;
+    border: 2px solid rgb(255 255 255 / 0.55); background: transparent; box-shadow: none; box-sizing: border-box;
+  }
+  #root .family-hub.hub-member.hub-light .hub-day .hub-timeline > li::before { border-color: rgb(20 40 60 / 0.4); }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li:has(.hub-ended-label)::before {
+    border-color: var(--board-done);
+    background: var(--board-done) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 12.5l4 4 8-9'/%3E%3C/svg%3E") center / 64% no-repeat;
+  }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li > time { grid-column: 2; grid-row: 1; padding: 0; min-width: 0; font-size: 15px; line-height: 1.35; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--board-text); }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li > .hub-week-icon { display: none; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li > div,
+  #root .family-hub.hub-member .hub-day .hub-timeline > li > strong { grid-column: 3; grid-row: 1; min-width: 0; }
+  #root .family-hub.hub-member .hub-day .hub-timeline .hub-item-title { display: block; min-height: 0; padding: 0; font-size: 16px; line-height: 1.3; text-align: left; }
+  #root .family-hub.hub-member .hub-day .hub-timeline .hub-item-title strong { font-weight: 600; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li > div > p { margin: 1px 0 0; font-size: 13px; line-height: 1.3; color: var(--board-muted); }
+  #root .family-hub.hub-member .hub-day .hub-timeline .hub-ended-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner > strong { font-size: 16px; font-weight: 600; line-height: 1.3; }
+  #root .family-hub.hub-member .hub-messages .hub-message .avatar { width: 64px; height: 64px; aspect-ratio: 1; flex: none; }
+  #root .family-hub.hub-member .hub-messages .hub-message-meta strong::after { content: " ♥"; color: #f1789b; font-size: 0.85em; }
+  #root .family-hub.hub-member .hub-messages .display-card-body {
+    font-family: "Kalam", "Segoe Print", "Bradley Hand", cursive;
+    font-style: normal; font-size: 21px; line-height: 1.35; letter-spacing: 0;
+    -webkit-line-clamp: 3;
+  }
+}
+
+/* Round 3: member board fills the first screen; note meta sits bottom-right. */
+#root .family-hub.hub-member.hub-board .hub-home-board {
+  min-height: calc(100svh - 64px - clamp(110px, 12cqw, 200px) - 3 * var(--board-gap));
+  grid-template-rows: minmax(0, 1fr) var(--board-low-row);
+}
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-messages)):not(:has(.hub-home-photos .media-slide img)) { grid-template-rows: minmax(0, 1fr); }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(19px, 1.65cqw, 30px); max-width: 46ch; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(72px, 6.4cqw, 120px); height: clamp(72px, 6.4cqw, 120px); }
+#root .family-hub.hub-board .hub-messages .hub-message { position: relative; }
+#root .family-hub.hub-board .hub-messages .hub-message-meta time { position: absolute; right: 4px; bottom: 0; }
+#root .family-hub.hub-board .hub-messages .hub-message-copy { padding-bottom: 14px; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide figcaption {
+  background: linear-gradient(180deg, rgb(0 0 0 / 0.08) 0%, rgb(0 0 0 / 0.38) 45%, rgb(0 0 0 / 0.5) 100%);
+}
+#root .family-hub.hub-board .hub-person-section > .hub-panel-title { display: flex; }
+#root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: minmax(auto, 1fr) var(--board-low-row); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person { min-height: clamp(50px, 4.2cqw, 76px); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-grid { overflow: visible; }
+#root .family-hub.hub-board .hub-person-section > .hub-panel-title { position: static; width: auto; height: auto; padding: 0; margin: 0 0 clamp(6px, 0.45cqw, 12px); overflow: visible; clip-path: none; white-space: normal; }
+
+/* Round 4: dinner reads as a row (dish over "Middag"); content-height top row on
+   member Home with a taller note/photo row; meta back beside the sender. */
+#root .family-hub.hub-board .hub-timeline > li.hub-day-dinner > .hub-dinner-slot { grid-column: 2; grid-row: 1; }
+#root .family-hub.hub-board .hub-timeline .hub-dinner-title { display: block; font-size: clamp(16px, 1.3cqw, 24px); line-height: 1.3; font-weight: 600; }
+@media (max-width: 640px) {
+  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner > .hub-dinner-slot { grid-column: 2; grid-row: 1; }
+  #root .family-hub.hub-member .hub-day .hub-timeline .hub-dinner-title { display: block; font-size: 16px; font-weight: 600; line-height: 1.3; }
+}
+#root .family-hub.hub-board .hub-messages .hub-message-meta time { position: static; }
+#root .family-hub.hub-board .hub-messages .hub-message-copy { padding-bottom: 0; }
+#root .family-hub.hub-board .hub-messages .display-card-body { max-width: none; }
+#root .family-hub.hub-member.hub-board .hub-home-board {
+  min-height: 0;
+  grid-template-rows: auto clamp(190px, 18cqw, 300px);
+}
+#root .family-hub.hub-member.hub-board .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section) { height: auto; }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(21px, 1.85cqw, 32px); }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(88px, 8cqw, 150px); height: clamp(88px, 8cqw, 150px); }
+/* The prospect's scenic band sits behind the greeting on member Home too. */
+#root .family-hub.hub-member.hub-board.hub-dark .hub-hero {
+  position: relative;
+  isolation: isolate;
+  padding: clamp(18px, 2cqw, 36px) clamp(18px, 1.8cqw, 32px) clamp(16px, 1.6cqw, 28px);
+  border-radius: var(--board-radius);
+  overflow: hidden;
+}
+#root .family-hub.hub-member.hub-board.hub-dark .hub-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, rgb(7 18 34 / 0.25) 0%, rgb(7 18 34 / 0.55) 70%, rgb(6 19 33 / 0.85) 100%), url('./assets/nordic-dusk-v2.png') center 38% / cover no-repeat;
+}
+#root .family-hub.hub-member.hub-board.hub-dark:has(~ .home-background-layer) .hub-hero::before,
+.home-background-layer ~ * #root .family-hub.hub-member.hub-board.hub-dark .hub-hero::before { background: none; }
+#root .family-hub.hub-member.hub-board.hub-dark .hub-hero { padding: clamp(14px, 1.4cqw, 30px) clamp(18px, 1.8cqw, 32px) clamp(12px, 1.2cqw, 24px); }
+#root .family-hub.hub-member.hub-board .hub-hero h1 { font-size: clamp(38px, 3.7cqw, 72px); }
+#root .family-hub.hub-member.hub-board .hub-hero-clock > strong { font-size: clamp(38px, 3.6cqw, 70px); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person { min-height: clamp(44px, 3.7cqw, 72px); }
+#root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: auto clamp(172px, 16cqw, 300px); }
+#root .family-hub.hub-member.hub-board .hub-timeline > li { padding-top: clamp(7px, 0.55cqw, 13px); padding-bottom: clamp(7px, 0.55cqw, 13px); }
+
+/* Round 5: muted "Middag" keeps the time column readable; member Home fits 1280×752. */
+#root .family-hub .hub-visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#root .family-hub.hub-board .hub-timeline > li.hub-day-dinner > .hub-dinner-slot { font-size: clamp(13px, 0.95cqw, 18px); line-height: 1.6; color: var(--board-muted); white-space: nowrap; }
+@media (max-width: 640px) { #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner > .hub-dinner-slot { font-size: 13px; line-height: 1.7; color: var(--board-muted); } }
+#root .family-hub.hub-member.hub-board.hub-dark .hub-hero { padding: clamp(10px, 1cqw, 26px) clamp(18px, 1.8cqw, 32px); }
+#root .family-hub.hub-member.hub-board .hub-hero h1 { font-size: clamp(34px, 3.3cqw, 68px); }
+#root .family-hub.hub-member.hub-board .hub-hero .hub-subtitle { font-size: clamp(15px, 1.2cqw, 23px); margin-top: 2px; }
+#root .family-hub.hub-member.hub-board .hub-hero-clock > strong { font-size: clamp(34px, 3.2cqw, 66px); }
+#root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: auto clamp(150px, 12.5cqw, 260px); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person { min-height: clamp(44px, 3.5cqw, 68px); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-identity .avatar { width: clamp(34px, 2.8cqw, 54px); height: clamp(34px, 2.8cqw, 54px); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person + .hub-person::before { left: calc(clamp(34px, 2.8cqw, 54px) + clamp(12px, 1cqw, 18px)); }
+#root .family-hub.hub-member.hub-board .hub-panel-title { margin-bottom: clamp(4px, 0.4cqw, 10px); }
+#root .family-hub.hub-member.hub-board .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section) { padding-top: clamp(12px, 1cqw, 20px); padding-bottom: clamp(10px, 0.9cqw, 18px); }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(76px, 7cqw, 140px); height: clamp(76px, 7cqw, 140px); }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { -webkit-line-clamp: 2; }
+#root .family-hub.hub-member.hub-board .hub-home-board > :is(.hub-home-services, .hub-home-modules):not(:empty) { margin-top: clamp(36px, 3.6cqw, 72px); }
+
+/* Round 6: member Home owns the first screen exactly; larger families use a
+   two-column list so every row keeps its height. */
+#root .family-hub.hub-member.hub-board .hub-hero { min-height: clamp(104px, 9.4cqw, 190px); box-sizing: border-box; }
+#root .family-hub.hub-member.hub-board .hub-home-board {
+  min-height: calc(100svh - 64px - clamp(104px, 9.4cqw, 190px) - 2 * var(--board-gap) - 24px);
+  grid-template-rows: auto minmax(clamp(150px, 12.5cqw, 260px), 1fr);
+}
+#root .family-hub.hub-member.hub-board .hub-person-section:is(.hub-people-summary) .hub-person-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(56px, auto);
+  column-gap: clamp(12px, 1.2cqw, 24px);
+  row-gap: 0;
+}
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person { min-height: 56px; max-height: none; border-top: 1px solid var(--board-rule); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person:nth-child(-n + 2) { border-top: 0; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person + .hub-person::before { content: none; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-identity { padding: 6px 0; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-identity .avatar { width: clamp(38px, 3cqw, 56px); height: clamp(38px, 3cqw, 56px); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name > strong svg { display: none; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name { padding-right: 0; }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(22px, 2cqw, 36px); -webkit-line-clamp: 3; }
+#root .family-hub.hub-member.hub-board .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section) { align-self: stretch; height: auto; }
+#root .family-hub.hub-member.hub-board .hub-home-board { min-height: calc(100svh - 64px - clamp(104px, 9.4cqw, 190px) - 2 * var(--board-gap) - 8px); }
+#root .family-hub.hub-member.hub-board .hub-home-board > :is(.hub-home-services, .hub-home-modules):not(:empty) { margin-top: clamp(56px, 5cqw, 96px); }
