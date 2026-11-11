@@ -1,3 +1,13 @@
+/* Inter (SIL OFL 1.1, see /fonts/Inter-OFL.txt) gives the board the same calm,
+   geometric type on every TV, tablet and phone instead of a system fallback. */
+@font-face {
+  font-family: "Inter Samvev";
+  src: url("/fonts/Inter-Variable-latin.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Containers make the board scale with the real screen or the preview frame. */
 .display-preview-screen, .family-display-page .display-main, :has(> .family-hub.hub-member) { container-type: inline-size; }
 
@@ -800,3 +810,16 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-member.hub-board .hub-hero .hub-subtitle { margin-top: 10px; font-size: clamp(16px, 1.4cqw, 26px); color: #c9d4e0; }
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person-identity { min-height: 52px; }
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name { align-self: center; }
+
+/* Round 11: one deliberate type family; softer weights; fixed row grid. */
+#root .family-hub.hub-board, #root .family-display-page:has(.hub-board) .display-header { font-family: "Inter Samvev", ui-sans-serif, system-ui, sans-serif; font-feature-settings: "cv11", "ss01"; }
+#root .family-hub.hub-board .hub-hero h1 { font-weight: 600; letter-spacing: -0.02em; }
+#root .family-hub.hub-board .hub-panel-title h2 { font-weight: 600; letter-spacing: -0.01em; }
+#root .family-hub.hub-board .hub-hero-clock > strong { font-weight: 300; letter-spacing: -0.03em; }
+#root .family-hub.hub-board .hub-timeline .hub-item-title strong,
+#root .family-hub.hub-board .hub-timeline .hub-dinner-title { font-weight: 550; }
+#root .family-hub.hub-board .hub-timeline > li.hub-day-dinner > .hub-dinner-slot { font-size: inherit; line-height: 1.35; color: var(--board-muted); }
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong { font-weight: 550; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-identity { align-items: center; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name { min-height: 2.6em; justify-content: center; }
+#root .family-hub.hub-member.hub-board.hub-dark .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) { background: rgb(14 24 40 / 0.6); border-color: rgb(255 255 255 / 0.08); }
