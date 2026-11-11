@@ -823,3 +823,47 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person-identity { align-items: center; }
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name { min-height: 2.6em; justify-content: center; }
 #root .family-hub.hub-member.hub-board.hub-dark .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) { background: rgb(14 24 40 / 0.6); border-color: rgb(255 255 255 / 0.08); }
+
+/* Round 12: busy people as rows, idle people as chips; agenda rows share the
+   card height evenly; note meta returns beside the sender. */
+#root .family-hub.hub-board .hub-person-section .hub-person-grid,
+#root .family-hub.hub-member.hub-board .hub-person-section:is(.hub-people-summary) .hub-person-grid {
+  display: flex; flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 0 clamp(8px, 0.8cqw, 14px);
+}
+#root .family-hub.hub-board .hub-person-section .hub-person:not(.hub-person-idle) {
+  flex: 0 0 100%; min-height: clamp(54px, 4.4cqw, 84px); max-height: none; border-top: 0; border-bottom: 1px solid var(--board-rule);
+}
+#root .family-hub.hub-board .hub-person-section .hub-person:not(.hub-person-idle)::before { content: none; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle {
+  flex: 0 0 auto; width: auto; min-height: 0; max-height: none; border: 0; padding: 4px 0;
+}
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle::before { content: none; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle > header,
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-identity { width: auto; height: auto; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-identity {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 12px 4px 4px;
+  border-radius: 999px; background: rgb(255 255 255 / 0.06);
+}
+#root .family-hub.hub-board.hub-light .hub-person-section .hub-person.hub-person-idle .hub-person-identity { background: rgb(20 40 60 / 0.06); }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .avatar { width: clamp(30px, 2.4cqw, 44px); height: clamp(30px, 2.4cqw, 44px); }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name { padding-right: 0; min-height: 0; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name > strong { font-size: clamp(14px, 1.1cqw, 20px); }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name > strong svg { display: none; }
+#root .family-hub.hub-board .hub-person-idle-label {
+  flex: 0 0 100%; margin: clamp(10px, 0.9cqw, 16px) 0 4px; font-size: clamp(13px, 1cqw, 18px); color: var(--board-muted);
+}
+#root .family-hub.hub-board .hub-person-section .hub-person-name > strong svg { display: block; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person:not(.hub-person-idle) .hub-person-name > strong svg { display: block; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name { min-height: 0; }
+/* Agenda rows fill the card evenly so a shorter day reads as calm, not empty. */
+#root .family-hub.hub-board .hub-day .hub-timeline { justify-content: flex-start; }
+#root .family-hub.hub-board .hub-day .hub-timeline > li { flex: 1 1 auto; max-height: clamp(64px, 5.2cqw, 100px); }
+/* Note: time beside the sender, content centred. */
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message-meta time { position: static; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message-copy { padding-bottom: 0; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-identity { flex-direction: row; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person:not(.hub-person-idle) { min-height: 0; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person:not(.hub-person-idle) .hub-person-identity { min-height: 0; padding: 7px 0; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-grid { flex: 0 0 auto; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person:not(.hub-person-idle) :is(header, .hub-person-identity) { height: auto; grid-template-rows: auto; align-content: center; }
+#root .family-hub.hub-board .hub-person-section .hub-person-identity > .avatar { grid-row: auto; grid-column: auto; }
