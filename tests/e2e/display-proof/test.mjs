@@ -184,14 +184,20 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    const names=await page.locator('.family-hub .hub-person[data-person-id], .family-hub .hub-identities button[data-person-id]').evaluateAll(elements=>elements.filter(element=>element.getClientRects().length>0&&getComputedStyle(element).visibility!=='hidden').map(element=>element.querySelector('.hub-person-name > strong, strong')?.textContent?.trim()??'').filter(Boolean));
    assert.deepEqual([...new Set(names)].sort(),expectedHomePeople,'member Home visibly renders exactly the six primary synthetic people at this viewport');
  };
+ const assertReadablePeople=async surface=>{
+   const widths=await surface.locator('.hub-person-section .hub-person-name > strong').evaluateAll(nodes=>nodes.map(node=>Math.round(node.getBoundingClientRect().width)));
+   assert.equal(widths.length,6,'all six person names remain present');
+   assert.ok(widths.every(width=>width>=100),`person name column collapsed: ${JSON.stringify(widths)}`);
+ };
  const assertPairedActivitiesReady=async(page,{preview=false,stableWindowMs=500}={})=>{
    const todayCard=page.locator('.hub-today'),tomorrowCard=page.locator('.hub-tomorrow');
-   await todayCard.getByText('Synthetic school activity',{exact:true}).waitFor({state:'visible',timeout:15000});
-   await tomorrowCard.getByText('Synthetic class trip tomorrow',{exact:true}).waitFor({state:'visible',timeout:15000});
+   await page.locator('.hub-person-section').getByText('Synthetic school activity').waitFor({state:'visible',timeout:15000});
+   await todayCard.getByText('Synthetic veggie tacos',{exact:true}).waitFor({state:'visible',timeout:15000});
+   await tomorrowCard.getByText('Synthetic tomato pasta',{exact:true}).waitFor({state:'visible',timeout:15000});
    const deadline=Date.now()+4000;
    let stableSince=null,last={today:0,tomorrow:0,loading:0,disabled:0};
    while(Date.now()<deadline){
-     last={today:await todayCard.getByText('Synthetic school activity',{exact:true}).count(),tomorrow:await tomorrowCard.getByText('Synthetic class trip tomorrow',{exact:true}).count(),loading:await page.getByText('Gjør alt klart',{exact:false}).count(),disabled:await page.getByText('Kalenderinnhold er slått av for denne skjermen. Slå det på under Datatilgang.',{exact:true}).count()};
+     last={today:await todayCard.getByText('Synthetic veggie tacos',{exact:true}).count(),tomorrow:await tomorrowCard.getByText('Synthetic tomato pasta',{exact:true}).count(),loading:await page.getByText('Gjør alt klart',{exact:false}).count(),disabled:await page.getByText('Kalenderinnhold er slått av for denne skjermen. Slå det på under Datatilgang.',{exact:true}).count()};
      const ready=last.today===1&&last.tomorrow===1&&last.loading===0&&last.disabled===0;
      if(ready){stableSince??=Date.now();if(Date.now()-stableSince>=stableWindowMs)break;}else stableSince=null;
      await new Promise(resolve=>setTimeout(resolve,50));
@@ -263,7 +269,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    assert.ok(await preview.getByText('Synthetic adult',{exact:true}).count()>=1,'admin preview has loaded synthetic people');
    for(const surface of [preview,screen.locator('body')]) {
      assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),0,'school notice stays out of family message cards in live UI and preview');
-     assert.ok(await surface.locator('.hub-person-section').getByText('Synthetic school activity',{exact:true}).count()>=1,'school activity appears in the authorized person summary');
+     assert.ok(await surface.locator('.hub-person-section').getByText('Synthetic school activity').count()>=1,'school activity appears in the authorized person summary');
      assert.ok(await surface.locator('.hub-message .avatar img').count()>=1,'authorized message author has a local illustrated avatar');
      assert.equal(await surface.getByText('Synthetic evening landscape',{exact:true}).count(),1,'granted synthetic landscape image is visible');
      assert.equal(await surface.locator('.media-slide img').count(),1,'synthetic album image loaded through the isolated media API');
@@ -285,7 +291,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      await screen.setViewportSize({width,height});
      await screen.locator('.family-hub').waitFor();
      await assertPairedActivitiesReady(screen);
-     if(width>=651) { await screen.locator('.hub-person-section').waitFor();assert.equal(await screen.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'paired display screenshot has loaded all synthetic people'); }
+     if(width>=651) { await screen.locator('.hub-person-section').waitFor();assert.equal(await screen.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'paired display screenshot has loaded all synthetic people'); await assertReadablePeople(screen); }
      else assert.equal(await screen.locator('.hub-hero').count(),1,'mobile display screenshot has loaded the paired display hub');
      assert.equal((await db.query('SELECT theme FROM display_setups WHERE id=$1',[setup])).rows[0].theme,theme);
      const displayFile=`paired-display-${theme}-${size}.png`;
@@ -294,7 +300,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      await previewPage.setViewportSize({width,height});
      await previewPage.getByLabel('Retning for forhåndsvisning').selectOption(width>height?'landscape':'portrait');
      await preview.waitFor();
-     if(width>=651) { await preview.locator('.hub-person-section').waitFor();assert.equal(await preview.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'admin preview screenshot has loaded all synthetic people'); }
+     if(width>=651) { await preview.locator('.hub-person-section').waitFor();assert.equal(await preview.locator('.hub-person-section').getByText('Synthetic child four',{exact:true}).count(),1,'admin preview screenshot has loaded all synthetic people'); await assertReadablePeople(preview); }
      else assert.equal(await preview.locator('.hub-hero').count(),1,'mobile admin preview screenshot has loaded its display hub');
      if(width<=640) {
        const dayGeometry=await preview.locator('.family-hub').evaluate(node=>{const today=node.querySelector('.hub-today')?.getBoundingClientRect(),tomorrow=node.querySelector('.hub-tomorrow')?.getBoundingClientRect();return today&&tomorrow?{todayWidth:today.width,todayBottom:today.bottom,tomorrowWidth:tomorrow.width,tomorrowTop:tomorrow.top}:null});
@@ -473,9 +479,9 @@ try {
    assert.equal(await surface.locator(tomorrowSelector).evaluate(element=>element.textContent?.includes('Synthetic tomato pasta')??false),true,'authorized paired display reads tomorrow\'s synthetic dinner');
    assert.equal(await surface.getByText('Denne tavlen er ikke delt med skjermen.',{exact:true}).count(),0,'authorized paired display has no board denial fallback');
    assert.ok(await surface.getByText('Kalenderinnhold er slått av for denne skjermen. Slå det på under Datatilgang.',{exact:true}).count()<=1,'no duplicate calendar warning');
-   assert.ok(await surface.getByText('Synthetic school activity',{exact:true}).count()>=1,'Today activity appears in the rendered surface');
+   assert.ok(await surface.locator('.hub-person-section').getByText('Synthetic school activity').count()>=1,'school activity appears in the rendered person summary');
    assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),0,'school notice stays in the person school area, not family message cards');
-   assert.ok(await surface.locator('.hub-person-section').getByText('Synthetic school activity',{exact:true}).count()>=1,'school activity appears in the authorized person summary');
+   assert.ok(await surface.locator('.hub-person-section').getByText('Synthetic school activity').count()>=1,'school activity appears in the authorized person summary');
    assert.ok(await surface.locator('.hub-message .avatar img').count()>=1,'person-targeted notice has an illustrated author avatar');
    assert.equal(await surface.getByText('Synthetic evening landscape',{exact:true}).count(),1,'synthetic album landscape appears once');
    assert.equal(await surface.locator('.media-slide img').count(),1,'synthetic album image is loaded');
@@ -506,7 +512,7 @@ try {
  assert.ok(!negativeLive.body.familyLayout.people.some(selected=>selected.id===hiddenPerson),'unselected child is absent from live profile projection');
  await screen.goto('/display');
  await screen.locator('.family-hub').waitFor();
- await screen.locator('.hub-person-section').getByText('Synthetic school activity',{exact:true}).waitFor({state:'visible'});
+ await screen.locator('.hub-person-section').getByText('Synthetic school activity').waitFor({state:'visible'});
  await admin.goto('/?tab=displays');
  await admin.getByRole('heading',{name:'Et felles blikk på hjemmet.',exact:true}).waitFor();
  await admin.locator('summary').filter({hasText:'Datatilgang'}).click();
