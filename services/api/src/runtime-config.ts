@@ -4,6 +4,12 @@ export interface RuntimeConfig {
   publicOrigin: string;
   secureCookies: boolean;
   trustProxy: false | string;
+  /**
+   * Extra origins that may embed the paired-display page (/display) in a frame,
+   * for example a Home Assistant dashboard shown on a wall panel. Empty or absent
+   * keeps the default: Samvev may only be framed by itself.
+   */
+  displayFrameAncestors?: readonly string[];
 }
 
 export interface InstallationExposureState {
@@ -45,13 +51,40 @@ function parseTrustProxy(value: string | undefined): false | string {
   return addresses.join(',');
 }
 
+function parseDisplayFrameAncestors(value: string | undefined, secureCookies: boolean): string[] {
+  const entries = (value ?? '').split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
+  if (!entries.length) return [];
+  if (!secureCookies) {
+    throw new Error('SAMVEV_DISPLAY_FRAME_ANCESTORS requires an https SAMVEV_PUBLIC_ORIGIN because embedded displays need Secure cookies');
+  }
+  const origins = new Set<string>();
+  for (const entry of entries) {
+    let parsed: URL;
+    try {
+      parsed = new URL(entry);
+    } catch {
+      throw new Error('SAMVEV_DISPLAY_FRAME_ANCESTORS must list absolute http(s) origins such as http://192.0.2.10:8123');
+    }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password
+      || parsed.pathname !== '/' || parsed.search || parsed.hash || parsed.hostname.includes('*')
+      || entry.replace(/\/$/, '') !== parsed.origin) {
+      throw new Error('SAMVEV_DISPLAY_FRAME_ANCESTORS must list exact http(s) origins without paths or wildcards');
+    }
+    origins.add(parsed.origin);
+  }
+  return [...origins];
+}
+
 export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   const localPort = env.SAMVEV_PORT ?? env.PORT ?? '4173';
   const publicUrl = parsePublicOrigin(env.SAMVEV_PUBLIC_ORIGIN ?? `http://127.0.0.1:${localPort}`);
+  const secureCookies = publicUrl.protocol === 'https:';
+  const displayFrameAncestors = parseDisplayFrameAncestors(env.SAMVEV_DISPLAY_FRAME_ANCESTORS, secureCookies);
   return {
     publicOrigin: publicUrl.origin,
-    secureCookies: publicUrl.protocol === 'https:',
-    trustProxy: parseTrustProxy(env.SAMVEV_TRUST_PROXY)
+    secureCookies,
+    trustProxy: parseTrustProxy(env.SAMVEV_TRUST_PROXY),
+    ...(displayFrameAncestors.length ? { displayFrameAncestors } : {})
   };
 }
 

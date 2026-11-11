@@ -48,7 +48,7 @@ import { schoolHasPracticalActionsSql } from './monitor/practical-actions.ts';
 import { personMonitorSummaries, replaceMonitorSubjects, reviewMonitorResult } from './monitor/subjects.ts';
 import { monitorPresentationUpdateSchema, updateMonitorPresentation } from './monitor/presentation.ts';
 import { liveE2eAttestation, liveE2eExecutionEvidence } from './e2e/live-e2e.ts';
-import { applyBrowserSecurityHeaders, browserSecurityHeaders } from './browser-security.ts';
+import { applyBrowserSecurityHeaders, browserSecurityHeaders, displayCookieOptions, displayDocumentSecurityHeaders, isDisplayDocumentPath } from './browser-security.ts';
 import { CalendarService,type CalendarTransport } from './calendar/service.ts';
 import { AiCredentialVault } from './ai/credential-vault.ts';
 import { HouseholdBoardService, type BoardActor, type BoardKind } from './household-board/service.ts';
@@ -1085,6 +1085,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   };
   const app = Fastify({ logger, trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const responseSecurityHeaders=browserSecurityHeaders(runtime.secureCookies);
+  const displayFrameAncestors=runtime.displayFrameAncestors??[];
+  const displayEmbeddable=runtime.secureCookies&&displayFrameAncestors.length>0;
+  const displayDocumentHeaders=displayDocumentSecurityHeaders(runtime.secureCookies,displayEmbeddable?displayFrameAncestors:[]);
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
   const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
@@ -1102,7 +1105,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         reply.removeHeader('ETag').removeHeader('Content-Length').type('application/json; charset=utf-8');throw error;
       }
     }
-    applyBrowserSecurityHeaders(reply,responseSecurityHeaders);
+    const documentPath=request.url.split('?',1)[0]??request.url;
+    const displayDocument=displayEmbeddable&&['GET','HEAD'].includes(request.method)&&isDisplayDocumentPath(documentPath);
+    if(displayDocument)reply.removeHeader('X-Frame-Options');
+    applyBrowserSecurityHeaders(reply,displayDocument?displayDocumentHeaders:responseSecurityHeaders);
     return payload;
   });
   const projectionEvents=new ProjectionEventFanout();
@@ -2584,7 +2590,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     parse(displayDisconnectSchema,request.body);
     const token=request.cookies[DISPLAY_COOKIE];
     if(token)await pool.query(`UPDATE displays SET credential_hash=NULL,credential_expires_at=NULL,credential_generation=credential_generation+1 WHERE credential_hash=$1 AND revoked_at IS NULL`,[tokenHash(token)]);
-    reply.clearCookie(DISPLAY_COOKIE,{path:'/api/v1/display',sameSite:'strict',secure:runtime.secureCookies,httpOnly:true});
+    const {maxAge:_maxAge,...clearOptions}=displayCookieOptions(0,runtime.secureCookies,displayEmbeddable);
+    reply.clearCookie(DISPLAY_COOKIE,clearOptions);
     return reply.header('Cache-Control','no-store').status(204).send();
   });
 
@@ -2630,7 +2637,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if (!display.rowCount) throw new DomainError('PAIRING_EXPIRED', 410);
       return display.rows[0];
     });
-    reply.setCookie(DISPLAY_COOKIE,credential,cookieOptions(DISPLAY_SECONDS,runtime.secureCookies,'/api/v1/display'));
+    reply.setCookie(DISPLAY_COOKIE,credential,displayCookieOptions(DISPLAY_SECONDS,runtime.secureCookies,displayEmbeddable));
     return result;
   });
 

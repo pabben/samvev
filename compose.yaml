@@ -91,6 +91,9 @@ services:
       SAMVEV_DEMO_MODE: ${SAMVEV_DEMO_MODE:-true}
       SAMVEV_PUBLIC_ORIGIN: "${SAMVEV_PUBLIC_ORIGIN:-http://127.0.0.1:${SAMVEV_PORT:-4173}}"
       SAMVEV_TRUST_PROXY: ${SAMVEV_TRUST_PROXY:-false}
+      # Optional: origins allowed to frame /display (e.g. Home Assistant on a
+      # Shelly Wall Display). Empty keeps /display unframeable by other sites.
+      SAMVEV_DISPLAY_FRAME_ANCESTORS: ${SAMVEV_DISPLAY_FRAME_ANCESTORS:-}
       # OAuth client registration is optional.  Keep the credentials only in the
       # ignored runtime .env; empty values intentionally leave the calendar
       # connection wizard in its documented setup state.

@@ -174,6 +174,11 @@ SAMVEV_PUBLIC_ORIGIN=https://samvev.pabben.org
 SAMVEV_TRUST_PROXY=
 ```
 
+To show the paired display inside a Home Assistant dashboard (for example on a
+Shelly Wall Display XL), also set `SAMVEV_DISPLAY_FRAME_ANCESTORS` to the exact
+Home Assistant origin(s); see [Displays](../DISPLAYS.md#showing-the-display-inside-home-assistant).
+Leave it empty to keep every page unframeable by other sites.
+
 The bind makes port 4173 reachable on every IPv4 interface of the Samvev VM,
 including its LAN interface. Do not add a router/NAT port-forward for 4173.
 If only Newt should reach it, enforce a host or network firewall allow-rule for
