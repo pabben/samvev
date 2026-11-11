@@ -882,3 +882,12 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-board .hub-person-idle-label { font-size: clamp(12px, 0.95cqw, 17px); text-transform: none; letter-spacing: 0.01em; }
 #root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(72px, 6cqw, 120px); height: clamp(72px, 6cqw, 120px); }
 #root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(21px, 1.8cqw, 34px); }
+
+/* Round 14: the display's note (3/3 blind wins) on member Home too. */
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(22px, 2.15cqw, 40px); line-height: 1.32; -webkit-line-clamp: 3; text-wrap: pretty; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(96px, 8.6cqw, 170px); height: clamp(96px, 8.6cqw, 170px); }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message-open { align-items: center; gap: clamp(18px, 1.8cqw, 32px); }
+#root .family-hub.hub-member.hub-board .hub-messages { justify-content: center; padding-top: clamp(12px, 1cqw, 18px); padding-bottom: clamp(12px, 1cqw, 18px); }
+#root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: auto clamp(186px, 15.4cqw, 300px); }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-messages { grid-column: 1 / span 4; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-home-photos { grid-column: 5 / span 2; }
