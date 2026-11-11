@@ -972,6 +972,10 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
   width: 100%;
   min-width: 0;
 }
+#root .family-hub.hub-board .hub-person-section .hub-person-idle-label {
+  flex: 0 0 auto;
+  width: 100%;
+}
 #root .family-hub.hub-board .hub-person-section .hub-person:not(.hub-person-idle) {
   flex: 0 0 auto;
   width: 100%;
