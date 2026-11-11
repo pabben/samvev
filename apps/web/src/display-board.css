@@ -791,3 +791,12 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 }
 #root .family-hub.hub-member.hub-board .hub-hero { min-height: clamp(112px, 10cqw, 200px); }
 #root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: auto clamp(176px, 14cqw, 290px); }
+
+/* Round 10: translucent panels over the band, dinner back in sequence, lighter display type. */
+#root .family-hub.hub-member.hub-board.hub-dark .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) { background: rgb(16 27 44 / 0.7); }
+#root .family-hub.hub-member.hub-board .hub-day .hub-timeline > li.hub-day-dinner { margin-top: 0; }
+#root .family-hub.hub-member.hub-board .hub-hero h1 { font-weight: 600; }
+#root .family-hub.hub-member.hub-board .hub-hero-clock > strong { font-weight: 400; }
+#root .family-hub.hub-member.hub-board .hub-hero .hub-subtitle { margin-top: 10px; font-size: clamp(16px, 1.4cqw, 26px); color: #c9d4e0; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-identity { min-height: 52px; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name { align-self: center; }
