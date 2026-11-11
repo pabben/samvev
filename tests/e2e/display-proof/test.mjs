@@ -185,9 +185,12 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    assert.deepEqual([...new Set(names)].sort(),expectedHomePeople,'member Home visibly renders exactly the six primary synthetic people at this viewport');
  };
  const assertReadablePeople=async surface=>{
-   const widths=await surface.locator('.hub-person-section .hub-person-name > strong').evaluateAll(nodes=>nodes.map(node=>Math.round(node.getBoundingClientRect().width)));
-   assert.equal(widths.length,6,'all six person names remain present');
-   assert.ok(widths.every(width=>width>=100),`person name column collapsed: ${JSON.stringify(widths)}`);
+   const boxes=await surface.locator('.hub-person-section .hub-person-name > strong').evaluateAll(nodes=>nodes.map(node=>{
+     const name=node.getBoundingClientRect(),card=node.closest('.hub-person-section').getBoundingClientRect();
+     return {width:Math.round(name.width),inside:name.top>=card.top&&name.bottom<=card.bottom};
+   }));
+   assert.equal(boxes.length,6,'all six person names remain present');
+   assert.ok(boxes.every(box=>box.width>=100&&box.inside),`person names collapsed or outside the card: ${JSON.stringify(boxes)}`);
  };
  const assertPairedActivitiesReady=async(page,{preview=false,stableWindowMs=500}={})=>{
    const todayCard=page.locator('.hub-today'),tomorrowCard=page.locator('.hub-tomorrow');
