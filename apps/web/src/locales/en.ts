@@ -861,6 +861,7 @@ export const en = {
   hubHigh: "High",
   hubUnknown: "Unknown",
   hubFamilyHeading: 'Family',
+  hubPersonNothingPlanned: 'Nothing planned',
   hubForYou: 'For you',
   hubUpcoming: "Coming up",
   hubExperimental: "Experimental · secondary features",

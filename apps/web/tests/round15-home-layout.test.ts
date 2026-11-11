@@ -176,7 +176,9 @@ test("day preview shortens groups of three or more while item details keep every
 });
 
 
-test("mobile themes show the same single relevant Today event and single Tomorrow preview",()=>{
+// Issue #22: the phone follows the prospect's mobile figure ("Dagens oversikt"):
+// up to three of today's still-relevant activities and two for tomorrow.
+test("mobile themes show the same relevant Today events and a short Tomorrow preview",()=>{
  const event=(id:string,startsAt:string,endsAt:string,allDay=false):Parameters<typeof FamilyHub>[0]["items"][number]=>({id,kind:"event",contentLocale:"en",title:`Synthetic ${id}`,body:"",targets:{household:true,personIds:[]},entries:[],priority:"normal",publishAt:null,startsAt,endsAt,expiresAt:"2026-10-31T00:00:00Z",source:{label:"Synthetic source",observedAt:"2026-10-28T08:00:00Z",uncertainty:"low"},metadata:{allDay},revision:1,updatedAt:"2026-10-28T08:00:00Z"});
  const ended=event("ended","2026-10-28T09:00:00Z","2026-10-28T10:00:00Z");
  const ongoing=event("ongoing","2026-10-28T11:00:00Z","2026-10-28T13:00:00Z");
@@ -189,12 +191,12 @@ test("mobile themes show the same single relevant Today event and single Tomorro
  for(const theme of ["light","dark"] as const){
   setViewport(true,theme);
   const html=homeMarkup([],{items:[ended,ongoing,future,tomorrow,tomorrowLater]});
-  assert.deepEqual(ids(section(html,"today")),["ongoing"],`${theme}: skip ended event and keep ongoing first`);
-  assert.deepEqual(ids(section(html,"tomorrow")),["tomorrow-first"],`${theme}: one Tomorrow preview`);
+  assert.deepEqual(ids(section(html,"today")),["ongoing","future"],`${theme}: skip ended event and keep ongoing first`);
+  assert.deepEqual(ids(section(html,"tomorrow")),["tomorrow-first","tomorrow-later"],`${theme}: short Tomorrow preview`);
   assert.match(section(html,"today"),/data-hub-detail="today"/,"all Today entries remain reachable through the collection");
-  assert.match(section(html,"tomorrow"),/data-hub-detail="tomorrow"/,"all Tomorrow entries remain reachable through the collection");
+  assert.doesNotMatch(section(html,"tomorrow"),/data-hub-detail="tomorrow"/,"both Tomorrow entries are shown, so no collection link is needed");
   assert.deepEqual(ids(section(homeMarkup([],{items:[ended,future]}),"today")),["future"],`${theme}: keep next future event when none is ongoing`);
-  assert.deepEqual(ids(section(homeMarkup([],{items:[allDay,ended,future]}),"today")),["all-day"],`${theme}: retain relevant all-day event`);
+  assert.deepEqual(ids(section(homeMarkup([],{items:[allDay,ended,future]}),"today")),["all-day","future"],`${theme}: retain relevant all-day event`);
  }
 });
 

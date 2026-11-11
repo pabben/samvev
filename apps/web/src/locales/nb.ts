@@ -862,6 +862,7 @@ export const nb: Record<TranslationKey, string> = {
   hubHigh: "Høy",
   hubUnknown: "Ukjent",
   hubFamilyHeading: 'Familien',
+  hubPersonNothingPlanned: 'Ingenting planlagt',
   hubForYou: 'Til deg',
   hubUpcoming: "Kommende",
   hubExperimental: "Eksperimentelt · tilleggsfunksjoner",

@@ -214,8 +214,10 @@ test("landscape preview keeps metadata outside the screen and renders the select
   assert.ok(screen > metadata && screen < backdrop && backdrop < layout, "the selected image is a screen backdrop behind display content");
   assert.match(html, /src="\/synthetic-private-background\.webp" alt=""/);
   assert.ok(family >= 0 && today === -1 && !html.includes('class="display-preview-card display-preview-tomorrow"'), "the family overview is first and legacy explicit day cards are folded into it");
-  assert.equal((html.match(/Synthetic note (?:one|two)/g) ?? []).length, 2);
+  // The landscape board keeps one low note card; further notes sit behind the collection link.
+  assert.equal((html.match(/Synthetic note (?:one|two)/g) ?? []).length, 1);
   assert.match(html, /class="hub-message-grid"/);
+  assert.match(html, /class="hub-collection-link"[^>]*data-hub-detail="messages"/);
 });
 
 test("People-only preview matches the live roster-only sections", () => {

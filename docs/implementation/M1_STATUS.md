@@ -1231,3 +1231,25 @@ playback pause across refresh and Home background apply/reset. Main reviewed
 mobile/desktop screenshots. Dedicated synthetic data only; no public deployment
 or full release acceptance is implied. See ROUND_13_STATUS.md for evidence and
 remaining work.
+
+## Issue #22 prospect board — 2026-11-11 (branch `design/issue-22-prospect`, not deployed)
+
+Landscape shared displays, their admin preview and member Home on desktop now use
+the original prospect's board: greeting and clock, one row with Today, Tomorrow and
+Family (school notes per child, idle people as name chips), and a low row where the
+handwritten household note and the photo share a bottom edge. Dinner is a footer
+strip in each day card, ended activities show a check, photo controls appear only
+on touch or keyboard focus, and missing cards hand their space to the others.
+Inter (SIL OFL 1.1, `apps/web/public/fonts/Inter-OFL.txt`) is bundled beside Kalam.
+Phones show the next few activities for today and two for tomorrow; portrait
+displays keep today's activities first and are otherwise unchanged.
+
+Evidence is local and synthetic only (six fictional people, repo-bundled landscape).
+Blind A/B against the cropped TV surface and phone figure of
+`docs/design/ChatGPT Image 24. sep. 2026, 23_52_06 (4).png`, labels and brand
+marks blurred, independent critic per pair: paired display won 3–0 (round 14) and
+1–0 (round 18); member Home won 2–1 (round 18); phone won 3–0 (round 18). All 261
+web unit tests and the workspace type checks pass. Not run: Docker E2E/display-proof
+(no Docker access on this host), physical device test, deployment. Behaviour
+changes: landscape boards show one household note with a "see all" link, and
+phones list up to three of today's remaining activities instead of one.
