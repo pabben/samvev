@@ -891,3 +891,14 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: auto clamp(186px, 15.4cqw, 300px); }
 #root .family-hub.hub-member.hub-board .hub-home-board .hub-messages { grid-column: 1 / span 4; }
 #root .family-hub.hub-member.hub-board .hub-home-board .hub-home-photos { grid-column: 5 / span 2; }
+
+/* Round 15: member Home matches the winning display: full landscape behind
+   translucent cards, a compact note row and a real bottom margin. */
+body:has(.family-hub.hub-member.hub-board.hub-dark) {
+  background: linear-gradient(180deg, #07122270 0%, #071a2d88 28%, #061321c0 62%, #05101be0 100%), url('./assets/nordic-dusk-v2.png') center top / cover fixed, #061321;
+}
+#root .family-hub.hub-member.hub-board.hub-dark .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) { background: rgb(13 22 36 / 0.62); }
+#root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: auto clamp(148px, 12cqw, 240px); margin-bottom: 24px; }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(20px, 1.8cqw, 34px); -webkit-line-clamp: 3; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(84px, 7cqw, 140px); height: clamp(84px, 7cqw, 140px); }
+#root .family-hub.hub-member.hub-board .hub-hero { min-height: clamp(104px, 9.4cqw, 190px); }
