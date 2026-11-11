@@ -902,3 +902,17 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(20px, 1.8cqw, 34px); -webkit-line-clamp: 3; }
 #root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(84px, 7cqw, 140px); height: clamp(84px, 7cqw, 140px); }
 #root .family-hub.hub-member.hub-board .hub-hero { min-height: clamp(104px, 9.4cqw, 190px); }
+
+/* Round 16: clear horizon behind the greeting, darkening only from the card
+   row down; taller note/photo row; tighter agenda rows so cards fit content. */
+body:has(.family-hub.hub-member.hub-board.hub-dark) {
+  background: linear-gradient(180deg, rgb(6 19 33 / 0.05) 0px, rgb(6 19 33 / 0.2) 170px, rgb(6 19 33 / 0.78) 260px, rgb(6 19 33 / 0.9) 420px, #061321 100%), url('./assets/nordic-dusk-v2.png') center top / cover fixed, #061321;
+}
+#root .family-hub.hub-member.hub-board .hub-home-board { grid-template-rows: auto clamp(196px, 15.6cqw, 300px); margin-bottom: 20px; }
+#root .family-hub.hub-member.hub-board .hub-timeline > li { padding-top: clamp(6px, 0.45cqw, 11px); padding-bottom: clamp(6px, 0.45cqw, 11px); }
+#root .family-hub.hub-member.hub-board .hub-day .hub-timeline > li { flex: 0 0 auto; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-messages { grid-column: 1 / span 3; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-home-photos { grid-column: 4 / span 3; }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(21px, 1.85cqw, 34px); }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(92px, 8cqw, 150px); height: clamp(92px, 8cqw, 150px); }
+#root .family-hub.hub-member.hub-board .hub-hero-clock > strong { font-size: clamp(34px, 3.2cqw, 64px); }
