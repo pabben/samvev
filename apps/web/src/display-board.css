@@ -867,3 +867,18 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person-grid { flex: 0 0 auto; }
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person:not(.hub-person-idle) :is(header, .hub-person-identity) { height: auto; grid-template-rows: auto; align-content: center; }
 #root .family-hub.hub-board .hub-person-section .hub-person-identity > .avatar { grid-row: auto; grid-column: auto; }
+
+/* Round 13: photo caption bottom-left on a soft scrim; quieter idle chips;
+   member note gives the handwriting more width. */
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide figcaption {
+  inset: auto 0 0 0; display: block; text-align: left;
+  padding: clamp(40px, 4cqw, 80px) clamp(16px, 1.6cqw, 28px) clamp(14px, 1.3cqw, 24px);
+  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 0.62));
+  font-size: clamp(16px, 1.45cqw, 28px); font-weight: 500; line-height: 1.3;
+}
+#root .family-hub.hub-member.hub-board .hub-home-photos .media-slide figcaption { align-items: initial; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-identity { background: none; padding: 2px 8px 2px 0; gap: 6px; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name > strong { font-weight: 450; color: var(--board-muted); }
+#root .family-hub.hub-board .hub-person-idle-label { font-size: clamp(12px, 0.95cqw, 17px); text-transform: none; letter-spacing: 0.01em; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(72px, 6cqw, 120px); height: clamp(72px, 6cqw, 120px); }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(21px, 1.8cqw, 34px); }
