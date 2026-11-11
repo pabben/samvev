@@ -916,3 +916,39 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-member.hub-board .hub-messages .display-card-body { font-size: clamp(21px, 1.85cqw, 34px); }
 #root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(92px, 8cqw, 150px); height: clamp(92px, 8cqw, 150px); }
 #root .family-hub.hub-member.hub-board .hub-hero-clock > strong { font-size: clamp(34px, 3.2cqw, 64px); }
+
+/* Round 17: dinner is the day card's footer strip (icon, label, dish) so the
+   time column holds only times and the card ends deliberately. */
+#root .family-hub.hub-board .hub-day .hub-timeline > li.hub-day-dinner {
+  margin-top: auto;
+  flex: 0 0 auto;
+  max-height: none;
+  align-items: center;
+  padding: clamp(8px, 0.7cqw, 14px) clamp(10px, 0.9cqw, 16px);
+  border: 0;
+  border-radius: clamp(10px, 0.9cqw, 16px);
+  background: rgb(255 255 255 / 0.06);
+  grid-template-columns: clamp(32px, 2.6cqw, 48px) minmax(0, 1fr);
+}
+#root .family-hub.hub-board.hub-light .hub-day .hub-timeline > li.hub-day-dinner { background: rgb(20 40 60 / 0.06); }
+#root .family-hub.hub-board .hub-day .hub-timeline > li.hub-day-dinner::before { content: none; }
+#root .family-hub.hub-board .hub-day .hub-timeline > li.hub-day-dinner > .hub-dinner-slot { grid-column: 1; font-size: clamp(20px, 1.7cqw, 32px); line-height: 1; color: inherit; }
+#root .family-hub.hub-board .hub-day .hub-timeline > li.hub-day-dinner > div { grid-column: 2; display: flex; flex-direction: column; }
+#root .family-hub.hub-board .hub-day .hub-timeline .hub-dinner-label { order: -1; font-size: clamp(12px, 0.9cqw, 16px); color: var(--board-muted); line-height: 1.2; }
+@media (max-width: 640px) {
+  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner { grid-template-columns: 32px minmax(0, 1fr); align-items: center; border-radius: 12px; background: rgb(255 255 255 / 0.06); padding: 8px 10px; border-top: 0; margin-top: 6px; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner::before { content: none; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner > .hub-dinner-slot { grid-column: 1; font-size: 20px; color: inherit; }
+  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner > div { grid-column: 2; display: flex; flex-direction: column; }
+  #root .family-hub.hub-member .hub-day .hub-timeline .hub-dinner-label { order: -1; font-size: 12px; color: var(--board-muted); }
+}
+/* Member Home: clear horizon band, quiet dark field under the cards. */
+body:has(.family-hub.hub-member.hub-board.hub-dark) {
+  background: linear-gradient(180deg, rgb(6 19 33 / 0) 0px, rgb(6 19 33 / 0.15) 150px, rgb(6 19 33 / 0.85) 230px, #061321 300px), url('./assets/nordic-dusk-v2.png') center 22% / 100% auto no-repeat, #061321;
+}
+#root .family-hub.hub-member.hub-board.hub-dark .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) { background: rgb(18 30 48 / 0.82); }
+#root .family-hub.hub-member.hub-board .hub-day .hub-timeline > li.hub-day-dinner { margin-top: auto; }
+#root .family-hub.hub-member.hub-board .hub-day .hub-timeline { flex: 1 1 auto; }
+body:has(.family-hub.hub-member.hub-board.hub-dark) {
+  background: linear-gradient(180deg, rgb(6 19 33 / 0.05) 0px, rgb(6 19 33 / 0.2) 140px, rgb(6 19 33 / 0.85) 225px, #061321 300px), url('./assets/nordic-dusk-v2.png') center -90px / max(100%, 1400px) auto no-repeat, #061321;
+}
