@@ -717,3 +717,7 @@
 #root .family-hub.hub-member.hub-board .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section) { align-self: stretch; height: auto; }
 #root .family-hub.hub-member.hub-board .hub-home-board { min-height: calc(100svh - 64px - clamp(104px, 9.4cqw, 190px) - 2 * var(--board-gap) - 8px); }
 #root .family-hub.hub-member.hub-board .hub-home-board > :is(.hub-home-services, .hub-home-modules):not(:empty) { margin-top: clamp(56px, 5cqw, 96px); }
+#root .family-hub.hub-member.hub-board .hub-home-board { min-height: 0; grid-template-rows: auto clamp(196px, 15.8cqw, 300px); }
+#root .family-hub.hub-member.hub-board .hub-person-section:is(.hub-people-summary) .hub-person-grid { grid-auto-rows: 1fr; flex: 1; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person { align-items: center; }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person { align-self: stretch; height: auto; }
