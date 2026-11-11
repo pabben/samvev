@@ -23,7 +23,7 @@
   min-height: calc(100vh - 80px);
   color: var(--board-text);
 }
-#root .family-hub.hub-display.hub-board.hub-light {
+#root .family-hub.hub-board.hub-light {
   --board-glass: rgb(255 255 255 / 0.74);
   --board-glass-strong: rgb(255 255 255 / 0.86);
   --board-edge: rgb(20 40 60 / 0.12);
@@ -721,3 +721,44 @@
 #root .family-hub.hub-member.hub-board .hub-person-section:is(.hub-people-summary) .hub-person-grid { grid-auto-rows: 1fr; flex: 1; }
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person { align-items: center; }
 #root .family-hub.hub-member.hub-board .hub-person-section .hub-person { align-self: stretch; height: auto; }
+
+/* Round 7: member Home (dark) sits on the same landscape as the shared display,
+   unless the household chose its own background (that layer covers this). */
+body:has(.family-hub.hub-member.hub-board.hub-dark) {
+  background: linear-gradient(180deg, rgb(7 18 34 / 0.35) 0%, rgb(7 26 45 / 0.6) 30%, rgb(6 19 33 / 0.82) 65%, rgb(5 16 27 / 0.94) 100%), url('./assets/nordic-dusk-v2.png') center top / cover fixed, #061321;
+}
+body:has(.family-hub.hub-member.hub-board.hub-dark) :is(#root, .member-shell, .member-main, main) { background: transparent; }
+#root .family-hub.hub-member.hub-board.hub-dark .hub-hero::before { background: none; }
+#root .family-hub.hub-member.hub-board.hub-dark .hub-hero { padding-left: 6px; padding-right: 6px; border-radius: 0; overflow: visible; }
+#root .family-hub.hub-member.hub-board .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages),
+#root .family-hub.hub-member.hub-board .hub-home-photos { border-color: rgb(255 255 255 / 0.1); }
+#root .family-hub.hub-member.hub-board.hub-dark .hub-home-board :is(.hub-today, .hub-tomorrow, .hub-person-section, .hub-messages) { background: rgb(14 24 40 / 0.55); }
+/* Note: content from the top, portrait aligned with the header line. */
+#root .family-hub.hub-member.hub-board .hub-messages { justify-content: flex-start; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message-open { align-items: start; padding-top: 6px; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message .avatar { width: clamp(84px, 7.4cqw, 140px); height: clamp(84px, 7.4cqw, 140px); }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { max-width: 44ch; }
+/* Photo quote in the lower third over a bottom scrim. */
+#root .family-hub.hub-member.hub-board .hub-home-photos .media-slide figcaption {
+  align-items: flex-end;
+  padding-bottom: clamp(14px, 1.4cqw, 26px);
+  background: linear-gradient(180deg, transparent 35%, rgb(0 0 0 / 0.6) 100%);
+}
+#root .family-hub.hub-member.hub-board .hub-messages { justify-content: center; }
+#root .family-hub.hub-member.hub-board .hub-messages .hub-message-open { align-items: center; padding-top: 0; }
+
+/* Round 8: member Home on a six-column grid; note and photo split the low row
+   evenly so the note fills its card; family notes may wrap to two lines. */
+#root .family-hub.hub-member.hub-board .hub-home-board { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-today { grid-column: 1 / span 2; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-tomorrow { grid-column: 3 / span 2; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-person-section { grid-column: 5 / span 2; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-messages { grid-column: 1 / span 3; }
+#root .family-hub.hub-member.hub-board .hub-home-board .hub-home-photos { grid-column: 4 / span 3; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-home-photos .media-slide img)) .hub-messages { grid-column: 1 / -1; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-messages)) .hub-home-photos { grid-column: 1 / -1; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-person-section)) .hub-today { grid-column: 1 / span 3; }
+#root .family-hub.hub-member.hub-board .hub-home-board:not(:has(.hub-person-section)) .hub-tomorrow { grid-column: 4 / span 3; }
+#root .family-hub.hub-member.hub-board .hub-messages .display-card-body { max-width: none; font-size: clamp(21px, 1.85cqw, 34px); }
+#root .family-hub.hub-member.hub-board .hub-person-section .hub-person-name > .hub-person-activity { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+#root .family-hub.hub-member.hub-board .hub-home-photos .media-slide figcaption { padding-bottom: clamp(26px, 2.6cqw, 48px); }
