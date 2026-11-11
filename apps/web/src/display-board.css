@@ -952,3 +952,4 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 body:has(.family-hub.hub-member.hub-board.hub-dark) {
   background: linear-gradient(180deg, rgb(6 19 33 / 0.05) 0px, rgb(6 19 33 / 0.2) 140px, rgb(6 19 33 / 0.85) 225px, #061321 300px), url('./assets/nordic-dusk-v2.png') center -90px / max(100%, 1400px) auto no-repeat, #061321;
 }
+@media (max-width: 640px) { #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-day-dinner .hub-dinner-label { display: block !important; position: static; } }
