@@ -998,3 +998,79 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Portrait shared displays (e.g. a fridge panel): the same board, stacked.
+   Today and tomorrow share the first row; family, note and photo follow at full width. */
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: minmax(0, 1fr) auto auto var(--board-portrait-photo, clamp(180px, 30cqw, 420px));
+}
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid > .hub-today { grid-column: 1; grid-row: 1; }
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid > .hub-tomorrow { grid-column: 2; grid-row: 1; }
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid > .hub-person-section { grid-column: 1 / -1; grid-row: 2; }
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid > .hub-messages { grid-column: 1 / -1; grid-row: 3; }
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid > .hub-display-photo { grid-column: 1 / -1; grid-row: 4; }
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid > .hub-important { grid-column: 1 / -1; grid-row: auto; }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-grid { display: flex !important; flex-flow: row wrap; grid-template-columns: none; }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person.hub-person-idle { flex: 0 0 auto !important; width: auto !important; }
+/* Portrait panels are read from across the kitchen: larger type than the landscape scale gives. */
+#root .family-hub.hub-board.hub-board-portrait .hub-panel-title h2 { font-size: clamp(22px, 3.3cqw, 40px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-timeline > li > time { font-size: clamp(18px, 2.7cqw, 32px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-timeline > li { grid-template-columns: clamp(22px, 3cqw, 34px) clamp(56px, 8.4cqw, 100px) minmax(0, 1fr); }
+#root .family-hub.hub-board.hub-board-portrait .hub-timeline .hub-item-title strong,
+#root .family-hub.hub-board.hub-board-portrait .hub-timeline .hub-dinner-title { font-size: clamp(19px, 2.9cqw, 34px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-timeline > li > div > p { font-size: clamp(15px, 2.2cqw, 26px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-name > strong { font-size: clamp(19px, 2.8cqw, 32px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-name > .hub-person-activity { font-size: clamp(16px, 2.3cqw, 28px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person.hub-person-idle .hub-person-name > strong { font-size: clamp(16px, 2.3cqw, 28px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .avatar { width: clamp(40px, 5.6cqw, 64px); height: clamp(40px, 5.6cqw, 64px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-idle-label { font-size: clamp(14px, 2cqw, 24px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-timeline .hub-item-title strong { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+/* Member Home below the first screen: the household summary and week use the
+   board's glass, type and spacing instead of a separate admin-like look. */
+@media (min-width: 641px) {
+  #root .family-hub.hub-member.hub-board > .hub-home-week.hub-member-week-outside { margin-top: var(--board-gap); }
+  #root .family-hub.hub-member.hub-board :is(.hub-week.hub-member-week, .household-board-summary) {
+    background: rgb(14 24 40 / 0.6); border: 1px solid rgb(255 255 255 / 0.08); border-radius: var(--board-radius);
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  }
+  #root .family-hub.hub-member.hub-board.hub-light :is(.hub-week.hub-member-week, .household-board-summary) { background: var(--board-glass); border-color: var(--board-edge); }
+  #root .family-hub.hub-member.hub-board .hub-week.hub-member-week {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto auto; column-gap: clamp(10px, 1cqw, 18px); align-items: end;
+  }
+  #root .family-hub.hub-member.hub-board .hub-week.hub-member-week > * { grid-column: 1 / -1; }
+  #root .family-hub.hub-member.hub-board .hub-week.hub-member-week > .hub-week-heading { grid-column: 1; grid-row: 1; align-self: center; }
+  #root .family-hub.hub-member.hub-board .hub-week.hub-member-week > .hub-week-person-filter { grid-column: 2; grid-row: 1; }
+  #root .family-hub.hub-member.hub-board .hub-week.hub-member-week > .hub-week-source-filter { grid-column: 3; grid-row: 1; }
+  #root .family-hub.hub-member.hub-board .hub-week.hub-member-week > :is(.hub-week-person-filter, .hub-week-source-filter) {
+    display: grid; grid-template-columns: minmax(170px, 220px); gap: 4px; margin: 0; font-size: 13px; color: var(--board-muted);
+  }
+  #root .family-hub.hub-member.hub-board .hub-week.hub-member-week > .hub-week-days { margin-top: clamp(14px, 1.2cqw, 22px); }
+  #root .family-hub.hub-member.hub-board .hub-week-heading h2 { font-size: clamp(20px, 1.5cqw, 28px); font-weight: 600; }
+  #root .family-hub.hub-member.hub-board .household-board-summary.has-preview {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px clamp(20px, 2.4cqw, 44px); padding: clamp(14px, 1.2cqw, 22px) clamp(16px, 1.5cqw, 26px);
+  }
+  #root .family-hub.hub-member.hub-board .household-board-summary.has-preview > .hub-panel-title { margin: 0; }
+  #root .family-hub.hub-member.hub-board .household-board-summary.has-preview > section { display: flex; align-items: baseline; gap: 10px; }
+  #root .family-hub.hub-member.hub-board .household-board-summary.has-preview > section h3 { margin: 0; font-size: 14px; font-weight: 500; color: var(--board-muted); }
+  #root .family-hub.hub-member.hub-board .household-board-summary .board-summary-dinner { display: inline-flex; gap: 8px; margin: 0; font-size: 17px; }
+  #root .family-hub.hub-member.hub-board .household-board-summary.has-preview > .household-board-edit-disclosure { margin-left: auto; }
+  #root .family-hub.hub-member.hub-board .household-board-summary.has-preview > .household-board-edit-disclosure[open] { flex: 0 0 100%; margin-left: 0; }
+}
+@media (min-width: 641px) {
+  #root .family-hub.hub-member.hub-board .hub-home-board:has(> .hub-home-modules:not(:empty)) { margin-bottom: 0; }
+  #root .home-background-content:has(> .family-hub.hub-member.hub-board) > .media-library-disclosure {
+    margin-top: var(--board-gap, 16px); background: rgb(14 24 40 / 0.6); border: 1px solid rgb(255 255 255 / 0.08); border-radius: clamp(14px, 1.2cqw, 20px); box-shadow: none;
+  }
+}
+
+/* Idle people as wrapping chips again: each chip keeps its full name on one
+   line (no letter-wide collapse), and the family card no longer grows past
+   the first row on 16:9 screens. */
+#root .family-hub.hub-board .hub-person-section .hub-person-grid,
+#root .family-hub.hub-member.hub-board .hub-person-section:is(.hub-people-summary) .hub-person-grid { flex-direction: row; flex-wrap: wrap; align-content: flex-start; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle { flex: 0 0 auto; width: auto; max-width: 100%; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle > header,
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-identity { width: auto; max-width: 100%; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name { min-width: 0; }
