@@ -51,9 +51,12 @@ fetch time, including the legacy entity-ID fallback, to prevent a roundtrip loop
 
 Migration 047 is additive. Existing credentials/capabilities retain their previous
 meaning. Integration-authored messages remain visible through existing Samvev
-member projections, with the actual connection name/type. Backend rollback leaves
-the added data unused; destructive down migrations are not provided. Restore a
-verified database backup if a full schema rollback is necessary. This change does
+member projections, with the actual connection name/type. An HA-adapter rollback
+can revoke the connection and retain the additive schema/data. Older backend
+images do not understand the new message actor or native all-day marker; image
+rollback is not validated or automatically safe. Prefer forward recovery, or
+prepare and test a separate compatibility/data plan. Destructive down migrations
+and automatic backup restoration over newer writes are not provided. This change does
 not deploy either repository or install anything into the user's active HA.
 
 The API contract is [HA_BRIDGE_API.md](../implementation/HA_BRIDGE_API.md).
