@@ -175,6 +175,39 @@ test('actual second-household content remains isolated and separately revoked cr
   assert.equal((await machine('GET','snapshot',undefined,replacement)).statusCode,401);
 });
 
+
+test('HA polling authenticates 105 valid reads without consuming the legacy IP budget',async()=>{
+  // 50 imported sources + native calendar + snapshot, twice each minute, plus
+  // the connection handshake. This is within the advertised sharing maximum.
+  for(let index=0;index<105;index++){
+    const response=await machine('GET','connection');assert.equal(response.statusCode,200,`HA request ${index+1}: ${response.body}`);
+  }
+  const legacy=await createConnection(['integration.items.read']);
+  for(let index=0;index<90;index++){
+    const response=await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(legacy.token)});assert.equal(response.statusCode,200,`legacy request ${index+1}: ${response.body}`);
+  }
+  const exhausted=await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(legacy.token)});assert.equal(exhausted.statusCode,429,'the unchanged legacy IP budget is 90/minute');
+  assert.equal((await machine('GET','connection')).statusCode,200,'valid HA traffic has its own IP budget');
+});
+
+test('HA auth preserves the shared 20/minute invalid-token brute-force limit',async()=>{
+  const invalidToken='synthetic-invalid-ha-token-with-enough-entropy-0001';
+  for(let index=0;index<20;index++){
+    const response=await machine('GET','connection',undefined,invalidToken);assert.equal(response.statusCode,401,response.body);
+  }
+  assert.equal((await machine('GET','connection',undefined,invalidToken)).statusCode,429);
+  const legacyInvalid=await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer(invalidToken)});assert.equal(legacyInvalid.statusCode,429,'invalid guesses share their existing budget across HA and legacy routes');
+  assert.equal((await machine('GET','connection')).statusCode,200,'failed guesses do not turn a valid HA token into invalid authentication');
+});
+
+test('missing and malformed HA bearer headers retain the original shared 90/IP budget',async()=>{
+  for(let index=0;index<90;index++){
+    const response=await app.inject({method:'GET',url:'/api/v1/ha/connection',headers:index%2?{authorization:'Bearer short'}:{}});assert.equal(response.statusCode,401,response.body);
+  }
+  const denied=await app.inject({method:'GET',url:'/api/v1/ha/connection',headers:{authorization:'Bearer short'}});assert.equal(denied.statusCode,429);
+  const legacy=await app.inject({method:'GET',url:'/api/v1/integrations/items',headers:bearer()});assert.equal(legacy.statusCode,429,'malformed HA requests still consume the shared legacy abuse budget');
+});
+
 test('sharing removal, expiry and old receipt replay are enforced on every request',async()=>{
   await setSharing(connectionId,2,{listIds:[],household:false,personIds:[]});const cleared=await machine('GET','snapshot');assert.deepEqual(cleared.json().lists,[]);assert.deepEqual(cleared.json().messages,[]);assert.deepEqual(cleared.json().calendars,[]);
   const receipt=(await pool.query("SELECT response FROM integration_ha_requests WHERE connection_id=$1 AND request_key='ha-message-create-0001'",[connectionId])).rows[0].response.message;

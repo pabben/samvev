@@ -124,3 +124,11 @@ protected current data; transient network failure retains last safe content mark
 unavailable/stale. No HA callback exposure, HA public endpoint or extra server is
 required. Samvev-native HA calendars must be excluded from Samvev's HA calendar
 import to prevent a feedback loop.
+
+HA machine authentication has a separate bounded budget of 300 requests per IP
+per minute, with the existing bridge limit of 240 per connection per minute.
+This accommodates the supported maximum of 50 imported calendars plus the native
+calendar and snapshot at 30-second polling (104 requests/minute). Legacy ingress
+routes retain their existing 90/IP/minute budget. Unknown well-formed bearer tokens
+retain the shared 20-invalid-attempts/IP/minute limit; missing or malformed HA
+bearer headers also consume the original shared 90/IP/minute abuse budget.

@@ -1269,9 +1269,11 @@ read-only imported-calendar interval exports and Samvev-calendar import-loop
 prevention. Migration047 is additive. Board receipts/created-by actors identify
 the integration connection; message/event audits also record the credential.
 No HA dashboard user is impersonated as a Samvev person.
+The bounded HA authentication budget also covers the supported50-source polling
+volume while preserving legacy and invalid-token abuse limits.
 
 Main-agent verification: complete workspace typecheck passed; independent QA's
-clean complete API run passed **490/490**, zero skipped/failed. Three actual-server
+clean complete API run passed **493/493**, zero skipped/failed. Three actual-server
 roundtrip tests passed against real Samvev HTTP and actual HA entities/actions:
 shopping mutations/CAS/repeated-press protection, member+HA messages/lifecycle,
 native calendar creation/DST/all-day/edit/cancellation, imported calendar complete

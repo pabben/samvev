@@ -473,11 +473,19 @@ async function lockDisplayMessageRecipients(client:DbClient,display:DisplayConte
   if(allowedPeople.length!==personIds.length||allowedDisplays.length!==displayIds.length)throw new DomainError('FORBIDDEN',403,{reason:'message_recipient_not_allowed'});
 }
 
-async function integrationAuth(request: FastifyRequest): Promise<IntegrationContext> {
-  await durableRateLimit('integration_auth_ip', request.ip, 90, 60);
+async function integrationAuth(request: FastifyRequest,profile:'legacy'|'ha'='legacy'): Promise<IntegrationContext> {
+  // A supported HA connection may poll 50 imported calendars plus its native
+  // calendar and snapshot: 104 valid requests/minute. Keep the legacy budget
+  // unchanged; HA has its own bounded IP budget and a connection-level limit.
+  await durableRateLimit(profile==='ha'?'ha_integration_auth_ip':'integration_auth_ip',request.ip,profile==='ha'?300:90,60);
   const authorization = request.headers.authorization;
   const match = typeof authorization === 'string' ? /^Bearer ([A-Za-z0-9_-]{32,256})$/.exec(authorization) : null;
-  if (!match) throw new DomainError('UNAUTHENTICATED', 401);
+  if (!match) {
+    // Missing/malformed HA headers retain the existing shared 90/IP budget.
+    // Unknown well-formed tokens still use the unchanged invalid-token bucket.
+    if(profile==='ha')await durableRateLimit('integration_auth_ip',request.ip,90,60);
+    throw new DomainError('UNAUTHENTICATED',401);
+  }
   const result = await pool.query<{
     credential_id:string; credential_revision:number; connection_id:string; household_id:string; installation_id:string; capabilities:IntegrationCapability[];
   }>(`SELECT cr.id AS credential_id,cr.revision AS credential_revision,cr.connection_id,c.household_id,h.installation_id,cr.capabilities
@@ -1110,7 +1118,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   await projectionEvents.start();
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
   app.addHook('preClose',async()=>projectionEvents.close());
-  const haBridge=new HaBridgeService({integrationAuth,lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth,rateLimit:durableRateLimit});
+  const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth,rateLimit:durableRateLimit});
   const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{
     const allowed=board==='groceries'?'grocery_read':'dinner_read';
     const card=board;
