@@ -57,6 +57,7 @@ import {normalizeMediaImage} from './media/image.ts';
 import {HomeAssistantControlService,type HomeAssistantControlActor} from './home-assistant/control-service.ts';
 import {HomeAssistantControlClient,type HomeAssistantControlTransport} from './home-assistant/control-client.ts';
 import {readAnonymousPublicContact,readPublicContact,updatePublicContact} from './public-contact.ts';
+import {HaBridgeService} from './ha-bridge/service.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -528,7 +529,7 @@ async function auditIntegration(client: DbClient, integration: IntegrationContex
     VALUES ($1,$2,'integration',$3,$4,$5,$6,$7)`, [integration.installationId,integration.householdId,integration.connectionId,action,subjectType,subjectId,JSON.stringify({...metadata,credentialId:integration.credentialId,credentialRevision:integration.credentialRevision})]);
 }
 
-async function lockIntegrationAuthority(client:pg.PoolClient,integration:IntegrationContext,capability:IntegrationCapability):Promise<void>{
+async function lockIntegrationAuthority(client:DbClient,integration:IntegrationContext,capability:IntegrationCapability):Promise<void>{
   const connection=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[integration.connectionId,integration.householdId]);
   if(!connection.rowCount)throw new DomainError('UNAUTHENTICATED',401);
   const credential=await client.query<{capabilities:IntegrationCapability[]}>(`SELECT capabilities FROM integration_credentials
@@ -700,9 +701,9 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
     -- Calendar all-day timestamps encode civil dates, not UTC instants. Keep
     -- their stored/returned values, but compare local-midnight boundaries.
     CROSS JOIN LATERAL (SELECT
-      CASE WHEN i.metadata->'calendar' IS NOT NULL AND i.metadata->'allDay'='true'::jsonb
+      CASE WHEN (i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
         THEN (i.starts_at AT TIME ZONE 'UTC')::date::timestamp AT TIME ZONE household.timezone ELSE i.starts_at END AS starts_at,
-      CASE WHEN i.metadata->'calendar' IS NOT NULL AND i.metadata->'allDay'='true'::jsonb
+      CASE WHEN (i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
         THEN COALESCE((i.ends_at AT TIME ZONE 'UTC')::date,(i.starts_at AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE household.timezone WHEN i.ends_at=i.starts_at THEN NULL ELSE i.ends_at END AS ends_at) activity
     WHERE i.household_id=$1 AND i.kind IN ('event','reminder') AND i.status='active'
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
@@ -994,9 +995,9 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   const hardCache = new Date(now.getTime() + 15 * 60_000);
   const label=await pool.query<{display_name:string;household_name:string;timezone:string;show_upcoming_birthday:boolean}>(`SELECT d.name AS display_name,h.name AS household_name,h.timezone,h.show_upcoming_birthday FROM displays d JOIN households h ON h.id=d.household_id WHERE d.id=$1 AND h.id=$2`,[display.id,display.householdId]);
   const cards = display.privacyMode || !display.cards.includes('household_messages') ? [] : (await pool.query<{
-        id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_type:'member'|'display';author_display_id:string|null; author_person_id:string|null; author_avatar_key:string|null;author_color_token:string|null;author_photo_revision:number|null;acl_witness:string
-  }>(`SELECT ${displayMessageWitnessSql('$1','$3','m')} AS acl_witness,m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,COALESCE(p.display_name,m.author_display_name) AS author_name,
-      CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.avatar_key AS author_avatar_key,p.color_token AS author_color_token,ph.revision AS author_photo_revision
+        id:string; body:string; importance:string; publish_at:Date; expires_at:Date; revision:number; author_name:string; author_type:'member'|'display'|'integration';author_display_id:string|null; author_person_id:string|null; author_avatar_key:string|null;author_color_token:string|null;author_photo_revision:number|null;acl_witness:string
+  }>(`SELECT ${displayMessageWitnessSql('$1','$3','m')} AS acl_witness,m.id,m.body,m.importance,m.publish_at,m.expires_at,m.revision,COALESCE(p.display_name,m.author_display_name,m.author_integration_name) AS author_name,
+      CASE WHEN m.author_integration_id IS NOT NULL THEN 'integration' WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.avatar_key AS author_avatar_key,p.color_token AS author_color_token,ph.revision AS author_photo_revision
       FROM messages m JOIN message_display_targets t ON t.message_id=m.id AND t.household_id=m.household_id
       LEFT JOIN memberships ms ON ms.id=m.author_membership_id LEFT JOIN persons p ON p.id=ms.person_id AND p.household_id=m.household_id
       LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
@@ -1109,6 +1110,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   await projectionEvents.start();
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
   app.addHook('preClose',async()=>projectionEvents.close());
+  const haBridge=new HaBridgeService({integrationAuth,lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth,rateLimit:durableRateLimit});
   const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{
     const allowed=board==='groceries'?'grocery_read':'dinner_read';
     const card=board;
@@ -1119,7 +1121,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       WHERE read_grant.household_id=$1 AND read_grant.display_id=$2 FOR UPDATE OF read_grant,display,setup`,[actor.householdId,actor.id,card])).rows[0];
     if(!grant||!grant.allowed||!grant.selected||grant.privacy_mode)throw new DomainError('FORBIDDEN',403,{reason:'display_board_read_not_granted'});
     if(write&&!await lockDisplayAction(client,actor.householdId,actor.id,board==='groceries'?'grocery_write':'dinner_write'))throw new DomainError('FORBIDDEN',403,{reason:'display_action_not_granted'});
-  });
+  },(client,actor,board,write)=>haBridge.authorizeBoard(client,actor,board,write));
+  haBridge.register(app,householdBoards);
 
   app.addHook('onRequest', async (request) => {
     if (!isUnsafe(request.method)) return;
@@ -1128,7 +1131,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       const pathname=request.url.split('?',1)[0]??request.url;
       const integrationWrite=request.method==='POST'&&pathname==='/api/v1/integrations/items';
       const integrationDelete=request.method==='DELETE'&&/^\/api\/v1\/integrations\/items\/[^/]+$/.test(pathname);
-      if(integrationWrite||integrationDelete)return;
+      const haMachineWrite=['POST','PATCH','DELETE'].includes(request.method)&&/^\/api\/v1\/ha\/(?:lists\/groceries\/items(?:\/[^/]+)?|messages(?:\/[^/]+(?:\/withdraw)?)?|calendars\/[^/]+\/events(?:\/[^/]+)?)$/.test(pathname);
+      if(integrationWrite||integrationDelete||haMachineWrite)return;
       if (runtime.secureCookies) throw new DomainError('CSRF_REQUIRED', 403);
       return;
     }
@@ -1820,7 +1824,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:'en'|'nb';show_upcoming_birthday:boolean}>(`SELECT id,name,timezone,default_locale,show_upcoming_birthday FROM households WHERE id=$1`,[auth.householdId])).rows[0]!;
     const people=await pool.query<{id:string;display_name:string;avatar_key:string|null;color_token:string;age_group:string;birth_date:string|null;photo_revision:number;asset_photo_revision:number|null}>(`SELECT p.id,p.display_name,p.avatar_key,p.color_token,p.age_group,p.birth_date::text,p.photo_revision,ph.revision AS asset_photo_revision FROM persons p LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id WHERE p.household_id=$1 ORDER BY p.created_at,p.id`,[auth.householdId]);
     const canViewAll=auth.capabilities.includes('household.manage');
-    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_type:'member'|'display';author_display_id:string|null;author_person_id:string|null;author_color_token:string|null;author_photo_revision:number|null;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,COALESCE(p.display_name,m.author_display_name) AS author_name,CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.color_token AS author_color_token,ph.revision AS author_photo_revision,m.publish_at,m.expires_at,m.revision,m.audience_household,
+    const messages=await pool.query<{id:string;body:string;importance:string;author_name:string;author_type:'member'|'display'|'integration';author_display_id:string|null;author_person_id:string|null;author_color_token:string|null;author_photo_revision:number|null;publish_at:Date;expires_at:Date;revision:number;audience_household:boolean;person_ids:string[]}>(`SELECT m.id,m.body,m.importance,COALESCE(p.display_name,m.author_display_name,m.author_integration_name) AS author_name,CASE WHEN m.author_integration_id IS NOT NULL THEN 'integration' WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,p.color_token AS author_color_token,ph.revision AS author_photo_revision,m.publish_at,m.expires_at,m.revision,m.audience_household,
       COALESCE((SELECT json_agg(pa.person_id ORDER BY pa.person_id) FROM message_person_audiences pa WHERE pa.message_id=m.id),'[]') AS person_ids
       FROM messages m LEFT JOIN memberships am ON am.id=m.author_membership_id LEFT JOIN persons p ON p.id=am.person_id AND p.household_id=m.household_id LEFT JOIN person_profile_photos ph ON ph.person_id=p.id AND ph.household_id=p.household_id
       WHERE m.household_id=$1 AND m.state IN ('scheduled','published') AND m.expires_at>clock_timestamp()
@@ -2639,7 +2643,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'household.view');
     const all = auth.capabilities.includes('message.manage.household');
     const result = await pool.query(`SELECT m.id,m.body,m.importance,m.audience_household,m.publish_at,m.expires_at,m.state,m.revision,m.created_at,m.updated_at,
-      COALESCE(p.display_name,m.author_display_name) AS author_name,CASE WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,COALESCE((m.author_membership_id=$3 OR $2),false) AS can_edit,
+      COALESCE(p.display_name,m.author_display_name,m.author_integration_name) AS author_name,CASE WHEN m.author_integration_id IS NOT NULL THEN 'integration' WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,COALESCE((m.author_membership_id=$3 OR $2),false) AS can_edit,
       COALESCE((SELECT json_agg(person_id) FROM message_person_audiences WHERE message_id=m.id),'[]') AS person_ids,
       COALESCE((SELECT json_agg(display_id) FROM message_display_targets WHERE message_id=m.id AND delivery_state<>'cancelled'),'[]') AS display_ids,
       COALESCE((SELECT json_agg(json_build_object('displayId',display_id,'state',delivery_state,'deliveredAt',delivered_at,'displayedAt',displayed_at,'revision',delivered_revision)) FROM message_display_targets WHERE message_id=m.id),'[]') AS deliveries,

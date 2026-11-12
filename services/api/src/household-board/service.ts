@@ -3,16 +3,18 @@ import { DomainError } from '@samvev/core';
 import { pool, transaction, type DbClient } from '../db.ts';
 
 export type BoardKind='groceries'|'dinners';
-export type BoardActor={kind:'member';id:string;accountId:string;sessionId:string;membershipId:string;householdId:string}|{kind:'display';id:string;credentialHash:string;householdId:string};
+export type IntegrationBoardActor={kind:'integration';id:string;householdId:string;installationId:string;credentialId:string;credentialRevision:number;capabilities:readonly string[]};
+export type BoardActor={kind:'member';id:string;accountId:string;sessionId:string;membershipId:string;householdId:string}|{kind:'display';id:string;credentialHash:string;householdId:string}|IntegrationBoardActor;
 type AuthorizeDisplayBoard=(client:DbClient,actor:Extract<BoardActor,{kind:'display'}>,board:BoardKind,write:boolean)=>Promise<void>;
 
 function hash(value:unknown):string{return createHash('sha256').update(JSON.stringify(value)).digest('hex');}
 function conflict():never{throw new DomainError('REVISION_CONFLICT',409);}
 
 export class HouseholdBoardService {
-  constructor(private readonly authorizeDisplayBoard:AuthorizeDisplayBoard){}
+  constructor(private readonly authorizeDisplayBoard:AuthorizeDisplayBoard,private readonly authorizeIntegrationBoard?:(client:DbClient,actor:IntegrationBoardActor,board:BoardKind,write:boolean)=>Promise<void>){}
 
   private async authorizeActor(client:DbClient,actor:BoardActor,board:BoardKind,write:boolean):Promise<void>{
+    if(actor.kind==='integration'){if(!this.authorizeIntegrationBoard)throw new DomainError('FORBIDDEN',403);await this.authorizeIntegrationBoard(client,actor,board,write);return;}
     if(actor.kind==='member'){
       const active=await client.query<{can_view:boolean}>(`SELECT (m.capabilities ? 'household.view') AS can_view FROM sessions s JOIN accounts a ON a.id=s.account_id
         JOIN memberships m ON m.account_id=a.id AND m.household_id=$4
