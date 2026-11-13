@@ -847,6 +847,8 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-board.hub-light .hub-person-section .hub-person.hub-person-idle .hub-person-identity { background: rgb(20 40 60 / 0.06); }
 #root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .avatar { width: clamp(30px, 2.4cqw, 44px); height: clamp(30px, 2.4cqw, 44px); }
 #root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name { padding-right: 0; min-height: 0; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name { flex: 0 0 auto; width: auto; min-width: max-content; }
+#root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name > strong { width: auto; }
 #root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name > strong { font-size: clamp(14px, 1.1cqw, 20px); }
 #root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name > strong svg { display: none; }
 #root .family-hub.hub-board .hub-person-idle-label {

@@ -1312,7 +1312,8 @@ live in its separate repository. No merge, tag, release or production deployment
 
 ## Explicit HA writes to shared native content — 2026-11-13 (development candidate)
 
-Branch `fix/ha-native-household-writes` extends baseline `09bbd73`, including the
+Branch `fix/ha-native-household-writes` preserves current production baseline
+`58d9d96` (including display readability and scoped bridge metadata), including the
 merged HA bridge from PR #28 (`3451bcf`). Migration 048 adds the manager-owned
 `allowSharedNativeWrites` policy, default false. It permits existing UI-authored
 native message edits/withdrawals and other connections' genuine native HA events

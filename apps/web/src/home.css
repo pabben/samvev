@@ -710,7 +710,7 @@ body{font-family:var(--font-sans)}
 @media(max-width:640px){
  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan{display:flex!important;flex-direction:column!important;min-width:0}
  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-dark,.hub-light) .hub-grid .hub-day-plan>.hub-tomorrow{border-left:0!important;border-top:1px solid var(--hub-line)!important}
- .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact).hub-light .hub-grid{grid-template-columns:minmax(0,1fr)!important}
- .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact).hub-light .hub-grid>.hub-today,.display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact).hub-light .hub-grid>.hub-tomorrow{grid-column:1!important;grid-row:auto!important;min-width:0}
+ .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-light,.hub-dark) .hub-grid{grid-template-columns:minmax(0,1fr)!important}
+ .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-light,.hub-dark) .hub-grid>.hub-today,.display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-light,.hub-dark) .hub-grid>.hub-tomorrow{grid-column:1!important;grid-row:auto!important;min-width:0}
 }
 .media-library-disclosure>summary::before{content:none}
