@@ -136,8 +136,8 @@ test('actual shared person previews and detail cards label all-day dates instead
  for(const locale of ['nb','en'] as const)for(const display of [false,true]){
   const markup=renderToStaticMarkup(createElement(LocaleProvider,{locale,children:createElement(FamilyHub,{people,items:[allDay],messages:[],zone:'Europe/Oslo',householdName:'Synthetic',now:Date.parse('2026-10-22T12:00:00Z'),display})}));
   const label=locale==='nb'?'Hele dagen':'All day';
-  assert.match(markup,new RegExp(`<small>${label} · [^<]*22`));assert.doesNotMatch(markup,/<small>[^<]*02[:.]00/);
+  assert.match(markup,new RegExp(`<small><span class="sr-only">${label} </span>[^<]*22`));assert.doesNotMatch(markup,/<small>[^<]*02[:.]00/);
   const detail=renderToStaticMarkup(createElement(LocaleProvider,{locale,children:createElement(ItemCard,{item:allDay,people,zone:'America/Los_Angeles',display})}));
-  assert.match(detail,new RegExp(`<time[^>]*>${label} · [^<]*22`));assert.doesNotMatch(detail,/<time[^>]*>[^<]*(?:21|23|02:00|17:00)/);
+  assert.match(detail,new RegExp(`<time[^>]*><span class="sr-only">${label} </span>[^<]*22`));assert.doesNotMatch(detail,/<time[^>]*>[^<]*(?:21|23|02:00|17:00)/);
  }
 });
