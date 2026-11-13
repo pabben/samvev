@@ -48,7 +48,7 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
     }
     if(request.method==='POST'&&request.url==='/auth/revoke'){response.statusCode=200;response.end('{}');return;}
     if(request.method==='GET'&&request.url==='/api/calendars'){
-      response.end(JSON.stringify([{entity_id:spondEntityId,name:'Spond team'},{entity_id:'calendar.personal',name:'Personal'}]));return;
+      response.end(JSON.stringify([{entity_id:spondEntityId,name:'Spond team'},{entity_id:'calendar.personal',name:'Personal'},{entity_id:'calendar.samvev',name:'Samvev native'}]));return;
     }
     if(request.method==='GET'&&request.url===`/api/states/${spondEntityId}`){response.end(JSON.stringify({entity_id:calendarReturnedEntityId??spondEntityId,state:sourceState,attributes:{}}));return;}
     if(request.method==='GET'&&request.url==='/api/states/sensor.outdoor_temperature'){response.end(JSON.stringify({entity_id:temperatureReturnedEntityId??'sensor.outdoor_temperature',state:temperatureState,last_reported:temperatureReportedAt,last_updated:temperatureUpdatedAt,attributes:{device_class:'temperature',unit_of_measurement:temperatureUnit}}));return;}
@@ -70,6 +70,7 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
       else if(message.type==='config/entity_registry/list')socket.write(serverFrame({id:message.id,type:'result',success:true,result:[
         {id:'registry-spond',entity_id:spondEntityId,platform:'spond_tracker',config_entry_id:'config-spond'},
         {id:'registry-other',entity_id:'calendar.personal',platform:'local',config_entry_id:'config-local'},
+        {id:'registry-samvev',entity_id:'calendar.samvev',platform:'samvev',config_entry_id:'config-samvev'},
         {id:'sensor-temperature',entity_id:'sensor.outdoor_temperature',platform:'synthetic',translation_key:'temperature',original_name:'Outdoor temperature'}
       ]}));
     }});
@@ -85,6 +86,7 @@ test('Home Assistant client follows browser auth, current-user binding, Spond re
   assert.equal(token.providerSubject,'ha-owner-id');assert.equal(token.accountLabel,'HA owner');assert.deepEqual(token.scopes,['home_assistant_instance_token']);
   const sources=await client.listSources(config,token.accessToken);
   assert.equal(sources.length,2);assert.deepEqual(sources[0],{externalId:'registry-spond',name:'Spond team',provenance:{integrationDomain:'spond_tracker',entityId:'calendar.spond_team',platform:'calendar',identityKind:'registry',registryId:'registry-spond',configEntryId:'config-spond',validatedContractVersion:'0.12.2',referenceCommit:'0d8efdd'},sourceWarning:'home_assistant_spond_bounded_cache_status_and_first_name_identity_limitations'}, 'the registry identity, not the mutable entity ID, is the durable source identity');assert.equal(sources[1]!.provenance.integrationDomain,'home_assistant');assert.equal(sources[1]!.sourceWarning,undefined,'Spond-specific warnings do not leak onto general calendars');
+  for(const identity of ['registry-samvev','entity:calendar.samvev'])await assert.rejects(client.listEvents(config,token.accessToken,identity,{from:'2026-10-01T00:00:00Z',to:'2026-12-01T00:00:00Z'}),(error:any)=>error?.details?.reason==='home_assistant_samvev_calendar_loop','native Samvev calendars are never imported back');
   const events=await client.listEvents(config,token.accessToken,sources[0]!.externalId,{from:'2026-10-01T00:00:00.000Z',to:'2026-12-01T00:00:00.000Z'});
   assert.deepEqual(events,[
     {uid:'spond-event-1',instanceId:'single',identityKind:'provider',title:'🟡 Practice',start:'2026-10-15T16:00:00+02:00',end:'2026-10-15T17:30:00+02:00',allDay:false,cancelled:false,location:'Sports hall'},

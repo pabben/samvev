@@ -1,0 +1,59 @@
+name: samvev-m1
+
+x-runner: &runner
+  image: ${SAMVEV_HA_TEST_IMAGE:-samvev-m1/ha-bridge-tests:local}
+  build:
+    context: ../..
+    target: development
+  working_dir: /workspace
+  init: true
+  environment:
+    DATABASE_URL: postgresql://samvev_test:synthetic-test-data-only@test-db:5432/samvev_test
+    SAMVEV_DEMO_MODE: "true"
+  volumes:
+    - ../../services:/workspace/services
+    - ../../packages:/workspace/packages
+    - ../../tests/ha-bridge:/workspace/tests/ha-bridge
+  networks: [ha-bridge-isolated]
+  labels:
+    com.samvev.environment: ha-bridge-isolated-test
+
+services:
+  ha-bridge-db:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_DB: samvev_test
+      POSTGRES_USER: samvev_test
+      POSTGRES_PASSWORD: synthetic-test-data-only
+    tmpfs: [/var/lib/postgresql/data]
+    networks:
+      ha-bridge-isolated:
+        aliases: [test-db]
+    labels:
+      com.samvev.environment: ha-bridge-isolated-test
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U samvev_test -d samvev_test]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    mem_limit: 384m
+
+  ha-bridge-check:
+    <<: *runner
+    command: [npm, run, check]
+    depends_on:
+      ha-bridge-db: {condition: service_healthy}
+
+  ha-bridge-api:
+    <<: *runner
+    command: [node, --import, tsx, tests/ha-bridge/server.mts]
+    ports: ["127.0.0.1:${SAMVEV_HA_TEST_PORT:-4193}:4193"]
+    depends_on:
+      ha-bridge-db: {condition: service_healthy}
+
+networks:
+  ha-bridge-isolated:
+    name: samvev-m1-ha-bridge-isolated
+    labels:
+      com.docker.compose.project: samvev-m1
+      com.samvev.environment: ha-bridge-isolated-test

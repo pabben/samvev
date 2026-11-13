@@ -1,4 +1,36 @@
-# Spond via Home Assistant – valgfri Samvev-kobling
+# Home Assistant – valgfri Samvev-kobling
+
+## Native HA-entiteter for handleliste, beskjeder og kalender
+
+Det separate repoet [samvev-homeassistant](https://github.com/pabben/samvev-homeassistant)
+inneholder en installerbar custom integration. Samvevs API for denne adapteren er
+`/api/v1/ha`; [API-kontrakten](implementation/HA_BRIDGE_API.md) dokumenterer
+oppsett, delingsvalg, rettigheter, felt, revisjoner og skrivehandlinger.
+Backend krever migrasjon 047. Adapterens installasjonsveiledning gjelder HACS som
+egendefinert repo og manuell installasjon; ingen HACS-standardgodkjenning påstås.
+
+HA starter forbindelsen til en eksisterende Samvev-installasjon og bruker et eget,
+tilbakekallbart integrasjonstoken. En husstandsadministrator deler eksplisitt den
+eksisterende handlelisten, innholdstyper, lesere og eventuelle importerte
+kalenderkilder. `integration.items.read` alene gir ingen tilgang til dette.
+HA viser standard `todo`- og kalenderentiteter, flere samtidige beskjeder og
+forbindelsesstatus. Avkryssing på handlelisten gir ingen poeng eller godkjenning.
+Opprettede beskjeder og avtaler har forbindelsen som aktør, ikke en antatt
+Samvev-person basert på HA-brukeren. Importerte kalendere er skrivebeskyttet.
+
+Adapteren poller normalt hvert 30. sekund og henter på nytt etter bekreftede
+skrivehandlinger. Dette er et forventet oppdateringsintervall, ikke målt sanntid.
+Kildens egen synkstatus og siste komplette kalenderintervall vises separat.
+Forespørsler utenfor et importert komplett intervall feiler eksplisitt i stedet
+for å vise en ufullstendig kalender som tom. Native Samvev-kalendere med
+`platform=samvev` utelates fra import tilbake til Samvev for å hindre synkløkker.
+
+Isolerte, syntetiske ende-til-ende-tester beskrives i adapterrepoet. Faktisk Shelly
+Wall Display XL og brukerens aktive HA-installasjon er ikke testet som del av
+denne utviklingen. PR #25 for innbygging av `/display` er en separat løsning.
+
+## Spond via Home Assistant
+
 
 Home Assistant er valgfritt. Google og Microsoft kobles direkte uten HA.
 Spond Tracker er allerede installert hos eieren; denne pakken ber ikke om

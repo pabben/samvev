@@ -1260,3 +1260,44 @@ phones list up to three of today's remaining activities instead of one.
 - Idle people are wrapping chips again on landscape displays and member Home. The previous column layout pushed the note/photo row below the 1280×752 screen; long synthetic names still render full width or wrap to their own line inside the card.
 - Member Home below the first screen: the household summary is one row, the week filters sit beside the week navigation, and the week and photo panels use the board glass. "Hele dagen" is hidden visually in the week list too (screen readers still hear it). The photo panel toggle uses a plain "+" so it no longer renders as a missing-glyph box.
 - Checks: `tsc --noEmit`, `npm run check`, 261/261 web unit tests. Not run: Docker display-proof E2E, physical device test.
+
+## Native Home Assistant adapter — 2026-11-12 (isolated development only)
+
+Branch `feat/native-ha-bridge` extends the current `feat/m3-family-hub` baseline
+`a298203` for the separate `pabben/samvev-homeassistant` custom integration. This
+is native HA entity support, separate from PR #25's iframe embedding. It does
+not install into active HA, deploy Samvev or modify production configuration.
+
+Delivered: explicit default-deny household/person/source/list export policy,
+six scoped HA capabilities using existing hashed/revocable credentials, standard
+shopping-board mutations through HouseholdBoardService, connection-authored
+messages using existing lifecycle tables, own events in existing integration_items,
+read-only imported-calendar interval exports and Samvev-calendar import-loop
+prevention. Migration047 is additive. Board receipts/created-by actors identify
+the integration connection; message/event audits also record the credential.
+No HA dashboard user is impersonated as a Samvev person.
+The bounded HA authentication budget also covers the supported50-source polling
+volume while preserving legacy and invalid-token abuse limits.
+
+Main-agent verification: complete workspace typecheck passed; independent QA's
+clean complete API run passed **493/493**, zero skipped/failed. Three actual-server
+roundtrip tests passed against real Samvev HTTP and actual HA entities/actions:
+shopping mutations/CAS/repeated-press protection, member+HA messages/lifecycle,
+native calendar creation/DST/all-day/edit/cancellation, imported calendar complete
+reads/read-only flags, HA reload, narrowing grants and revocation, and actual
+manager provisioning. The HA unit/harness suite separately verifies timed30s
+polling, outage recovery, durable retry metadata and in-flight disclosure fencing.
+
+Actual isolated HA2026.2.3 frontend screenshots were reviewed at1280x752 and390x844,
+light/dark, using only synthetic data. A single measured server-ack-to-dashboard
+update was **24.219s** with a30s polling interval; native checkbox changes were
+confirmed by Samvev. This is not a real-time or maximum-delay guarantee.
+Physical Shelly firmware/touch/session validation remains unverified.
+
+Security review findings were fixed with regressions: write-only response reads,
+calendar writes retaining removed recipients, stale receipt audience reads,
+browser-added display audiences, and delayed HA calendar responses after sharing
+changes. No secret or private household data was introduced. See
+`docs/implementation/HA_BRIDGE_API.md` and ADR0026 for contract, migration and
+rollback boundaries. Adapter validation/screenshots and installation instructions
+live in its separate repository. No merge, tag, release or production deployment.
