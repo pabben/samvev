@@ -30,3 +30,5 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0024](0024-home-assistant-calendar-snapshots-and-temperature.md) | General HA calendar snapshots, waste purposes and selected temperature observations | Accepted for authorized test candidate |
 
 - [0025: Explicit AI reserve and UTC dispatch limit](0025-opt-in-ai-fallback-and-dispatch-limits.md)
+
+- [0026: Native HA entities and explicit export sharing](0026-native-home-assistant-bridge.md)

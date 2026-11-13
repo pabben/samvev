@@ -268,7 +268,7 @@ export type InstallationPublicContactUpdate = z.infer<typeof installationPublicC
 
 export const integrationItemKinds = ['reminder', 'alert', 'event', 'summary', 'list', 'observation'] as const;
 export const integrationItemPriorities = ['low', 'normal', 'high', 'urgent'] as const;
-export const integrationCapabilities = ['integration.items.write', 'integration.items.delete', 'integration.items.read'] as const;
+export const integrationCapabilities = ['integration.items.write', 'integration.items.delete', 'integration.items.read', 'ha.groceries.read', 'ha.groceries.write', 'ha.messages.read', 'ha.messages.write', 'ha.calendar.read', 'ha.calendar.write'] as const;
 export const integrationUncertaintyLevels = ['low', 'medium', 'high', 'unknown'] as const;
 export const integrationItemCategories = ['school', 'childcare', 'activity', 'meal', 'travel', 'weather', 'home', 'other'] as const;
 
