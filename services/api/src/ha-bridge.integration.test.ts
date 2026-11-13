@@ -176,6 +176,147 @@ test('actual second-household content remains isolated and separately revoked cr
 });
 
 
+
+test('explicit shared-native policy edits UI messages with CAS, replay and the original author intact',async()=>{
+  const writer=await createConnection();await setSharing(writer.connectionId);
+  const created=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:admin(),payload:{body:'Synthetic UI-owned message',importance:'normal',audience:{household:true,personIds:[ownerPersonId],displayIds:[]},expiresAt:future(),idempotencyKey:'ui-native-shared-message-0001'}});assert.equal(created.statusCode,201,created.body);const id=created.json().id;
+  const author=(await pool.query('SELECT author_membership_id,author_integration_id FROM messages WHERE id=$1',[id])).rows[0];
+  assert.equal((await machine('GET','snapshot',undefined,writer.token)).json().messages.find((row:any)=>row.id===id).readOnly,true);
+  assert.equal((await machine('PATCH',`messages/${id}`,{body:'Not authorized yet',expectedRevision:1,requestKey:'ui-before-policy-0001'},writer.token)).statusCode,404);
+  await setSharing(writer.connectionId,1,{allowSharedNativeWrites:true,personIds:[ownerPersonId]});
+  const shared=(await machine('GET','snapshot',undefined,writer.token)).json();assert.equal(shared.grants.allowSharedNativeWrites,true);assert.equal(shared.messages.find((row:any)=>row.id===id).readOnly,false);
+  const payload={body:'Synthetic UI message edited by HA',expectedRevision:1,requestKey:'ui-shared-edit-0001'};
+  const edit=await machine('PATCH',`messages/${id}`,payload,writer.token);assert.equal(edit.statusCode,200,edit.body);assert.equal(edit.json().message.authorType,'member');assert.equal(edit.json().message.revision,2);
+  const replay=await machine('PATCH',`messages/${id}`,payload,writer.token);assert.equal(replay.statusCode,200,replay.body);assert.equal(replay.json().message.revision,2);
+  assert.equal((await machine('PATCH',`messages/${id}`,{body:'Stale overwrite',expectedRevision:1,requestKey:'ui-stale-edit-0001'},writer.token)).statusCode,409);
+  const races=await Promise.all(['first','second'].map(value=>machine('PATCH',`messages/${id}`,{body:`Synthetic concurrent ${value}`,expectedRevision:2,requestKey:`ui-race-${value}-0001`},writer.token)));assert.deepEqual(races.map(row=>row.statusCode).sort(),[200,409]);
+  const withdraw={expectedRevision:3,requestKey:'ui-shared-withdraw-0001'};const ended=await machine('POST',`messages/${id}/withdraw`,withdraw,writer.token);assert.equal(ended.statusCode,200,ended.body);assert.equal(ended.json().message.state,'withdrawn');
+  assert.equal((await machine('POST',`messages/${id}/withdraw`,withdraw,writer.token)).statusCode,200,'a committed withdrawal replays its tombstone');
+  const preserved=(await pool.query('SELECT author_membership_id,author_integration_id,revision FROM messages WHERE id=$1',[id])).rows[0];assert.equal(preserved.author_membership_id,author.author_membership_id);assert.equal(preserved.author_integration_id,null);assert.equal(preserved.revision,4);
+  const actors=(await pool.query(`SELECT actor_type,actor_id FROM message_lifecycle_events WHERE message_id=$1 AND actor_type='integration'`,[id])).rows;assert.equal(actors.length,3);assert.ok(actors.every(row=>row.actor_id===writer.connectionId));
+  await setSharing(writer.connectionId,2,{allowSharedNativeWrites:false,personIds:[ownerPersonId]});
+  const deniedReplay=await machine('PATCH',`messages/${id}`,payload,writer.token);assert.equal(deniedReplay.statusCode,404);assert.equal(deniedReplay.body.includes('Synthetic UI message edited by HA'),false);
+  assert.equal((await machine('POST',`messages/${id}/withdraw`,withdraw,writer.token)).statusCode,404);
+});
+
+test('shared UI-message display targets require household authority and worker-created provenance stays read-only',async()=>{
+  const writer=await createConnection();await setSharing(writer.connectionId,0,{allowSharedNativeWrites:true,household:false,personIds:[ownerPersonId]});
+  const display=(await pool.query(`SELECT id FROM displays WHERE household_id=$1 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() LIMIT 1`,[householdId])).rows[0].id;
+  const created=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:admin(),payload:{body:'Synthetic UI display message',importance:'normal',audience:{household:false,personIds:[ownerPersonId],displayIds:[display]},expiresAt:future(),idempotencyKey:'ui-display-shared-0001'}});assert.equal(created.statusCode,201,created.body);const id=created.json().id;
+  assert.equal((await machine('GET','snapshot',undefined,writer.token)).json().messages.find((row:any)=>row.id===id).readOnly,true);
+  assert.equal((await machine('PATCH',`messages/${id}`,{body:'No display authority',expectedRevision:1,requestKey:'ui-display-no-household-0001'},writer.token)).statusCode,403);
+  await setSharing(writer.connectionId,1,{allowSharedNativeWrites:true,household:true,personIds:[ownerPersonId]});
+  await pool.query(`UPDATE message_display_targets SET delivery_state='displayed',delivered_revision=1,displayed_at=clock_timestamp() WHERE message_id=$1`,[id]);
+  const edit=await machine('PATCH',`messages/${id}`,{body:'Synthetic screen content edited',expectedRevision:1,requestKey:'ui-display-edit-0001'},writer.token);assert.equal(edit.statusCode,200,edit.body);
+  const target=(await pool.query('SELECT display_id,delivery_state,delivered_revision FROM message_display_targets WHERE message_id=$1',[id])).rows;assert.equal(target.length,1);assert.equal(target[0].display_id,display);assert.equal(target[0].delivery_state,'queued');assert.equal(target[0].delivered_revision,null);
+  const broaden=await machine('PATCH',`messages/${id}`,{audience:{household:true,personIds:[],displayIds:[display]},expectedRevision:2,requestKey:'ui-display-target-forged-0001'},writer.token);assert.equal(broaden.statusCode,400,'HA cannot add or replace display targets');
+  const generated=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:admin(),payload:{body:'Synthetic worker-owned output',importance:'normal',audience:{household:true,personIds:[],displayIds:[]},expiresAt:future(),idempotencyKey:'synthetic-worker-provenance-0001'}});assert.equal(generated.statusCode,201,generated.body);const generatedId=generated.json().id;
+  // Match monitor/engine.ts provenance: its creation is worker-attributed even
+  // though the persisted author_membership_id names the task owner.
+  await pool.query(`UPDATE message_lifecycle_events SET actor_type='worker',actor_id=NULL WHERE message_id=$1 AND from_state IS NULL`,[generatedId]);
+  const rows=(await machine('GET','snapshot',undefined,writer.token)).json().messages;assert.equal(rows.find((row:any)=>row.id===generatedId).authorType,'member');assert.equal(rows.find((row:any)=>row.id===generatedId).readOnly,true);
+  assert.equal((await machine('PATCH',`messages/${generatedId}`,{body:'Must not edit worker output',expectedRevision:1,requestKey:'worker-output-edit-denied-0001'},writer.token)).statusCode,403);
+  assert.equal((await machine('POST',`messages/${generatedId}/withdraw`,{expectedRevision:1,requestKey:'worker-output-withdraw-denied-0001'},writer.token)).statusCode,403);
+  const foreign=(await pool.query('SELECT id FROM messages WHERE household_id<>$1 LIMIT 1',[householdId])).rows[0];assert.ok(foreign);assert.equal((await machine('PATCH',`messages/${foreign.id}`,{body:'Cross-household denied',expectedRevision:1,requestKey:'shared-cross-household-message-0001'},writer.token)).statusCode,404);
+});
+
+test('shared native calendar writes preserve the source, reject narrower audiences and reauthorize tombstone retries',async()=>{
+  const producer=await createConnection(),writer=await createConnection();await setSharing(producer.connectionId,0,{personIds:[ownerPersonId]});await setSharing(writer.connectionId,0,{personIds:[ownerPersonId]});
+  const payload={summary:'Synthetic other-connection native event',start:'2027-06-01',end:'2027-06-02',description:'Native source content',requestKey:'shared-native-event-create-0001'};
+  const created=await machine('POST','calendars/samvev/events',payload,producer.token);assert.equal(created.statusCode,201,created.body);const id=created.json().event.id;
+  const source=(await pool.query('SELECT connection_id,external_id,source FROM integration_items WHERE id=$1',[id])).rows[0];
+  const range='calendars/samvev/events?start=2027-05-31T22:00:00Z&end=2027-06-02T22:00:00Z';
+  assert.equal((await machine('GET',range,undefined,writer.token)).json().events.find((row:any)=>row.id===id).readOnly,true);
+  assert.equal((await machine('PATCH',`calendars/samvev/events/${id}`,{summary:'Not yet permitted',expectedRevision:1,requestKey:'shared-event-before-policy-0001'},writer.token)).statusCode,404);
+  await setSharing(writer.connectionId,1,{allowSharedNativeWrites:true,personIds:[]});
+  assert.equal((await machine('GET',range,undefined,writer.token)).json().events.find((row:any)=>row.id===id).readOnly,true,'one readable audience does not authorize changing all original targets');
+  assert.equal((await machine('PATCH',`calendars/samvev/events/${id}`,{summary:'Unshared person denied',expectedRevision:1,requestKey:'shared-event-narrow-policy-0001'},writer.token)).statusCode,403);
+  await setSharing(writer.connectionId,2,{allowSharedNativeWrites:true,personIds:[ownerPersonId]});
+  assert.equal((await machine('GET',range,undefined,writer.token)).json().events.find((row:any)=>row.id===id).readOnly,false);
+  const update={summary:'Synthetic shared event edited',expectedRevision:1,requestKey:'shared-native-event-edit-0001'};
+  const edited=await machine('PATCH',`calendars/samvev/events/${id}`,update,writer.token);assert.equal(edited.statusCode,200,edited.body);assert.equal(edited.json().event.revision,2);
+  assert.equal((await machine('PATCH',`calendars/samvev/events/${id}`,update,writer.token)).statusCode,200);
+  assert.equal((await machine('PATCH',`calendars/samvev/events/${id}`,{summary:'Stale native edit',expectedRevision:1,requestKey:'shared-native-event-stale-0001'},writer.token)).statusCode,409);
+  const preserved=(await pool.query('SELECT connection_id,external_id,source FROM integration_items WHERE id=$1',[id])).rows[0];assert.deepEqual(preserved,source);
+  assert.ok((await pool.query(`SELECT 1 FROM audit_events WHERE subject_id=$1 AND actor_type='integration' AND actor_id=$2 AND action='ha.event_edited'`,[id,writer.connectionId])).rowCount);
+  const removal={expectedRevision:2,requestKey:'shared-native-event-delete-0001'};assert.equal((await machine('DELETE',`calendars/samvev/events/${id}`,removal,writer.token)).statusCode,200);
+  assert.equal((await machine('DELETE',`calendars/samvev/events/${id}`,removal,writer.token)).statusCode,200,'withdrawn native row remains a retry witness');
+  await setSharing(writer.connectionId,3,{allowSharedNativeWrites:false,personIds:[ownerPersonId]});
+  assert.equal((await machine('DELETE',`calendars/samvev/events/${id}`,removal,writer.token)).statusCode,404);
+  await setSharing(writer.connectionId,4,{allowSharedNativeWrites:true,personIds:[ownerPersonId]});
+  const foreign=(await pool.query(`SELECT id FROM integration_items WHERE household_id<>$1 AND kind='event' LIMIT 1`,[householdId])).rows[0];assert.ok(foreign);assert.equal((await machine('DELETE',`calendars/samvev/events/${foreign.id}`,{expectedRevision:1,requestKey:'shared-cross-household-event-0001'},writer.token)).statusCode,404);
+});
+
+test('shared-native full powers never permit provider occurrences or generic producers even with a forged native marker',async()=>{
+  const writer=await createConnection();await setSharing(writer.connectionId,0,{allowSharedNativeWrites:true,personIds:[ownerPersonId]});
+  const imported=(await pool.query(`SELECT item.id,occurrence.source_id FROM integration_items item JOIN calendar_occurrences occurrence ON occurrence.integration_item_id=item.id WHERE item.household_id=$1 AND item.status='active' LIMIT 1`,[householdId])).rows[0];assert.ok(imported);
+  await pool.query(`UPDATE integration_items SET metadata=jsonb_set(metadata,'{haBridge}','true') WHERE id=$1`,[imported.id]);
+  for(const method of ['PATCH','DELETE'] as const){const denied=await machine(method,`calendars/samvev/events/${imported.id}`,{...(method==='PATCH'?{summary:'Forbidden provider edit'}:{}),expectedRevision:1,requestKey:`shared-provider-${method.toLowerCase()}-0001`},writer.token);assert.equal(denied.statusCode,403,denied.body);}
+  const producer=await createConnection();await setSharing(producer.connectionId);
+  const nativePayload={summary:'Synthetic native later reclassified',start:'2027-07-01',end:'2027-07-02',requestKey:'reclassified-native-create-0001'};
+  const native=await machine('POST','calendars/samvev/events',nativePayload,producer.token);assert.equal(native.statusCode,201,native.body);const nativeId=native.json().event.id;
+  await pool.query(`UPDATE integration_items SET metadata=jsonb_set(metadata,'{calendar}','{"provider":"google"}') WHERE id=$1`,[nativeId]);
+  const range='calendars/samvev/events?start=2027-06-30T22:00:00Z&end=2027-07-02T22:00:00Z';assert.equal((await machine('GET',range,undefined,writer.token)).json().events.find((row:any)=>row.id===nativeId).readOnly,true);
+  assert.equal((await machine('POST','calendars/samvev/events',nativePayload,producer.token)).statusCode,403,'old native receipt cannot bypass a current provider source marker');
+  // Remove calendar metadata but retain a real occurrence relation. This
+  // independently proves that haBridge=true is not sufficient authority.
+  await pool.query(`UPDATE integration_items SET metadata=metadata-'calendar' WHERE id=$1`,[imported.id]);
+  assert.equal((await machine('PATCH',`calendars/samvev/events/${imported.id}`,{summary:'Occurrence still immutable',expectedRevision:1,requestKey:'shared-occurrence-forged-0001'},writer.token)).statusCode,403);
+  const generic=(await pool.query(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,priority,starts_at,ends_at,source,metadata,request_hash)
+    VALUES($1,$2,'synthetic-generic-source-event','event',true,'Synthetic generic event','Generic producer content','normal','2027-07-01','2027-07-02','{}','{"haBridge":true}',repeat('b',64)) RETURNING id`,[householdId,producer.connectionId])).rows[0].id;
+  assert.equal((await machine('GET',range,undefined,writer.token)).json().events.find((row:any)=>row.id===generic).readOnly,true);
+  assert.equal((await pool.query('SELECT ha_native_origin FROM integration_items WHERE id=$1',[generic])).rows[0].ha_native_origin,false,'a forged producer JSON marker cannot set server-owned creation provenance');
+  assert.equal((await machine('PATCH',`calendars/samvev/events/${generic}`,{summary:'Generic event denied',expectedRevision:1,requestKey:'shared-generic-producer-0001'},writer.token)).statusCode,403);
+});
+
+
+async function waitForHaLock(fragment:string){
+  for(let attempt=0;attempt<200;attempt++){
+    const blocked=await pool.query(`SELECT 1 FROM pg_stat_activity WHERE application_name='samvev-api' AND state='active' AND wait_event_type='Lock' AND query ILIKE $1`,[`%${fragment}%`]);
+    if(blocked.rowCount)return;
+    await pool.query('SELECT pg_sleep(0.01)');
+  }
+  throw new Error('Synthetic HA lock wait was not observed');
+}
+
+test('display revocation winning its row lock prevents a shared UI-message edit',async()=>{
+  const writer=await createConnection();await setSharing(writer.connectionId,0,{allowSharedNativeWrites:true});
+  const setup=(await pool.query(`INSERT INTO display_setups(household_id,name,locale,theme) VALUES($1,'Synthetic race setup','en','light') RETURNING id`,[householdId])).rows[0].id;
+  const display=(await pool.query(`INSERT INTO displays(household_id,name,setup_id,credential_hash,credential_expires_at) VALUES($1,'Synthetic revocation race',$2,repeat('1',64),clock_timestamp()+interval '1 hour') RETURNING id`,[householdId,setup])).rows[0].id;
+  const created=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:admin(),payload:{body:'Synthetic original race message',importance:'normal',audience:{household:true,personIds:[],displayIds:[display]},expiresAt:future(),idempotencyKey:'ui-display-revoke-race-0001'}});assert.equal(created.statusCode,201,created.body);const id=created.json().id;
+  const blocker=await pool.connect();let pending:Promise<LightMyRequestResponse>|undefined;
+  try{
+    await blocker.query('BEGIN');await blocker.query('SELECT id FROM displays WHERE id=$1 FOR UPDATE',[display]);
+    pending=machine('PATCH',`messages/${id}`,{body:'Must roll back revoked display edit',expectedRevision:1,requestKey:'ui-display-revoke-race-edit-0001'},writer.token);
+    await waitForHaLock('FOR SHARE OF display');await blocker.query('UPDATE displays SET revoked_at=clock_timestamp() WHERE id=$1',[display]);await blocker.query('COMMIT');
+    const response=await pending;assert.equal(response.statusCode,403,response.body);
+  }finally{await blocker.query('ROLLBACK');blocker.release();if(pending)await pending;}
+  const unchanged=(await pool.query('SELECT body,revision FROM messages WHERE id=$1',[id])).rows[0];assert.equal(unchanged.revision,1);assert.equal(unchanged.body,'Synthetic original race message');
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM integration_ha_requests WHERE connection_id=$1 AND request_key=$2',[writer.connectionId,'ui-display-revoke-race-edit-0001'])).rows[0].count,0);
+});
+
+test('display expiry during a blocked target reset rolls back the shared edit and its receipt',async()=>{
+  const writer=await createConnection();await setSharing(writer.connectionId,0,{allowSharedNativeWrites:true});
+  const setup=(await pool.query(`INSERT INTO display_setups(household_id,name,locale,theme) VALUES($1,'Synthetic expiry setup','en','light') RETURNING id`,[householdId])).rows[0].id;
+  const display=(await pool.query(`INSERT INTO displays(household_id,name,setup_id,credential_hash,credential_expires_at) VALUES($1,'Synthetic expiry race',$2,repeat('2',64),clock_timestamp()+interval '1 hour') RETURNING id`,[householdId,setup])).rows[0].id;
+  const created=await app.inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:admin(),payload:{body:'Synthetic before target wait',importance:'normal',audience:{household:true,personIds:[],displayIds:[display]},expiresAt:future(),idempotencyKey:'ui-display-expiry-race-0001'}});assert.equal(created.statusCode,201,created.body);const id=created.json().id;
+  await pool.query(`UPDATE displays SET credential_expires_at=clock_timestamp()+interval '700 milliseconds' WHERE id=$1`,[display]);
+  const blocker=await pool.connect();let pending:Promise<LightMyRequestResponse>|undefined;
+  try{
+    await blocker.query('BEGIN');await blocker.query('SELECT message_id FROM message_display_targets WHERE message_id=$1 FOR UPDATE',[id]);
+    pending=machine('PATCH',`messages/${id}`,{body:'Must not commit after expiry',expectedRevision:1,requestKey:'ui-display-expiry-race-edit-0001'},writer.token);
+    await waitForHaLock('UPDATE message_display_targets SET delivery_state');
+    for(let attempt=0;attempt<200;attempt++){
+      if((await pool.query('SELECT credential_expires_at<=clock_timestamp() AS expired FROM displays WHERE id=$1',[display])).rows[0].expired)break;
+      await pool.query('SELECT pg_sleep(0.01)');
+    }
+    assert.equal((await pool.query('SELECT credential_expires_at<=clock_timestamp() AS expired FROM displays WHERE id=$1',[display])).rows[0].expired,true);
+    await blocker.query('COMMIT');const response=await pending;assert.equal(response.statusCode,403,response.body);
+  }finally{await blocker.query('ROLLBACK');blocker.release();if(pending)await pending;}
+  const unchanged=(await pool.query('SELECT body,revision FROM messages WHERE id=$1',[id])).rows[0];assert.equal(unchanged.revision,1);assert.equal(unchanged.body,'Synthetic before target wait');
+  assert.equal((await pool.query('SELECT count(*)::int AS count FROM integration_ha_requests WHERE connection_id=$1 AND request_key=$2',[writer.connectionId,'ui-display-expiry-race-edit-0001'])).rows[0].count,0);
+});
+
 test('HA polling authenticates 105 valid reads without consuming the legacy IP budget',async()=>{
   // 50 imported sources + native calendar + snapshot, twice each minute, plus
   // the connection handshake. This is within the advertised sharing maximum.

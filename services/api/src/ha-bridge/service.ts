@@ -19,11 +19,11 @@ interface Dependencies{
   rateLimit:(bucket:string,key:string,limit:number,window:number)=>Promise<void>;
 }
 interface HaCalendar{id:string;name:string;writable:boolean;freshness?:string;lastSyncSucceededAt?:string|null;errorCode?:string|null;lastCompleteWindow?:{from:string;to:string}|null;}
-export interface HaSharing{revision:number;listIds:string[];household:boolean;personIds:string[];calendarSourceIds:string[];}
-const emptySharing=():HaSharing=>({revision:0,listIds:[],household:false,personIds:[],calendarSourceIds:[]});
+export interface HaSharing{revision:number;listIds:string[];household:boolean;personIds:string[];calendarSourceIds:string[];allowSharedNativeWrites:boolean;}
+const emptySharing=():HaSharing=>({revision:0,listIds:[],household:false,personIds:[],calendarSourceIds:[],allowSharedNativeWrites:false});
 const uuid=z.uuid();
 const uniqueIds=z.array(uuid).max(50).refine(values=>new Set(values).size===values.length,'duplicate_ids');
-const sharingSchema=z.object({expectedRevision:z.number().int().nonnegative(),listIds:z.array(z.literal('groceries')).max(1),household:z.boolean(),personIds:uniqueIds,calendarSourceIds:uniqueIds}).strict();
+const sharingSchema=z.object({expectedRevision:z.number().int().nonnegative(),listIds:z.array(z.literal('groceries')).max(1),household:z.boolean(),personIds:uniqueIds,calendarSourceIds:uniqueIds,allowSharedNativeWrites:z.boolean().default(false)}).strict();
 const requestKey=z.string().min(8).max(128);
 const revision=z.number().int().positive();
 const instant=z.iso.datetime({offset:true});
@@ -43,21 +43,42 @@ function conflict():never{throw new DomainError('REVISION_CONFLICT',409);}
 function requireAudience(grants:HaSharing,value:{household:boolean;personIds:string[]}){
   if(value.household&&!grants.household||value.personIds.some(id=>!grants.personIds.includes(id)))throw new DomainError('FORBIDDEN',403,{reason:'ha_audience_not_shared'});
 }
-interface MessageRow{id:string;body:string;importance:string;audience_household:boolean;person_ids:string[];publish_at:Date;expires_at:Date;state:string;revision:number;author_name:string;author_type:string;author_integration_id:string|null;has_display_targets:boolean;}
+interface MessageRow{id:string;body:string;importance:string;audience_household:boolean;person_ids:string[];publish_at:Date;expires_at:Date;state:string;revision:number;author_name:string;author_type:string;author_integration_id:string|null;has_display_targets:boolean;invalid_display_targets:boolean;native_authored:boolean;}
 const messageColumns=`m.id,m.body,m.importance,m.audience_household,m.publish_at,m.expires_at,m.state,m.revision,m.author_integration_id,
   COALESCE(person.display_name,m.author_display_name,m.author_integration_name) AS author_name,
   CASE WHEN m.author_integration_id IS NOT NULL THEN 'integration' WHEN m.author_display_id IS NOT NULL THEN 'display' ELSE 'member' END AS author_type,
   COALESCE((SELECT array_agg(pa.person_id ORDER BY pa.person_id) FROM message_person_audiences pa WHERE pa.message_id=m.id),ARRAY[]::uuid[]) AS person_ids,
-  EXISTS(SELECT 1 FROM message_display_targets target WHERE target.message_id=m.id AND target.delivery_state IN ('queued','delivered','displayed')) AS has_display_targets`;
+  EXISTS(SELECT 1 FROM message_display_targets target WHERE target.message_id=m.id AND target.delivery_state IN ('queued','delivered','displayed')) AS has_display_targets,
+  EXISTS(SELECT 1 FROM message_display_targets target LEFT JOIN displays display ON display.id=target.display_id AND display.household_id=m.household_id
+    WHERE target.message_id=m.id AND target.delivery_state IN ('queued','delivered','displayed') AND
+      (display.id IS NULL OR display.revoked_at IS NOT NULL OR display.credential_expires_at IS NULL OR display.credential_expires_at<=clock_timestamp())) AS invalid_display_targets,
+  (EXISTS(SELECT 1 FROM message_lifecycle_events creation WHERE creation.message_id=m.id AND creation.from_state IS NULL AND creation.actor_type IN ('account','display','integration'))
+    AND NOT EXISTS(SELECT 1 FROM message_lifecycle_events creation WHERE creation.message_id=m.id AND creation.from_state IS NULL AND creation.actor_type IN ('worker','system'))) AS native_authored`;
 const messageJoins=`LEFT JOIN memberships author ON author.id=m.author_membership_id LEFT JOIN persons person ON person.id=author.person_id AND person.household_id=m.household_id`;
-function mapMessage(row:MessageRow){return{id:row.id,body:row.body,authorName:row.author_name,authorType:row.author_type,audience:{household:row.audience_household,personIds:row.person_ids},publishAt:row.publish_at.toISOString(),expiresAt:row.expires_at.toISOString(),importance:row.importance,state:row.state,revision:row.revision};}
-interface EventRow{id:string;connection_id:string;title:string;body:string;starts_at:Date;ends_at:Date|null;metadata:Record<string,unknown>;revision:number;provider?:string;}
-function mapEvent(row:EventRow,context:HaIntegrationContext){
+function audienceReadable(grants:HaSharing,value:{household:boolean;personIds:string[]}){return grants.household&&value.household||value.personIds.some(id=>grants.personIds.includes(id));}
+function audienceWithin(grants:HaSharing,value:{household:boolean;personIds:string[]}){return(!value.household||grants.household)&&value.personIds.every(id=>grants.personIds.includes(id));}
+function writeCapabilities(context:HaIntegrationContext,kind:'messages'|'calendar'){return context.capabilities.includes(`ha.${kind}.read`)&&context.capabilities.includes(`ha.${kind}.write`);}
+function messageWritable(row:MessageRow,context:HaIntegrationContext,grants:HaSharing,includeEnded=false){
+  const targets={household:row.audience_household,personIds:row.person_ids};
+  return writeCapabilities(context,'messages')&&row.native_authored&&(row.author_integration_id===context.connectionId||grants.allowSharedNativeWrites)
+    &&audienceReadable(grants,targets)&&audienceWithin(grants,targets)
+    &&(!row.has_display_targets||grants.allowSharedNativeWrites&&grants.household&&!row.invalid_display_targets)
+    &&(includeEnded||['published','scheduled'].includes(row.state)&&row.expires_at>new Date());
+}
+function mapMessage(row:MessageRow,context:HaIntegrationContext,grants:HaSharing){return{id:row.id,body:row.body,authorName:row.author_name,authorType:row.author_type,audience:{household:row.audience_household,personIds:row.person_ids},publishAt:row.publish_at.toISOString(),expiresAt:row.expires_at.toISOString(),importance:row.importance,state:row.state,revision:row.revision,readOnly:!messageWritable(row,context,grants)};}
+interface EventRow{id:string;connection_id:string;title:string;body:string;starts_at:Date;ends_at:Date|null;metadata:Record<string,unknown>;revision:number;provider?:string;target_household:boolean;person_ids:string[];status:string;source_active:boolean;has_occurrence:boolean;ha_native_origin:boolean;}
+function eventWritable(row:EventRow,context:HaIntegrationContext,grants:HaSharing,includeEnded=false){
+  const targets={household:row.target_household,personIds:row.person_ids};
+  return writeCapabilities(context,'calendar')&&row.source_active&&row.ha_native_origin===true&&row.metadata.haBridge===true&&!Object.hasOwn(row.metadata,'calendar')&&!row.has_occurrence
+    &&(row.connection_id===context.connectionId||grants.allowSharedNativeWrites)&&audienceReadable(grants,targets)&&audienceWithin(grants,targets)
+    &&(includeEnded||row.status==='active');
+}
+function mapEvent(row:EventRow,context:HaIntegrationContext,grants:HaSharing,includeAudience=false){
   const allDay=row.metadata.allDay===true&&(row.metadata.calendar!==undefined||row.metadata.haBridge===true);
   const start=allDay?row.starts_at.toISOString().slice(0,10):row.starts_at.toISOString();
   const fallbackEnd=new Date(row.starts_at.getTime()+(allDay?86400_000:1));
   const end=allDay?(row.ends_at??fallbackEnd).toISOString().slice(0,10):(row.ends_at??fallbackEnd).toISOString();
-  return{id:row.id,summary:row.title,start,end,description:row.metadata.haDescriptionEmpty===true?'':typeof row.metadata.haDescription==='string'?row.metadata.haDescription:row.body,location:typeof row.metadata.location==='string'?row.metadata.location:'',revision:row.revision,readOnly:row.connection_id!==context.connectionId||row.metadata.haBridge!==true||!context.capabilities.includes('ha.calendar.write'),source:row.provider??'samvev'};
+  return{id:row.id,summary:row.title,start,end,description:row.metadata.haDescriptionEmpty===true?'':typeof row.metadata.haDescription==='string'?row.metadata.haDescription:row.body,location:typeof row.metadata.location==='string'?row.metadata.location:'',revision:row.revision,readOnly:!eventWritable(row,context,grants),source:row.provider??'samvev',...(includeAudience?{audience:{household:row.target_household,personIds:row.person_ids}}:{})};
 }
 function eventDates(start:string,end:string){
   const allDay=start.length===10;if(allDay!==(end.length===10)||end<=start&&allDay)throw new DomainError('VALIDATION_FAILED',400,{reason:'calendar_event_time_invalid'});
@@ -70,7 +91,7 @@ function eventDates(start:string,end:string){
 export class HaBridgeService{
   constructor(private readonly dependencies:Dependencies){}
   private async sharing(client:DbClient,context:HaIntegrationContext):Promise<HaSharing>{
-    const row=(await client.query<HaSharing>(`SELECT revision,list_ids AS "listIds",household,person_ids AS "personIds",calendar_source_ids AS "calendarSourceIds" FROM integration_ha_sharing WHERE connection_id=$1 AND household_id=$2 FOR UPDATE`,[context.connectionId,context.householdId])).rows[0];
+    const row=(await client.query<HaSharing>(`SELECT revision,list_ids AS "listIds",household,person_ids AS "personIds",calendar_source_ids AS "calendarSourceIds",allow_shared_native_writes AS "allowSharedNativeWrites" FROM integration_ha_sharing WHERE connection_id=$1 AND household_id=$2 FOR UPDATE`,[context.connectionId,context.householdId])).rows[0];
     return row??emptySharing();
   }
   private async authorize(client:DbClient,context:HaIntegrationContext,capability:IntegrationCapability):Promise<HaSharing>{
@@ -115,9 +136,22 @@ export class HaBridgeService{
       lastSyncSucceededAt:source.last_sync_succeeded_at?.toISOString()??null,errorCode:source.error_code,
       lastCompleteWindow:source.last_complete_window_from&&source.last_complete_window_to?{from:source.last_complete_window_from.toISOString(),to:source.last_complete_window_to.toISOString()}:null}))];
   }
-  private async mutation<T>(context:HaIntegrationContext,capability:IntegrationCapability,input:{requestKey:string;expectedRevision?:number},operation:unknown,run:(client:pg.PoolClient,grants:HaSharing)=>Promise<T>):Promise<T>{
+  private async mutation<T>(context:HaIntegrationContext,capability:IntegrationCapability,input:{requestKey:string;expectedRevision?:number},operation:unknown,run:(client:pg.PoolClient,grants:HaSharing,protectDisplays:(messageId:string)=>Promise<void>)=>Promise<T>):Promise<T>{
     return transaction(async(client)=>{
       const grants=await this.authorize(client,context,capability);
+      const displayWitnesses=new Set<string>();
+      const protectDisplays=async(messageId:string)=>{
+        const displays=(await client.query<{id:string}>(`SELECT display.id FROM message_display_targets target JOIN displays display
+          ON display.id=target.display_id AND display.household_id=target.household_id
+          WHERE target.message_id=$1 AND target.household_id=$2 AND target.delivery_state IN ('queued','delivered','displayed') ORDER BY display.id FOR SHARE OF display`,[messageId,context.householdId])).rows;
+        for(const display of displays)displayWitnesses.add(display.id);
+        await assertDisplays();
+      };
+      const assertDisplays=async()=>{
+        if(!displayWitnesses.size)return;
+        const valid=await client.query(`SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL AND credential_expires_at>clock_timestamp()`,[context.householdId,[...displayWitnesses]]);
+        if(valid.rowCount!==displayWitnesses.size)throw new DomainError('FORBIDDEN',403,{reason:'ha_display_authority_changed'});
+      };
       const {expectedRevision:_,requestKey:key,...payload}=input;
       const hash=payloadHash({operation,payload});
       const old=(await client.query<{request_hash:string;response:T}>(`SELECT request_hash,response FROM integration_ha_requests WHERE connection_id=$1 AND request_key=$2 FOR UPDATE`,[context.connectionId,key])).rows[0];
@@ -125,30 +159,32 @@ export class HaBridgeService{
         if(old.request_hash!==hash)throw new DomainError('CONFLICT',409,{reason:'idempotency_payload_mismatch'});
         // Durable receipts are protected content too: narrower sharing must not
         // reveal an old successful response after its resource was unshared.
-        const receipt=old.response as {message?:{audience:{household:boolean;personIds:string[]}};event?:{id:string;summary?:string}};
-        if(receipt.message){requireAudience(grants,receipt.message.audience);const current=await this.getMessage(client,context,(old.response as {message:{id:string}}).message.id);this.authorizeMessageMutation(current,context,grants);}
+        const receipt=old.response as {message?:{audience:{household:boolean;personIds:string[]}};event?:{id:string;summary?:string;audience?:{household:boolean;personIds:string[]}}};
+        if(receipt.message){requireAudience(grants,receipt.message.audience);const current=await this.getMessage(client,context,(old.response as {message:{id:string}}).message.id);this.authorizeMessageMutation(current,context,grants,true);await protectDisplays(current.id);}
         if(receipt.event){
-          const original=(await client.query<{target_household:boolean;person_ids:string[]}>(`SELECT i.target_household,
-            COALESCE((SELECT array_agg(target.person_id ORDER BY target.person_id) FROM integration_item_person_targets target WHERE target.item_id=i.id),ARRAY[]::uuid[]) AS person_ids
-            FROM integration_items i WHERE i.id=$1 AND i.household_id=$2 AND i.connection_id=$3`,[receipt.event.id,context.householdId,context.connectionId])).rows[0];
-          if(!original)throw new DomainError('FORBIDDEN',403);
-          requireAudience(grants,{household:original.target_household,personIds:original.person_ids});
+          const original=await this.writableEvent(client,context,grants,receipt.event.id,true);
+          if(receipt.event.audience)requireAudience(grants,receipt.event.audience);
+          // Pre-048 receipts cannot be shared-author writes. New cross-author
+          // receipts retain original targets as well as checking current ones.
+          else if(original.connection_id!==context.connectionId)throw new DomainError('FORBIDDEN',403);
         }
-        await this.authorize(client,context,capability);return old.response;
+        await this.authorize(client,context,capability);await assertDisplays();return old.response;
       }
-      const result=await run(client,grants);
+      const result=await run(client,grants,protectDisplays);
       await this.authorize(client,context,capability);
+      await assertDisplays();
       await client.query(`INSERT INTO integration_ha_requests(household_id,connection_id,request_key,request_hash,response) VALUES($1,$2,$3,$4,$5::jsonb)`,[context.householdId,context.connectionId,key,hash,JSON.stringify(result)]);
       return result;
+    }).catch((error:unknown)=>{
+      if((error as {code?:string})?.code==='40P01')throw new DomainError('CONFLICT',409,{reason:'ha_authority_concurrency_retry'});
+      throw error;
     });
   }
-  private async getMessage(client:DbClient,context:HaIntegrationContext,id:string){return(await client.query<MessageRow>(`SELECT ${messageColumns} FROM messages m ${messageJoins} WHERE m.id=$1 AND m.household_id=$2`,[id,context.householdId])).rows[0]!;}
-  private authorizeMessageMutation(row:MessageRow|undefined,context:HaIntegrationContext,grants:HaSharing){
-    if(!row||row.author_integration_id!==context.connectionId)throw new DomainError('NOT_FOUND',404);
-    requireAudience(grants,{household:row.audience_household,personIds:row.person_ids});
-    // A browser administrator may later add display recipients. The bridge has
-    // no display-target write grant and cannot change delivery to those screens.
-    if(row.has_display_targets)throw new DomainError('FORBIDDEN',403,{reason:'ha_display_audience_not_shared'});
+  private async getMessage(client:DbClient,context:HaIntegrationContext,id:string){return(await client.query<MessageRow>(`SELECT ${messageColumns} FROM messages m ${messageJoins} WHERE m.id=$1 AND m.household_id=$2 FOR SHARE OF m`,[id,context.householdId])).rows[0]!;}
+  private authorizeMessageMutation(row:MessageRow|undefined,context:HaIntegrationContext,grants:HaSharing,includeEnded=false){
+    if(!row)throw new DomainError('NOT_FOUND',404);
+    if(row.author_integration_id!==context.connectionId&&!grants.allowSharedNativeWrites)throw new DomainError('NOT_FOUND',404);
+    if(!messageWritable(row,context,grants,includeEnded))throw new DomainError('FORBIDDEN',403,{reason:'ha_native_message_not_writable'});
   }
 
   private async lifecycle(client:DbClient,context:HaIntegrationContext,id:string,from:string|null,to:string,revision:number,action:string){
@@ -183,8 +219,8 @@ export class HaBridgeService{
         const people=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.personIds]);
         const sources=await client.query('SELECT id FROM calendar_sources WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.calendarSourceIds]);
         if(people.rowCount!==body.personIds.length||sources.rowCount!==body.calendarSourceIds.length)throw new DomainError('NOT_FOUND',404);
-        await client.query(`INSERT INTO integration_ha_sharing(household_id,connection_id,list_ids,household,person_ids,calendar_source_ids) VALUES($1,$2,$3,$4,$5,$6)
-          ON CONFLICT(connection_id) DO UPDATE SET list_ids=EXCLUDED.list_ids,household=EXCLUDED.household,person_ids=EXCLUDED.person_ids,calendar_source_ids=EXCLUDED.calendar_source_ids,revision=integration_ha_sharing.revision+1,updated_at=clock_timestamp()`,[auth.householdId,connectionId,JSON.stringify(body.listIds),body.household,body.personIds,body.calendarSourceIds]);
+        await client.query(`INSERT INTO integration_ha_sharing(household_id,connection_id,list_ids,household,person_ids,calendar_source_ids,allow_shared_native_writes) VALUES($1,$2,$3,$4,$5,$6,$7)
+          ON CONFLICT(connection_id) DO UPDATE SET list_ids=EXCLUDED.list_ids,household=EXCLUDED.household,person_ids=EXCLUDED.person_ids,calendar_source_ids=EXCLUDED.calendar_source_ids,allow_shared_native_writes=EXCLUDED.allow_shared_native_writes,revision=integration_ha_sharing.revision+1,updated_at=clock_timestamp()`,[auth.householdId,connectionId,JSON.stringify(body.listIds),body.household,body.personIds,body.calendarSourceIds,body.allowSharedNativeWrites]);
         await this.dependencies.recheckHouseholdAuth(client,request,auth,'household.manage');
         await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id) VALUES($1,$2,'account',$3,'ha.sharing_updated','integration_connection',$4)`,[auth.installationId,auth.householdId,auth.accountId,connectionId]);
         return this.sharing(client,context);
@@ -210,7 +246,7 @@ export class HaBridgeService{
             WHERE m.household_id=$1 AND m.state='published' AND m.publish_at<=clock_timestamp() AND m.expires_at>clock_timestamp()
               AND (($2::boolean AND m.audience_household) OR EXISTS(SELECT 1 FROM message_person_audiences reader WHERE reader.message_id=m.id AND reader.person_id=ANY($3::uuid[])))
             ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`,[context.householdId,grants.household,grants.personIds])).rows;
-          messages.push(...rows.map(mapMessage));
+          messages.push(...rows.map(row=>mapMessage(row,context,grants)));
         }
         const calendars=await this.calendars(client,context,grants);
         const result={...await this.connection(client,context,grants),lists,messages,calendars,serverNow:new Date().toISOString()};
@@ -231,32 +267,32 @@ export class HaBridgeService{
         const row=(await client.query<{id:string}>(`INSERT INTO messages(household_id,author_integration_id,author_integration_name,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at)
           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,CASE WHEN $9='published' THEN clock_timestamp() END) RETURNING id`,[context.householdId,context.connectionId,identity.name,body.body,body.importance,body.audience.household,publishAt,expiresAt,state,body.requestKey])).rows[0]!;
         for(const id of body.audience.personIds)await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES($1,$2,$3)',[context.householdId,row.id,id]);
-        await this.lifecycle(client,context,row.id,null,state,1,'created');return{message:mapMessage(await this.getMessage(client,context,row.id))};
+        await this.lifecycle(client,context,row.id,null,state,1,'created');return{message:mapMessage(await this.getMessage(client,context,row.id),context,grants)};
       });return reply.status(201).send(result);
     });
     app.patch('/api/v1/ha/messages/:id',async(request,reply)=>{
       const context=await this.authenticate(request),id=mustUuid(ids(request).id),body=messageUpdate.parse(request.body);reply.header('Cache-Control','private, no-store');
-      return this.mutation(context,'ha.messages.write',body,{action:'message.update',id},async(client,grants)=>{
-        const current=(await client.query<{state:string;publish_at:Date;expires_at:Date;audience_household:boolean}>(`SELECT state,publish_at,expires_at,audience_household FROM messages WHERE id=$1 AND household_id=$2 AND author_integration_id=$3 FOR UPDATE`,[id,context.householdId,context.connectionId])).rows[0];
-        if(!current)throw new DomainError('NOT_FOUND',404);if(!['published','scheduled'].includes(current.state))throw new DomainError('CONFLICT',409);
-        const currentMessage=await this.getMessage(client,context,id);this.authorizeMessageMutation(currentMessage,context,grants);if(body.audience)requireAudience(grants,body.audience);
+      return this.mutation(context,'ha.messages.write',body,{action:'message.update',id},async(client,grants,protectDisplays)=>{
+        const current=(await client.query<{state:string;publish_at:Date;expires_at:Date;audience_household:boolean}>(`SELECT state,publish_at,expires_at,audience_household FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`,[id,context.householdId])).rows[0];
+        if(!current)throw new DomainError('NOT_FOUND',404);
+        const currentMessage=await this.getMessage(client,context,id);this.authorizeMessageMutation(currentMessage,context,grants,true);await protectDisplays(id);if(!['published','scheduled'].includes(current.state))throw new DomainError('CONFLICT',409);if(body.audience)requireAudience(grants,body.audience);
         const publishAt=body.publishAt?new Date(body.publishAt):current.publish_at,expiresAt=body.expiresAt?new Date(body.expiresAt):current.expires_at;
         if(expiresAt<=publishAt||expiresAt<=new Date())throw new DomainError('SCHEDULE_INVALID',422);if(current.state==='published'&&publishAt>new Date())throw new DomainError('CONFLICT',409,{reason:'published_cannot_reschedule'});
         const updated=await client.query<{revision:number}>(`UPDATE messages SET body=COALESCE($3,body),importance=COALESCE($4,importance),audience_household=COALESCE($5,audience_household),publish_at=$6,expires_at=$7,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$8 RETURNING revision`,[id,context.householdId,body.body??null,body.importance??null,body.audience?.household??null,publishAt,expiresAt,body.expectedRevision]);if(!updated.rowCount)conflict();
         if(body.audience){await client.query('DELETE FROM message_person_audiences WHERE message_id=$1',[id]);for(const personId of body.audience.personIds)await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES($1,$2,$3)',[context.householdId,id,personId]);}
         // Existing M1 targets retain their delivery semantics; an edit resets render receipts.
         await client.query(`UPDATE message_display_targets SET delivery_state='queued',delivered_revision=NULL,delivered_at=NULL,displayed_at=NULL WHERE message_id=$1 AND delivery_state IN ('queued','delivered','displayed')`,[id]);
-        await this.lifecycle(client,context,id,current.state,current.state,updated.rows[0]!.revision,'edited');return{message:mapMessage(await this.getMessage(client,context,id))};
+        await this.lifecycle(client,context,id,current.state,current.state,updated.rows[0]!.revision,'edited');return{message:mapMessage(await this.getMessage(client,context,id),context,grants)};
       });
     });
     app.post('/api/v1/ha/messages/:id/withdraw',async(request,reply)=>{
       const context=await this.authenticate(request),id=mustUuid(ids(request).id),body=mutationRevision.parse(request.body);reply.header('Cache-Control','private, no-store');
-      return this.mutation(context,'ha.messages.write',body,{action:'message.withdraw',id},async(client,grants)=>{
-        const current=(await client.query<{state:string}>(`SELECT state FROM messages WHERE id=$1 AND household_id=$2 AND author_integration_id=$3 FOR UPDATE`,[id,context.householdId,context.connectionId])).rows[0];if(!current)throw new DomainError('NOT_FOUND',404);
-        const message=await this.getMessage(client,context,id);this.authorizeMessageMutation(message,context,grants);
+      return this.mutation(context,'ha.messages.write',body,{action:'message.withdraw',id},async(client,grants,protectDisplays)=>{
+        const current=(await client.query<{state:string}>(`SELECT state FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`,[id,context.householdId])).rows[0];if(!current)throw new DomainError('NOT_FOUND',404);
+        const message=await this.getMessage(client,context,id);this.authorizeMessageMutation(message,context,grants);await protectDisplays(id);
         if(!['scheduled','published'].includes(current.state))throw new DomainError('CONFLICT',409);const next=current.state==='scheduled'?'cancelled':'withdrawn';
         const result=await client.query<{revision:number}>(`UPDATE messages SET state=$3,revision=revision+1,ended_at=clock_timestamp(),updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$4 RETURNING revision`,[id,context.householdId,next,body.expectedRevision]);if(!result.rowCount)conflict();
-        await client.query(`UPDATE message_display_targets SET delivery_state='cancelled' WHERE message_id=$1`,[id]);await this.lifecycle(client,context,id,current.state,next,result.rows[0]!.revision,'withdrawn');return{message:mapMessage(await this.getMessage(client,context,id))};
+        await client.query(`UPDATE message_display_targets SET delivery_state='cancelled' WHERE message_id=$1`,[id]);await this.lifecycle(client,context,id,current.state,next,result.rows[0]!.revision,'withdrawn');return{message:mapMessage(await this.getMessage(client,context,id),context,grants)};
       });
     });
     app.get('/api/v1/ha/calendars/:calendarId/events',async(request,reply)=>{
@@ -270,7 +306,8 @@ export class HaBridgeService{
         // Imported snapshots are bounded. Never turn an unsynchronized range
         // into a misleading empty or partial successful calendar response.
         if(sourceId&&(!complete||start<new Date(complete.from)||end>new Date(complete.to)))throw new DomainError('CONFLICT',409,{reason:'ha_calendar_window_not_synced'});
-        const rows=(await client.query<EventRow>(`SELECT i.id,i.connection_id,i.title,i.body,i.starts_at,i.ends_at,i.metadata,i.revision,calendar.provider
+        const rows=(await client.query<EventRow>(`SELECT i.id,i.connection_id,i.title,i.body,i.starts_at,i.ends_at,i.metadata,i.revision,calendar.provider,i.target_household,i.status,i.ha_native_origin,true AS source_active,(occurrence.id IS NOT NULL) AS has_occurrence,
+          COALESCE((SELECT array_agg(target.person_id ORDER BY target.person_id) FROM integration_item_person_targets target WHERE target.item_id=i.id),ARRAY[]::uuid[]) AS person_ids
           FROM integration_items i JOIN integration_connections authority ON authority.id=i.connection_id AND authority.household_id=i.household_id AND authority.revoked_at IS NULL
           JOIN households household ON household.id=i.household_id
           LEFT JOIN calendar_occurrences occurrence ON occurrence.integration_item_id=i.id AND occurrence.household_id=i.household_id
@@ -286,7 +323,7 @@ export class HaBridgeService{
             AND COALESCE(i.metadata#>>'{calendar,status}','') NOT IN ('cancelled','canceled','declined')
             AND timing.start<$6 AND timing.end>$5
           ORDER BY timing.start,i.id`,[context.householdId,sourceId,grants.household,grants.personIds,start,end])).rows;
-        await this.authorize(client,context,'ha.calendar.read');return{events:rows.map(row=>mapEvent(row,context)),serverNow:new Date().toISOString()};
+        await this.authorize(client,context,'ha.calendar.read');return{events:rows.map(row=>mapEvent(row,context,grants)),serverNow:new Date().toISOString()};
       });
     });
     app.post('/api/v1/ha/calendars/:calendarId/events',async(request,reply)=>{
@@ -295,38 +332,43 @@ export class HaBridgeService{
         if(!grants.household&&!grants.personIds.length)throw new DomainError('FORBIDDEN',403,{reason:'ha_calendar_not_shared'});
         const dates=eventDates(body.start,body.end),metadata={allDay:dates.allDay,haBridge:true,haDescriptionEmpty:!body.description,...(body.location?{location:body.location}:{})};
         const identity=await this.connection(client,context,grants),source={label:identity.name,observedAt:new Date().toISOString(),uncertainty:'low'};
-        const row=(await client.query<EventRow>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,priority,starts_at,ends_at,source,metadata,request_hash)
-          VALUES($1,$2,$3,'event',$4,$5,$6,'normal',$7,$8,$9,$10,$11) RETURNING id,connection_id,title,body,starts_at,ends_at,metadata,revision`,[context.householdId,context.connectionId,`ha:${randomUUID()}`,grants.household,body.summary,body.description||body.summary,dates.startDate,dates.endDate,JSON.stringify(source),JSON.stringify(metadata),payloadHash(body)])).rows[0]!;
+        const row=(await client.query<EventRow>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,priority,starts_at,ends_at,source,metadata,request_hash,ha_native_origin)
+          VALUES($1,$2,$3,'event',$4,$5,$6,'normal',$7,$8,$9,$10,$11,true) RETURNING id,connection_id,title,body,starts_at,ends_at,metadata,revision`,[context.householdId,context.connectionId,`ha:${randomUUID()}`,grants.household,body.summary,body.description||body.summary,dates.startDate,dates.endDate,JSON.stringify(source),JSON.stringify(metadata),payloadHash(body)])).rows[0]!;
         for(const personId of grants.personIds)await client.query('INSERT INTO integration_item_person_targets(household_id,item_id,person_id) VALUES($1,$2,$3)',[context.householdId,row.id,personId]);
-        await this.dependencies.auditIntegration(client,context,'ha.event_created','integration_item',row.id);return{event:mapEvent(row,context)};
+        await this.dependencies.auditIntegration(client,context,'ha.event_created','integration_item',row.id);return{event:mapEvent({...row,target_household:grants.household,person_ids:grants.personIds,status:'active',source_active:true,has_occurrence:false,ha_native_origin:true},context,grants,true)};
       });return reply.status(201).send(result);
     });
     app.patch('/api/v1/ha/calendars/:calendarId/events/:id',async(request,reply)=>{
       const context=await this.authenticate(request);if(ids(request).calendarId!=='samvev')throw new DomainError('FORBIDDEN',403,{reason:'ha_calendar_read_only'});const id=mustUuid(ids(request).id),body=eventUpdate.parse(request.body);reply.header('Cache-Control','private, no-store');
       return this.mutation(context,'ha.calendar.write',body,{action:'event.update',id},async(client,grants)=>{
         const current=await this.writableEvent(client,context,grants,id);
-        const before=mapEvent(current,context),dates=eventDates(body.start??before.start,body.end??before.end),metadata:Record<string,unknown>={...current.metadata,allDay:dates.allDay,...(body.description!==undefined?{haDescriptionEmpty:!body.description}:{}),...(body.location!==undefined?{location:body.location}:{})};delete metadata.haDescription;
+        const before=mapEvent(current,context,grants),dates=eventDates(body.start??before.start,body.end??before.end),metadata:Record<string,unknown>={...current.metadata,allDay:dates.allDay,...(body.description!==undefined?{haDescriptionEmpty:!body.description}:{}),...(body.location!==undefined?{location:body.location}:{})};delete metadata.haDescription;
         const updated=(await client.query<EventRow>(`UPDATE integration_items SET title=COALESCE($4,title),body=CASE WHEN $5::text IS NULL THEN body WHEN $5='' THEN COALESCE($4,title) ELSE $5 END,starts_at=$6,ends_at=$7,metadata=$8,revision=revision+1,updated_at=clock_timestamp(),request_hash=$9
           WHERE id=$1 AND household_id=$2 AND revision=$3 RETURNING id,connection_id,title,body,starts_at,ends_at,metadata,revision`,[id,context.householdId,body.expectedRevision,body.summary??null,body.description??null,dates.startDate,dates.endDate,JSON.stringify(metadata),payloadHash(body)])).rows[0];if(!updated)conflict();
-        await this.dependencies.auditIntegration(client,context,'ha.event_edited','integration_item',id);return{event:mapEvent(updated,context)};
+        await this.dependencies.auditIntegration(client,context,'ha.event_edited','integration_item',id);return{event:mapEvent({...current,...updated},context,grants,true)};
       });
     });
     app.delete('/api/v1/ha/calendars/:calendarId/events/:id',async(request,reply)=>{
       const context=await this.authenticate(request);if(ids(request).calendarId!=='samvev')throw new DomainError('FORBIDDEN',403,{reason:'ha_calendar_read_only'});const id=mustUuid(ids(request).id),body=mutationRevision.parse(request.body);reply.header('Cache-Control','private, no-store');
       return this.mutation(context,'ha.calendar.write',body,{action:'event.delete',id},async(client,grants)=>{
-        await this.writableEvent(client,context,grants,id);const row=(await client.query<{id:string;revision:number}>(`UPDATE integration_items SET status='withdrawn',withdrawn_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$3 RETURNING id,revision`,[id,context.householdId,body.expectedRevision])).rows[0];if(!row)conflict();
-        await this.dependencies.auditIntegration(client,context,'ha.event_deleted','integration_item',id);return{event:row};
+        const current=await this.writableEvent(client,context,grants,id);const row=(await client.query<{id:string;revision:number}>(`UPDATE integration_items SET status='withdrawn',withdrawn_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$3 RETURNING id,revision`,[id,context.householdId,body.expectedRevision])).rows[0];if(!row)conflict();
+        await this.dependencies.auditIntegration(client,context,'ha.event_deleted','integration_item',id);return{event:{...row,audience:{household:current.target_household,personIds:current.person_ids}}};
       });
     });
   }
-  private async writableEvent(client:DbClient,context:HaIntegrationContext,grants:HaSharing,id:string){
-    const row=(await client.query<EventRow&{target_household:boolean;person_ids:string[]}>(`SELECT i.id,i.connection_id,i.title,i.body,i.starts_at,i.ends_at,i.metadata,i.revision,i.target_household,
-      COALESCE((SELECT array_agg(target.person_id ORDER BY target.person_id) FROM integration_item_person_targets target WHERE target.item_id=i.id),ARRAY[]::uuid[]) AS person_ids
-      FROM integration_items i WHERE i.id=$1 AND i.household_id=$2 AND i.connection_id=$3 AND i.kind='event' AND i.status='active' AND i.metadata->'haBridge'='true'::jsonb FOR UPDATE`,[id,context.householdId,context.connectionId])).rows[0];
+  private async writableEvent(client:DbClient,context:HaIntegrationContext,grants:HaSharing,id:string,includeEnded=false){
+    const source=(await client.query<{connection_id:string}>(`SELECT connection_id FROM integration_items WHERE id=$1 AND household_id=$2`,[id,context.householdId])).rows[0];
+    if(!source)throw new DomainError('NOT_FOUND',404);
+    if(source.connection_id!==context.connectionId&&!grants.allowSharedNativeWrites)throw new DomainError('NOT_FOUND',404);
+    // Pin the original source's revocation state as well as the editing actor.
+    const active=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR SHARE`,[source.connection_id,context.householdId]);
+    if(!active.rowCount)throw new DomainError('FORBIDDEN',403);
+    const row=(await client.query<EventRow>(`SELECT i.id,i.connection_id,i.title,i.body,i.starts_at,i.ends_at,i.metadata,i.revision,i.target_household,i.status,i.ha_native_origin,true AS source_active,
+      COALESCE((SELECT array_agg(target.person_id ORDER BY target.person_id) FROM integration_item_person_targets target WHERE target.item_id=i.id),ARRAY[]::uuid[]) AS person_ids,
+      EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id) AS has_occurrence
+      FROM integration_items i WHERE i.id=$1 AND i.household_id=$2 AND i.kind='event' FOR UPDATE OF i`,[id,context.householdId])).rows[0];
     if(!row)throw new DomainError('NOT_FOUND',404);
-    // Reading may match one permitted reader. Mutating affects every original
-    // recipient, so the complete persisted audience must still be granted.
-    requireAudience(grants,{household:row.target_household,personIds:row.person_ids});
+    if(!eventWritable(row,context,grants,includeEnded))throw new DomainError('FORBIDDEN',403,{reason:'ha_native_event_not_writable'});
     return row;
   }
 }

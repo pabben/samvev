@@ -1308,3 +1308,33 @@ live in its separate repository. No merge, tag, release or production deployment
 - Portrait board (fridge, 800×1280): rows grow for two-line titles, the photo absorbs the leftover height so the board fits one screen, and secondary text is larger.
 - Blind gauntlet, 3 independent judges, fridge 800×1280 against the prospect TV surface: ours chosen 3–0.
 - Checks: `tsc --noEmit`, `npm run check`, 261/261 web unit tests (the all-day label test now expects the screen-reader-only label). Not run: Docker display-proof E2E, physical device test.
+
+
+## Explicit HA writes to shared native content — 2026-11-13 (development candidate)
+
+Branch `fix/ha-native-household-writes` extends baseline `09bbd73`, including the
+merged HA bridge from PR #28 (`3451bcf`). Migration 048 adds the manager-owned
+`allowSharedNativeWrites` policy, default false. It permits existing UI-authored
+native message edits/withdrawals and other connections' genuine native HA events
+only under paired read/write capabilities and complete household/person grants.
+Original authors/source IDs remain unchanged; the editing connection is audited.
+Existing same-household display recipients require the explicit flag and household
+sharing, and their selection cannot be widened by HA. Monitor/worker-generated
+messages and provider/generic producer appointments remain read-only.
+
+The Samvev calendar UI has no local appointment editor/member CRUD API at this
+baseline. No roundtrip for UI-created local appointments is claimed; no new UI or
+calendar engine is introduced. Genuine native HA event and normal UI message
+roundtrips are tested separately. Disclosure flags and durable receipt replay use
+the same current policy/type/full-target checks, including withdrawal tombstones.
+
+Independent main-agent verification passed: all 499 API tests, the whole-workspace
+TypeScript checks, and five cross-repository tests running the actual Samvev API
+and HA integration against an isolated synthetic database. These include an HA
+action editing/withdrawing a UI-authored message and actual provisioning/reuse of
+all six capabilities with explicit sharing. Security review findings concerning
+producer-controlled provenance and display revocation/expiry during lock waits
+were fixed with regressions. No private household data is part of this entry.
+Production deployment/restore evidence is a separate operator record; this test
+result does not claim a live HA install or physical Shelly validation. Policy
+rollback is disabling the new false-default flag, retaining additive schema/data.
