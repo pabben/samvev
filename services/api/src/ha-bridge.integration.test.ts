@@ -36,7 +36,13 @@ test('bridge authenticates separately and shares only explicit resources and ser
   const unshared=await createConnection();assert.deepEqual((await machine('GET','snapshot',undefined,unshared.token)).json().lists,[]);
   assert.equal((await machine('POST','lists/groceries/items',{label:'Denied',checked:false,requestKey:'unshared-create-0001'},unshared.token)).statusCode,403);
   const legacy=await createConnection(['integration.items.read']);assert.equal((await machine('GET','snapshot',undefined,legacy.token)).statusCode,403);
-  const readOnly=await createConnection(['ha.groceries.read']);await setSharing(readOnly.connectionId);assert.equal((await machine('POST','lists/groceries/items',{label:'Denied',checked:false,requestKey:'readonly-create-0001'},readOnly.token)).statusCode,403);
+  const readOnly=await createConnection(['ha.groceries.read']);await setSharing(readOnly.connectionId,0,{personIds:[ownerPersonId]});
+  for(const path of ['connection','snapshot']){
+    const scoped=await machine('GET',path,undefined,readOnly.token);assert.equal(scoped.statusCode,200,scoped.body);
+    assert.deepEqual(scoped.json().grants,{revision:1,listIds:['groceries'],household:false,personIds:[],calendarSourceIds:[]},'a grocery-only credential cannot inspect unrelated audience grants');
+    assert.equal(scoped.body.includes(ownerPersonId),false,'person IDs are absent from grocery-only metadata');
+  }
+  assert.equal((await machine('POST','lists/groceries/items',{label:'Denied',checked:false,requestKey:'readonly-create-0001'},readOnly.token)).statusCode,403);
   const item=await machine('POST','lists/groceries/items',{label:'Synthetic apples',checked:false,requestKey:'grocery-create-0001'});assert.equal(item.statusCode,201,item.body);const id=item.json().item.id;
   const writeOnly=await createConnection(['ha.groceries.write','ha.messages.write','ha.calendar.write']);await setSharing(writeOnly.connectionId);
   const writeOnlyPatch=await machine('PATCH',`lists/groceries/items/${id}`,{checked:true,expectedRevision:1,requestKey:'write-only-patch-0001'},writeOnly.token);assert.equal(writeOnlyPatch.statusCode,403,'returning authoritative fields requires paired read permission');assert.equal(JSON.stringify(writeOnlyPatch.json()).includes('Synthetic apples'),false);

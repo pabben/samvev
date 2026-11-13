@@ -89,7 +89,13 @@ export class HaBridgeService{
   }
   private async connection(client:DbClient,context:HaIntegrationContext,grants:HaSharing){
     const row=(await client.query<{name:string;timezone:string}>(`SELECT connection.name,household.timezone FROM integration_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1 AND connection.household_id=$2`,[context.connectionId,context.householdId])).rows[0]!;
-    return{schemaVersion:1,installationId:context.installationId,connectionId:context.connectionId,householdId:context.householdId,name:row.name,timezone:row.timezone,capabilities:context.capabilities,grants};
+    const canReadAudience=context.capabilities.includes('ha.messages.read')||context.capabilities.includes('ha.calendar.read');
+    const visibleGrants:HaSharing={revision:grants.revision,
+      listIds:context.capabilities.includes('ha.groceries.read')?grants.listIds:[],
+      household:canReadAudience&&grants.household,
+      personIds:canReadAudience?grants.personIds:[],
+      calendarSourceIds:context.capabilities.includes('ha.calendar.read')?grants.calendarSourceIds:[]};
+    return{schemaVersion:1,installationId:context.installationId,connectionId:context.connectionId,householdId:context.householdId,name:row.name,timezone:row.timezone,capabilities:context.capabilities,grants:visibleGrants};
   }
   private async authenticate(request:FastifyRequest){
     const context=await this.dependencies.integrationAuth(request);
