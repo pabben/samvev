@@ -48,6 +48,23 @@ test('browser security headers cover static, unauthorized and not-found response
     assertBrowserHeaders(response,true);
   }finally{
     await secure.close();
+  }
+
+  const embeddable=await buildApp({webRoot,runtimeConfig:{publicOrigin:'https://samvev.test',secureCookies:true,trustProxy:false,displayFrameAncestors:['http://192.0.2.26:8123','https://hass.example.test']}});
+  try{
+    const display=await embeddable.inject({method:'GET',url:'/display?layout=board'});
+    assert.equal(display.statusCode,200,display.body);
+    assert.equal(display.headers['x-frame-options'],undefined);
+    assert.match(String(display.headers['content-security-policy']),/frame-ancestors 'self' http:\/\/192\.0\.2\.26:8123 https:\/\/hass\.example\.test$/);
+    assert.equal(display.headers['strict-transport-security'],'max-age=86400');
+    for(const url of ['/','/integrations','/displays','/api/v1/me','/api/v1/display/projection']){
+      const response=await embeddable.inject({method:'GET',url});
+      assertBrowserHeaders(response,true);
+    }
+    const post=await embeddable.inject({method:'POST',url:'/display',headers:{origin:'https://samvev.test'}});
+    assertBrowserHeaders(post,true);
+  }finally{
+    await embeddable.close();
     await rm(webRoot,{recursive:true,force:true});
     await pool.end();
   }

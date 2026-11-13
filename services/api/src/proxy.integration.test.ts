@@ -226,3 +226,76 @@ test('public origin, trusted proxy, cookies, authorization and SSE remain safe',
     WHERE bucket='setup_begin' AND key_hash=$1`, [tokenHash('203.0.113.24')]);
   assert.equal(trustedRateLimit.rows[0]!.count, 1);
 });
+
+test('display allowed inside a Home Assistant frame keeps a Secure, HttpOnly, partitioned cross-site cookie while mutations still require Samvev origin', async () => {
+  const embedHeaders = { ...proxyHeaders, 'x-forwarded-for': '203.0.113.25' };
+  const embeddable = await buildApp({
+    runtimeConfig: loadRuntimeConfig({
+      SAMVEV_PUBLIC_ORIGIN: publicOrigin,
+      SAMVEV_TRUST_PROXY: '192.168.0.188/32',
+      SAMVEV_DISPLAY_FRAME_ANCESTORS: 'http://192.0.2.26:8123 https://hass.example.test'
+    })
+  });
+  try {
+    const login = await embeddable.inject({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      headers: { ...embedHeaders, origin: publicOrigin },
+      payload: { email: 'proxy-owner@test.invalid', password: 'Synthetic-proxy-owner-pass-42' }
+    });
+    assert.equal(login.statusCode, 200, login.body);
+    assert.match(String(login.headers['set-cookie']), /samvev_session=.*SameSite=Strict/i, 'member session stays SameSite=Strict');
+    const verifier = 'embedded-display-verifier-with-enough-entropy-0123456789';
+    const pairing = await embeddable.inject({
+      method: 'POST',
+      url: '/api/v1/display/pairing/start',
+      headers: { ...embedHeaders, origin: publicOrigin },
+      payload: { verifierHash: createHash('sha256').update(verifier).digest('hex') }
+    });
+    assert.equal(pairing.statusCode, 201, pairing.body);
+    const approve = await embeddable.inject({
+      method: 'POST',
+      url: `/api/v1/households/${householdId}/displays/pairing/approve`,
+      headers: { ...embedHeaders, origin: publicOrigin, cookie: cookies(login), 'x-csrf-token': login.json().csrfToken as string },
+      payload: { code: pairing.json().code, name: 'Shelly via Home Assistant', locale: 'nb', theme: 'dark', privacyMode: false, allowedContent: 'household_messages' }
+    });
+    assert.equal(approve.statusCode, 201, approve.body);
+    const crossSiteRedeem = await embeddable.inject({
+      method: 'POST',
+      url: '/api/v1/display/pairing/redeem',
+      headers: { ...embedHeaders, origin: 'http://192.0.2.26:8123' },
+      payload: { pairingId: pairing.json().pairingId, verifier }
+    });
+    assert.equal(crossSiteRedeem.statusCode, 403, 'framing permission must not relax the Origin check');
+    const redeem = await embeddable.inject({
+      method: 'POST',
+      url: '/api/v1/display/pairing/redeem',
+      headers: { ...embedHeaders, origin: publicOrigin },
+      payload: { pairingId: pairing.json().pairingId, verifier }
+    });
+    assert.equal(redeem.statusCode, 200, redeem.body);
+    const displayCookie = String(redeem.headers['set-cookie']);
+    assert.match(displayCookie, /samvev_display=/);
+    assert.match(displayCookie, /Path=\/api\/v1\/display/);
+    assert.match(displayCookie, /HttpOnly/);
+    assert.match(displayCookie, /Secure/);
+    assert.match(displayCookie, /SameSite=None/);
+    assert.match(displayCookie, /Partitioned/);
+    const projection = await embeddable.inject({
+      method: 'GET',
+      url: '/api/v1/display/projection',
+      headers: { ...embedHeaders, cookie: cookies(redeem) }
+    });
+    assert.equal(projection.statusCode, 200, projection.body);
+    const disconnect = await embeddable.inject({
+      method: 'POST',
+      url: '/api/v1/display/disconnect',
+      headers: { ...embedHeaders, origin: publicOrigin, cookie: cookies(redeem) },
+      payload: {}
+    });
+    assert.equal(disconnect.statusCode, 204, disconnect.body);
+    assert.match(String(disconnect.headers['set-cookie']), /samvev_display=;.*SameSite=None.*Partitioned|samvev_display=;.*Partitioned.*SameSite=None/);
+  } finally {
+    await embeddable.close();
+  }
+});
