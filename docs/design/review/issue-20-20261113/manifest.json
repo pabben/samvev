@@ -1,0 +1,59 @@
+{
+  "sourceSha": "079abc88b0152d04e2cb24656b4ebb9eb8092ecb",
+  "sourceDirty": false,
+  "capturedAt": "2026-11-13T16:08:56.180Z",
+  "fixture": "synthetic six-person household; no private content",
+  "proof": "bash tests/e2e/display-proof/run.sh --screenshots; 48/48 local captures PASS",
+  "screenshots": [
+    {
+      "file": "calendar-integrations-light-closed.png",
+      "surface": "calendar-integrations",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "sha256": "9c81f1d030f0aab7a2da0ef527320997141995b251a0ff473ffeffdddb5cc622"
+    },
+    {
+      "file": "calendar-integrations-light-open.png",
+      "surface": "calendar-integrations",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "sha256": "297efcc5c4347986a4a5e893ebc15d2d761c46e97a6bcd9fba31e9f5afaae723"
+    },
+    {
+      "file": "calendar-integrations-dark-mobile-closed.png",
+      "surface": "calendar-integrations",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "da012cb3a79d2467d0b6448b64c32f90c89b44c505cd426e1fd46501f865f640"
+    },
+    {
+      "file": "display-appearance-light-mobile.png",
+      "surface": "display-settings",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "23153bf3251f6772be11a670919f10a4d0fd76e916d8a439333b2f6a44d79efe"
+    },
+    {
+      "file": "display-appearance-dark-mobile.png",
+      "surface": "display-settings",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "sha256": "dcd6a691652a47813b5b3488256679f211b2b6762115f04a06314d45334646bc"
+    }
+  ]
+}

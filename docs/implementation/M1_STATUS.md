@@ -1,4 +1,10 @@
-# Round 18 design and external display test publication — 2026-11-06
+# Issue #20 cleanup and issue review — 2026-11-13
+
+Public source/deploy is `079abc88b0152d04e2cb24656b4ebb9eb8092ecb`, a descendant of the previously live HA source `92ac58bebe09565b8130fb46ebd18c7608b8cf7a`. Schema remains 48. Disconnected calendar cleanup now respects the API's 12-entry batch limit, preserves confirmation revisions, reports partial success, and reconciles stale entries after reactivation or permission changes. #18's appearance summary and #19's logo layout are corrected. Local isolated QA passed 772/772; workspace check and clean-source 48-image browser proof passed. Public backup, isolated pre/post restores, image-bound rollback proof, cutover, healthy app/worker/db and HTTPS smoke 11/11 with 15/15 served asset hashes passed. See [issue review](../design/review/ISSUE_20_STATUS_20261113.md) and [visual manifest](../design/review/issue-20-20261113/manifest.json). Physical fridge/iPad/Windows Chrome and private provider checks are not claimed.
+
+---
+
+# Historical Round 18 design and external display test publication — 2026-11-06
 
 Public source/deploy is `eccb1554081c9600a6f3e63b9fc855854aaa9596`. A clean 45-image synthetic browser set, isolated full QA, TypeScript, security/requirements/UX review and release gate passed. Public code-only backup, isolated restore, cutover, postrestore, health and 13 exact asset hashes passed. A fresh authenticated public login test was unavailable because the prior temporary synthetic credential had been deleted; physical fridge testing remains owner-only. School A/B execution and schedules were not changed; unpublished AI source `727c8dc` was explicitly reverted before the design candidate. See [Round 18 report](../design/review/ROUND_18_REPORT.md) and [manifest](../design/review/round-18/after/manifest.json).
 
