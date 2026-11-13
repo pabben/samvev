@@ -1254,6 +1254,13 @@ web unit tests and the workspace type checks pass. Not run: Docker E2E/display-p
 changes: landscape boards show one household note with a "see all" link, and
 phones list up to three of today's remaining activities instead of one.
 
+## Portrait board and member Home below the fold — 2026-11-12 (branch `feat/portrait-board`, not deployed)
+
+- Portrait shared displays (fridge panels) now use the #22 board, stacked: today and tomorrow side by side, then family, note and photo at full width, with larger type for reading at a distance. A blind critic preferred it over the previous portrait layout.
+- Idle people are wrapping chips again on landscape displays and member Home. The previous column layout pushed the note/photo row below the 1280×752 screen; long synthetic names still render full width or wrap to their own line inside the card.
+- Member Home below the first screen: the household summary is one row, the week filters sit beside the week navigation, and the week and photo panels use the board glass. "Hele dagen" is hidden visually in the week list too (screen readers still hear it). The photo panel toggle uses a plain "+" so it no longer renders as a missing-glyph box.
+- Checks: `tsc --noEmit`, `npm run check`, 261/261 web unit tests. Not run: Docker display-proof E2E, physical device test.
+
 ## Native Home Assistant adapter — 2026-11-12 (isolated development only)
 
 Branch `feat/native-ha-bridge` extends the current `feat/m3-family-hub` baseline

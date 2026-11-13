@@ -256,7 +256,7 @@ function TimelineRow({ row, people, family, zone, locale, now, readOnly=false }:
   const date=row.kind==='school'?row.activity.date:row.kind==='dinner'?row.date:row.activity.startsAt?.slice(0,10)??row.date;
   return <div className={rowClass} data-review-private={row.kind==='dinner'?'dinner-event':'week-activity'} data-item-id={row.kind==='calendar'?row.activity.id:undefined} data-event-id={row.kind==='dinner'?row.id:undefined} style={{'--activity-stripe':stripe} as CSSProperties} onKeyDown={event=>{if(event.key==='Escape'&&open){event.preventDefault();event.stopPropagation();setOpen(false);trigger.current?.focus();}}}>
     <button ref={trigger} id={buttonId} className={`hub-week-row-button ${status?'has-status':''}`} type="button" disabled={readOnly} aria-expanded={open} aria-controls={detailsId} aria-label={accessibleLabel} onClick={()=>setOpen(value=>!value)}>
-      <time dateTime={row.kind==='calendar'?row.activity.startsAt??date:date}>{time}</time>
+      <time dateTime={row.kind==='calendar'?row.activity.startsAt??date:date}>{time===t('hubAllDay')?'':time}</time>
       {status&&<span className="hub-week-row-status" aria-hidden="true" title={status}>{rawStatus==='cancelled'?'×':rawStatus==='tentative'?'?':'!'}</span>}
       <strong lang={row.kind==='calendar'?row.activity.contentLocale??undefined:undefined}>{title}</strong>{ended&&<span className="hub-ended-label">{t('hubEnded')}</span>}
     </button>

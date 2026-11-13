@@ -22,7 +22,8 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   const {dark,compact,mobile,lowHeight}=useHubComposition(displaySnapshot?.composition);
   // Landscape shared displays and their previews use the prospect board: one
   // readable row of day/family cards above a low message + photo row.
-  const board=!compact&&!mobile;
+  // Portrait shared displays use the same board, stacked (today/tomorrow over family, note and photo).
+  const board=!mobile&&(!compact||Boolean(display));
   const peopleGrid=useRef<HTMLDivElement>(null);
   const [peopleSpace,setPeopleSpace]=useState({width:0,gap:14});
   useLayoutEffect(()=>{
@@ -172,7 +173,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   }
   if(display&&homePhoto)orderedSections.push(<div key="display-photo" className="hub-display-photo">{homePhoto}</div>);
   const weekCard=!displaySnapshot&&(displaySections?.week!==false||display&&(displaySections?.today!==false||displaySections?.tomorrow!==false))?<HouseholdActivityWeek key={`${display?'display':'member'}:${householdId??'display'}`} householdId={householdId} localDate={localDate} zone={zone} now={now} people={people} display={display} householdBoardsReadableDinners={!display||displayDinnersReadable} showWeekCard={displaySections?.week!==false} showNextActivity={displaySections?.next!==false} onCurrentWeekDinners={updateWeekDinners}/>:null;
-  return <HubDetails.Provider value={detailAccess}><div ref={hubRoot} tabIndex={-1} data-person-count={people.length} className={`family-hub ${display?'hub-display':'hub-member'} ${board?'hub-board':''} ${displayCompactPeople?'hub-display-compact-people':''} ${dark?'hub-dark':'hub-light'} ${compact?'hub-compact':'hub-wide'} ${lowHeight?'hub-low-height':''} ${companion?'hub-has-companion':''} ${people.length>4?'hub-larger-family':''} ${minCardWidth>144?'hub-long-names':''}`} data-testid="family-hub">
+  return <HubDetails.Provider value={detailAccess}><div ref={hubRoot} tabIndex={-1} data-person-count={people.length} className={`family-hub ${display?'hub-display':'hub-member'} ${board?'hub-board':''} ${board&&compact?'hub-board-portrait':''} ${displayCompactPeople?'hub-display-compact-people':''} ${dark?'hub-dark':'hub-light'} ${compact?'hub-compact':'hub-wide'} ${lowHeight?'hub-low-height':''} ${companion?'hub-has-companion':''} ${people.length>4?'hub-larger-family':''} ${minCardWidth>144?'hub-long-names':''}`} data-testid="family-hub">
     <section className="hub-hero">
       <div className="hub-hero-copy"><p className="hub-household">{householdName}</p><h1>{greeting}</h1><p className="hub-subtitle">{t('hubSubtitle')}</p></div>
       <div className="hub-hero-clock"><span>{formatDate(now,locale,zone,{weekday:'long',day:'numeric',month:'long'})}</span><strong>{formatDate(now,locale,zone,{hour:'2-digit',minute:'2-digit'})}</strong>{connection&&<span className={`connection-pill ${connection===t('live')?'hub-live-status':''}`} role="status"><span className="live-dot"/>{connection}</span>}</div>
