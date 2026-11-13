@@ -1301,3 +1301,10 @@ changes. No secret or private household data was introduced. See
 `docs/implementation/HA_BRIDGE_API.md` and ADR0026 for contract, migration and
 rollback boundaries. Adapter validation/screenshots and installation instructions
 live in its separate repository. No merge, tag, release or production deployment.
+
+## Issue #29: no "Hele dagen" text, fridge portrait gauntlet — 2026-11-13 (branch `fix/issue-29`, not deployed)
+
+- No visible "Hele dagen" anywhere: day cards, week list, person rows, detail cards, the display's selected card, school meta and the calendar import preview. Screen readers still hear it (`sr-only`). All-day items come first and their titles stay in the same column as timed titles; long titles are clamped/ellipsized without overlap.
+- Portrait board (fridge, 800×1280): rows grow for two-line titles, the photo absorbs the leftover height so the board fits one screen, and secondary text is larger.
+- Blind gauntlet, 3 independent judges, fridge 800×1280 against the prospect TV surface: ours chosen 3–0.
+- Checks: `tsc --noEmit`, `npm run check`, 261/261 web unit tests (the all-day label test now expects the screen-reader-only label). Not run: Docker display-proof E2E, physical device test.

@@ -234,10 +234,6 @@
   white-space: nowrap;
 }
 #root .family-hub.hub-board .hub-timeline > li > .hub-week-icon { display: none; }
-/* All-day rows have no visible time; let the title use the time column too. */
-#root .family-hub.hub-board .hub-timeline > li.hub-all-day > div { grid-column: 2 / 4; }
-#root .family-hub.hub-board .hub-timeline > li.hub-all-day { position: relative; }
-#root .family-hub.hub-board .hub-timeline > li.hub-all-day > time { position: absolute; }
 #root .family-hub.hub-board .hub-timeline > li > div { grid-column: 3; grid-row: 1; min-width: 0; }
 #root .family-hub.hub-board .hub-timeline .hub-item-title {
   display: block;
@@ -610,9 +606,6 @@
   }
   #root .family-hub.hub-member .hub-day .hub-timeline > li > time { grid-column: 2; grid-row: 1; padding: 0; min-width: 0; font-size: 15px; line-height: 1.35; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--board-text); }
   #root .family-hub.hub-member .hub-day .hub-timeline > li > .hub-week-icon { display: none; }
-  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-all-day { position: relative; }
-  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-all-day > time { position: absolute; }
-  #root .family-hub.hub-member .hub-day .hub-timeline > li.hub-all-day > div { grid-column: 2 / 4; }
   #root .family-hub.hub-member .hub-day .hub-timeline > li > div,
   #root .family-hub.hub-member .hub-day .hub-timeline > li > strong { grid-column: 3; grid-row: 1; min-width: 0; }
   #root .family-hub.hub-member .hub-day .hub-timeline .hub-item-title { display: block; min-height: 0; padding: 0; font-size: 16px; line-height: 1.3; text-align: left; }
@@ -1074,3 +1067,18 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle > header,
 #root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-identity { width: auto; max-width: 100%; }
 #root .family-hub.hub-board .hub-person-section .hub-person.hub-person-idle .hub-person-name { min-width: 0; }
+
+/* All-day items (issue #29): no visible time label; the title stays in the
+   same column as timed titles so the list keeps one left edge. */
+#root .family-hub .hub-timeline > li > time { flex: none; min-width: 3.2em; }
+/* Portrait rows may wrap a long title to two lines: let the row grow instead of clipping into the next one. */
+#root .family-hub.hub-board.hub-board-portrait .hub-day .hub-timeline > li { max-height: none; }
+/* Portrait: content rows take what they need, the photo takes what is left, so the board fits one screen. */
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid { grid-template-rows: auto auto auto minmax(140px, 1fr); }
+#root .family-display-page:has(.hub-board-portrait) .display-main { min-height: 0; }
+/* Portrait: secondary text must still be readable from across the kitchen. */
+#root .family-hub.hub-board.hub-board-portrait .hub-hero .hub-subtitle { font-size: clamp(17px, 2.4cqw, 28px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-hero-clock .connection-pill { font-size: clamp(14px, 1.9cqw, 20px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-idle-label { font-size: clamp(16px, 2.2cqw, 24px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-messages :is(time, small) { font-size: clamp(15px, 2cqw, 22px); }
+#root .family-hub.hub-board.hub-board-portrait .hub-display-photo :is(figcaption, .media-caption, p) { font-size: clamp(18px, 2.5cqw, 28px); }
