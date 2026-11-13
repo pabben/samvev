@@ -98,7 +98,9 @@ async function proveCalendarLifecycle(admin,capture) {
  await single.waitFor({state:'hidden'});await admin.reload();await group.waitFor();
  assert.equal(await group.getByText(removed[0].name,{exact:true}).count(),0,'single removal remains gone after reload');
  await db.query("UPDATE accounts SET theme='dark' WHERE id=$1",[account]);
- await admin.setViewportSize(mobile);await admin.reload();await group.waitFor();await group.locator('summary').click();
+ await admin.setViewportSize(mobile);await admin.reload();await group.waitFor();
+ await shot('calendar-integrations-dark-mobile-closed','dark',mobile,['provider logos remain separate from names and help text','disconnected group is compact'],'.calendar-area');
+ await group.locator('summary').click();
  await group.getByRole('button',{name:'Fjern alle frakoblede',exact:true}).click();
  const batch=admin.getByRole('dialog');await batch.getByRole('heading',{name:'Tilkoblinger som omfattes (2):',exact:true}).waitFor();
  for(const fixture of removed.slice(1))await batch.getByText(`${fixture.name} source`,{exact:true}).waitFor();
@@ -112,7 +114,34 @@ async function proveCalendarLifecycle(admin,capture) {
  const remaining=await request('GET',base);
  assert.equal(remaining.status,200);assert.deepEqual(remaining.body.connections.map(c=>c.id).sort(),[active.id,late.id].sort(),'all three removed providers stay gone while late and active connections survive');
  for(const fixture of removed){assert.equal((await db.query('SELECT count(*)::int AS count FROM calendar_sources WHERE connection_id=$1',[fixture.id])).rows[0].count,0);assert.equal(await admin.getByText(fixture.name,{exact:true}).count(),0);}
- await admin.locator('.calendar-sources').getByRole('button',{name:'Sett opp kalender',exact:true}).click();
+ // More than the API's twelve-entry batch limit must still be removable from
+ // the real GUI. A connection reactivated after confirmation must survive the
+ // second chunk, while the first successful chunk is reported truthfully.
+ const many=[];for(let index=1;index<=13;index++)many.push(await seed('ics',`Synthetic archive ${index}`));
+ await admin.reload();await group.waitFor();await group.locator('summary').click();
+ assert.equal(await group.locator('.calendar-disconnected-row').count(),14);
+ await group.getByRole('button',{name:'Fjern alle frakoblede',exact:true}).click();
+ const largeBatch=admin.getByRole('dialog');await largeBatch.getByRole('heading',{name:'Tilkoblinger som omfattes (14):',exact:true}).waitFor();
+ const orderedNames=await group.locator('.calendar-disconnected-name').allInnerTexts();
+ const reactivated=[late,...many].find(item=>item.name===orderedNames.at(-1));assert.ok(reactivated);
+ await db.query("UPDATE calendar_connections SET disconnected_at=NULL,state='setup',revision=revision+1 WHERE id=$1",[reactivated.id]);
+ await db.query('UPDATE integration_connections SET revoked_at=NULL WHERE id=(SELECT integration_connection_id FROM calendar_connections WHERE id=$1)',[reactivated.id]);
+ const chunkResponses=[];const onChunkResponse=response=>{if(response.request().method()==='POST'&&response.url().endsWith('/remove-disconnected'))chunkResponses.push(response)};
+ admin.on('response',onChunkResponse);
+ try{
+   await largeBatch.getByRole('button',{name:'Fjern alle frakoblede',exact:true}).click();
+   await largeBatch.getByRole('alert').waitFor({state:'visible',timeout:15000});
+ }finally{admin.off('response',onChunkResponse)}
+ assert.deepEqual(chunkResponses.map(response=>response.request().postDataJSON().connections.length),[12,2],'GUI sends confirmed entries in bounded sequential chunks');
+ assert.deepEqual(chunkResponses.map(response=>response.status()),[200,409],'a reactivated entry fails the second chunk without undoing the first');
+ await largeBatch.getByRole('heading',{name:'Tilkoblinger som omfattes (1):',exact:true}).waitFor();
+ await largeBatch.getByRole('status').getByText(/12 tilkoblinger er fjernet\. 1 bekreftede tilkoblinger gjenstår/).waitFor();
+ assert.equal((await db.query('SELECT count(*)::int AS count FROM calendar_connections WHERE id=$1 AND removed_at IS NULL',[reactivated.id])).rows[0].count,1,'reactivated connection survives a stale confirmation');
+ await largeBatch.getByRole('button',{name:'Fortsett med 1 gjenværende tilkobling(er)',exact:true}).click();
+ await largeBatch.waitFor({state:'hidden'});
+ await admin.reload();
+ assert.equal((await request('GET',base)).body.connections.filter(c=>c.name.startsWith('Synthetic archive ')||c.id===late.id).length,1,'the valid remainder was removed while the reactivated connection survives');
+ await admin.locator('.integration-card').filter({hasText:'Synthetic setup ICS'}).getByRole('button',{name:'Sett opp kalender',exact:true}).click();
  const editor=admin.getByRole('dialog');await editor.getByRole('heading',{name:'Synthetic setup ICS source',exact:true}).waitFor();
  await editor.getByLabel('Ta med tilbake i tid',{exact:true}).selectOption('28');
  await editor.getByLabel('Ta med frem i tid',{exact:true}).selectOption('364');
@@ -123,7 +152,7 @@ async function proveCalendarLifecycle(admin,capture) {
  await shot('calendar-window-dark-mobile','dark',mobile,['real setup source editor','28 day past and 364 day future selected','ICS full download explanation']);
  await editor.getByRole('button',{name:'Lukk',exact:true}).last().click();
  await db.query("UPDATE accounts SET theme='light' WHERE id=$1",[account]);await admin.setViewportSize(desktop);await admin.reload();
- await admin.locator('.calendar-sources').getByRole('button',{name:'Sett opp kalender',exact:true}).click();await editor.getByLabel('Ta med frem i tid',{exact:true}).waitFor();
+ await admin.locator('.integration-card').filter({hasText:'Synthetic setup ICS'}).getByRole('button',{name:'Sett opp kalender',exact:true}).click();await editor.getByLabel('Ta med frem i tid',{exact:true}).waitFor();
  await editor.getByLabel('Ta med tilbake i tid',{exact:true}).selectOption('28');
  await editor.getByLabel('Ta med frem i tid',{exact:true}).selectOption('364');
  await shot('calendar-window-light-desktop','light',desktop,['real setup source editor','28 day past and 364 day future selected','ICS full download explanation']);
@@ -149,7 +178,7 @@ async function proveCalendarLifecycle(admin,capture) {
      errorDetails=scenario.details;
      await db.query('UPDATE accounts SET theme=$2 WHERE id=$1',[account,scenario.theme]);
      await admin.setViewportSize(scenario.viewport);await admin.reload();
-     await admin.locator('.calendar-sources').getByRole('button',{name:'Sett opp kalender',exact:true}).click();
+     await admin.locator('.integration-card').filter({hasText:'Synthetic setup ICS'}).getByRole('button',{name:'Sett opp kalender',exact:true}).click();
      await editor.getByRole('heading',{name:'Synthetic setup ICS source',exact:true}).waitFor();
      const response=admin.waitForResponse(response=>response.url().endsWith(`/${active.source}/preview`)&&response.request().method()==='POST');
      await editor.getByRole('button',{name:'Forhåndsvis avtaler',exact:true}).click();
@@ -262,6 +291,13 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    assert.ok(await screen.getByText('Synthetic adult',{exact:true}).count()>=1,'paired display has loaded synthetic people');
    await previewPage.goto('/?tab=displays');
    await previewPage.getByRole('heading',{name:'Et felles blikk på hjemmet.',exact:true}).waitFor();
+   const appearanceSummary=previewPage.locator('.display-admin-section > summary').filter({hasText:'Språk og utseende'}).first();
+   await appearanceSummary.waitFor();
+   assert.equal(await appearanceSummary.evaluate(element=>element.parentElement?.hasAttribute('open')),false,'language and appearance is collapsed by default');
+   await appearanceSummary.focus();await appearanceSummary.press('Enter');
+   assert.equal(await appearanceSummary.evaluate(element=>element.parentElement?.hasAttribute('open')),true,'keyboard opens appearance choices');
+   await appearanceSummary.press('Enter');
+   assert.equal(await appearanceSummary.evaluate(element=>element.parentElement?.hasAttribute('open')),false,'keyboard closes appearance choices');
    await previewPage.locator('summary').filter({hasText:'Datatilgang'}).click();
    await previewPage.getByRole('button',{name:'Forhåndsvis denne skjermen'}).click();
    const preview=previewPage.locator('.display-preview');
@@ -311,6 +347,10 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
      }
      const previewFile=`admin-preview-${theme}-${size}.png`;
      await captureCalendar(previewPage,preview,{readiness:{preview:true},capture:{id:`admin-preview-${theme}-${size}`,file:previewFile,surface:'admin-preview',theme,viewport:{width,height},verified:width>=651?['six synthetic people','household note and person school summary','read-only synthetic grocery and dinner boards','synthetic evening landscape']:['manager preview hub','mobile viewport'],scrollSelector:'.display-preview'}});
+     if(size==='mobile'){
+       await appearanceSummary.evaluate(element=>element.scrollIntoView({block:'center',behavior:'instant'}));
+       await capture(previewPage,{id:`display-appearance-${theme}-mobile`,file:`display-appearance-${theme}-mobile.png`,surface:'display-settings',theme,viewport:{width,height},verified:['labeled collapsed language and appearance','keyboard toggle checked'],prepared:true});
+     }
      if(theme==='light'&&size==='wall-landscape') {
        await capture(admin,{id:'member-home-light-wall-landscape-full',file:'member-home-light-wall-landscape-full.png',surface:'member-home',theme,viewport:{width,height},verified:['full Home layout','synthetic household note'],fullPage:true});
        await captureCalendar(screen,screen.locator('body'),{capture:{id:'paired-display-light-wall-landscape-full',file:'paired-display-light-wall-landscape-full.png',surface:'paired-display',theme,viewport:{width,height},verified:['full paired display layout','person-targeted school notice','synthetic evening landscape'],fullPage:true}});
@@ -365,7 +405,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
  }
  await proveCalendarLifecycle(admin,capture);
  await writeFile(resolve(out,'manifest.json'),`${JSON.stringify({source:'isolated synthetic display proof',sourceHeadSha:process.env.SOURCE_HEAD_SHA,sourceDirty:process.env.SOURCE_DIRTY==='true',fixture:{id:'r17-rich-capture-synthetic-household',type:'six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures'},aclNegativeFixture:{unselectedChildAddedAfterCaptures:true,targetedMessageAddedAfterCaptures:true},background:{assetId:backgroundAsset,albumId:backgroundAlbum,selectedForSetup:true,householdReadGranted:true,pairedDisplayReadGranted:true,deniedDisplayReadGranted:false},messageAudit,capturedAt:new Date().toISOString(),timezone:'Europe/Oslo',locale:'nb-NO',screenshots:manifest},null,2)}\n`);
- assert.equal(manifest.length,45,'37 existing display screenshots, six synthetic calendar UI captures and two explicitly simulated size-error UI captures are captured');
+ assert.equal(manifest.length,48,'37 display screenshots, nine synthetic calendar/settings UI captures and two simulated size-error UI captures are captured');
 }
 const root=resolve('apps/web/dist');
 const server=createServer(async(req,res)=>{
