@@ -1084,3 +1084,64 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-board.hub-board-portrait .hub-person-idle-label { font-size: clamp(16px, 2.2cqw, 24px); }
 #root .family-hub.hub-board.hub-board-portrait .hub-messages :is(time, small) { font-size: clamp(15px, 2cqw, 22px); }
 #root .family-hub.hub-board.hub-board-portrait .hub-display-photo :is(figcaption, .media-caption, p) { font-size: clamp(18px, 2.5cqw, 28px); }
+
+/* Issue #29 round 2: all-day rows are a deliberate band at the top of the day: no empty time gap, no checkbox ring. */
+#root .family-hub.hub-board .hub-timeline > li.hub-all-day {
+  grid-template-columns: minmax(0, 1fr);
+  margin-bottom: clamp(4px, 0.4cqw, 8px);
+  padding: clamp(7px, 0.6cqw, 12px) clamp(10px, 0.9cqw, 16px);
+  border: 0;
+  border-inline-start: 4px solid var(--board-accent, #8fd3c7);
+  border-radius: clamp(8px, 0.7cqw, 12px);
+  background: rgb(255 255 255 / 0.07);
+}
+#root .family-hub.hub-board.hub-light .hub-timeline > li.hub-all-day { background: rgb(20 40 60 / 0.06); }
+#root .family-hub.hub-board .hub-timeline > li.hub-all-day::before,
+#root .family-hub.hub-board .hub-timeline > li.hub-all-day > :is(time, .hub-week-icon, span[aria-hidden="true"]) { display: none; }
+#root .family-hub.hub-board .hub-timeline > li.hub-all-day > div { grid-column: 1; }
+#root .family-hub.hub-board .hub-timeline > li.hub-all-day + li { border-top: 0; }
+#root .family-hub.hub-board.hub-board-portrait .hub-day .hub-timeline > li.hub-all-day { max-height: none; }
+/* Stale calendar marker: on the board only the ◷ glyph (full text in title/details) so it never pushes titles into an ellipsis. */
+#root .family-hub.hub-board .calendar-stale:not(.calendar-stale-detail) { padding: 0 4px; border: 0; background: transparent; margin-inline-start: 4px; opacity: 0.75; }
+#root .family-hub.hub-board .calendar-stale:not(.calendar-stale-detail) .calendar-stale-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slideshow,
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide,
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide > img { width: 100%; max-width: none; }
+#root .family-hub.hub-board :is(.media-display-playback, .hub-home-photos) .media-slide > img { object-fit: cover; }
+#root .family-hub.hub-board .calendar-stale:not(.calendar-stale-detail) > [aria-hidden="true"] { font-size: 0.85em; }
+/* Portrait board: secondary labels readable from across the kitchen. */
+#root .family-hub.hub-board.hub-board-portrait .hub-day .hub-timeline .hub-dinner-label,
+#root .family-hub.hub-board.hub-board-portrait .hub-day .hub-collection-link,
+#root .family-hub.hub-board.hub-board-portrait .hub-hero .hub-hero-clock > span:first-child,
+#root .family-hub.hub-board.hub-board-portrait .hub-messages .hub-message-meta strong { font-size: clamp(15px, 2.4cqw, 22px); }
+/* Portrait board: busy people in two columns so the whole family fits above the fold on 800×1280. */
+@container (min-width: 700px) {
+  #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-grid { column-gap: clamp(14px, 2cqw, 28px); }
+  #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person:not(.hub-person-idle) { flex: 1 1 calc(50% - clamp(14px, 2cqw, 28px)) !important; width: auto !important; min-width: 0; }
+  #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-idle-label { flex: 1 0 100%; }
+}
+#root .family-hub.hub-board.hub-board-portrait > .hub-grid { grid-template-rows: auto auto auto minmax(104px, 1fr); }
+#root .family-hub.hub-board.hub-board-portrait .calendar-stale:not(.calendar-stale-detail) > [aria-hidden="true"] { font-size: 0.95em; }
+#root .family-hub.hub-board.hub-board-portrait .hub-day .hub-empty { font-size: clamp(15px, 2.2cqw, 24px); }
+/* Issue #29: idle "Ingenting planlagt" chips keep their own width in every theme (light + combined rules collapsed them to 0 and they overlapped). */
+#root .family-hub.hub-board .hub-person-section .hub-person-grid > .hub-person.hub-person-idle { flex: 0 0 auto !important; width: auto !important; min-width: max-content !important; max-width: 100%; grid-column: auto !important; }
+#root .family-hub.hub-board .hub-person-section .hub-person-grid > .hub-person.hub-person-idle .avatar { width: clamp(30px, 2.4cqw, 44px) !important; height: clamp(30px, 2.4cqw, 44px) !important; flex: none; }
+#root .family-hub.hub-board .hub-person-section .hub-person-grid > .hub-person.hub-person-idle { container-type: normal; }
+/* Round 22 critics: show long titles in full where the portrait board has room, keep the family grid even, idle chips on the label row. */
+@container (min-width: 1000px) {
+  #root .family-hub.hub-board.hub-board-portrait .hub-timeline .hub-item-title strong { -webkit-line-clamp: 3; }
+  #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-name > .hub-person-activity { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+}
+@container (min-width: 700px) {
+  #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person:not(.hub-person-idle) { flex: 0 1 calc(50% - clamp(14px, 2cqw, 28px)) !important; }
+}
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-grid > .hub-person-idle-label { flex: 0 0 auto !important; width: auto !important; align-self: center; margin: 0 clamp(6px, 1cqw, 14px) 0 0; }
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-grid { align-items: center; row-gap: clamp(6px, 0.8cqw, 12px); }
+#root .family-hub.hub-board .calendar-stale:not(.calendar-stale-detail) > [aria-hidden="true"] { font-size: 1em !important; }
+#root .family-hub.hub-board.hub-board-portrait .hub-messages .display-card-body { text-wrap: pretty; }
+#root .family-hub.hub-board.hub-board-portrait .hub-timeline .hub-item-title strong { -webkit-line-clamp: 3; }
+@container (min-width: 1000px) {
+  #root .family-hub.hub-board.hub-board-portrait .hub-timeline .hub-item-title strong { -webkit-line-clamp: 4; }
+  #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-name > .hub-person-activity { -webkit-line-clamp: 3; }
+}
+#root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-grid > .hub-person.hub-person-idle { align-self: center; margin-block: 0; }

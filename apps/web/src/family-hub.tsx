@@ -19,7 +19,7 @@ const HubDetails=createContext<DetailAccess|null>(null);
 export type TaskAccess={householdId:string;onOpen:(id:string)=>void;onNew:(personId:string)=>void};
 export function FamilyHub({people,items,messages,zone,householdName,householdId,localDate:givenLocalDate,birthdays=[],birthdaySourceLocalDate,schoolActivities=[],display=false,displayDinnersReadable=true,displaySnapshot,displaySections,displayCompactPeople=false,now:givenNow,onCompose,onManagePeople,connection,taskAccess,onEditPhoto,editablePhotoIds,homeModules,homeSmartHome,homePhoto}:{taskAccess?:TaskAccess;onEditPhoto?:(id:string)=>void;editablePhotoIds?:string[];homeModules?:ReactNode;homeSmartHome?:ReactNode;homePhoto?:ReactNode;people:HubPerson[];items:HubItem[];messages:HubMessage[];zone:string;householdName:string;householdId?:string;localDate?:string;birthdays?:HomeBirthday[];birthdaySourceLocalDate?:string;schoolActivities?:HomeSchoolActivity[];display?:boolean;displayDinnersReadable?:boolean;displaySnapshot?:{dinners: DinnerAssignment[];composition?:{theme:string;orientation:'portrait'|'landscape'}};displaySections?:Partial<Record<'people'|'today'|'tomorrow'|'important'|'messages'|'support'|'week'|'environment'|'next',boolean>>;displayCompactPeople?:boolean;now?:number;onCompose?:()=>void;onManagePeople?:()=>void;connection?:string}) {
   const {t,locale}=useI18n();
-  const {dark,compact,mobile,lowHeight}=useHubComposition(displaySnapshot?.composition);
+  const {dark,compact,mobile,lowHeight}=useHubComposition(displaySnapshot?.composition,display);
   // Landscape shared displays and their previews use the prospect board: one
   // readable row of day/family cards above a low message + photo row.
   // Portrait shared displays use the same board, stacked (today/tomorrow over family, note and photo).
@@ -35,7 +35,8 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   },[mobile,dark,compact]);
   const minCardWidth=peopleCardMinWidth(people);
   const concisePeople=people.length>4;
-  const peopleLayout=!dark&&!compact&&!concisePeople?adaptivePeopleLayout(people.length,peopleSpace.width,peopleSpace.gap,minCardWidth):null;
+  // The board lays people out as rows + idle chips in both themes; the adaptive card grid squeezed idle chips on top of each other in light mode (issue #29).
+  const peopleLayout=!board&&!dark&&!compact&&!concisePeople?adaptivePeopleLayout(people.length,peopleSpace.width,peopleSpace.gap,minCardWidth):null;
   const [tick,setTick]=useState(Date.now());
   useEffect(()=>{const timer=setInterval(()=>setTick(Date.now()),1000);return()=>clearInterval(timer)},[]);
   const now=givenNow??tick;
@@ -46,7 +47,8 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   const currentWeekDinners=displaySnapshot?.dinners??(dailyDinnerScopeMatches?currentWeekDinnerState.dinners:[]);
   const updateWeekDinners=useCallback((dinners:import('./household-board-adapters').DinnerAssignment[]|undefined,stale=false)=>setCurrentWeekDinnerState(previous=>({householdId,localDate,dinners:dinners??(previous.householdId===householdId&&previous.localDate===localDate?previous.dinners:[]),stale})),[householdId,localDate]);
   const hour=Number(wallInput(now,zone).slice(11,13));
-  const greeting=t(mobile ? (hour>=5&&hour<10?'hubMorningCompact':hour>=10&&hour<18?'hubDayCompact':'hubEveningCompact') : (hour>=5&&hour<10?'hubMorning':hour>=10&&hour<18?'hubDay':'hubEvening'));
+  const period=hour>=5&&hour<10?'Morning':hour>=10&&hour<18?'Day':hour>=18&&hour<23?'Evening':'Night';
+  const greeting=t(`hub${period}${mobile?'Compact':''}` as 'hubMorning');
   const active=currentItems(items,now);
   const today=dayKey(now,zone),tomorrow=dayKey(now,zone,1);
   const groupedSchool=groupHomeSchoolActivities(schoolActivities);
@@ -109,7 +111,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
   });
   if(board)boardPeople.sort((a,b)=>Number(a.idle)-Number(b.idle)||a.index-b.index);
   const sections: Record<string, ReactNode> = {
-    people: mobile&&!display || (!display&&people.length===0) ? null : <section key="people" className={`hub-person-section ${peopleLayout?'hub-adaptive-people':''} ${peopleLayout&&peopleLayout.rows>1?'hub-people-multirow':''} ${concisePeople?'hub-people-summary':''}`} aria-labelledby="hub-people-title"><PanelTitle id="hub-people-title" icon="people" title={t(dark&&!compact?'hubFamilyHeading':'hubPeople')} count={people.length}/><div ref={peopleGrid} className="hub-person-grid" style={peopleLayout?{'--hub-people-columns':peopleLayout.columns} as CSSProperties:undefined}>{boardPeople.map(({person,index,personal,school,birthday,idle},position)=>{
+    people: mobile&&!display || (!display&&people.length===0) ? null : <section key="people" className={`hub-person-section ${peopleLayout?'hub-adaptive-people':''} ${peopleLayout&&peopleLayout.rows>1?'hub-people-multirow':''} ${concisePeople?'hub-people-summary':''}`} aria-labelledby="hub-people-title"><PanelTitle id="hub-people-title" icon="people" title={t('hubFamilyHeading')} count={people.length}/><div ref={peopleGrid} className="hub-person-grid" style={peopleLayout?{'--hub-people-columns':peopleLayout.columns} as CSSProperties:undefined}>{boardPeople.map(({person,index,personal,school,birthday,idle},position)=>{
       // On the board, people with nothing planned become compact chips under one shared label.
       const firstIdle=board&&idle&&(position===0||!boardPeople[position-1]!.idle);
       return <Fragment key={person.id}>{firstIdle&&<p className="hub-person-idle-label">{t('hubPersonNothingPlanned')}</p>}<PersonCard idle={board&&idle} schoolFirst={board&&display} nothingLabel={false} combined={lowHeight&&!compact&&(concisePeople||Boolean(peopleLayout&&peopleLayout.rows>1))} summary={!display||concisePeople} taskAccess={display?taskAccess:undefined} key={person.id} person={person} index={index} items={personal} school={school} birthday={birthday} now={now} people={people} zone={zone} display={display} previewLimit={compact||dark||peopleLayout&&peopleLayout.rows>1?1:lowHeight?2:3}/></Fragment>;
@@ -183,7 +185,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
       {mobile?<>
         <div className="hub-home-primary-grid hub-home-mobile">{orderedSections}<div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div></div>
         <div className="hub-home-secondary-grid">{homePhoto}</div>
-        {people.length>0&&displaySections?.people!==false&&<nav className="hub-identities" aria-label={t('hubPeople')}>{people.map((p,i)=>{const birthday=currentBirthdays.find(item=>item.personId===p.id);return <button key={p.id} type="button" data-person-id={p.id} data-hub-detail={p.id} data-hub-detail-kind="person" aria-label={t('hubPersonDetails',{name:p.displayName})} onClick={event=>detailAccess.open({kind:'person',id:p.id},event.currentTarget)}><Avatar name={p.displayName} index={i} personId={p.id} colorToken={p.colorToken} avatarKey={p.avatarKey} photo={p.photo}/><strong>{p.displayName}</strong>{birthday&&<span className="hub-person-birthday" data-review-private="birthday-badge">🎂 {t(birthday.due==='today'?'hubBirthdayToday':'hubBirthdayTomorrow')}</span>}</button>})}</nav>}
+        {people.length>0&&displaySections?.people!==false&&<nav className="hub-identities" aria-label={t('hubFamilyHeading')}>{people.map((p,i)=>{const birthday=currentBirthdays.find(item=>item.personId===p.id);return <button key={p.id} type="button" data-person-id={p.id} data-hub-detail={p.id} data-hub-detail-kind="person" aria-label={t('hubPersonDetails',{name:p.displayName})} onClick={event=>detailAccess.open({kind:'person',id:p.id},event.currentTarget)}><Avatar name={p.displayName} index={i} personId={p.id} colorToken={p.colorToken} avatarKey={p.avatarKey} photo={p.photo}/><strong>{p.displayName}</strong>{birthday&&<span className="hub-person-birthday" data-review-private="birthday-badge">🎂 {t(birthday.due==='today'?'hubBirthdayToday':'hubBirthdayTomorrow')}</span>}</button>})}</nav>}
       </>:<>
         <div className="hub-home-board">
           <div className="hub-home-left-column">
@@ -216,8 +218,9 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
 }
 // Observe the already-resolved app theme (including system changes), so DOM,
 // reading and keyboard order follow the same composition as the visible grid.
-function useHubComposition(snapshot?:{theme:string;orientation:'portrait'|'landscape'}) {
-  const queries=['(max-width: 1000px)','(max-width: 640px)','(min-width: 1001px) and (max-height: 850px)'];
+function useHubComposition(snapshot?:{theme:string;orientation:'portrait'|'landscape'},display=false) {
+  // A paired display in portrait (the fridge tablet, at any resolution) always gets the stacked portrait board.
+  const queries=[display?'(max-width: 1000px), (orientation: portrait)':'(max-width: 1000px)','(max-width: 640px)','(min-width: 1001px) and (max-height: 850px)'];
   const read=()=>snapshot?{dark:snapshot.theme==='dark'||snapshot.theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches,compact:snapshot.orientation==='portrait',mobile:false,lowHeight:snapshot.orientation==='landscape'}:{dark:document.documentElement.dataset.theme==='dark',compact:matchMedia(queries[0]!).matches,mobile:matchMedia(queries[1]!).matches,lowHeight:matchMedia(queries[2]!).matches};
   const [composition,setComposition]=useState(read);
   useEffect(()=>{
@@ -228,7 +231,7 @@ function useHubComposition(snapshot?:{theme:string;orientation:'portrait'|'lands
     observer?.observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
     media.forEach(query=>query.addEventListener('change',update));update();
     return()=>{observer?.disconnect();media.forEach(query=>query.removeEventListener('change',update))};
-  },[snapshot?.orientation,snapshot?.theme]);
+  },[snapshot?.orientation,snapshot?.theme,display]);
   return snapshot?read():composition;
 }
 

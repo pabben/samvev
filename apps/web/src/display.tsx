@@ -613,7 +613,8 @@ function DisplayRuntime({
                 ))}
           </div>
         ) : !showFamily&&!projection?.setup?.cards.length ? <Empty title={t("displayEmpty")} body={t("displayEmptyBody")}/> : null}
-        {projection&&selectedCards.map(card=>{
+        {/* The family board is the whole shared screen (issue #29): secondary cards below it were raw, unscrollable text on the fridge. */}
+        {projection&&!showFamily&&selectedCards.map(card=>{
           const order=selectedCards.indexOf(card)+(showFamily?5:3);
           if(projection.display.privacyMode&&["external_items","photos","home_assistant","today","tomorrow","week","next","people","worth_remembering","groceries","dinners"].includes(card))return null;
           if(card==="new_message")return !projection.display.privacyMode?(projection.actionAvailability?.newMessage?<div className="display-ordered-card" key={card} style={{order}}><DisplayMessageComposer key={`${sourceEpoch}:${projection.display.id}`} recipientGeneration={JSON.stringify([sourceEpoch,projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt])} online={online} now={displayNow}/></div>:<section className="hub-panel display-selected-card display-ordered-card" key={card} style={{order}} role="status"><h2>{t("newMessage")}</h2><p className="field-hint">{t("displayActionUnavailable")}</p></section>):null;

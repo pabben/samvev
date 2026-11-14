@@ -70,17 +70,17 @@ export function DeviceHomeAssistantControls({timezone='UTC',canAct=false,compact
 
 type DeviceObservation=HomeAssistantObservation&{stale?:boolean};
 function HomeAssistantControlDevice({actor,compact=false}:{actor:Actor;compact?:boolean}){
- const {t,locale}=useI18n(),{run,busy,error}=useAction();const [entities,setEntities]=useState<ReadableHomeAssistantEntity[]>(),[observations,setObservations]=useState<Record<string,DeviceObservation>>({}),[receipts,setReceipts]=useState<Record<string,HomeAssistantReceipt>>({}),[confirmation,setConfirmation]=useState<{entityId:string;value:HomeAssistantConfirmation;expiresAt:number}>(),[clock,setClock]=useState(Date.now());const keys=useRef(new Map<string,string>()),generation=useRef(0),refreshing=useRef(false),actionInFlight=useRef(false);
+ const {t,locale}=useI18n(),{run,busy,error}=useAction();const [entities,setEntities]=useState<ReadableHomeAssistantEntity[]>(),[observations,setObservations]=useState<Record<string,DeviceObservation>>({}),[receipts,setReceipts]=useState<Record<string,HomeAssistantReceipt>>({}),[confirmation,setConfirmation]=useState<{entityId:string;value:HomeAssistantConfirmation;expiresAt:number}>(),[clock,setClock]=useState(Date.now());const keys=useRef(new Map<string,string>()),generation=useRef(0),refreshing=useRef(false),refreshPending=useRef(false),actionInFlight=useRef(false);
  const apiActor=actor.kind==='member'?{kind:'member' as const,householdId:actor.householdId}:{kind:'display' as const};
  const root=actor.kind==='member'?`/households/${actor.householdId}/home-assistant/controls`:'/display/home-assistant/controls';
  const clearScope=()=>{generation.current++;setEntities(undefined);setObservations({});setReceipts({});setConfirmation(undefined);keys.current.clear()};
- const refresh=async()=>{if(refreshing.current||actionInFlight.current)return;refreshing.current=true;const request=++generation.current;setConfirmation(undefined);try{
+ const refresh=async():Promise<void>=>{if(refreshing.current||actionInFlight.current){refreshPending.current=true;return}refreshing.current=true;refreshPending.current=false;const request=++generation.current;setConfirmation(undefined);try{
   try{const result=await controlsApi.list(apiActor);if(request!==generation.current)return;setEntities(result.entities);
    const previous=observations;const failures:unknown[]=[];
    const rows=await mapHomeAssistantReadsSequentially(result.entities,async entity=>{try{return[entity.id,await controlsApi.read(apiActor,entity.id)] as const}catch(readError){if(isAuthorizationFailure(readError))throw readError;failures.push(readError);const old=previous[entity.id];return[entity.id,old?{...old,stateStatus:'unknown' as const,stale:true,errorCode:'home_assistant_control_state_unknown'}:{...entity,state:null,stateStatus:'unknown' as const,lastChangedAt:null,readAt:null,stateAuthority:'home_assistant' as const,physicalConfirmation:'not_available' as const,errorCode:'home_assistant_control_state_unknown'}] as const}},()=>request===generation.current);
    if(request!==generation.current)return;setObservations(Object.fromEntries(rows));if(failures.length)throw failures[0];
   }catch(readError){if(request!==generation.current)return;if(isAuthorizationFailure(readError)){clearScope();}else if(entities?.length){setObservations(previous=>Object.fromEntries(Object.entries(previous).map(([id,observation])=>[id,{...observation,stateStatus:'unknown' as const,stale:true,errorCode:'home_assistant_control_state_unknown'}])))}throw readError}
- }finally{refreshing.current=false}};
+ }finally{refreshing.current=false;if(refreshPending.current&&!actionInFlight.current){refreshPending.current=false;void run(refresh)}}};
  useEffect(()=>{clearScope();void run(refresh);return()=>{generation.current++}},[root]);
  useEffect(()=>{if(busy)return;const timer=setInterval(()=>{if(!busy&&!refreshing.current&&!actionInFlight.current)void run(refresh)},60_000);return()=>clearInterval(timer)},[busy,root]);
  useEffect(()=>{if(!confirmation)return;const timer=setInterval(()=>setClock(Date.now()),250);return()=>clearInterval(timer)},[confirmation]);
