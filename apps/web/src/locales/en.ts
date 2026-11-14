@@ -830,6 +830,8 @@ export const en = {
   hubMorningCompact: "Good morning!",
   hubDayCompact: "Hello, family!",
   hubEveningCompact: "Good evening!",
+  hubNightCompact: "Good night!",
+  hubNight: "Good night, everyone.",
   hubDetails: "Details",
   hubMoreItems: "{count} more",
   hubPersonDetails: "Open activities for {name}",

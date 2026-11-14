@@ -49,7 +49,7 @@ test('temperature formatting preserves native negative/decimal values and valid 
  const first=temperature(1,'°C'),second={...temperature(2,'°C'),id:'second',metadata:{temperature:{...temperature(2,'°C').metadata.temperature!,order:2}}};assert.deepEqual(temperatureItems([second,first]).map(item=>item.id),[first.id,second.id]);
 });
 test('temperature stale/unavailable output distinguishes source time, fetching and no reading in both locales',()=>{
- for(const locale of ['nb','en'] as const){const html=render(createElement(HomeEnvironment,{waste:[],temperatures:[temperature(-3.5,'°C','unavailable','stale'),{...temperature(null,'°C','unavailable','stale'),id:'none'}],zone,onWaste:()=>{}}),locale);assert.ok(html.includes(locale==='nb'?'Siste kjente verdi':'Last known value'));assert.ok(html.includes(locale==='nb'?'Ingen måling':'No reading'));assert.ok(html.includes(locale==='nb'?'Rapportert av Home Assistant':'Reported by Home Assistant'));assert.ok(html.includes(locale==='nb'?'Hentet av Samvev':'Fetched by Samvev'));assert.ok(html.includes('data-temperature-freshness="stale"'));assert.ok(!html.includes('0 °C'));}
+ for(const locale of ['nb','en'] as const){const html=render(createElement(HomeEnvironment,{waste:[],temperatures:[temperature(-3.5,'°C','unavailable','stale'),{...temperature(null,'°C','unavailable','stale'),id:'none'}],zone,onWaste:()=>{}}),locale);assert.ok(html.includes(locale==='nb'?'Siste kjente verdi':'Last known value'));assert.ok(html.includes(locale==='nb'?'Utilgjengelig':'Unavailable'));/* issue #29: a sensor with a last known value never also says unavailable */const withValue=html.slice(0,html.indexOf('data-item-id="none"'));assert.ok(!withValue.includes(locale==='nb'?'Utilgjengelig':'Unavailable'));assert.ok(html.includes(locale==='nb'?'Rapportert av Home Assistant':'Reported by Home Assistant'));assert.ok(html.includes(locale==='nb'?'Hentet av Samvev':'Fetched by Samvev'));assert.ok(html.includes('data-temperature-freshness="stale"'));assert.ok(!html.includes('0 °C'));}
 });
 test('actual six-person Home hides remote calendar previews/counts while keeping the upcoming entrance and reminders',()=>{
  const people=Array.from({length:6},(_,i)=>({id:i===0?'p':`p${i}`,displayName:`Synthetic ${i}`,ageGroup:i<2?'adult':'child'}));const remote=event('remote24','2026-10-24T08:00:00Z');const reminder=event('remember','2026-10-30T08:00:00Z',null,{kind:'reminder'});
@@ -102,4 +102,11 @@ test('source health reports each successful source independently during a partia
 test('sensor editor uses measurement-specific sharing and activation copy in both locales',async()=>{
  const {en}=await import('../src/locales/en');const {nb}=await import('../src/locales/nb');
  for(const messages of [en,nb]){assert.notEqual(messages.temperatureReaders,messages.calendarReaders);assert.notEqual(messages.temperatureActivate,messages.calendarActivate);assert.ok(messages.temperatureReadersHint);}
+});
+
+test('issue #29: night hours greet with good night and the family card has one name everywhere',()=>{
+ const people=[{id:'p',displayName:'Synthetic',ageGroup:'adult' as const}];
+ for(const [iso,nb] of [['2026-10-15T01:25:00Z','God natt'],['2026-10-15T21:30:00Z','God natt'],['2026-10-15T17:30:00Z','God kveld'],['2026-10-15T05:30:00Z','God morgen']] as const){
+  for(const [width,height,dark] of [[1920,1080,true],[1280,752,false],[390,844,true]] as const){setup(dark,width,height);const html=render(createElement(FamilyHub,{people,items:[],messages:[],zone,householdName:'Synthetic',now:Date.parse(iso)}),'nb');assert.ok(html.includes(nb),`${iso} ${width}`);assert.ok(!html.includes('Alles hverdag'));}
+ }
 });

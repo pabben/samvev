@@ -831,6 +831,8 @@ export const nb: Record<TranslationKey, string> = {
   hubMorningCompact: "God morgen!",
   hubDayCompact: "Hei, familien!",
   hubEveningCompact: "God kveld!",
+  hubNightCompact: "God natt!",
+  hubNight: "God natt, alle sammen.",
   hubDetails: "Detaljer",
   hubMoreItems: "{count} til",
   hubPersonDetails: "Åpne aktiviteter for {name}",

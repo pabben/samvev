@@ -714,3 +714,7 @@ body{font-family:var(--font-sans)}
  .display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-light,.hub-dark) .hub-grid>.hub-today,.display-preview-screen .family-hub.hub-display-compact-people:is(.hub-wide,.hub-compact):is(.hub-light,.hub-dark) .hub-grid>.hub-tomorrow{grid-column:1!important;grid-row:auto!important;min-width:0}
 }
 .media-library-disclosure>summary::before{content:none}
+/* Issue #29: all-day rows have no time, so they drop the empty time column and read as a deliberate full-width band. */
+.hub-week-row-button.is-all-day{grid-template-columns:minmax(0,1fr);background:color-mix(in srgb,var(--activity-stripe,var(--teal)) 12%,transparent)}
+.hub-week-row-button.is-all-day.has-status{grid-template-columns:20px minmax(0,1fr)}
+.hub-temperature-value.is-stale{opacity:.6}

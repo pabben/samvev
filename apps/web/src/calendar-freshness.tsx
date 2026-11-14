@@ -5,5 +5,5 @@ import {formatDate} from './time';
 export function CalendarFreshness({item,zone,detail=false}:{item:HubItem;zone?:string;detail?:boolean}){
  const {t,locale}=useI18n();const calendar=item.metadata.calendar;
  if(calendar?.freshness!=='stale')return null;
- return <span className={`calendar-stale ${detail?'calendar-stale-detail':''}`} data-calendar-freshness="stale" lang={locale}><span aria-hidden="true">◷</span> {t(detail?'calendarStaleReaderDetail':'calendarStaleReader')}{detail&&zone&&calendar.lastSuccessfulSyncAt&&<span className="calendar-stale-time">{t('calendarLastSync')}: {formatDate(calendar.lastSuccessfulSyncAt,locale,zone)}</span>}</span>;
+ return <span className={`calendar-stale ${detail?'calendar-stale-detail':''}`} data-calendar-freshness="stale" lang={locale} title={detail?undefined:t('calendarStaleReader')}><span aria-hidden="true">◷</span> <span className="calendar-stale-label">{t(detail?'calendarStaleReaderDetail':'calendarStaleReader')}</span>{detail&&zone&&calendar.lastSuccessfulSyncAt&&<span className="calendar-stale-time">{t('calendarLastSync')}: {formatDate(calendar.lastSuccessfulSyncAt,locale,zone)}</span>}</span>;
 }

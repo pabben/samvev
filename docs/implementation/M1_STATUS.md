@@ -1345,3 +1345,17 @@ were fixed with regressions. No private household data is part of this entry.
 Production deployment/restore evidence is a separate operator record; this test
 result does not claim a live HA install or physical Shelly validation. Policy
 rollback is disabling the new false-default flag, retaining additive schema/data.
+
+## Issue #29 round 2: owner findings from the real fridge — 2026-11-14 (branch `fix/issue-29-round2`)
+
+Owner findings from the physical portrait tablet and their fixes (synthetic data only):
+
+1. **Portrait at any resolution.** A paired display now uses the stacked portrait board whenever it is in portrait orientation, not only below 1000 px width. 1200×1920 previously fell back to three narrow columns with empty space. Busy people sit in two columns on wide portrait screens, so 800×1280 fits above the fold with an all-day event, long titles and six people.
+2. **Nothing raw below the board.** When the family board is shown on `/display`, secondary cards (calendar items, new message, worth remembering, next, shopping list, week) are no longer rendered below it. The board is the whole screen.
+3. **No false "…".** The stale calendar badge ("Kan være utdatert") is shown on the board as a ◷ glyph with the full text as an accessible label and tooltip, so it no longer forces a fitting title into an ellipsis.
+4. **"Ingenting planlagt" chips** no longer overlap in light theme. The cause was inline-size containment (`.hub-light.hub-wide .hub-person`) collapsing the chips to 0 px. The board also no longer uses the adaptive card grid.
+5. **All-day rows** drop the empty time column and render as a deliberate tinted band at the top of the day, in both the board and the week list.
+6. **Home:** a temperature sensor shows either its last known value with a time, or "Utilgjengelig", never both. Home Assistant controls rerun a refresh that was requested while another was in flight, instead of staying on "Gjør alt klart …" until the next 60 s poll.
+7. **Greeting:** 23–05 says "God natt". The family card is called "Familien" on every surface.
+
+Checks: `tsc --noEmit`, `npm run check`, 264/264 web unit tests (new night-greeting and single-temperature-state assertions). Blind gauntlet rounds at 800×1280 and 1200×1920 against the prospect are recorded in the issue #29 comment. Not run: Docker display-proof E2E or the physical device; the owner confirms on the fridge.
