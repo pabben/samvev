@@ -43,3 +43,16 @@ test('overflow-day badge and collection count agree when a birthday is shown sep
     assert.match(today,/Se I dag · 7 totalt/);
   }
 });
+
+test('member contextual days keep school, birthday and meals while omitting a misleading zero event badge',()=>{
+  for(const theme of ['light','dark'] as const)for(const mobile of [false,true]){
+    const markup=displayFixture({theme,member:true,mobile,empty:true,birthday:true});
+    const today=markup.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)![0];
+    assert.match(today,/data-context-only="true"/);
+    assert.match(today,/Syntetisk skolepåminnelse/);
+    assert.match(today,/Taco/);
+    assert.match(today,/hub-birthday-row/);
+    assert.doesNotMatch(today,/class="hub-count"/);
+    assert.equal((markup.match(mobile?/data-hub-detail-kind="person"/g:/data-review-private="person-card"/g)??[]).length,6);
+  }
+});

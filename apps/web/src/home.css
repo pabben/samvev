@@ -702,6 +702,13 @@ body{font-family:var(--font-sans)}
 /* Member photo follows the roster in the same column, independently of the
    taller daily agenda and message column. */
 .family-hub.hub-member .hub-home-right-column{grid-column:2;grid-row:1;display:flex;flex-direction:column;align-self:start;gap:clamp(12px,1.4vw,20px);min-width:0}
+/* Member days with contextual school/birthday rows and a meal do not need to
+   stretch to the family roster's height. Keep the meal in the content flow. */
+@media(min-width:1001px){
+ #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only]{align-self:start;min-height:0;height:auto}
+ #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only] .hub-timeline{flex:0 0 auto}
+ #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only] .hub-timeline>li.hub-day-dinner{margin-top:8px}
+}
 .family-hub.hub-member .hub-home-right-column>.hub-home-people,.family-hub.hub-member .hub-home-right-column>.hub-home-photo-column{grid-column:auto;grid-row:auto;min-width:0}
 
 /* The narrow administrator preview has its own width. Keep the two day cards
