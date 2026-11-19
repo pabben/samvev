@@ -53,6 +53,10 @@ test('member contextual days keep school, birthday and meals while omitting a mi
     assert.match(today,/Taco/);
     assert.match(today,/hub-birthday-row/);
     assert.doesNotMatch(today,/class="hub-count"/);
+    const tomorrow=markup.match(/<section[^>]*data-hub-scope="tomorrow"[\s\S]*?<\/section>/)![0];
+    assert.match(tomorrow,/Synthetic class trip tomorrow/);
+    assert.match(tomorrow,/hub-school-freshness/,'actual unknown-freshness markup remains in the regression fixture');
+    assert.match(tomorrow,/Bring synthetic lunch/,'actual school action markup remains before the meal');
     assert.equal((markup.match(mobile?/data-hub-detail-kind="person"/g:/data-review-private="person-card"/g)??[]).length,6);
   }
 });

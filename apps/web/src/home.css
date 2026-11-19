@@ -709,6 +709,7 @@ body{font-family:var(--font-sans)}
  #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only]{align-self:start;min-height:0;height:auto}
  #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only] .hub-timeline{flex:0 0 auto}
  #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only] .hub-timeline>li.hub-day-dinner{margin-top:8px}
+ #root .family-hub.hub-member.hub-board .hub-home-board .hub-day .hub-timeline>li.hub-day-school{max-height:none;flex:0 0 auto}
 }
 .family-hub.hub-member .hub-home-right-column>.hub-home-people,.family-hub.hub-member .hub-home-right-column>.hub-home-photo-column{grid-column:auto;grid-row:auto;min-width:0}
 

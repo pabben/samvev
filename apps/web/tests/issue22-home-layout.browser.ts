@@ -30,11 +30,12 @@ try{
   const geometry=await page.evaluate(()=>({days:Array.from(document.querySelectorAll<HTMLElement>('.hub-day')).map(day=>{
    const dinner=day.querySelector<HTMLElement>('.hub-day-dinner');
    const previous=dinner?.previousElementSibling;
-   return {day:day.dataset.hubScope,height:day.getBoundingClientRect().height,dinnerGap:dinner&&previous?dinner.getBoundingClientRect().top-previous.getBoundingClientRect().bottom:null};
+   return {day:day.dataset.hubScope,height:day.getBoundingClientRect().height,dinnerGap:dinner&&previous?dinner.getBoundingClientRect().top-previous.getBoundingClientRect().bottom:null,dinnerTop:dinner?.getBoundingClientRect().top,schoolContentBottom:Math.max(0,...Array.from(day.querySelectorAll<HTMLElement>('.hub-school-freshness,.hub-school-actions')).map(node=>node.getBoundingClientRect().bottom))};
   }),targets:Array.from(document.querySelectorAll<HTMLElement>('.hub-person-identity,.hub-identities button')).map(node=>node.getBoundingClientRect().height),overflow:document.documentElement.scrollWidth>innerWidth}));
   assert.equal(geometry.overflow,false,'Home stays within viewport width');
   assert.ok(geometry.targets.length===6&&geometry.targets.every(height=>height>=44),'all six identities keep 44px controls');
-  if(phase==='after'&&viewport.width===1280)assert.ok(geometry.days.every(day=>(day.dinnerGap??0)<=16),`quiet days keep the meal beside their content: ${JSON.stringify(geometry)}`);
+  if(phase!=='before'&&viewport.width===1280)assert.ok(geometry.days.every(day=>(day.dinnerGap??0)<=16),`quiet days keep the meal beside their content: ${JSON.stringify(geometry)}`);
+  assert.ok(geometry.days.every(day=>!day.dinnerTop||day.schoolContentBottom<=day.dinnerTop),`school freshness and action text must end above the dinner: ${JSON.stringify(geometry)}`);
   const file=`home-${theme}-${viewport.width}x${viewport.height}.png`;
   await page.screenshot({path:resolve(output,file)});
   results.push({file,viewport,...geometry});
