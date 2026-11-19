@@ -53,6 +53,15 @@ const todayAndTomorrow=await db.query("SELECT (clock_timestamp() AT TIME ZONE 'E
 const today=todayAndTomorrow.rows[0].today.toISOString().slice(0,10),tomorrow=todayAndTomorrow.rows[0].tomorrow.toISOString().slice(0,10);
 const expectedCurrentWeekDates=(()=>{const start=new Date(`${today}T00:00:00.000Z`),count=(7-start.getUTCDay())%7+1;return Array.from({length:count},(_,index)=>new Date(start.getTime()+index*86400000).toISOString().slice(0,10))})();
 const assertCurrentWeek=async(surface)=>{const days=surface.locator('[data-testid="home-activity-week"] .hub-week-day > h3 time[datetime]');await days.first().waitFor({timeout:10000});const dates=await days.evaluateAll(nodes=>nodes.map(node=>node.getAttribute('datetime')));assert.deepEqual(dates,expectedCurrentWeekDates,'current week must show household-local today through Sunday, including empty days');};
+const assertSchoolDinnerSeparation=async(surface)=>{
+ for(const day of ['today','tomorrow']){
+   const school=surface.locator(`.hub-${day} .hub-day-school .hub-school-activity`).last();
+   const dinner=surface.locator(`.hub-${day} .hub-day-dinner`).first();
+   if(!await school.count()||!await dinner.count())continue;
+   const schoolBox=await school.boundingBox(),dinnerBox=await dinner.boundingBox();
+   assert.ok(schoolBox&&dinnerBox&&schoolBox.y+schoolBox.height+2<=dinnerBox.y,`${day} school content must finish before dinner begins`);
+ }
+};
 const tomorrowEvent=await id("INSERT INTO monitor_events(household_id,task_id,event_key,event_date,event_time,event_type,description,actions,evidence,confidence,source_fingerprint,message_id,school_expires_at) VALUES($1,$2,'synthetic-proof-tomorrow',$3,'08:15','preparation','Synthetic class trip tomorrow','[\"Bring synthetic lunch\",\"Wear a rain jacket\"]',$4,0.94,'synthetic-proof-tomorrow-fingerprint',$5,clock_timestamp()+interval '3 days') RETURNING id",[household,task,tomorrow,JSON.stringify({sourceUrl:'https://school.test.invalid/tomorrow',quote:'Synthetic class trip details'}),message]);
 const dinnerOption=await id("INSERT INTO household_dinner_options(household_id,title,emoji,created_by_actor_type,created_by_actor_id) VALUES($1,'Synthetic veggie tacos','🌮','member',$2) RETURNING id",[household,membership]);
 await db.query("INSERT INTO household_dinner_assignments(household_id,local_date,title_snapshot,emoji_snapshot,updated_by_actor_type,updated_by_actor_id) VALUES($1,$2,'Synthetic veggie tacos','🌮','member',$3),($1,$4,'Synthetic tomato pasta','🍝','member',$3)",[household,today,membership,tomorrow]);
@@ -280,6 +289,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await admin.locator('.family-hub').waitFor();
    await waitForSettledHome(admin);
    await assertCurrentWeek(admin);
+   await assertSchoolDinnerSeparation(admin);
    assert.ok(await admin.getByText('Synthetic school activity',{exact:true}).count()>=1,'member Home has loaded synthetic Today content');
    await assertHomePeopleExactlySix(admin);
    assert.equal(await admin.getByText('Synthetic household note',{exact:true}).count(),1,'member Home shows the synthetic household note');
@@ -536,6 +546,10 @@ try {
  assert.equal(await screen.locator('.hub-today').count(),1);
 
  if(process.env.SCREENSHOT_MODE!=='1') await proveCalendarLifecycle(admin);
+ await admin.goto('/?tab=home');
+ await admin.locator('.family-hub').waitFor();
+ await admin.locator('.hub-tomorrow .hub-day-school .hub-school-activity').waitFor({timeout:15000});
+ await assertSchoolDinnerSeparation(admin);
  if(process.env.SCREENSHOT_MODE==='1') await captureVisualEvidence({admin,old,screen,denied,adminCtx,db,household,display,setup,account,schoolEvent,tomorrowEvent,today,tomorrow,backgroundAlbum,backgroundAsset});
 
  const hiddenPerson=await id("INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic unselected child','child') RETURNING id",[household]);
