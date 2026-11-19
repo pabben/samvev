@@ -704,6 +704,7 @@ body{font-family:var(--font-sans)}
 .family-hub.hub-member .hub-home-right-column{grid-column:2;grid-row:1;display:flex;flex-direction:column;align-self:start;gap:clamp(12px,1.4vw,20px);min-width:0}
 /* Member days with contextual school/birthday rows and a meal do not need to
    stretch to the family roster's height. Keep the meal in the content flow. */
+#root .family-hub.hub-member.hub-board.hub-light .hub-hero .hub-subtitle{color:var(--muted)}
 @media(min-width:1001px){
  #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only]{align-self:start;min-height:0;height:auto}
  #root .family-hub.hub-member.hub-board .hub-home-board .hub-day[data-context-only] .hub-timeline{flex:0 0 auto}
