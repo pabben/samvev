@@ -1359,3 +1359,9 @@ Owner findings from the physical portrait tablet and their fixes (synthetic data
 7. **Greeting:** 23–05 says "God natt". The family card is called "Familien" on every surface.
 
 Checks: `tsc --noEmit`, `npm run check`, 264/264 web unit tests (new night-greeting and single-temperature-state assertions). Blind gauntlet rounds at 800×1280 and 1200×1920 against the prospect are recorded in the issue #29 comment. Not run: Docker display-proof E2E or the physical device; the owner confirms on the fridge.
+
+## Round 19: display fit and ICS error clarity — 2026-11-19
+
+Public app and worker source: `c3ad869e207820d4edadd9b478c212ac6bb3d121`, schema 48. This is a descendant of the issue #29 round-2 candidate. The 1280×752 family display now fits its full message/photo row with 16 px bottom clearance, wraps long all-day titles, keeps 44 px person targets in both themes, and shortens empty cards. Explicitly selected grocery content remains visible under existing grants; dinner is not repeated, and preview follows the same board policy. ICS notices no longer show raw placeholders or confuse download size with occurrence limits, and moved recurring events overlapping the window are retained.
+
+Verification: isolated 783/783 workspace tests and typecheck PASS; 60 source-bound synthetic browser captures PASS; security/requirements/UX review findings addressed. The public code-only schema-48 cutover used fresh backups, isolated restore and a retained rollback image/Compose override. App, worker and DB are healthy; public HTTPS synthetic login/navigation/asset/logout smoke passed 11/11. See `docs/design/review/ROUND_19_REPORT.md` and its selected 14-image manifest. Physical fridge, owner visual acceptance for #22, Windows theme-menu contrast and the private failing ICS source remain separate checks. No AI task, schedule, HA connection, user data or vault was changed in this round.
