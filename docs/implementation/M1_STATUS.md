@@ -1,4 +1,10 @@
-# Current public status — 2026-11-19
+# Current public status — 2026-11-19 (Round 19B)
+
+Public app and worker run source `8391041ca17ffea124870118b7312f0c50e3da5c` on schema 48. The focused Home composition follow-up passed 274/274 web tests, typecheck, a clean 60-image isolated browser proof, scoped reviews, public backup/isolated restore/cutover/postrestore and authenticated HTTPS smoke 11/11. See [Round 19B report](../design/review/ROUND_19B_REPORT.md) and [synthetic manifest](../design/review/round-19b/after/manifest.json). The earlier Round 19 source `c3ad869e207820d4edadd9b478c212ac6bb3d121` is the immediate rollback image. The original Round 19 feature review and open owner checks remain applicable.
+
+---
+
+# Historical Round 19 public status — 2026-11-19
 
 Public app and worker run source `c3ad869e207820d4edadd9b478c212ac6bb3d121` on schema 48. The 60-image isolated display proof, 783/783 tests, workspace typecheck, backup/isolated restore/cutover/postrestore, healthy containers and authenticated public HTTPS smoke 11/11 passed. The signed source is on `feat/m3-family-hub`; the separate [Round 19 report](../design/review/ROUND_19_REPORT.md) and [synthetic visual manifest](../design/review/round-19/after/manifest.json) record scope and limits. #22 visual acceptance, physical fridge, the private failing ICS calendar and Windows Chrome select contrast remain open. School AI jobs and schedules were not changed.
 
