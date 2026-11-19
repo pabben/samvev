@@ -203,7 +203,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
  assert.match(process.env.SOURCE_HEAD_SHA??'',/^[a-f0-9]{40}$/,'capture must identify the publisher checkout HEAD');
  assert.ok(['true','false'].includes(process.env.SOURCE_DIRTY??''),'capture must record the publisher checkout dirty state');
  await mkdir(out,{recursive:true});
- const viewports=[['desktop',1920,1080],['mobile',390,844],['tablet-portrait',820,1180],['wall-landscape',1280,752],['wall-portrait',752,1280]];
+ const viewports=[['desktop',1920,1080],['mobile',390,844],['tablet-portrait',820,1180],['wall-landscape',1280,752],['wall-portrait',752,1280],['fridge-portrait',800,1280],['large-portrait',1200,1920]];
  const manifest=[];
  const previewPage=await adminCtx.newPage();
  await previewPage.clock.install({time:new Date()});
@@ -405,7 +405,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
  }
  await proveCalendarLifecycle(admin,capture);
  await writeFile(resolve(out,'manifest.json'),`${JSON.stringify({source:'isolated synthetic display proof',sourceHeadSha:process.env.SOURCE_HEAD_SHA,sourceDirty:process.env.SOURCE_DIRTY==='true',fixture:{id:'r17-rich-capture-synthetic-household',type:'six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures'},aclNegativeFixture:{unselectedChildAddedAfterCaptures:true,targetedMessageAddedAfterCaptures:true},background:{assetId:backgroundAsset,albumId:backgroundAlbum,selectedForSetup:true,householdReadGranted:true,pairedDisplayReadGranted:true,deniedDisplayReadGranted:false},messageAudit,capturedAt:new Date().toISOString(),timezone:'Europe/Oslo',locale:'nb-NO',screenshots:manifest},null,2)}\n`);
- assert.equal(manifest.length,48,'37 display screenshots, nine synthetic calendar/settings UI captures and two simulated size-error UI captures are captured');
+ assert.equal(manifest.length,60,'49 display screenshots, nine synthetic calendar/settings UI captures and two simulated size-error UI captures are captured');
 }
 const root=resolve('apps/web/dist');
 const server=createServer(async(req,res)=>{
