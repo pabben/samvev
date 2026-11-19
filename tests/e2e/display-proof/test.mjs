@@ -287,7 +287,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await screen.goto('/display');
    await screen.locator('.family-hub').waitFor();
    await waitForSettledHome(screen);
-   await assertCurrentWeek(screen);
+   assert.equal(await screen.locator('[data-testid="home-activity-week"]').count(),0,'paired family board keeps the full week secondary instead of duplicating it below the first screen');
    assert.ok(await screen.getByText('Synthetic adult',{exact:true}).count()>=1,'paired display has loaded synthetic people');
    await previewPage.goto('/?tab=displays');
    await previewPage.getByRole('heading',{name:'Et felles blikk på hjemmet.',exact:true}).waitFor();
@@ -304,7 +304,7 @@ async function captureVisualEvidence({admin,old,screen,denied,adminCtx,db,househ
    await preview.waitFor();
    await previewPage.getByLabel('Retning for forhåndsvisning').selectOption('landscape');
    await waitForSettledHome(previewPage);
-   await assertCurrentWeek(preview);
+   assert.equal(await preview.locator('[data-testid="home-activity-week"]').count(),0,'manager preview uses the same single-board week policy');
    assert.ok(await preview.getByText('Synthetic adult',{exact:true}).count()>=1,'admin preview has loaded synthetic people');
    for(const surface of [preview,screen.locator('body')]) {
      assert.equal(await surface.getByText('Synthetic school notice',{exact:true}).count(),0,'school notice stays out of family message cards in live UI and preview');
