@@ -32,3 +32,14 @@ test('portrait keeps four agenda entries and empty boards retain all six people'
   assert.equal((empty.match(/data-review-private="person-card"/g)??[]).length,6);
   assert.doesNotMatch(empty,/data-review-private="day-event"/);
 });
+
+test('overflow-day badge and collection count agree when a birthday is shown separately',()=>{
+  for(const theme of ['light','dark'] as const){
+    const markup=displayFixture({theme,birthday:true});
+    const today=markup.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)![0];
+    assert.match(today,/hub-birthday-row/,'birthday context remains present');
+    assert.equal((today.match(/data-item-id=/g)??[]).length,3,'day still has overflow beyond its preview');
+    assert.match(today,/<span class="hub-count">7<\/span>/);
+    assert.match(today,/Se I dag · 7 totalt/);
+  }
+});
