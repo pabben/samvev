@@ -169,6 +169,16 @@ test('ICS parser preserves old counted recurrence, EXDATE, moved override and wi
   assert.ok(parsed.some((event)=>event.uid==='overlap'&&event.start==='2026-09-30T23:00:00.000Z'));
 });
 
+test('ICS parser includes moved recurring appointments overlapping the window from before its start',async()=>{
+  const calendar='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:moved-overlap\r\nDTSTART:20260901T090000Z\r\nDTEND:20260901T100000Z\r\nRRULE:FREQ=DAILY;COUNT=30\r\nSUMMARY:Original appointment\r\nEND:VEVENT\r\nBEGIN:VEVENT\r\nUID:moved-overlap\r\nRECURRENCE-ID:20260928T090000Z\r\nDTSTART:20260930T230000Z\r\nDTEND:20261001T020000Z\r\nSUMMARY:Moved across window boundary\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n';
+  const parsed=await parseIcsEvents(calendar,{from:'2026-10-01T00:00:00Z',to:'2026-10-02T00:00:00Z'});
+  assert.equal(parsed.length,1);
+  assert.equal(parsed[0]!.instanceId,'2026-09-28T09:00:00.000Z');
+  assert.equal(parsed[0]!.start,'2026-09-30T23:00:00.000Z');
+  assert.equal(parsed[0]!.end,'2026-10-01T02:00:00.000Z');
+  assert.equal(parsed[0]!.title,'Moved across window boundary');
+});
+
 test('ICS worker pool caps active parses and rejects work beyond its bounded queue',async()=>{
   const calendar='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n',window={from:'2026-10-01T00:00:00Z',to:'2026-10-02T00:00:00Z'};
   const results=await Promise.allSettled(Array.from({length:7},()=>parseIcsEvents(calendar,window)));

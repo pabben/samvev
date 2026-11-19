@@ -39,7 +39,12 @@ export function parseIcsEventsInProcess(text:string,window:{from:string;to:strin
       const occurrences=event.rrule.between(rangeFrom,to,true,(_date,length)=>{if(length>=remaining){exceeded=true;return false;}return true;});
       if(exceeded)throw new DomainError('CALENDAR_ICS_TOO_LARGE',413,{reason:'calendar_ics_occurrence_limit',maxOccurrences:SNAPSHOT_MAX_ITEMS});
       const byIdentity=new Map(occurrences.map((original)=>[stamp(original),original]));
-      for(const [identity,override] of overrides){if(override.start&&override.start>=from&&override.start<to){const recurrenceId=override.recurrenceid instanceof Date?override.recurrenceid:new Date(identity);if(Number.isFinite(recurrenceId.getTime()))byIdentity.set(stamp(recurrenceId),recurrenceId);}}
+      for(const [identity,override] of overrides){
+        // A moved occurrence can overlap the window even when both its original
+        // identity and its new start precede the recurrence expansion range.
+        const overrideEnd=override.end?.getTime()??(override.start?override.start.getTime()+baseDuration:NaN);
+        if(override.start&&override.start<to&&overrideEnd>=from.getTime()){const recurrenceId=override.recurrenceid instanceof Date?override.recurrenceid:new Date(identity);if(Number.isFinite(recurrenceId.getTime()))byIdentity.set(stamp(recurrenceId),recurrenceId);}
+      }
       for(const original of [...byIdentity.values()].sort((left,right)=>left.getTime()-right.getTime())){
         const identity=stamp(original),override=overrides.get(identity);
         if(excluded.has(identity)&&!override)continue;
