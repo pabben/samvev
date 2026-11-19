@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { FamilyHub } from "./family-hub";
 import { HouseholdActivityWeek, SchoolActivityCard } from "./home-activities";
 import { HouseholdBoardCards } from "./household-boards";
-import { dateOffset, displayHouseholdBoardAdapter } from "./household-board-adapters";
+import { dateOffset, displayHouseholdBoardAdapter, type HouseholdBoardAdapter } from "./household-board-adapters";
 import { calendarActivityEnded, mergeTimelineEntries, timelineActivityVisible, timelineDayHistoryVisible } from "./home-activity-presentation";
 import type { HouseholdTimelineActivity, HubPerson } from "./home-types";
 import { DisplayMediaPlayback } from "./media-library";
@@ -123,6 +123,14 @@ function DisplayWallBackgroundLayer({ displayId, generation, theme, privacyMode 
     return () => { active = false; latestRequest++; window.clearInterval(timer); };
   }, [adapter, generation]);
   return <DisplayWallBackground media={media} theme={theme} privacyMode={privacyMode}/>;
+}
+
+// The day cards already show the dinner. Mount the optional editor only after
+// the user opens it, keeping the resting board free of duplicate meal titles.
+export function DisplayFamilyDinnerEditor({adapter,localDate}:{adapter:HouseholdBoardAdapter;localDate:string}) {
+  const {t}=useI18n();
+  const [open,setOpen]=useState(false);
+  return <details className="display-dinner-editor" onToggle={event=>setOpen(event.currentTarget.open)}><summary>{t('boardDinners')}</summary>{open&&<HouseholdBoardCards adapter={adapter} localDate={localDate} visibleCards={['dinners']} display/>}</details>;
 }
 
 function DisplayRuntime({
@@ -616,6 +624,7 @@ function DisplayRuntime({
         {/* Keep the default family board complete; explicitly selected extra
             boards/actions remain reachable below it with their existing grants. */}
         {projection&&selectedCards.map(card=>{
+          if(card==='dinners'&&showFamily)return !projection.display.privacyMode&&displayBoardAdapter&&projection.householdBoards?.readable?.dinners===true&&projection.householdBoards?.writable?.dinners===true?<div className="display-ordered-card" key={card} style={{order:selectedCards.indexOf(card)+5}}><DisplayFamilyDinnerEditor key={displayBoardAdapter.scopeKey} adapter={displayBoardAdapter} localDate={displayLocalDate}/></div>:null;
           if(!displaySecondaryCardVisible(card,showFamily,familyHasContent))return null;
           const order=selectedCards.indexOf(card)+(showFamily?5:3);
           if(projection.display.privacyMode&&["external_items","photos","home_assistant","today","tomorrow","week","next","people","worth_remembering","groceries","dinners"].includes(card))return null;

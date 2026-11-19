@@ -4,8 +4,8 @@ import { closureTitle, displayFixture } from './issue22-display-fixture';
 import { displaySecondaryCardVisible } from '../src/display-admin-presentation';
 
 test('paired display and preview share a policy that preserves explicit extras without duplicating the default board',()=>{
-  for(const card of ['family_layout','household_messages','people','today','tomorrow','week','next','external_items','photos'])assert.equal(displaySecondaryCardVisible(card,true),false,card);
-  for(const card of ['groceries','dinners','home_assistant','new_message','worth_remembering'])assert.equal(displaySecondaryCardVisible(card,true),true,card);
+  for(const card of ['family_layout','household_messages','people','today','tomorrow','week','next','external_items','photos','dinners'])assert.equal(displaySecondaryCardVisible(card,true),false,card);
+  for(const card of ['groceries','home_assistant','new_message','worth_remembering'])assert.equal(displaySecondaryCardVisible(card,true),true,card);
   for(const card of ['today','tomorrow','week','groceries','dinners','photos'])assert.equal(displaySecondaryCardVisible(card,false),true,card);
   assert.equal(displaySecondaryCardVisible('external_items',true,false),true,'empty scaffold keeps the calendar sharing reason');
 });

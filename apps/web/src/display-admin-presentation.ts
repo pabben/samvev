@@ -176,7 +176,7 @@ export function displayFamilyCardPlan(cards: readonly string[], familyLayoutEnab
 export function displaySecondaryCardVisible(card: string, familySelected: boolean, familyHasContent = true): boolean {
   // An empty scaffold still needs the selected calendar sharing/empty reason.
   if (card === 'external_items' && !familyHasContent) return true;
-  return !familySelected || !['family_layout','household_messages','people','today','tomorrow','week','next','external_items','photos'].includes(card);
+  return !familySelected || !['family_layout','household_messages','people','today','tomorrow','week','next','external_items','photos','dinners'].includes(card);
 }
 
 /** Family overview first, followed by optional weekly and calendar detail cards. */

@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { registerHooks } from "node:module";
 
 registerHooks({ load(url, context, nextLoad) { return url.endsWith(".webp") ? { format: "module", source: 'export default "synthetic-avatar.webp"', shortCircuit: true } : nextLoad(url, context); } });
-const [{ ReadonlyPreview }, { LocaleProvider }, { DisplayWallBackground, displayWallBackgroundAfterRefresh, displayWallBackgroundGeneration }] = await Promise.all([import("../src/display-setups-admin"), import("../src/ui"), import("../src/display")]);
+const [{ ReadonlyPreview }, { LocaleProvider }, { DisplayWallBackground, DisplayFamilyDinnerEditor, displayWallBackgroundAfterRefresh, displayWallBackgroundGeneration }] = await Promise.all([import("../src/display-setups-admin"), import("../src/ui"), import("../src/display")]);
 (globalThis as typeof globalThis & { React: typeof React }).React = React;
 
 function previewMarkup(result: any, orientation: "portrait" | "landscape" = "portrait") {
@@ -27,18 +27,26 @@ const base = {
   media: { assets: [] }, cards: [], serverNow: "2026-10-29T12:00:00.000Z", generatedAt: "2026-10-29T12:00:00.000Z", cacheUntil: "2026-10-29T12:15:00.000Z", maxStaleSeconds: 900,
 } as any;
 
-test('family preview keeps explicitly selected readable groceries and dinners below the single core board',()=>{
+test('family preview keeps selected groceries while each dinner appears only in its family day card',()=>{
   const cards=['family_layout','household_messages','today','tomorrow','week','external_items','groceries','dinners'];
   const result={...base,setup:{...base.setup,cards,cardOrder:cards},householdBoards:{from:'2026-10-29',readable:{groceries:true,dinners:true},groceries:[{id:'synthetic-grocery',label:'Synthetic pantry item',checked:false,revision:1}],dinners:[{id:'synthetic-dinner',localDate:'2026-10-29',title:'Synthetic dinner',emoji:'🍲',revision:1,cleared:false}]}};
   for(const orientation of ['landscape','portrait'] as const){
     const html=previewMarkup(result,orientation);
     assert.match(html,/Synthetic pantry item/);
-    assert.match(html,/display-preview-dinners/);
+    assert.equal((html.match(/Synthetic dinner/g)??[]).length,1,'dinner title appears once across the entire preview');
+    assert.doesNotMatch(html,/display-preview-dinners/);
     assert.equal((html.match(/data-testid="family-hub"/g)??[]).length,1);
     assert.doesNotMatch(html,/display-preview-week|display-preview-today|display-preview-tomorrow|display-preview-external_items/);
     const denied=previewMarkup({...result,householdBoards:{...result.householdBoards,readable:{groceries:false,dinners:false}}},orientation);
     assert.doesNotMatch(denied,/Synthetic pantry item|Synthetic dinner/,'denied board data is not rendered even if a fixture contains it');
   }
+});
+
+test('family dinner editor is lazy so a resting display does not duplicate meal titles or fetch a second board',()=>{
+  const adapter={kind:'display',scopeKey:'synthetic-editor'} as any;
+  const html=renderToStaticMarkup(createElement(LocaleProvider,{locale:'nb',children:createElement(DisplayFamilyDinnerEditor,{adapter,localDate:'2026-10-29'})}));
+  assert.match(html,/<summary>Middager<\/summary>/);
+  assert.doesNotMatch(html,/board-dinners|board-add-row/);
 });
 
 test("paired wall background uses the server-filtered selected background in both themes and falls back to the household selection", () => {

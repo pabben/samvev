@@ -1181,3 +1181,4 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
   grid-template-rows: auto var(--board-low-row);
 }
 #root .family-hub.hub-display.hub-board:not(.hub-board-portrait) > .hub-grid:not(:has(.hub-day [data-item-id], .hub-day-school, .hub-birthday-row, .hub-person:not(.hub-person-idle))) .hub-day { min-height: 190px; }
+.family-display-page .display-dinner-editor > summary { min-height: 44px; padding: 10px 16px; cursor: pointer; }
