@@ -1,6 +1,12 @@
-# Issue #20 cleanup and issue review — 2026-11-13
+# Current public status — 2026-11-19
 
-Public source/deploy is `079abc88b0152d04e2cb24656b4ebb9eb8092ecb`, a descendant of the previously live HA source `92ac58bebe09565b8130fb46ebd18c7608b8cf7a`. Schema remains 48. Disconnected calendar cleanup now respects the API's 12-entry batch limit, preserves confirmation revisions, reports partial success, and reconciles stale entries after reactivation or permission changes. #18's appearance summary and #19's logo layout are corrected. Local isolated QA passed 772/772; workspace check and clean-source 48-image browser proof passed. Public backup, isolated pre/post restores, image-bound rollback proof, cutover, healthy app/worker/db and HTTPS smoke 11/11 with 15/15 served asset hashes passed. See [issue review](../design/review/ISSUE_20_STATUS_20261113.md) and [visual manifest](../design/review/issue-20-20261113/manifest.json). Physical fridge/iPad/Windows Chrome and private provider checks are not claimed.
+Public app and worker run source `c3ad869e207820d4edadd9b478c212ac6bb3d121` on schema 48. The 60-image isolated display proof, 783/783 tests, workspace typecheck, backup/isolated restore/cutover/postrestore, healthy containers and authenticated public HTTPS smoke 11/11 passed. The signed source is on `feat/m3-family-hub`; the separate [Round 19 report](../design/review/ROUND_19_REPORT.md) and [synthetic visual manifest](../design/review/round-19/after/manifest.json) record scope and limits. #22 visual acceptance, physical fridge, the private failing ICS calendar and Windows Chrome select contrast remain open. School AI jobs and schedules were not changed.
+
+---
+
+# Historical issue #20 cleanup and issue review — 2026-11-13
+
+At that checkpoint, public source/deploy was `079abc88b0152d04e2cb24656b4ebb9eb8092ecb`, a descendant of the previously live HA source `92ac58bebe09565b8130fb46ebd18c7608b8cf7a`. Schema remains 48. Disconnected calendar cleanup now respects the API's 12-entry batch limit, preserves confirmation revisions, reports partial success, and reconciles stale entries after reactivation or permission changes. #18's appearance summary and #19's logo layout are corrected. Local isolated QA passed 772/772; workspace check and clean-source 48-image browser proof passed. Public backup, isolated pre/post restores, image-bound rollback proof, cutover, healthy app/worker/db and HTTPS smoke 11/11 with 15/15 served asset hashes passed. See [issue review](../design/review/ISSUE_20_STATUS_20261113.md) and [visual manifest](../design/review/issue-20-20261113/manifest.json). Physical fridge/iPad/Windows Chrome and private provider checks are not claimed.
 
 ---
 
