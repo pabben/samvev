@@ -38,7 +38,7 @@ try {
     assert.ok(dimensions.photo.bottom<=736,`${theme}/${empty}: photo fits`);
     assert.ok(Math.abs(dimensions.message.bottom-dimensions.photo.bottom)<1,'message and photo share a bottom edge');
     assert.ok(dimensions.identities.every(rect=>rect.height>=44),'all six person targets remain at least 44px high');
-    assert.ok(dimensions.identities.every(rect=>rect.top>=dimensions.people.top&&rect.bottom<=dimensions.people.bottom),'all six complete person targets fit inside their card');
+    assert.ok(dimensions.identities.every(rect=>rect.top>=dimensions.people.top&&rect.bottom<=dimensions.people.bottom-16),'all six complete person targets fit with at least 16px bottom inset');
     if(!empty){
       assert.equal(dimensions.title!.text,closureTitle);
       assert.ok(dimensions.title!.clientHeight>=dimensions.title!.scrollHeight,'full all-day title height is visible');

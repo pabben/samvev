@@ -1167,6 +1167,7 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 }
 #root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) > .hub-grid { min-height: 0; }
 #root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-person-section .hub-person:not(.hub-person-idle) { min-height: 48px; }
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-person-section .hub-person > header { display: block; padding: 0; }
 #root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-person-section .hub-person-identity { min-height: 44px; }
 #root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-person-section .hub-person-identity .avatar { width: 40px; height: 40px; }
 #root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-day .hub-timeline > li:not(.hub-all-day):not(.hub-day-dinner) { flex: 0 0 auto; }

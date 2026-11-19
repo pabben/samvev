@@ -16,6 +16,8 @@ test('short landscape reserves a note/photo row and keeps every event reachable'
     const today=markup.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)![0];
     assert.equal((today.match(/data-item-id=/g)??[]).length,3);
     assert.match(today,/data-hub-detail="today"/);
+    assert.match(today,/<span class="hub-count">7<\/span>/,'meal footer does not inflate the agenda badge');
+    assert.match(today,/Se I dag · 7 totalt/,'collection and agenda badge count the same seven events');
     assert.ok(today.includes(closureTitle));
     assert.equal((markup.match(/data-review-private="person-card"/g)??[]).length,6);
     assert.match(markup,/hub-display-photo/);
