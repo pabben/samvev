@@ -171,6 +171,14 @@ export function displayFamilyCardPlan(cards: readonly string[], familyLayoutEnab
   return { familyLayout, peopleCard: cards.includes('people') && !familyLayout && !privacyMode, rosterInFamilyLayout: familyLayout };
 }
 
+/** The family board consumes its core/default cards. Optional selected boards
+ * and controls still render below it; their renderers enforce current grants. */
+export function displaySecondaryCardVisible(card: string, familySelected: boolean, familyHasContent = true): boolean {
+  // An empty scaffold still needs the selected calendar sharing/empty reason.
+  if (card === 'external_items' && !familyHasContent) return true;
+  return !familySelected || !['family_layout','household_messages','people','today','tomorrow','week','next','external_items','photos'].includes(card);
+}
+
 /** Family overview first, followed by optional weekly and calendar detail cards. */
 export function recommendedDisplayLayout<T extends { cards: string[]; cardOrder: string[]; familyLayoutEnabled: boolean }>(draft: T): T {
   const coreCards = ['family_layout', 'household_messages', 'week', 'external_items'];

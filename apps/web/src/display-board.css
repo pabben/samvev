@@ -1145,3 +1145,39 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
   #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-name > .hub-person-activity { -webkit-line-clamp: 3; }
 }
 #root .family-hub.hub-board.hub-board-portrait .hub-person-section .hub-person-grid > .hub-person.hub-person-idle { align-self: center; margin-block: 0; }
+
+/* Issue #22: all-day context must be readable on the default landscape board,
+   including the full school-closure title. The band grows with its text. */
+#root .family-hub.hub-board:not(.hub-board-portrait) .hub-day .hub-timeline > li.hub-all-day { flex: 0 0 auto; max-height: none; }
+#root .family-hub.hub-board:not(.hub-board-portrait) .hub-timeline > li.hub-all-day .hub-item-title strong {
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+}
+
+/* The actual display shell contributes 16px top padding and a 48px header.
+   Budget the remaining viewport, including a 16px bottom margin, rather than
+   allowing intrinsic six-person rows to push the note/photo past the screen.
+   Additional modules still follow in normal document flow. */
+#root .family-display-page .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) {
+  --board-low-row: clamp(156px, 13cqw, 190px);
+  height: calc(100svh - 80px);
+  min-height: 0;
+}
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) > .hub-grid { min-height: 0; }
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-person-section .hub-person:not(.hub-person-idle) { min-height: 48px; }
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-person-section .hub-person-identity { min-height: 44px; }
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-person-section .hub-person-identity .avatar { width: 40px; height: 40px; }
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-day .hub-timeline > li:not(.hub-all-day):not(.hub-day-dinner) { flex: 0 0 auto; }
+/* Overflow content remains reachable on unusually dense/zoomed boards. */
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) :is(.hub-timeline, .hub-person-grid) { overflow-y: auto; }
+#root .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait) .hub-collection-link { flex: none; min-height: 44px; }
+
+/* Empty days and idle people need only their content height. Let the background
+   breathe below the low row instead of stretching blank cards to fill it. */
+#root .family-hub.hub-display.hub-board:not(.hub-board-portrait) > .hub-grid:not(:has(.hub-day [data-item-id], .hub-day-school, .hub-birthday-row, .hub-person:not(.hub-person-idle))) {
+  flex: 0 0 auto;
+  grid-template-rows: auto var(--board-low-row);
+}
+#root .family-hub.hub-display.hub-board:not(.hub-board-portrait) > .hub-grid:not(:has(.hub-day [data-item-id], .hub-day-school, .hub-birthday-row, .hub-person:not(.hub-person-idle))) .hub-day { min-height: 190px; }

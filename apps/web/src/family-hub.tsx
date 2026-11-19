@@ -128,7 +128,10 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
     const events=dayEvents(dayItems,now,zone,offset,true).sort((a,b)=>Number(Boolean(b.metadata.allDay))-Number(Boolean(a.metadata.allDay)));
     const school=board&&display&&displaySections?.people!==false&&people.length?[]:groupedSchool.filter(activity=>activity.date===date);
     const dinner=currentWeekDinners.find(activity=>activity.localDate===date&&activity.title);
-    const limit=mobile?(display?1:offset?2:3):board&&(display||lowHeight)?4:compact||lowHeight?3:5;
+    // A short landscape display reserves a complete low row for the note and
+    // photo. Keep three agenda entries here; the collection opens every event.
+    // Portrait panels and tall displays retain their existing preview density.
+    const limit=mobile?(display?1:offset?2:3):board&&display&&!compact&&lowHeight?3:board&&(display||lowHeight)?4:compact||lowHeight?3:5;
     // Member phones show today's next few activities (from the first one not yet
     // over), like the prospect's "Dagens oversikt"; shared displays keep one.
     const open=mobile&&!offset?events.filter(item=>item.metadata.allDay||Date.parse(item.endsAt??item.startsAt!)>now):[];

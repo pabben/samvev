@@ -12,7 +12,7 @@ import { secureUuid } from "./secure-uuid";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { api, ApiError } from "./api";
 import type { Card, Projection } from "./types";
-import { calendarEmptyMessage, calendarReadinessMessage, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayReadinessCard, displaySecondaryCalendarItems, familyLayoutBirthdayEntries, visibleDisplayBirthdays, type CalendarReadiness } from "./display-admin-presentation";
+import { calendarEmptyMessage, calendarReadinessMessage, displayChromePlan, displayFamilyCardPlan, displayFamilyContentVisible, displayReadinessCard, displaySecondaryCalendarItems, displaySecondaryCardVisible, familyLayoutBirthdayEntries, visibleDisplayBirthdays, type CalendarReadiness } from "./display-admin-presentation";
 import {
   Avatar,
   Brand,
@@ -613,16 +613,15 @@ function DisplayRuntime({
                 ))}
           </div>
         ) : !showFamily&&!projection?.setup?.cards.length ? <Empty title={t("displayEmpty")} body={t("displayEmptyBody")}/> : null}
-        {/* The family board is the whole shared screen (issue #29): secondary cards below it were raw, unscrollable text on the fridge. */}
-        {projection&&!showFamily&&selectedCards.map(card=>{
+        {/* Keep the default family board complete; explicitly selected extra
+            boards/actions remain reachable below it with their existing grants. */}
+        {projection&&selectedCards.map(card=>{
+          if(!displaySecondaryCardVisible(card,showFamily,familyHasContent))return null;
           const order=selectedCards.indexOf(card)+(showFamily?5:3);
           if(projection.display.privacyMode&&["external_items","photos","home_assistant","today","tomorrow","week","next","people","worth_remembering","groceries","dinners"].includes(card))return null;
           if(card==="new_message")return !projection.display.privacyMode?(projection.actionAvailability?.newMessage?<div className="display-ordered-card" key={card} style={{order}}><DisplayMessageComposer key={`${sourceEpoch}:${projection.display.id}`} recipientGeneration={JSON.stringify([sourceEpoch,projection.display.id,projection.setup?.id,projection.display.privacyMode,projection.generatedAt])} online={online} now={displayNow}/></div>:<section className="hub-panel display-selected-card display-ordered-card" key={card} style={{order}} role="status"><h2>{t("newMessage")}</h2><p className="field-hint">{t("displayActionUnavailable")}</p></section>):null;
           if(card==="groceries"||card==="dinners"){
             const readable=projection.householdBoards?.readable?.[card]===true;
-            if(card==="dinners"&&showFamily){
-              return readable&&displayBoardAdapter&&projection.householdBoards?.writable?.dinners===true?<details className="display-ordered-card display-dinner-editor" key={card} style={{order}}><summary>{t("boardDinners")}</summary><HouseholdBoardCards adapter={displayBoardAdapter} localDate={displayLocalDate} visibleCards={[card]} display/></details>:null;
-            }
             if(!readable&&card==="dinners"&&selectedCards.includes("groceries"))return null;
             return readable&&displayBoardAdapter?<div className="display-ordered-card" key={card} style={{order}}><HouseholdBoardCards adapter={displayBoardAdapter} localDate={displayLocalDate} visibleCards={[card]} display/></div>:<section className="hub-panel display-selected-card display-ordered-card" key={card} style={{order}} role="status"><h2>{t(card==="groceries"?"boardGroceries":"boardDinners")}</h2><p className="field-hint">{t("displayBoardNotShared")}</p></section>;
           }

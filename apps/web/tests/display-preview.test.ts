@@ -27,6 +27,20 @@ const base = {
   media: { assets: [] }, cards: [], serverNow: "2026-10-29T12:00:00.000Z", generatedAt: "2026-10-29T12:00:00.000Z", cacheUntil: "2026-10-29T12:15:00.000Z", maxStaleSeconds: 900,
 } as any;
 
+test('family preview keeps explicitly selected readable groceries and dinners below the single core board',()=>{
+  const cards=['family_layout','household_messages','today','tomorrow','week','external_items','groceries','dinners'];
+  const result={...base,setup:{...base.setup,cards,cardOrder:cards},householdBoards:{from:'2026-10-29',readable:{groceries:true,dinners:true},groceries:[{id:'synthetic-grocery',label:'Synthetic pantry item',checked:false,revision:1}],dinners:[{id:'synthetic-dinner',localDate:'2026-10-29',title:'Synthetic dinner',emoji:'🍲',revision:1,cleared:false}]}};
+  for(const orientation of ['landscape','portrait'] as const){
+    const html=previewMarkup(result,orientation);
+    assert.match(html,/Synthetic pantry item/);
+    assert.match(html,/display-preview-dinners/);
+    assert.equal((html.match(/data-testid="family-hub"/g)??[]).length,1);
+    assert.doesNotMatch(html,/display-preview-week|display-preview-today|display-preview-tomorrow|display-preview-external_items/);
+    const denied=previewMarkup({...result,householdBoards:{...result.householdBoards,readable:{groceries:false,dinners:false}}},orientation);
+    assert.doesNotMatch(denied,/Synthetic pantry item|Synthetic dinner/,'denied board data is not rendered even if a fixture contains it');
+  }
+});
+
 test("paired wall background uses the server-filtered selected background in both themes and falls back to the household selection", () => {
   const asset = (id: string, title: string, previewUrl: string) => ({ id, albumId: "synthetic-background-album", kind: "backgrounds" as const, revision: 1, title, description: "Synthetic fixture", mimeType: "image/webp" as const, width: 1280, height: 752, url: previewUrl, previewUrl });
   const setupBackground = asset("synthetic-setup-background", "Synthetic setup background", "/synthetic-setup-background.webp");
