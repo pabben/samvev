@@ -58,10 +58,12 @@ import {HomeAssistantControlService,type HomeAssistantControlActor} from './home
 import {HomeAssistantControlClient,type HomeAssistantControlTransport} from './home-assistant/control-client.ts';
 import {readAnonymousPublicContact,readPublicContact,updatePublicContact} from './public-contact.ts';
 import {HaBridgeService} from './ha-bridge/service.ts';
+import {authorizationConsentHtml,authorizationLoginHtml,McpOAuthService,OAuthProtocolError,oauthErrorBody} from './mcp/service.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
 const CSRF_COOKIE = 'samvev_csrf';
+const OAUTH_RESUME_COOKIE = 'samvev_oauth_resume';
 const SESSION_SECONDS = 12 * 60 * 60;
 const DISPLAY_SECONDS = 90 * 24 * 60 * 60;
 const elevatedCapabilities = new Set<Capability>(['installation.manage','household.manage','people.manage','account.manage','capability.manage','message.manage.household','display.manage']);
@@ -164,6 +166,13 @@ function setSessionCookies(reply: FastifyReply, session: {token:string;csrf:stri
   reply.setCookie(CSRF_COOKIE,session.csrf,{sameSite:'strict',secure,path:'/',maxAge:SESSION_SECONDS});
 }
 
+function oauthResumeCookie(value:unknown):{resumeToken:string;consentCsrf:string}|undefined{
+  if(typeof value!=='string')return;
+  const [resumeToken,consentCsrf,extra]=value.split('.');
+  if(extra!==undefined||!resumeToken||!consentCsrf)return;
+  return{resumeToken,consentCsrf};
+}
+
 async function createSession(client: pg.PoolClient, accountId: string): Promise<{ token: string; csrf: string }> {
   const token = opaqueToken();
   const csrf = opaqueToken();
@@ -172,7 +181,7 @@ async function createSession(client: pg.PoolClient, accountId: string): Promise<
   return { token, csrf };
 }
 
-async function sessionAccount(request: FastifyRequest): Promise<{ accountId: string; sessionId:string; installationId: string; csrfHash: string; tokenHash: string }> {
+async function sessionAccount(request: FastifyRequest,csrfOverride?:unknown): Promise<{ accountId: string; sessionId:string; installationId: string; csrfHash: string; tokenHash: string }> {
   const token = request.cookies[SESSION_COOKIE];
   if (!token) throw new DomainError('UNAUTHENTICATED', 401);
   const hash = tokenHash(token);
@@ -182,7 +191,7 @@ async function sessionAccount(request: FastifyRequest): Promise<{ accountId: str
   const row = result.rows[0];
   if (!row) throw new DomainError('UNAUTHENTICATED', 401);
   if (isUnsafe(request.method)) {
-    const csrf = request.headers['x-csrf-token'];
+    const csrf = typeof csrfOverride==='string'?csrfOverride:request.headers['x-csrf-token'];
     if (typeof csrf !== 'string' || tokenHash(csrf) !== row.csrf_hash) throw new DomainError('CSRF_REQUIRED', 403);
   }
   await pool.query('UPDATE sessions SET last_seen_at=clock_timestamp() WHERE token_hash=$1', [hash]);
@@ -1103,6 +1112,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const normalizePhoto=options.photoNormalizer??normalizeProfilePhoto;
   const media=options.mediaImageNormalizer?new MediaService({normalizer:options.mediaImageNormalizer}):mediaService;
   await app.register(cookie);
+  app.addContentTypeParser('application/x-www-form-urlencoded',{parseAs:'string'},(_request,body,done)=>{
+    try{
+      const parsed:Record<string,string>={};
+      for(const [name,value] of new URLSearchParams(body as string)){
+        if(Object.hasOwn(parsed,name))throw new DomainError('VALIDATION_FAILED',400,{reason:'duplicate_form_field'});
+        parsed[name]=value;
+      }
+      done(null,parsed);
+    }catch(error){done(error as Error,undefined);}
+  });
   app.addHook('onSend',async(request,reply,payload)=>{
     const displayFence=displayResponseFences.get(request);displayResponseFences.delete(request);
     if(displayFence&&['GET','HEAD'].includes(request.method)&&reply.statusCode<400){
@@ -1118,6 +1137,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   await projectionEvents.start();
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
   app.addHook('preClose',async()=>projectionEvents.close());
+  const mcp=new McpOAuthService(runtime.publicOrigin);
+  app.addHook('preClose',async()=>mcp.close());
   const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth,rateLimit:durableRateLimit});
   const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{
     const allowed=board==='groceries'?'grocery_read':'dinner_read';
@@ -1133,14 +1154,28 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   haBridge.register(app,householdBoards);
 
   app.addHook('onRequest', async (request) => {
+    const pathname=request.url.split('?',1)[0]??request.url;
+    const oauthBoundary=pathname==='/mcp'||pathname.startsWith('/oauth/')||pathname==='/.well-known/oauth-authorization-server'||pathname==='/.well-known/oauth-protected-resource/mcp';
+    if(oauthBoundary){
+      // Fastify resolves request.host through its configured trustProxy
+      // function. Reading X-Forwarded-Host directly here would let an
+      // untrusted immediate peer spoof the OAuth/MCP authority boundary.
+      const authority=request.host;
+      if(!authority||authority.toLowerCase()!==new URL(runtime.publicOrigin).host.toLowerCase())throw new DomainError('FORBIDDEN',403);
+    }
+    if(pathname==='/mcp'&&request.headers.origin&&request.headers.origin!==runtime.publicOrigin)throw new DomainError('CSRF_REQUIRED',403);
     if (!isUnsafe(request.method)) return;
     const origin = request.headers.origin;
     if (!origin) {
-      const pathname=request.url.split('?',1)[0]??request.url;
       const integrationWrite=request.method==='POST'&&pathname==='/api/v1/integrations/items';
       const integrationDelete=request.method==='DELETE'&&/^\/api\/v1\/integrations\/items\/[^/]+$/.test(pathname);
       const haMachineWrite=['POST','PATCH','DELETE'].includes(request.method)&&/^\/api\/v1\/ha\/(?:lists\/groceries\/items(?:\/[^/]+)?|messages(?:\/[^/]+(?:\/withdraw)?)?|calendars\/[^/]+\/events(?:\/[^/]+)?)$/.test(pathname);
-      if(integrationWrite||integrationDelete||haMachineWrite)return;
+      const oauthMachineWrite=request.method==='POST'&&['/oauth/register','/oauth/token','/oauth/revoke'].includes(pathname);
+      const oauthBrowserForm=request.method==='POST'&&['/oauth/login','/oauth/authorize'].includes(pathname);
+      const mcpMachineRequest=pathname==='/mcp'&&['POST','DELETE'].includes(request.method);
+      // These two server-rendered form handlers validate purpose-specific,
+      // one-time hidden CSRF values. Keep the no-Origin allowance route-exact.
+      if(integrationWrite||integrationDelete||haMachineWrite||oauthMachineWrite||oauthBrowserForm||mcpMachineRequest)return;
       if (runtime.secureCookies) throw new DomainError('CSRF_REQUIRED', 403);
       return;
     }
@@ -1162,6 +1197,107 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/health', async () => {
     await pool.query('SELECT 1');
     return { status: 'ok', version: 1 };
+  });
+
+  const oauthFailure=(reply:FastifyReply,error:unknown)=>{
+    if(!(error instanceof OAuthProtocolError))throw error;
+    return reply.status(error.status).header('Cache-Control','no-store').type('application/json').send(oauthErrorBody(error));
+  };
+  const metadataHeaders=(reply:FastifyReply)=>reply.header('Cache-Control','public, max-age=300').header('Access-Control-Allow-Origin','*');
+  app.get('/.well-known/oauth-protected-resource/mcp',async(_request,reply)=>metadataHeaders(reply).send(mcp.protectedResourceMetadata()));
+  app.get('/.well-known/oauth-authorization-server',async(_request,reply)=>metadataHeaders(reply).send(mcp.authorizationServerMetadata()));
+  app.post('/oauth/register',async(request,reply)=>{
+    try{await durableRateLimit('mcp_oauth_register_ip',request.ip,20,3600);return reply.status(201).header('Cache-Control','no-store').send(await mcp.registerClient(request.body));}
+    catch(error){return oauthFailure(reply,error);}
+  });
+  app.get('/oauth/authorize',async(request,reply)=>{
+    try{
+      await durableRateLimit('mcp_oauth_authorize_ip',request.ip,60,900);
+      const query=(request.query??{}) as Record<string,unknown>;
+      if(typeof query.request==='string'){
+        const resume=oauthResumeCookie(request.cookies[OAUTH_RESUME_COOKIE]);if(!resume)throw new OAuthProtocolError('invalid_request',400,'The authorization request is invalid or expired');
+        const resumed=await mcp.resumeAuthorization(query.request,resume.resumeToken,resume.consentCsrf);
+        return reply.header('Cache-Control','private, no-store').type('text/html; charset=utf-8').send(authorizationConsentHtml({request:resumed.request,clientName:resumed.context.clientName,households:resumed.context.households,csrf:resume.consentCsrf,requestHandle:query.request}));
+      }
+      const authorization=mcp.parseAuthorizeRequest(query);
+      let account;
+      try{account=await sessionAccount(request);}catch(error){
+        if(!(error instanceof DomainError)||error.code!=='UNAUTHENTICATED')throw error;
+        const staged=await mcp.stageLoginRequest(authorization);
+        return reply.header('Cache-Control','private, no-store').type('text/html; charset=utf-8').send(authorizationLoginHtml(staged));
+      }
+      const context=await mcp.authorizationContext(account,authorization),csrf=request.cookies[CSRF_COOKIE];if(!csrf)throw new DomainError('CSRF_REQUIRED',403);
+      return reply.header('Cache-Control','private, no-store').type('text/html; charset=utf-8').send(authorizationConsentHtml({request:authorization,clientName:context.clientName,households:context.households,csrf}));
+    }catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/login',async(request,reply)=>{
+    try{
+      await durableRateLimit('mcp_oauth_login_ip',request.ip,30,900);
+      const body=(request.body??{}) as Record<string,unknown>,handle=String(body.request??''),loginCsrf=String(body.login_csrf??'');
+      const credentials=parse(loginSchema,{email:body.email,password:body.password});
+      await durableRateLimit('mcp_oauth_login',`${request.ip}:${credentials.email}`,8,900);
+      const result=await pool.query<{id:string;password_hash:string;disabled_at:Date|null}>(`SELECT id,password_hash,disabled_at FROM accounts WHERE email_normalized=$1`,[credentials.email]);
+      const account=result.rows[0],verified=await verifyLoginPassword(credentials.password,account?.password_hash,Boolean(account&&!account.disabled_at));
+      if(!account||!verified)throw new DomainError('UNAUTHENTICATED',401);
+      const resume=await mcp.bindLoginRequest(handle,loginCsrf,account.id);
+      reply.setCookie(OAUTH_RESUME_COOKIE,`${resume.resumeToken}.${resume.consentCsrf}`,cookieOptions(10*60,runtime.secureCookies,'/oauth/authorize'));
+      return reply.header('Cache-Control','no-store').redirect(`${runtime.publicOrigin}/oauth/authorize?request=${encodeURIComponent(handle)}`,303);
+    }catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/authorize',async(request,reply)=>{
+    try{
+      await durableRateLimit('mcp_oauth_authorize_ip',request.ip,60,900);
+      const body=(request.body??{}) as Record<string,unknown>;
+      let authorization,requestHandle:string|undefined;
+      let account;
+      if(typeof body.request==='string'){
+        requestHandle=body.request;const resume=oauthResumeCookie(request.cookies[OAUTH_RESUME_COOKIE]);if(!resume||body._csrf!==resume.consentCsrf)throw new DomainError('CSRF_REQUIRED',403);
+        const resumed=await mcp.resumeAuthorization(requestHandle,resume.resumeToken,resume.consentCsrf);authorization=resumed.request;account=resumed.actor;
+      }else{account=await sessionAccount(request,body._csrf);authorization=mcp.parseAuthorizeRequest(body);}
+      if(body.decision!=='approve'&&body.decision!=='deny')throw new OAuthProtocolError('invalid_request',400,'decision is invalid');
+      const householdId=typeof body.household_id==='string'?body.household_id:'';
+      if(!/^[0-9a-f-]{36}$/i.test(householdId))throw new OAuthProtocolError('invalid_request',400,'household_id is invalid');
+      const location=await mcp.authorize(account,authorization,householdId,body.decision==='approve',requestHandle);
+      if(requestHandle)reply.clearCookie(OAUTH_RESUME_COOKIE,{path:'/oauth/authorize',sameSite:'strict',secure:runtime.secureCookies});
+      return reply.header('Cache-Control','no-store').redirect(location,303);
+    }catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/token',async(request,reply)=>{
+    try{await durableRateLimit('mcp_oauth_token_ip',request.ip,90,60);return reply.header('Cache-Control','no-store').send(await mcp.exchangeToken((request.body??{}) as Record<string,unknown>));}
+    catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/revoke',async(request,reply)=>{
+    try{await durableRateLimit('mcp_oauth_revoke_ip',request.ip,90,60);await mcp.revokeToken((request.body??{}) as Record<string,unknown>);return reply.header('Cache-Control','no-store').status(200).send();}
+    catch(error){return oauthFailure(reply,error);}
+  });
+  app.route({method:['GET','POST','DELETE'],url:'/mcp',handler:async(request,reply)=>{
+    let principal;
+    try{principal=await mcp.verifyAccessToken(request.headers.authorization);}
+    catch(error){
+      if(!(error instanceof OAuthProtocolError))throw error;
+      return reply.status(401).header('Cache-Control','no-store').header('WWW-Authenticate',`Bearer resource_metadata="${mcp.resourceMetadataUrl}", error="invalid_token"`).send({error:'invalid_token',error_description:'The MCP access token is invalid or expired'});
+    }
+    const headers=new Headers();
+    for(const [name,value] of Object.entries(request.headers)){if(Array.isArray(value))for(const item of value)headers.append(name,item);else if(value!==undefined)headers.set(name,String(value));}
+    const webRequest=new Request(new URL(request.url,runtime.publicOrigin),{method:request.method,headers});
+    const response=await mcp.handler.fetch(webRequest,{authInfo:mcp.authInfo(principal),parsedBody:request.body});
+    reply.status(response.status).header('Cache-Control','no-store');
+    response.headers.forEach((value,name)=>{if(!['content-length','transfer-encoding','connection'].includes(name.toLowerCase()))reply.header(name,value);});
+    const bytes=Buffer.from(await response.arrayBuffer());return bytes.length?reply.send(bytes):reply.send();
+  }});
+  app.get('/api/v1/households/:householdId/mcp/authorizations',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    return reply.header('Cache-Control','private, no-store').send({authorizations:await mcp.listAuthorizations(auth.householdId)});
+  });
+  app.put('/api/v1/households/:householdId/mcp/authorizations/:grantId/policy',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=(request.body??{}) as Record<string,unknown>;
+    const policy=await mcp.updateAuthorizationPolicy(auth,params(request).grantId!,{expectedRevision:Number(body.expectedRevision),personIds:body.personIds as string[],displayIds:body.displayIds as string[],resources:body.resources as Array<{kind:'school_source';id:string}>});
+    return reply.header('Cache-Control','private, no-store').send(policy);
+  });
+  app.post('/api/v1/households/:householdId/mcp/authorizations/:grantId/revoke',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    await mcp.revokeAuthorization(auth,params(request).grantId!);return reply.header('Cache-Control','no-store').status(204).send();
   });
 
   const liveE2eEnabled=options.liveE2eEnabled??process.env.SAMVEV_LIVE_E2E_ENABLED==='true';
