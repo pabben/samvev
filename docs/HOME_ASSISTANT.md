@@ -47,10 +47,11 @@ Tilbakekalt kilde/person eller endret policy fjerner planene fra neste snapshot.
 
 Migrasjon 057 legger til separate `schoolPersonIds` og `schoolSourceIds` i
 integrasjonens delingspolicy. Dette er en lokal kandidat; migrasjonen er ikke
-offentlig utrullet. Syntetisk QA har verifisert preview/live-visning og at
-tilbakekalling fjerner data. CSS har passet i 1280×752-oppsett, men den endelige
-hero-visuelle kontrollen gjenstår. Faktisk HA-installasjon og fysiske Shelly-
-skjermer er ikke verifisert.
+offentlig utrullet. En fokusert, isolert DB-test (1/1) verifiserte
+standard-avslag, eksplisitte grants, tilbakekalling og at snapshotet ikke
+inneholder kilde- eller PDF-materiale. Dette verifiserer ikke et HA-dashbord:
+ingen faktisk HA-installasjon eller Shelly-skjerm er testet. Preview/live- og
+1280×752 CSS-kontroller gjelder den separate Samvev-visningen, ikke HA.
 
 ## Spond via Home Assistant
 
