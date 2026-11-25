@@ -7,6 +7,7 @@ import { HouseholdBoardService, type IntegrationBoardActor } from '../household-
 /** OAuth principal copied from the authenticated MCP request. The database is
  * still authoritative: every invocation rechecks the grant and membership. */
 export interface HouseholdMcpPrincipal {
+  tokenSetId: string;
   grantId: string;
   householdId: string;
   accountId: string;
@@ -45,18 +46,20 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
       grant_row.id IS NOT NULL
       AND grant_row.revoked_at IS NULL
       AND grant_row.scopes ?& $5::text[]
+      AND token_set.revoked_at IS NULL AND token_set.access_expires_at>clock_timestamp()
       AND membership.id IS NOT NULL
       AND membership.capabilities ? $6
       AND account.disabled_at IS NULL
       AND household.installation_id = $4
     ) AS allowed
     FROM mcp_oauth_grants grant_row
+    JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=grant_row.id AND token_set.id=$8
     JOIN memberships membership ON membership.id=grant_row.membership_id AND membership.household_id=grant_row.household_id AND membership.account_id=grant_row.account_id
     JOIN accounts account ON account.id=membership.account_id AND account.installation_id=$4
     JOIN households household ON household.id=grant_row.household_id AND household.installation_id=$4
     WHERE grant_row.id=$1 AND grant_row.household_id=$2 AND grant_row.account_id=$3 AND grant_row.membership_id=$7
-    FOR SHARE OF grant_row,membership,account,household`,
-    [principal.grantId, principal.householdId, principal.accountId, principal.installationId, scopes, capability, principal.membershipId]);
+    FOR SHARE OF grant_row,token_set,membership,account,household`,
+    [principal.grantId, principal.householdId, principal.accountId, principal.installationId, scopes, capability, principal.membershipId, principal.tokenSetId]);
   if (!result.rows[0]?.allowed) throw new DomainError('FORBIDDEN', 403);
 }
 
@@ -75,7 +78,7 @@ export function registerHouseholdTools(
   dependencies: HouseholdMcpToolDependencies = { transaction }
 ): void {
   const { principal } = context;
-  if (!uuid.safeParse(principal.grantId).success || !uuid.safeParse(principal.householdId).success ||
+  if (!uuid.safeParse(principal.tokenSetId).success || !uuid.safeParse(principal.grantId).success || !uuid.safeParse(principal.householdId).success ||
       !uuid.safeParse(principal.accountId).success || !uuid.safeParse(principal.membershipId).success ||
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
 
