@@ -10,7 +10,7 @@ import type pg from 'pg';
 import { ZodError, type ZodType } from 'zod';
 import {
   accountStatusUpdateSchema, claimSchema, displayActionPolicyUpdateSchema, displayMessageCreateSchema, displayPreviewSelectionSchema, displaySetupCreateSchema, displaySetupPreviewSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
-  invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
+  invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema,
   messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema, displayReconnectApproveSchema, displayDisconnectSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,aiChatGptImportSchema,aiChatGptDisconnectSchema,aiChatGptSelectSchema,aiUsageQuerySchema,
@@ -32,6 +32,7 @@ import {
 } from '@samvev/core';
 import { pool, transaction, type DbClient } from './db.ts';
 import { externalItemProjectionColumns, mapExternalItem, readCalendarActivityRows, type ExternalItemRow } from './calendar/activity-reader.ts';
+import { messageService, validateMessageAudience } from './messages/service.ts';
 import { listMessages } from './messages/read.ts';
 import { ProjectionEventFanout } from './projection-events.ts';
 import { AiAdminService } from './ai/admin-service.ts';
@@ -216,7 +217,7 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
   return { accountId: account.accountId,sessionId:account.sessionId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
 }
 
-async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability):Promise<void>{
+async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability):Promise<Capability[]>{
   const row=(await client.query<{capabilities:Capability[];csrf_hash:string}>(`SELECT membership.capabilities,session.csrf_hash
     FROM sessions session JOIN accounts account ON account.id=session.account_id
     JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2
@@ -226,6 +227,7 @@ async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:
   if(!row)throw new DomainError('UNAUTHENTICATED',401);
   if(isUnsafe(request.method)){const csrf=request.headers['x-csrf-token'];if(typeof csrf!=='string'||tokenHash(csrf)!==row.csrf_hash)throw new DomainError('CSRF_REQUIRED',403);}
   requireCapability(row.capabilities,capability);
+  return row.capabilities;
 }
 
 async function recheckPersonPhotoAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,personId:string,lock=true):Promise<void>{
@@ -916,22 +918,6 @@ async function defaultDisplaySetup(client:DbClient,householdId:string):Promise<s
   return existing.id;
 }
 
-async function validateAudience(client: DbClient, auth: AuthContext, personIds: string[], displayIds: string[], needsDisplayPublish = true): Promise<void> {
-  if (personIds.length) {
-    const found = await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])', [auth.householdId, personIds]);
-    if (found.rowCount !== new Set(personIds).size) throw new DomainError('NOT_FOUND', 404);
-  }
-  if (displayIds.length) {
-    if (needsDisplayPublish) requireCapability(auth.capabilities, 'message.publish.display');
-    const found = await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL', [auth.householdId, displayIds]);
-    if (found.rowCount !== new Set(displayIds).size) throw new DomainError('NOT_FOUND', 404);
-    if (!auth.capabilities.includes('display.manage')) {
-      const permitted = await client.query('SELECT display_id FROM membership_display_grants WHERE household_id=$1 AND membership_id=$2 AND display_id=ANY($3::uuid[])', [auth.householdId, auth.membershipId, displayIds]);
-      if (permitted.rowCount !== new Set(displayIds).size) throw new DomainError('FORBIDDEN', 403);
-    }
-  }
-}
-
 async function audit(client: DbClient, auth: Pick<AuthContext,'installationId'|'householdId'|'accountId'>, action: string, subjectType: string, subjectId?: string, metadata: Record<string, unknown> = {}): Promise<void> {
   await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata)
     VALUES ($1,$2,'account',$3,$4,$5,$6,$7)`, [auth.installationId, auth.householdId, auth.accountId, action, subjectType, subjectId ?? null, JSON.stringify(metadata)]);
@@ -1080,7 +1066,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const mcp=new McpOAuthService(runtime.publicOrigin,options.schoolPdfFetcher,
     (grantId,sourceId)=>durableRateLimit('mcp_school_pdf_verify',`${grantId}:${sourceId}`,6,3600));
   app.addHook('preClose',async()=>mcp.close());
-  const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth,rateLimit:durableRateLimit});
+  const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth:async(client,request,auth,capability)=>{await recheckHouseholdAuth(client,request,auth,capability);},rateLimit:durableRateLimit});
   const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{
     const allowed=board==='groceries'?'grocery_read':'dinner_read';
     const card=board;
@@ -1802,7 +1788,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const invitationToken=body.login?.loginMethod==='invitation'?opaqueToken():null;
     const passwordHash=body.login?.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result = await transaction(async (client) => {
-      await validateAudience(client, auth, [], body.displayIds, false);
+      await validateMessageAudience(client,auth,auth.capabilities,[],body.displayIds,false);
       const colorToken=await assignPersonColor(client,auth.householdId);
       const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group,birth_date,color_token) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [auth.householdId,body.displayName,body.avatarKey??null,ageGroup,body.birthDate??null,colorToken]);
       let accountId: string|null = null;
@@ -1844,7 +1830,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const passwordHash=body.login.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result=await transaction(async(client)=>{
       await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
-      await validateAudience(client,auth,[],body.displayIds,false);
+      await validateMessageAudience(client,auth,auth.capabilities,[],body.displayIds,false);
       const target=await client.query<{id:string;account_id:string|null}>(`SELECT id,account_id FROM memberships WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).membershipId,auth.householdId]);
       if(!target.rowCount)throw new DomainError('NOT_FOUND',404);
       if(target.rows[0]!.account_id)throw new DomainError('CONFLICT',409,{reason:'account_already_exists'});
@@ -1868,7 +1854,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     assertGrantAuthority(auth, body.rolePreset, desired);
     return transaction(async (client) => {
       await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
-      await validateAudience(client, auth, [], body.displayIds, false);
+      await validateMessageAudience(client,auth,auth.capabilities,[],body.displayIds,false);
       const target = await client.query<{role_preset:string;capabilities:Capability[];account_id:string|null;disabled_at:Date|null;password_hash:string|null}>(`SELECT m.role_preset,m.capabilities,m.account_id,a.disabled_at,a.password_hash FROM memberships m LEFT JOIN accounts a ON a.id=m.account_id WHERE m.id=$1 AND m.household_id=$2 FOR UPDATE OF m`, [params(request).membershipId,auth.householdId]);
       if (!target.rowCount) throw new DomainError('NOT_FOUND', 404);
       if(body.rolePreset==='installation_admin' && target.rows[0]!.role_preset!=='installation_admin' && body.confirmInstallationOwner!==true)throw new DomainError('VALIDATION_FAILED',400,{reason:'installation_owner_confirmation_required'});
@@ -2787,31 +2773,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.post('/api/v1/households/:householdId/messages', async (request, reply) => {
     const auth = await authForHousehold(request, params(request).householdId!);
-    requireCapability(auth.capabilities, 'message.create.household');
-    const body = parse(messageCreateSchema, request.body);
-    const now = new Date();
-    const publishAt = body.publishAt ? new Date(body.publishAt) : now;
-    const expiresAt = new Date(body.expiresAt);
-    const state = initialMessageState(publishAt,expiresAt,now);
-    if (publishAt > now) requireCapability(auth.capabilities,'message.schedule');
-    const message = await transaction(async (client) => {
-      await validateAudience(client,auth,body.audience.personIds,body.audience.displayIds);
-      const requestHash=createHash('sha256').update(JSON.stringify(body)).digest('hex');
-      const existing = await client.query<{request_hash:string|null} & Record<string,unknown>>(`SELECT id,body,importance,audience_household,publish_at,expires_at,state,revision,request_hash FROM messages WHERE author_membership_id=$1 AND idempotency_key=$2`, [auth.membershipId,body.idempotencyKey]);
-      if (existing.rowCount) {
-        if(existing.rows[0]!.request_hash!==requestHash) throw new DomainError('CONFLICT',409,{reason:'idempotency_payload_mismatch'});
-        const {request_hash: _requestHash,...response}=existing.rows[0]!;
-        return response;
-      }
-      const inserted = await client.query<{id:string;revision:number}>(`INSERT INTO messages(household_id,author_membership_id,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN $8='published' THEN clock_timestamp() END) RETURNING id,revision`, [auth.householdId,auth.membershipId,body.body,body.importance,body.audience.household,publishAt,expiresAt,state,body.idempotencyKey]);
-      const id = inserted.rows[0]!.id;
-      await client.query('UPDATE messages SET request_hash=$2 WHERE id=$1',[id,requestHash]);
-      for (const personId of body.audience.personIds) await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES ($1,$2,$3)', [auth.householdId,id,personId]);
-      for (const displayId of body.audience.displayIds) await client.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES ($1,$2,$3,'queued')`, [auth.householdId,id,displayId]);
-      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key) VALUES ($1,NULL,$2,1,'account',$3,$4)`, [id,state,auth.accountId,`create:${id}`]);
-      return (await client.query(`SELECT id,body,importance,audience_household,publish_at,expires_at,state,revision FROM messages WHERE id=$1`, [id])).rows[0];
-    });
+    const message = await messageService.create(auth,request.body,async(client)=>recheckHouseholdAuth(client,request,auth,'message.create.household'));
     return reply.status(201).send(message);
   });
 
@@ -2827,10 +2789,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       const audience = body.audience;
       if (audience) {
         if (!(audience.household || audience.personIds.length || audience.displayIds.length)) throw new DomainError('VALIDATION_FAILED',400,{fields:[{path:'audience',code:'audience_required'}]});
-        await validateAudience(client,auth,audience.personIds,audience.displayIds);
+        await validateMessageAudience(client,auth,auth.capabilities,audience.personIds,audience.displayIds);
       } else {
         const currentDisplays=(await client.query<{display_id:string}>(`SELECT t.display_id FROM message_display_targets t JOIN displays d ON d.id=t.display_id AND d.household_id=t.household_id WHERE t.message_id=$1 AND t.delivery_state IN ('queued','delivered','displayed') AND d.revoked_at IS NULL`,[params(request).messageId])).rows.map((row)=>row.display_id);
-        await validateAudience(client,auth,[],currentDisplays);
+        await validateMessageAudience(client,auth,auth.capabilities,[],currentDisplays);
       }
       const publishAt = body.publishAt ? new Date(body.publishAt) : current.publish_at;
       const expiresAt = body.expiresAt ? new Date(body.expiresAt) : current.expires_at;

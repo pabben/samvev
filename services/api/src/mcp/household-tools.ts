@@ -1,11 +1,12 @@
 import { DomainError } from '@samvev/core';
-import { dinnerAssignmentSchema, groceryCreateSchema, groceryUpdateSchema } from '@samvev/contracts';
+import { dinnerAssignmentSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, type Capability as MemberCapability } from '@samvev/contracts';
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
 import { listMessages } from '../messages/read.ts';
 import { readCalendarActivityRows } from '../calendar/activity-reader.ts';
 import { localDateInTimezone } from '../people/domain.ts';
+import { messageService, type MessageCreateActor, type MessageService } from '../messages/service.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
  * still authoritative: every invocation rechecks the grant and membership. */
@@ -31,6 +32,7 @@ export interface HouseholdMcpToolRegistrar {
 export interface HouseholdMcpToolDependencies {
   transaction<T>(run: (client: DbClient) => Promise<T>): Promise<T>;
   boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner'>;
+  messageService?: Pick<MessageService, 'create'>;
 }
 
 const uuid = z.uuid();
@@ -43,11 +45,11 @@ const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date })
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:messages:read' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read';
-type Capability = 'household.view' | 'household.manage';
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read';
+type Capability = MemberCapability;
 
-async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<string> {
-  const result = await client.query<{ allowed: boolean; person_id: string }>(`SELECT (
+async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[]}> {
+  const result = await client.query<{ allowed: boolean; person_id: string; capabilities: Capability[] }>(`SELECT (
       grant_row.id IS NOT NULL
       AND grant_row.revoked_at IS NULL
       AND grant_row.scopes ?& $5::text[]
@@ -58,7 +60,7 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
       AND person.age_group = 'adult'
       AND account.disabled_at IS NULL
       AND household.installation_id = $4
-    ) AS allowed,membership.person_id
+    ) AS allowed,membership.person_id,membership.capabilities
     FROM mcp_oauth_grants grant_row
     JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=grant_row.id AND token_set.id=$8
     JOIN memberships membership ON membership.id=grant_row.membership_id AND membership.household_id=grant_row.household_id AND membership.account_id=grant_row.account_id
@@ -70,7 +72,7 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
     [principal.grantId, principal.householdId, principal.accountId, principal.installationId, scopes, capability, principal.membershipId, principal.tokenSetId]);
   const row = result.rows[0];
   if (!row?.allowed || !uuid.safeParse(row.person_id).success) throw new DomainError('FORBIDDEN', 403);
-  return row.person_id;
+  return { personId: row.person_id, capabilities: row.capabilities };
 }
 
 /** Live grant and member-visible source projection shared by both calendar tools. */
@@ -127,7 +129,7 @@ export function registerHouseholdTools(
   }, async (raw) => {
     const input = calendarInput.parse(raw);
     return dependencies.transaction(async (client) => {
-      const viewerPersonId = await assertLiveAuthority(client, principal, ['mcp:calendar:read'], 'household.view');
+      const authority = await assertLiveAuthority(client, principal, ['mcp:calendar:read'], 'household.view');
       const [people, sources] = await Promise.all([
         client.query<{ id: string }>(`SELECT person.id FROM mcp_oauth_grant_people grant_person
           JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
@@ -141,7 +143,7 @@ export function registerHouseholdTools(
       const from = localDateInTimezone(new Date(), household.rows[0].timezone);
       const rows = await readCalendarActivityRows({
         householdId: principal.householdId, personIds: people.rows.map((row) => row.id),
-        viewer: { personId: viewerPersonId, membershipId: principal.membershipId }, canViewAll: true,
+        viewer: { personId: authority.personId, membershipId: principal.membershipId }, canViewAll: true,
         from, to: dateOffset(from, input.days - 1), limit: input.limit, sourceIds: sources.map((row) => row.id), upcomingOnly: true, requirePersonAudience: true
       }, client);
       const sourceNames = new Map(sources.map((source) => [source.id, source.name]));
@@ -191,13 +193,28 @@ export function registerHouseholdTools(
   }, async (raw) => {
     emptyInput.parse(raw);
     return dependencies.transaction(async (client) => {
-      const personId = await assertLiveAuthority(client, principal, ['mcp:messages:read'], 'household.view');
+      const authority = await assertLiveAuthority(client, principal, ['mcp:messages:read'], 'household.view');
       const messages = await listMessages(client, {
-        householdId: principal.householdId, membershipId: principal.membershipId, personId,
+        householdId: principal.householdId, membershipId: principal.membershipId, personId: authority.personId,
         manageHousehold: false, mcpGrantId: principal.grantId
       });
       return { messages };
     });
+  });
+
+  registrar.registerTool('household.messages.create', {
+    description: 'Create and publish or schedule one household message. Choose household, people, and displays explicitly; recipients must be granted to this OAuth authorization.',
+    inputSchema: messageCreateSchema, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: false
+  }, async (raw) => {
+    const actor: MessageCreateActor = {
+      accountId: principal.accountId, installationId: principal.installationId, householdId: principal.householdId,
+      membershipId: principal.membershipId, mcpGrantId: principal.grantId
+    };
+    const created = await (dependencies.messageService ?? messageService).create(actor, raw, async (client) => {
+      const authority = await assertLiveAuthority(client, principal, ['mcp:messages:read', 'mcp:messages:write'], 'message.create.household');
+      return authority.capabilities;
+    });
+    return { message: created };
   });
 
   registrar.registerTool('household.groceries.list', {

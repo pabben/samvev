@@ -24,14 +24,14 @@ function dependencies(options: { allowed?: boolean; people?: unknown[] } = {}) {
   const calls: Array<{ sql: string; values?: unknown[] }> = [];
   const client = { async query(sql: string, values?: unknown[]) {
     calls.push({ sql, values });
-    if (sql.includes('FROM mcp_oauth_grants')) return { rows: [{ allowed: options.allowed ?? true, person_id: '77777777-7777-4777-8777-777777777777' }] };
+    if (sql.includes('FROM mcp_oauth_grants')) return { rows: [{ allowed: options.allowed ?? true, person_id: '77777777-7777-4777-8777-777777777777', capabilities: ['household.view', 'message.create.household', 'message.schedule', 'message.publish.display'] }] };
     if (sql.includes('FROM messages m')) return { rows: [{ id: 'synthetic-message', body: 'Synthetic household message' }] };
     if (sql.includes('FROM mcp_oauth_grant_people')) return { rows: options.people ?? [{ id: 'person-granted', displayName: 'Granted member', ageGroup: 'adult' }] };
     if (sql.includes('household_grocery_items')) return { rows: [{ id: 'grocery-1', label: 'Synthetic apples', checked: false }] };
     if (sql.includes('household_dinner_assignments')) return { rows: [{ localDate: '2027-03-20', title: 'Synthetic soup' }] };
     throw new Error('Unexpected SQL in focused MCP test');
   } } as unknown as DbClient;
-  return { calls, deps: { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run(client) } };
+  return { calls, client, deps: { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run(client) } };
 }
 
 test('calendar tool is source and person bounded and returns a curated event projection', async () => {
@@ -140,6 +140,30 @@ test('message list stops before reading when scope, token, account, membership, 
   registerHouseholdTools(tools, context, fake.deps);
   await assert.rejects(tools.get('household.messages.list')({}), (error: unknown) => error instanceof DomainError && error.status === 403);
   assert.equal(fake.calls.length, 1, 'no message query follows failed live authorization');
+});
+
+test('message create requires both scopes and delegates the real OAuth member to the shared writer', async () => {
+  const tools = new Tools(), fake = dependencies(), calls: Array<{ actor: Record<string, unknown>; input: unknown; capabilities: unknown }> = [];
+  const messageService = {
+    async create(actor: any, input: unknown, authorize: (client: DbClient, actor: any) => Promise<unknown>) {
+      const capabilities = await authorize(fake.client as DbClient, actor);
+      calls.push({ actor, input, capabilities });
+      return { id: 'synthetic-message-created' };
+    }
+  };
+  registerHouseholdTools(tools, context, { ...fake.deps, messageService });
+  const input = { body: 'Synthetic MCP message', audience: { household: true, personIds: [], displayIds: [] }, expiresAt: '2027-03-21T12:00:00.000Z', idempotencyKey: 'mcp-message-0001' };
+  const result = await tools.get('household.messages.create')(input) as { message: { id: string } };
+  assert.deepEqual(result, { message: { id: 'synthetic-message-created' } });
+  assert.deepEqual(tools.options.get('household.messages.create')?.requiredScopes, ['mcp:messages:read', 'mcp:messages:write']);
+  assert.equal(tools.options.get('household.messages.create')?.readOnlyHint, false);
+  assert.equal(calls[0]!.actor.accountId, principal.accountId);
+  assert.equal(calls[0]!.actor.membershipId, principal.membershipId);
+  assert.equal(calls[0]!.actor.householdId, principal.householdId);
+  assert.equal(calls[0]!.actor.mcpGrantId, principal.grantId);
+  assert.deepEqual((calls[0]!.input as Record<string, unknown>).body, input.body);
+  assert.ok((calls[0]!.capabilities as string[]).includes('message.create.household'));
+  assert.deepEqual(fake.calls[0]!.values?.slice(4, 6), [['mcp:messages:read', 'mcp:messages:write'], 'message.create.household']);
 });
 
 test('board reads require live household.manage plus their distinct MCP consent scopes', async () => {
