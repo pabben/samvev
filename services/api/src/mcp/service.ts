@@ -188,8 +188,30 @@ const schoolSourceListSchema=z.strictObject({limit:z.number().int().min(1).max(5
 // one remote call from multiplying a large result across many connections.
 const schoolPlanMcpListSchema=schoolPlanListSchema.extend({limit:z.number().int().min(1).max(10).default(10)});
 const MAX_MCP_SCHOOL_CONNECTIONS_PER_CALL=4;
+const monitorListSchema=z.strictObject({householdId:z.string().uuid(),limit:z.number().int().min(1).max(50).default(50)});
+const monitorDetailSchema=z.strictObject({taskId:z.string().uuid()});
+const monitorHistorySchema=z.strictObject({taskId:z.string().uuid(),limit:z.number().int().min(1).max(20).default(10)});
 function toolResult(value:Record<string,unknown>){return{content:[{type:'text' as const,text:JSON.stringify(value)}],structuredContent:value};}
 async function mapSequential<T,R>(items:readonly T[],run:(item:T)=>Promise<R>):Promise<R[]>{const results:R[]=[];for(const item of items)results.push(await run(item));return results;}
+
+async function assertMcpMonitorAuthority(client:DbClient,principal:McpPrincipal):Promise<void>{
+  const allowed=await client.query(`SELECT 1 FROM mcp_oauth_grants oauth_grant
+    JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=oauth_grant.id AND token_set.id=$5
+    JOIN memberships membership ON membership.id=oauth_grant.membership_id AND membership.household_id=oauth_grant.household_id AND membership.account_id=oauth_grant.account_id
+    JOIN accounts account ON account.id=oauth_grant.account_id AND account.disabled_at IS NULL
+    JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult'
+    WHERE oauth_grant.id=$1 AND oauth_grant.household_id=$2 AND oauth_grant.account_id=$3 AND oauth_grant.membership_id=$4
+      AND oauth_grant.revoked_at IS NULL AND oauth_grant.scopes ? 'mcp:monitors:read'
+      AND token_set.revoked_at IS NULL AND token_set.access_expires_at>clock_timestamp() AND token_set.scopes ? 'mcp:monitors:read'
+      AND membership.capabilities ? 'household.manage' FOR SHARE OF oauth_grant,token_set,membership,account`,
+  [principal.grantId,principal.householdId,principal.accountId,principal.membershipId,principal.tokenSetId]);
+  if(!allowed.rowCount)throw new DomainError('FORBIDDEN',403,{reason:'mcp_monitor_authority_required'});
+}
+
+async function requireMonitorTask(client:DbClient,principal:McpPrincipal,taskId:string):Promise<void>{
+  const task=await client.query('SELECT 1 FROM monitor_tasks WHERE id=$1 AND household_id=$2 FOR SHARE',[taskId,principal.householdId]);
+  if(!task.rowCount)throw new DomainError('NOT_FOUND',404);
+}
 
 function principalFromAuthInfo(authInfo:AuthInfo|undefined):McpPrincipal|undefined{
   const extra=authInfo?.extra;
@@ -584,9 +606,6 @@ export class McpOAuthService {
     const server=new McpServer({name:'samvev',version:'0.1.0'});
     const principal=principalFromAuthInfo(authInfo);
     const householdId=String(authInfo?.extra?.householdId??'');
-    const grantId=String(authInfo?.extra?.grantId??'');
-    const installationId=String(authInfo?.extra?.installationId??'');
-    const clientDatabaseId=String(authInfo?.extra?.clientDatabaseId??'');
     server.registerTool('samvev_context',{
       title:'Samvev authorization context',description:'Show the household and scopes authorized for this MCP connection.',inputSchema:{householdId:z.string().uuid().optional()},scopeChallenge:requireScopes('mcp:context'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}
     },async(input)=>{
@@ -595,16 +614,48 @@ export class McpOAuthService {
       if(!household)return{isError:true,content:[{type:'text',text:'Authorization is no longer available.'}]};
       return{content:[{type:'text',text:JSON.stringify({household,scopes:authInfo?.scopes??[]})}],structuredContent:{household,scopes:authInfo?.scopes??[]}};
     });
-    server.registerTool('samvev_monitors_list',{
-      title:'List Samvev monitors',description:'List durable monitoring tasks in the authorized household without returning instructions, source URLs, people, or display audiences.',inputSchema:{householdId:z.string().uuid()},scopeChallenge:requireScopes('mcp:monitors:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}
-    },async({householdId:requestedHousehold})=>{
-      if(requestedHousehold!==householdId)return{isError:true,content:[{type:'text',text:'Household is not available to this authorization.'}]};
-      const tasks=(await pool.query(`SELECT id,name,state,check_interval_minutes,notice_days_before,notice_local_time::text,revision,approved_revision,last_checked_at,next_check_at,error_code,created_at,updated_at
-        FROM monitor_tasks WHERE household_id=$1 ORDER BY created_at DESC`,[householdId])).rows;
-      if(grantId&&installationId&&clientDatabaseId)await audit(pool,{grantId,installationId,householdId,clientDatabaseId},'mcp.monitors_listed','mcp_oauth_grant',grantId,{count:tasks.length});
-      return{content:[{type:'text',text:JSON.stringify({tasks})}],structuredContent:{tasks}};
-    });
     if(principal){
+      server.registerTool('samvev_monitors_list',{
+        title:'List Samvev monitor status',description:'List bounded monitor task scheduling and health metadata. Names, instructions, sources, audiences, and result content are omitted.',inputSchema:monitorListSchema,scopeChallenge:requireScopes('mcp:monitors:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}
+      },async({householdId:requestedHousehold,limit})=>{
+        if(requestedHousehold!==principal.householdId)return{isError:true,content:[{type:'text',text:'Household is not available to this authorization.'}]};
+        return transaction(async(client)=>{
+          await assertMcpMonitorAuthority(client,principal);
+          const tasks=(await client.query(`SELECT id,state,check_interval_minutes AS "checkIntervalMinutes",notice_days_before AS "noticeDaysBefore",
+            notice_local_time::text AS "noticeLocalTime",revision,approved_revision AS "approvedRevision",last_checked_at AS "lastCheckedAt",
+            next_check_at AS "nextCheckAt",error_code AS "errorCode",check_count AS "checkCount",ai_call_count AS "aiCallCount",
+            unchanged_count AS "unchangedCount",created_at AS "createdAt",updated_at AS "updatedAt"
+            FROM monitor_tasks WHERE household_id=$1 ORDER BY created_at DESC,id LIMIT $2`,[principal.householdId,limit])).rows;
+          await audit(client,principal,'mcp.monitors_listed','mcp_oauth_grant',principal.grantId,{count:tasks.length,limit});
+          return toolResult({tasks});
+        });
+      });
+      server.registerTool('samvev_monitor_get',{
+        title:'Get Samvev monitor status',description:'Read one monitor task’s scheduling, counters, and latest execution status without instructions, sources, audiences, names, or result content.',inputSchema:monitorDetailSchema,scopeChallenge:requireScopes('mcp:monitors:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}
+      },async({taskId})=>transaction(async(client)=>{
+        await assertMcpMonitorAuthority(client,principal);await requireMonitorTask(client,principal,taskId);
+        const task=(await client.query(`SELECT task.id,task.state,task.check_interval_minutes AS "checkIntervalMinutes",task.notice_days_before AS "noticeDaysBefore",
+          task.notice_local_time::text AS "noticeLocalTime",task.revision,task.approved_revision AS "approvedRevision",
+          task.last_checked_at AS "lastCheckedAt",task.next_check_at AS "nextCheckAt",task.error_code AS "errorCode",
+          task.check_count AS "checkCount",task.ai_call_count AS "aiCallCount",task.unchanged_count AS "unchangedCount",
+          task.created_at AS "createdAt",task.updated_at AS "updatedAt",
+          (SELECT jsonb_build_object('id',execution.id,'kind',execution.kind,'status',execution.status,'progressStage',execution.progress_stage,
+            'queuedAt',execution.queued_at,'startedAt',execution.started_at,'completedAt',execution.completed_at,'errorCode',execution.error_code)
+            FROM monitor_executions execution WHERE execution.task_id=task.id ORDER BY execution.created_at DESC,execution.id DESC LIMIT 1) AS "latestExecution"
+          FROM monitor_tasks task WHERE task.id=$1 AND task.household_id=$2`,[taskId,principal.householdId])).rows[0]!;
+        await audit(client,principal,'mcp.monitor_read','monitor_task',taskId,{fieldSet:'status_only'});
+        return toolResult({task});
+      }));
+      server.registerTool('samvev_monitor_runs_list',{
+        title:'List Samvev monitor run status',description:'List up to twenty recent run outcomes for one monitor. Raw result, source, error detail, tool trace, and model output fields are omitted.',inputSchema:monitorHistorySchema,scopeChallenge:requireScopes('mcp:monitors:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}
+      },async({taskId,limit})=>transaction(async(client)=>{
+        await assertMcpMonitorAuthority(client,principal);await requireMonitorTask(client,principal,taskId);
+        const runs=(await client.query(`SELECT id,task_revision AS "taskRevision",outcome,ai_called AS "aiCalled",ai_call_count AS "aiCallCount",
+          run_kind AS "runKind",result_kind AS "resultKind",error_code AS "errorCode",checked_at AS "checkedAt"
+          FROM monitor_runs WHERE task_id=$1 ORDER BY checked_at DESC,id DESC LIMIT $2`,[taskId,limit])).rows;
+        await audit(client,principal,'mcp.monitor_runs_listed','monitor_task',taskId,{count:runs.length,limit});
+        return toolResult({runs});
+      }));
       const householdAuditActions:Record<string,string>={'household.people.list':'mcp.people_listed','household.groceries.list':'mcp.groceries_listed','household.groceries.add':'mcp.grocery_added','household.groceries.update':'mcp.grocery_updated','household.dinners.list':'mcp.dinners_listed','household.dinners.options.list':'mcp.dinner_options_listed','household.dinners.assign':'mcp.dinner_assigned'};
       registerHouseholdTools({registerTool:(name,options,handler)=>server.registerTool(name,{description:options.description,inputSchema:options.inputSchema,scopeChallenge:requireScopes(...options.requiredScopes),annotations:{readOnlyHint:options.readOnlyHint,destructiveHint:options.destructiveHint,idempotentHint:true,openWorldHint:false}},async(input)=>{
         const result=await handler(input) as Record<string,unknown>;
