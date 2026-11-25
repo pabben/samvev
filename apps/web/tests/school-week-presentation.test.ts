@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { currentSchoolWeekPlans, requestSchoolWeekPdf, schoolWeekActivityAlreadyShown, schoolWeekDateAtNoon, schoolWeekDay, schoolWeekHomework, schoolWeekIdentity, schoolWeekPdfAvailable, schoolWeekPlansPath, schoolWeekRequirementKey, schoolWeekTimeLabel, schoolWeekTomorrow, schoolWeekUncertaintyKey, type SchoolWeekPlan } from '../src/school-week-presentation';
+import { currentSchoolWeekPlans, requestSchoolWeekPdf, schoolWeekActivityAlreadyShown, schoolWeekDateAtNoon, schoolWeekDay, schoolWeekHomework, schoolWeekIdentity, schoolWeekPdfAvailable, schoolWeekPlansPath, schoolWeekPreviewPlans, schoolWeekRequirementKey, schoolWeekTimeLabel, schoolWeekTomorrow, schoolWeekUncertaintyKey, type SchoolWeekPlan } from '../src/school-week-presentation';
 
 const plan: SchoolWeekPlan = {
   id: 'synthetic-plan-id', personId: 'synthetic-person-id', isoYear: 2026, isoWeek: 48,
@@ -29,6 +29,12 @@ test('current school plan selection uses ISO week identity across calendar year 
 test('school plan requests constrain the server list to the local ISO week with a bounded page size', () => {
   assert.equal(schoolWeekPlansPath('2027-01-01', { display: true }), '/display/school-plans?isoYear=2026&isoWeek=53&limit=20');
   assert.equal(schoolWeekPlansPath('2027-01-01', { display: false, householdId: 'synthetic-household-id' }), '/households/synthetic-household-id/school-plans?isoYear=2026&isoWeek=53&limit=20');
+});
+
+test('display preview uses only its server-filtered plan snapshot and never requests a live projection fallback', () => {
+  assert.deepEqual(schoolWeekPreviewPlans(true), []);
+  assert.equal(schoolWeekPreviewPlans(true, [plan])?.[0], plan);
+  assert.equal(schoolWeekPreviewPlans(false), undefined);
 });
 
 test('current week filtering ignores historical and future plans while keeping visible household members', () => {

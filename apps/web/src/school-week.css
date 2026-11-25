@@ -32,6 +32,8 @@
 .school-week-dialog{max-width:min(96vw,1200px);overflow-y:auto}
 .school-week-pdf-dialog{max-width:min(94vw,820px);min-height:min(50vh,520px);display:grid;align-content:start;gap:.9rem;overflow-y:auto}
 .school-week-pdf-dialog>p{margin:0;line-height:1.5}
+.school-week-pdf-actions{display:flex;flex-wrap:wrap;gap:.65rem;align-items:center}
+.school-week-pdf-actions .button{min-height:44px}
 .school-week-pdf-download{justify-self:start}
 .school-week-pdf-ready{padding:.8rem;border-radius:.8rem;background:var(--soft-teal);color:var(--text)}
 .school-week-plans{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;min-width:0}

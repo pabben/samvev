@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { hasMcpDisplayPolicyScope, hasMcpSchoolScope, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
+import { hasMcpDisplayPolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
 
 const authorization: McpAuthorization = {
   id: 'synthetic-grant-id',
@@ -36,6 +36,15 @@ test('school and display policy controls require a matching current consent scop
   assert.equal(hasMcpSchoolScope(['mcp:people:read']), false);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:monitors:read']), true);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:groceries:read']), false);
+});
+
+test('scope policy permits only subsets and requires a non-offline permission', () => {
+  const original = ['mcp:people:read', 'mcp:school-plans:read', 'offline_access'];
+  assert.equal(isValidMcpScopeNarrowing(original, original), true);
+  assert.equal(isValidMcpScopeNarrowing(original, ['mcp:people:read']), true);
+  assert.equal(isValidMcpScopeNarrowing(original, ['offline_access']), false);
+  assert.equal(isValidMcpScopeNarrowing(original, []), false);
+  assert.equal(isValidMcpScopeNarrowing(original, ['mcp:people:read', 'mcp:people:write']), false);
 });
 
 test('explicit school-source selection adds approved resources and keeps existing resources untouched', () => {
@@ -80,6 +89,33 @@ test('policy update uses backend snake_case authorization fields and preserves a
     displayIds: ['synthetic-display-id'],
     resources: [{ kind: 'school_source', id: 'synthetic-approved-source-id' }],
   });
+});
+
+test('scope narrowing is sent as a subset to the CAS policy endpoint', async () => {
+  const originalFetch = globalThis.fetch;
+  let request: { url: string; init?: RequestInit } | undefined;
+  globalThis.fetch = (async (input: URL | RequestInfo, init?: RequestInit) => {
+    request = { url: String(input), init };
+    return new Response(null, { status: 204 });
+  }) as typeof fetch;
+  try {
+    await saveMcpPolicy('/households/synthetic-household-id/mcp/authorizations', authorization, ['synthetic-person-id'], [], authorization.resources, ['mcp:school-plans:read']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(request?.init?.method, 'PUT');
+  assert.deepEqual(JSON.parse(String(request?.init?.body)), {
+    expectedRevision: 3,
+    personIds: ['synthetic-person-id'],
+    displayIds: [],
+    resources: [{ kind: 'school_source', id: 'synthetic-approved-source-id' }],
+    scopes: ['mcp:school-plans:read'],
+  });
+});
+
+test('scope narrowing rejects empty, offline-only, or broadening updates before network request', async () => {
+  await assert.rejects(saveMcpPolicy('/households/synthetic-household-id/mcp/authorizations', authorization, [], [], authorization.resources, ['offline_access']), /mcp_scope_selection_invalid/);
+  await assert.rejects(saveMcpPolicy('/households/synthetic-household-id/mcp/authorizations', authorization, [], [], authorization.resources, ['mcp:people:write']), /mcp_scope_selection_invalid/);
 });
 
 test('policy cannot be edited before the source resource list is present in the authorization response', async () => {

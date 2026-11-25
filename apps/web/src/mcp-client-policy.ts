@@ -59,6 +59,10 @@ export function hasMcpDisplayPolicyScope(scopes: string[]) {
   return hasMcpSchoolScope(scopes) || scopes.includes('mcp:monitors:read') || scopes.includes('monitors:read');
 }
 
+export function isValidMcpScopeNarrowing(originalScopes: string[], selectedScopes: string[]) {
+  return selectedScopes.length > 0 && selectedScopes.every(scope => originalScopes.includes(scope)) && selectedScopes.some(scope => scope !== 'offline_access');
+}
+
 export function schoolResourcesForPolicy(existing: NonNullable<McpAuthorization['resources']>, selectedResourceIds: string[], sources: SchoolPlanSource[], selectedPersonIds: string[]) {
   if (sources.some(source => selectedResourceIds.includes(source.id) && !selectedPersonIds.includes(source.personId))) throw new Error('mcp_school_source_person_required');
   const selected = new Set(selectedResourceIds);
@@ -73,12 +77,15 @@ export function unlistedSchoolResources(existing: NonNullable<McpAuthorization['
   return existing.filter(resource => !available.has(resource.id));
 }
 
-export async function saveMcpPolicy(base: string, authorization: McpAuthorization, personIds: string[], displayIds: string[], resources = authorization.resources) {
+export async function saveMcpPolicy(base: string, authorization: McpAuthorization, personIds: string[], displayIds: string[], resources = authorization.resources, scopes?: string[]) {
   if (!Array.isArray(resources)) throw new Error('mcp_policy_unavailable');
-  return api(`${base}/${encodeURIComponent(authorization.id)}/policy`, 'PUT', {
+  if (scopes && !isValidMcpScopeNarrowing(authorization.scopes, scopes)) throw new Error('mcp_scope_selection_invalid');
+  const body: {expectedRevision:number;personIds:string[];displayIds:string[];resources:NonNullable<McpAuthorization['resources']>;scopes?:string[]} = {
     expectedRevision: authorization.revision,
     personIds,
     displayIds,
     resources,
-  });
+  };
+  if (scopes) body.scopes = scopes;
+  return api(`${base}/${encodeURIComponent(authorization.id)}/policy`, 'PUT', body);
 }

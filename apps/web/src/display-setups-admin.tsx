@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { advanceHomeBirthdays } from "./home-presentation";
 import { dateOffset } from "./household-board-adapters";
 import { FamilyHub } from "./family-hub";
+import type { SchoolWeekPlan } from "./school-week-presentation";
 import { DisplayCard, DisplayDayCardContent, DisplayNextActivitySnapshot } from "./display";
 import { HomeAssistantPreviewCard, type HomeAssistantPreviewItem } from "./ha-preview-card";
 import { HouseholdActivityWeekHeading, HouseholdActivityWeekRows } from "./home-activities";
@@ -39,6 +40,7 @@ export type Preview = Projection & {
   weekActivities?: { activities: HouseholdTimelineActivity[]; nextCursor?: string | null };
   nextActivity?: HouseholdTimelineActivity | null;
   homeAssistantPreview?: { items: HomeAssistantPreviewItem[] };
+  schoolPlans?: SchoolWeekPlan[];
 };
 
 const emptyDraft = (locale: "en" | "nb"): Draft => ({ name: "", cards: ["family_layout", "household_messages", "week", "external_items"], cardOrder: ["family_layout", "household_messages", "week", "external_items"], familyLayoutEnabled: true, allSources: false, allSensors: false, personIds: [], sourceIds: [], calendarSourceIds: [], sensorIds: [], albumIds: [], backgroundId: null, locale, theme: "system" });
@@ -64,7 +66,7 @@ function ReadonlyPreviewBody({ result, displayName, orientation }: { result: Pre
   const familySelected = familyCardPlan.familyLayout;
   const snapshotDinners=board?.readable?.dinners===true?(board.dinners??[]).map(dinner=>({...dinner,emoji:dinner.emoji??null,revision:dinner.revision??0,cleared:dinner.cleared??false})):[];
   const familySchoolActivities=(result.schoolActivities??[]).filter(activity=>activity.type==="school").flatMap(activity=>activity.personIds.map(personId=>({...activity,personId})));
-  const familyView = (roster: boolean, withMessages = false, peopleOnly = false) => <fieldset className="display-preview-family-readonly" disabled><legend className="sr-only">{t("displayPreviewReadonly")}</legend><FamilyHub display displayCompactPeople displaySnapshot={{dinners:snapshotDinners,composition:{theme:result.display.theme,orientation}}} displaySections={{people:roster,today:!peopleOnly,tomorrow:!peopleOnly,important:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} homePhoto={!peopleOnly&&result.setup.cards.includes("photos")&&Boolean(result.media?.assets?.length)?<DisplayMediaPlayback displayId={result.display.id} snapshot={result.media} readOnly/>:undefined} people={people} schoolActivities={familySchoolActivities} items={peopleOnly?[]:items} messages={withMessages&&!peopleOnly?messages:[]} birthdays={birthdays} birthdaySourceLocalDate={today} localDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} /></fieldset>;
+  const familyView = (roster: boolean, withMessages = false, peopleOnly = false) => <fieldset className="display-preview-family-readonly" disabled><legend className="sr-only">{t("displayPreviewReadonly")}</legend><FamilyHub display displayCompactPeople displaySnapshot={{dinners:snapshotDinners,schoolPlans:result.schoolPlans??[],composition:{theme:result.display.theme,orientation}}} displaySections={{people:roster,today:!peopleOnly,tomorrow:!peopleOnly,important:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),messages:withMessages,support:!peopleOnly&&!result.setup.cards.includes("worth_remembering"),week:false,environment:false,next:false}} homePhoto={!peopleOnly&&result.setup.cards.includes("photos")&&Boolean(result.media?.assets?.length)?<DisplayMediaPlayback displayId={result.display.id} snapshot={result.media} readOnly/>:undefined} people={people} schoolActivities={familySchoolActivities} items={peopleOnly?[]:items} messages={withMessages&&!peopleOnly?messages:[]} birthdays={birthdays} birthdaySourceLocalDate={today} localDate={today} zone={zone} householdName={result.display.householdName} now={Date.parse(result.serverNow)} /></fieldset>;
   return <>
     <header className="display-preview-meta"><h3>{t("displayPreviewFor", { name: displayName })}</h3><p>{t("displaySetup")}: {result.display.setupName ?? t("defaultDisplaySetup")} · {t("displayPreviewTitle")} · {t("displayPreviewReadonly")}</p></header>
     <section className={`display-preview display-preview-${orientation}`} data-theme={result.display.theme} aria-label={t("displayPreviewTitle")}>

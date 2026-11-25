@@ -26,8 +26,8 @@ export function SchoolWeekCard({ plan, personName, today, zone, compact = false,
   const contentLocale = plan.contentLocale ?? locale;
   const dateRange = `${shortDate(plan.startsOn, locale, zone)} – ${shortDate(plan.endsOn, locale, zone)}`;
   useEffect(()=>()=>{if(pdfUrl)URL.revokeObjectURL(pdfUrl)},[pdfUrl]);
-  const openPdfDialog=()=>{setShowWeek(false);setPdfError(undefined);setPdfUrl(null);setShowPdf(true)};
-  const closePdfDialog=()=>{if(pdfBusy)return;setShowPdf(false);setPdfUrl(null)};
+  const openPdfDialog=()=>{setShowWeek(false);setPdfError(undefined);setShowPdf(true)};
+  const closePdfDialog=()=>{if(pdfBusy)return;setShowPdf(false)};
   const loadPdf=async()=>{
     if(!onOpenPdf||!pdfReady||pdfBusy)return;
     setPdfBusy(true);setPdfError(undefined);setPdfUrl(null);
@@ -60,9 +60,9 @@ export function SchoolWeekCard({ plan, personName, today, zone, compact = false,
       <div className="school-week-full-days">{plan.days.map(day => <SchoolWeekDayCard key={day.date} day={day} label={dateHeading(day.date, locale, zone)} empty={t('schoolWeekNoItems')} locale={locale} full personId={plan.personId} alreadyShownActivities={alreadyShownActivities}/>)}</div>
     </Dialog>}
     {showPdf&&onOpenPdf&&<Dialog title={t('schoolWeekPdfTitle')} wide className="school-week-pdf-dialog" onClose={closePdfDialog}>
-      <p>{t('schoolWeekPdfDownloadHelp')}</p>
+      <p>{t('schoolWeekPdfOpenHelp')}</p>
       {!pdfUrl&&<button className="button primary" type="button" disabled={pdfBusy||!pdfReady} onClick={()=>void loadPdf()}>{pdfBusy?t('loading'):t('schoolWeekPreparePdf')}</button>}
-      {pdfUrl&&<a className="button primary school-week-pdf-download" href={pdfUrl} download={`school-plan-${plan.id}.pdf`}>{t('schoolWeekDownloadPdf')}</a>}
+      {pdfUrl&&<div className="school-week-pdf-actions"><a className="button primary" href={pdfUrl} target="_blank" rel="noopener noreferrer">{t('schoolWeekOpenPdfTab')}</a><a className="button subtle school-week-pdf-download" href={pdfUrl} download={`school-plan-${plan.id}.pdf`}>{t('schoolWeekDownloadPdf')}</a></div>}
       <ErrorNotice error={pdfError}/>
       {pdfUrl&&<p className="school-week-pdf-ready" role="status">{t('schoolWeekPdfReady')}</p>}
       <div className="form-actions"><button className="button" type="button" disabled={pdfBusy} onClick={closePdfDialog}>{t('schoolWeekReturnToBoard')}</button></div>
@@ -70,19 +70,21 @@ export function SchoolWeekCard({ plan, personName, today, zone, compact = false,
   </section>;
 }
 
-export function SchoolWeekPlans({householdId,display=false,people,today,zone,schoolActivities=[],enabled=true,refreshKey=''}:{householdId?:string;display?:boolean;people:HubPerson[];today:string;zone:string;schoolActivities?:{date:string;title:string;personId?:string}[];enabled?:boolean;refreshKey?:string}) {
+export function SchoolWeekPlans({householdId,display=false,people,today,zone,schoolActivities=[],initialPlans,readOnly=false,enabled=true,refreshKey=''}:{householdId?:string;display?:boolean;people:HubPerson[];today:string;zone:string;schoolActivities?:{date:string;title:string;personId?:string}[];initialPlans?:SchoolWeekPlan[];readOnly?:boolean;enabled?:boolean;refreshKey?:string}) {
   const {t}=useI18n();
-  const [plans,setPlans]=useState<SchoolWeekPlan[]|null>(null);
+  const [plans,setPlans]=useState<SchoolWeekPlan[]|null>(initialPlans??null);
   const [error,setError]=useState(false);
   const [showAllPlans,setShowAllPlans]=useState(false);
   const path=schoolWeekPlansPath(today,{display,householdId});
   useEffect(()=>{
-    if(!enabled||!display&&!householdId){setPlans([]);return;}
+    if(!enabled){setPlans([]);return;}
+    if(initialPlans!==undefined){setPlans(initialPlans);setError(false);return;}
+    if(!display&&!householdId){setPlans([]);return;}
     let active=true;setPlans(null);setError(false);
     void api<{plans:SchoolWeekPlan[]}>(path).then(result=>{if(active)setPlans(result.plans)}).catch(()=>{if(active){setPlans([]);setError(true)}});
     return()=>{active=false};
-  },[path,enabled,display,householdId,refreshKey]);
-  if(!enabled||!display&&!householdId)return null;
+  },[path,enabled,display,householdId,refreshKey,initialPlans]);
+  if(!enabled||!display&&!householdId&&initialPlans===undefined)return null;
   if(error)return <section className="school-week-load-error" role="status">{t('schoolWeekLoadError')}</section>;
   if(!plans)return <div className="school-week-plans-loading"><Loading/></div>;
   const visible=currentSchoolWeekPlans(plans,today,people.map(person=>person.id));
@@ -96,7 +98,7 @@ export function SchoolWeekPlans({householdId,display=false,people,today,zone,sch
   };
   return <section className="school-week-plans" aria-label={t('schoolWeekEyebrow')} data-testid="school-week-plans">{presented.map(plan=>{
     const person=people.find(item=>item.id===plan.personId)!;
-    return <SchoolWeekCard key={plan.id} plan={plan} personName={person.displayName} today={today} zone={zone} compact={display} alreadyShownActivities={schoolActivities} onOpenPdf={openPdf}/>;
+    return <SchoolWeekCard key={plan.id} plan={plan} personName={person.displayName} today={today} zone={zone} compact={display} alreadyShownActivities={schoolActivities} onOpenPdf={readOnly?undefined:openPdf}/>;
   })}{visible.length>2&&<button className="text-button school-week-more-plans" type="button" aria-expanded={showAllPlans} onClick={()=>setShowAllPlans(value=>!value)}>{t(showAllPlans?'schoolWeekShowFewerPlans':'schoolWeekShowMorePlans',{count:visible.length-2})}</button>}</section>;
 }
 
