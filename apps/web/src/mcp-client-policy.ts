@@ -23,17 +23,20 @@ export type SchoolPlanSource = {
   displayPdfLinksAllowed: boolean;
 };
 
-const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopeGroceriesRead' | 'mcpScopeDinnersRead'> = {
+const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopeMessagesRead' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite'> = {
   context: 'mcpScopeContext', 'mcp:context': 'mcpScopeContext',
   'monitors:read': 'mcpScopeMonitorsRead', 'mcp:monitors:read': 'mcpScopeMonitorsRead',
   'school-plans:read': 'mcpScopeSchoolRead', 'mcp:school-plans:read': 'mcpScopeSchoolRead',
   'school-plans:write': 'mcpScopeSchoolWrite', 'mcp:school-plans:write': 'mcpScopeSchoolWrite',
   offline_access: 'mcpScopeOffline',
   'mcp:people:read': 'mcpScopePeopleRead',
+  'mcp:messages:read': 'mcpScopeMessagesRead',
   'mcp:groceries:read': 'mcpScopeGroceriesRead',
+  'mcp:groceries:write': 'mcpScopeGroceriesWrite',
   'mcp:dinners:read': 'mcpScopeDinnersRead',
+  'mcp:dinners:write': 'mcpScopeDinnersWrite',
 };
-const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'>={
+const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'>={
   'mcp.school_sources_listed':'mcpActivitySchoolSourcesListed',
   'mcp.school_plans_listed':'mcpActivitySchoolPlansListed',
   'mcp.school_plan_read':'mcpActivitySchoolPlanRead',
@@ -41,6 +44,15 @@ const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpAc
   'mcp.school_source_failure_recorded':'mcpActivitySchoolSourceFailure',
   'mcp.school_pdf_verified':'mcpActivitySchoolPdfVerified',
   'mcp.monitors_listed':'mcpActivityMonitorsListed',
+  'mcp.monitor_read':'mcpActivityMonitorRead',
+  'mcp.monitor_runs_listed':'mcpActivityMonitorRunsListed',
+  'mcp.messages_listed':'mcpActivityMessagesListed',
+  'mcp.groceries_listed':'mcpActivityGroceriesListed',
+  'mcp.grocery_added':'mcpActivityGroceryAdded',
+  'mcp.grocery_updated':'mcpActivityGroceryUpdated',
+  'mcp.dinners_listed':'mcpActivityDinnersListed',
+  'mcp.dinner_options_listed':'mcpActivityDinnerOptionsListed',
+  'mcp.dinner_assigned':'mcpActivityDinnerAssigned',
 };
 
 export function mcpScopeTranslationKey(scope: string) {
