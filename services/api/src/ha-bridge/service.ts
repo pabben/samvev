@@ -19,11 +19,12 @@ interface Dependencies{
   rateLimit:(bucket:string,key:string,limit:number,window:number)=>Promise<void>;
 }
 interface HaCalendar{id:string;name:string;writable:boolean;freshness?:string;lastSyncSucceededAt?:string|null;errorCode?:string|null;lastCompleteWindow?:{from:string;to:string}|null;}
-export interface HaSharing{revision:number;listIds:string[];household:boolean;personIds:string[];calendarSourceIds:string[];allowSharedNativeWrites:boolean;}
-const emptySharing=():HaSharing=>({revision:0,listIds:[],household:false,personIds:[],calendarSourceIds:[],allowSharedNativeWrites:false});
+interface HaSchoolPlanRow{id:string;person_id:string;iso_year:number;iso_week:number;starts_on:string;ends_on:string;content_locale:'en'|'nb';days:unknown[];uncertainty:'low'|'medium'|'high'|'unknown';last_source_observed_at:Date;source_error:string|null;revision:number;content_revision:number;}
+export interface HaSharing{revision:number;listIds:string[];household:boolean;personIds:string[];calendarSourceIds:string[];schoolPersonIds:string[];schoolSourceIds:string[];allowSharedNativeWrites:boolean;}
+const emptySharing=():HaSharing=>({revision:0,listIds:[],household:false,personIds:[],calendarSourceIds:[],schoolPersonIds:[],schoolSourceIds:[],allowSharedNativeWrites:false});
 const uuid=z.uuid();
 const uniqueIds=z.array(uuid).max(50).refine(values=>new Set(values).size===values.length,'duplicate_ids');
-const sharingSchema=z.object({expectedRevision:z.number().int().nonnegative(),listIds:z.array(z.literal('groceries')).max(1),household:z.boolean(),personIds:uniqueIds,calendarSourceIds:uniqueIds,allowSharedNativeWrites:z.boolean().default(false)}).strict();
+const sharingSchema=z.object({expectedRevision:z.number().int().nonnegative(),listIds:z.array(z.literal('groceries')).max(1),household:z.boolean(),personIds:uniqueIds,calendarSourceIds:uniqueIds,schoolPersonIds:uniqueIds.optional(),schoolSourceIds:uniqueIds.optional(),allowSharedNativeWrites:z.boolean().default(false)}).strict();
 const requestKey=z.string().min(8).max(128);
 const revision=z.number().int().positive();
 const instant=z.iso.datetime({offset:true});
@@ -91,7 +92,7 @@ function eventDates(start:string,end:string){
 export class HaBridgeService{
   constructor(private readonly dependencies:Dependencies){}
   private async sharing(client:DbClient,context:HaIntegrationContext):Promise<HaSharing>{
-    const row=(await client.query<HaSharing>(`SELECT revision,list_ids AS "listIds",household,person_ids AS "personIds",calendar_source_ids AS "calendarSourceIds",allow_shared_native_writes AS "allowSharedNativeWrites" FROM integration_ha_sharing WHERE connection_id=$1 AND household_id=$2 FOR UPDATE`,[context.connectionId,context.householdId])).rows[0];
+    const row=(await client.query<HaSharing>(`SELECT revision,list_ids AS "listIds",household,person_ids AS "personIds",calendar_source_ids AS "calendarSourceIds",school_person_ids AS "schoolPersonIds",school_source_ids AS "schoolSourceIds",allow_shared_native_writes AS "allowSharedNativeWrites" FROM integration_ha_sharing WHERE connection_id=$1 AND household_id=$2 FOR UPDATE`,[context.connectionId,context.householdId])).rows[0];
     return row??emptySharing();
   }
   private async authorize(client:DbClient,context:HaIntegrationContext,capability:IntegrationCapability):Promise<HaSharing>{
@@ -111,11 +112,13 @@ export class HaBridgeService{
   private async connection(client:DbClient,context:HaIntegrationContext,grants:HaSharing){
     const row=(await client.query<{name:string;timezone:string}>(`SELECT connection.name,household.timezone FROM integration_connections connection JOIN households household ON household.id=connection.household_id WHERE connection.id=$1 AND connection.household_id=$2`,[context.connectionId,context.householdId])).rows[0]!;
     const canReadAudience=context.capabilities.includes('ha.messages.read')||context.capabilities.includes('ha.calendar.read');
-    const visibleGrants:HaSharing={revision:grants.revision,
+    const visibleGrants={revision:grants.revision,
       listIds:context.capabilities.includes('ha.groceries.read')?grants.listIds:[],
       household:canReadAudience&&grants.household,
       personIds:canReadAudience?grants.personIds:[],
       calendarSourceIds:context.capabilities.includes('ha.calendar.read')?grants.calendarSourceIds:[],
+      ...(context.capabilities.includes('ha.calendar.read')&&grants.schoolPersonIds.length?{schoolPersonIds:grants.schoolPersonIds}:{}),
+      ...(context.capabilities.includes('ha.calendar.read')&&grants.schoolSourceIds.length?{schoolSourceIds:grants.schoolSourceIds}:{}),
       allowSharedNativeWrites:canReadAudience&&grants.allowSharedNativeWrites};
     return{schemaVersion:1,installationId:context.installationId,connectionId:context.connectionId,householdId:context.householdId,name:row.name,timezone:row.timezone,capabilities:context.capabilities,grants:visibleGrants};
   }
@@ -142,6 +145,25 @@ export class HaBridgeService{
       freshness:!source.last_sync_succeeded_at?'pending':source.error_code||source.state!=='connected'||Date.now()-source.last_sync_succeeded_at.getTime()>source.sync_interval_minutes*120_000?'stale':'current',
       lastSyncSucceededAt:source.last_sync_succeeded_at?.toISOString()??null,errorCode:source.error_code,
       lastCompleteWindow:source.last_complete_window_from&&source.last_complete_window_to?{from:source.last_complete_window_from.toISOString(),to:source.last_complete_window_to.toISOString()}:null}))];
+  }
+  private async schoolPlans(client:DbClient,context:HaIntegrationContext,grants:HaSharing){
+    if(!context.capabilities.includes('ha.calendar.read')||!grants.schoolPersonIds.length||!grants.schoolSourceIds.length)return[];
+    const plans=await client.query<HaSchoolPlanRow>(`SELECT plan.id,plan.person_id,plan.iso_year,plan.iso_week,
+      to_char(plan.week_starts_on,'YYYY-MM-DD') AS starts_on,to_char(plan.week_ends_on,'YYYY-MM-DD') AS ends_on,
+      plan.content_locale,plan.days,plan.uncertainty,plan.last_source_observed_at,plan.source_error,plan.revision,plan.content_revision
+      FROM school_plans plan
+      JOIN school_plan_sources source ON source.id=plan.source_id AND source.household_id=plan.household_id AND source.person_id=plan.person_id AND source.revoked_at IS NULL
+      JOIN integration_connections authority ON authority.id=plan.connection_id AND authority.household_id=plan.household_id AND authority.revoked_at IS NULL
+      JOIN households household ON household.id=plan.household_id
+      WHERE plan.household_id=$1 AND plan.person_id=ANY($2::uuid[]) AND plan.source_id=ANY($3::uuid[])
+        AND plan.week_ends_on>=(clock_timestamp() AT TIME ZONE household.timezone)::date-7
+        AND plan.week_starts_on<=(clock_timestamp() AT TIME ZONE household.timezone)::date+21
+      ORDER BY plan.week_starts_on,plan.id LIMIT 20 FOR SHARE OF plan,source,authority`,
+    [context.householdId,grants.schoolPersonIds,grants.schoolSourceIds]);
+    return plans.rows.map(plan=>({id:plan.id,personId:plan.person_id,isoYear:plan.iso_year,isoWeek:plan.iso_week,
+      startsOn:plan.starts_on,endsOn:plan.ends_on,contentLocale:plan.content_locale,days:plan.days,
+      sourceStatus:plan.source_error?'stale':'current',lastSourceObservedAt:plan.last_source_observed_at.toISOString(),
+      uncertainty:plan.uncertainty,revision:plan.revision,contentRevision:plan.content_revision}));
   }
   private async mutation<T>(context:HaIntegrationContext,capability:IntegrationCapability,input:{requestKey:string;expectedRevision?:number},operation:unknown,run:(client:pg.PoolClient,grants:HaSharing,protectDisplays:(messageId:string)=>Promise<void>)=>Promise<T>):Promise<T>{
     return transaction(async(client)=>{
@@ -223,11 +245,18 @@ export class HaBridgeService{
         await this.dependencies.recheckHouseholdAuth(client,request,auth,'household.manage');
         const context={...auth,connectionId,credentialId:'',credentialRevision:0,capabilities:[]};
         const previous=await this.sharing(client,context);if(previous.revision!==body.expectedRevision)conflict();
+        const schoolPersonIds=body.schoolPersonIds??previous.schoolPersonIds,schoolSourceIds=body.schoolSourceIds??previous.schoolSourceIds;
         const people=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.personIds]);
         const sources=await client.query('SELECT id FROM calendar_sources WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.calendarSourceIds]);
-        if(people.rowCount!==body.personIds.length||sources.rowCount!==body.calendarSourceIds.length)throw new DomainError('NOT_FOUND',404);
-        await client.query(`INSERT INTO integration_ha_sharing(household_id,connection_id,list_ids,household,person_ids,calendar_source_ids,allow_shared_native_writes) VALUES($1,$2,$3,$4,$5,$6,$7)
-          ON CONFLICT(connection_id) DO UPDATE SET list_ids=EXCLUDED.list_ids,household=EXCLUDED.household,person_ids=EXCLUDED.person_ids,calendar_source_ids=EXCLUDED.calendar_source_ids,allow_shared_native_writes=EXCLUDED.allow_shared_native_writes,revision=integration_ha_sharing.revision+1,updated_at=clock_timestamp()`,[auth.householdId,connectionId,JSON.stringify(body.listIds),body.household,body.personIds,body.calendarSourceIds,body.allowSharedNativeWrites]);
+        const schoolPeople=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,schoolPersonIds]);
+        if(people.rowCount!==body.personIds.length||sources.rowCount!==body.calendarSourceIds.length||schoolPeople.rowCount!==schoolPersonIds.length)throw new DomainError('NOT_FOUND',404);
+        const schoolSources=await client.query(`SELECT source.id FROM school_plan_sources source
+          JOIN integration_connections authority ON authority.id=source.connection_id AND authority.household_id=source.household_id AND authority.revoked_at IS NULL
+          WHERE source.household_id=$1 AND source.id=ANY($2::uuid[]) AND source.person_id=ANY($3::uuid[]) AND source.revoked_at IS NULL
+          ORDER BY source.id FOR SHARE OF source,authority`,[auth.householdId,schoolSourceIds,schoolPersonIds]);
+        if(schoolSources.rowCount!==schoolSourceIds.length)throw new DomainError('FORBIDDEN',403,{reason:'ha_school_source_unavailable_or_person_not_shared'});
+        await client.query(`INSERT INTO integration_ha_sharing(household_id,connection_id,list_ids,household,person_ids,calendar_source_ids,school_person_ids,school_source_ids,allow_shared_native_writes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          ON CONFLICT(connection_id) DO UPDATE SET list_ids=EXCLUDED.list_ids,household=EXCLUDED.household,person_ids=EXCLUDED.person_ids,calendar_source_ids=EXCLUDED.calendar_source_ids,school_person_ids=EXCLUDED.school_person_ids,school_source_ids=EXCLUDED.school_source_ids,allow_shared_native_writes=EXCLUDED.allow_shared_native_writes,revision=integration_ha_sharing.revision+1,updated_at=clock_timestamp()`,[auth.householdId,connectionId,JSON.stringify(body.listIds),body.household,body.personIds,body.calendarSourceIds,schoolPersonIds,schoolSourceIds,body.allowSharedNativeWrites]);
         await this.dependencies.recheckHouseholdAuth(client,request,auth,'household.manage');
         await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id) VALUES($1,$2,'account',$3,'ha.sharing_updated','integration_connection',$4)`,[auth.installationId,auth.householdId,auth.accountId,connectionId]);
         return this.sharing(client,context);
@@ -255,8 +284,8 @@ export class HaBridgeService{
             ORDER BY CASE m.importance WHEN 'attention' THEN 0 ELSE 1 END,m.publish_at,m.id`,[context.householdId,grants.household,grants.personIds])).rows;
           messages.push(...rows.map(row=>mapMessage(row,context,grants)));
         }
-        const calendars=await this.calendars(client,context,grants);
-        const result={...await this.connection(client,context,grants),lists,messages,calendars,serverNow:new Date().toISOString()};
+        const calendars=await this.calendars(client,context,grants),schoolPlans=await this.schoolPlans(client,context,grants);
+        const result={...await this.connection(client,context,grants),lists,messages,calendars,schoolPlans,serverNow:new Date().toISOString()};
         // Revalidate every read capability rather than trusting the initial auth snapshot.
         for(const cap of context.capabilities.filter(cap=>cap.startsWith('ha.')&&cap.endsWith('.read')))await this.authorize(client,context,cap);
         await this.authorize(client,context,this.readCapability(context));return result;
