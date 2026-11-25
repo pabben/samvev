@@ -1,0 +1,43 @@
+.school-week-card{display:grid;gap:1rem;min-width:0;padding:clamp(12px,1.7vw,20px);color:var(--text)}
+.school-week-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;min-width:0}
+.school-week-header h2{display:flex;align-items:center;gap:.55rem;margin:0;font-size:clamp(1.15rem,2vw,1.5rem);overflow-wrap:anywhere}
+.school-week-header h2 svg{flex:0 0 auto;color:var(--teal)}
+.school-week-header .eyebrow{margin:0 0 .25rem;color:var(--muted);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase}
+.school-week-range,.school-week-dialog-heading p{margin:.25rem 0 0;color:var(--muted);text-transform:capitalize}
+.school-week-source-state{flex:0 0 auto;padding:.3rem .6rem;border-radius:999px;background:var(--soft-teal);color:var(--teal);font-size:.8rem;font-weight:700}
+.school-week-source-state.is-stale{background:var(--warm);color:var(--warm-text)}
+.school-week-stale-note,.school-week-uncertainty{margin:0;padding:.7rem .85rem;border-radius:.85rem;background:var(--warm);color:var(--warm-text);line-height:1.45;overflow-wrap:anywhere}
+.school-week-uncertainty{background:var(--card);border:1px solid var(--line);color:var(--text)}
+.school-week-highlights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;min-width:0}
+.school-week-day{display:grid;align-content:start;gap:.45rem;min-width:0;padding:.8rem;border:1px solid var(--line);border-radius:1rem;background:color-mix(in srgb,var(--card) 90%,transparent)}
+.school-week-day h3{margin:0 0 .15rem;text-transform:capitalize;font-size:1rem;color:var(--text);overflow-wrap:anywhere}
+.school-week-day.is-empty>p{margin:0;color:var(--muted)}
+.school-week-activity{display:grid;gap:.25rem;padding:.55rem 0;border-top:1px solid color-mix(in srgb,var(--line) 65%,transparent);min-width:0}
+.school-week-activity strong,.school-week-activity p,.school-week-weather{margin:0;overflow-wrap:anywhere}
+.school-week-activity time{font-variant-numeric:tabular-nums;color:var(--muted)}
+.school-week-activity p{color:var(--muted);line-height:1.4}
+.school-week-labeled-items{min-width:0}
+.school-week-labeled-items h4,.school-week-homework h3{display:flex;align-items:center;gap:.4rem;margin:.25rem 0;font-size:.93rem}
+.school-week-labeled-items ul,.school-week-homework ul{display:grid;gap:.3rem;margin:.15rem 0 0;padding-left:1.2rem}
+.school-week-labeled-items li,.school-week-homework li{padding-left:.1rem;overflow-wrap:anywhere;line-height:1.4}
+.school-week-homework{min-width:0;padding:.85rem;border-radius:1rem;background:var(--soft-teal)}
+.school-week-homework h3{font-size:1rem}
+.school-week-homework li{display:list-item}
+.school-week-homework li time{display:block;color:var(--muted);font-size:.83rem}
+.school-week-empty{margin:0;color:var(--muted)}
+.school-week-weather{margin:.1rem 0;color:var(--muted);line-height:1.4}
+.school-week-actions{display:flex;flex-wrap:wrap;gap:.65rem}
+.school-week-actions .button,.school-week-dialog-heading .button{min-height:44px}
+.school-week-dialog{max-width:min(96vw,1200px);overflow-y:auto}
+.school-week-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.85rem}
+.school-week-dialog-heading .eyebrow{margin:0;text-transform:none;font-weight:700;color:var(--text)}
+.school-week-full-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:.7rem}
+.school-week-full-days>*{min-width:0}
+.school-week-day.is-full{padding:.7rem}
+.school-week-card.is-compact{gap:.7rem;padding:.8rem}
+.school-week-card.is-compact .school-week-homework{padding:.65rem}
+.school-week-card.is-compact .school-week-day{padding:.65rem}
+.school-week-card.is-compact .school-week-actions{gap:.45rem}
+@media(max-width:540px){.school-week-header{align-items:flex-start;flex-direction:column;gap:.55rem}.school-week-highlights{grid-template-columns:minmax(0,1fr)}.school-week-dialog-heading{align-items:flex-start;flex-direction:column}.school-week-actions{display:grid;grid-template-columns:1fr}.school-week-actions .button{justify-content:center}}
+@media(min-width:1000px) and (orientation:landscape){.school-week-dialog .school-week-full-days{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:700px) and (max-width:1100px) and (orientation:portrait){.school-week-dialog .school-week-full-days{grid-template-columns:repeat(2,minmax(0,1fr))}}
