@@ -58,7 +58,7 @@ test('MCP household broadcast is denied until an explicit broad-audience grant e
   };
   await assert.rejects(
     service.create(actor, input, async () => ['message.create.household'] as Capability[]),
-    (error: unknown) => error instanceof DomainError && error.status === 403 && error.details.reason === 'mcp_message_household_audience_not_granted'
+    (error: unknown) => error instanceof DomainError && error.status === 403 && error.details?.reason === 'mcp_message_household_audience_not_granted'
   );
   assert.equal(serviceQueries, 0);
 });
