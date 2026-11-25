@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mcpScopeTranslationKey, saveMcpPolicy, type McpAuthorization } from '../src/mcp-client-policy';
+import { hasMcpDisplayPolicyScope, hasMcpSchoolScope, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
 
 const authorization: McpAuthorization = {
   id: 'synthetic-grant-id',
@@ -22,7 +22,42 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:read'), 'mcpScopeSchoolRead');
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:write'), 'mcpScopeSchoolWrite');
   assert.equal(mcpScopeTranslationKey('offline_access'), 'mcpScopeOffline');
+  assert.equal(mcpScopeTranslationKey('mcp:people:read'), 'mcpScopePeopleRead');
+  assert.equal(mcpScopeTranslationKey('mcp:groceries:read'), 'mcpScopeGroceriesRead');
+  assert.equal(mcpScopeTranslationKey('mcp:dinners:read'), 'mcpScopeDinnersRead');
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
+  assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
+  assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
+});
+
+test('school and display policy controls require a matching current consent scope', () => {
+  assert.equal(hasMcpSchoolScope(['mcp:school-plans:read']), true);
+  assert.equal(hasMcpSchoolScope(['mcp:school-plans:write']), true);
+  assert.equal(hasMcpSchoolScope(['mcp:people:read']), false);
+  assert.equal(hasMcpDisplayPolicyScope(['mcp:monitors:read']), true);
+  assert.equal(hasMcpDisplayPolicyScope(['mcp:groceries:read']), false);
+});
+
+test('explicit school-source selection adds approved resources and keeps existing resources untouched', () => {
+  const existing = [{ kind: 'school_source' as const, id: 'synthetic-existing-source' }];
+  const existingSource: SchoolPlanSource = { id: 'synthetic-existing-source', personId: 'synthetic-person-id', connectionId: 'synthetic-existing-connection-id', classKey: '1B', sourcePageUrl: 'https://school.test.invalid/existing', displayPdfLinksAllowed: true };
+  const source: SchoolPlanSource = { id: 'synthetic-new-source', personId: 'synthetic-person-id', connectionId: 'synthetic-connection-id', classKey: '1A', sourcePageUrl: 'https://school.test.invalid/plan', displayPdfLinksAllowed: false };
+  assert.deepEqual(schoolResourcesForPolicy(existing, ['synthetic-existing-source', 'synthetic-new-source'], [existingSource, source], ['synthetic-person-id']), [
+    existing[0],
+    { kind: 'school_source', id: 'synthetic-new-source' },
+  ]);
+});
+
+test('unlisted existing source grants are surfaced and can be explicitly removed', () => {
+  const legacyGrant = { kind: 'school_source' as const, id: 'synthetic-no-longer-listed-source', retained: 'backend-extension' };
+  assert.deepEqual(unlistedSchoolResources([legacyGrant], []), [legacyGrant]);
+  const result = schoolResourcesForPolicy([legacyGrant], [], [], ['synthetic-person-id']);
+  assert.deepEqual(result, []);
+});
+
+test('school-source resource cannot be added unless its linked person is included in the authorization', () => {
+  const source: SchoolPlanSource = { id: 'synthetic-source', personId: 'synthetic-person-id', connectionId: 'synthetic-connection-id', classKey: '1A', sourcePageUrl: 'https://school.test.invalid/plan', displayPdfLinksAllowed: false };
+  assert.throws(()=>schoolResourcesForPolicy([], ['synthetic-source'], [source], []), /mcp_school_source_person_required/);
 });
 
 test('policy update uses backend snake_case authorization fields and preserves approved resources in the mocked API request', async () => {

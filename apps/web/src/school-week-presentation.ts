@@ -47,6 +47,34 @@ export function schoolWeekTomorrow(today: string) {
   return date.toISOString().slice(0, 10);
 }
 
+export function schoolWeekActivityAlreadyShown(date: string, title: string, personId: string, activities: { date: string; title: string; personId?: string }[]) {
+  const normalizedTitle = title.trim().toLocaleLowerCase();
+  return activities.some(activity => activity.date === date && (!activity.personId || activity.personId === personId) && activity.title.trim().toLocaleLowerCase() === normalizedTitle);
+}
+
+export function schoolWeekIdentity(date: string) {
+  const [year, month, day] = date.split('-').map(Number);
+  const value = new Date(Date.UTC(year!, month! - 1, day!));
+  const weekday = value.getUTCDay() || 7;
+  value.setUTCDate(value.getUTCDate() + 4 - weekday);
+  const isoYear = value.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(isoYear, 0, 1));
+  const isoWeek = Math.ceil((((value.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return { isoYear, isoWeek };
+}
+
+export function schoolWeekPlansPath(today: string, options: { display: boolean; householdId?: string }) {
+  const { isoYear, isoWeek } = schoolWeekIdentity(today);
+  const base = options.display ? '/display/school-plans' : `/households/${encodeURIComponent(options.householdId ?? '')}/school-plans`;
+  const query = new URLSearchParams({ isoYear: String(isoYear), isoWeek: String(isoWeek), limit: '20' });
+  return `${base}?${query.toString()}`;
+}
+
+export function currentSchoolWeekPlans(plans: SchoolWeekPlan[], today: string, visiblePersonIds: string[]) {
+  const currentWeek = schoolWeekIdentity(today);
+  return plans.filter(plan => plan.isoYear === currentWeek.isoYear && plan.isoWeek === currentWeek.isoWeek && plan.startsOn <= today && plan.endsOn >= today && visiblePersonIds.includes(plan.personId));
+}
+
 /** Convert an ISO local calendar date to an instant at noon in its household zone. */
 export function schoolWeekDateAtNoon(date: string, zone: string) {
   const [year, month, day] = date.split('-').map(Number);
@@ -83,6 +111,6 @@ export function schoolWeekTimeLabel(value?: string | null) {
   return value && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : null;
 }
 
-export function requestSchoolWeekPdf(planId: string, onOpenPdf: (planId: string) => void) {
-  onOpenPdf(planId);
+export function requestSchoolWeekPdf<T>(planId: string, onOpenPdf: (planId: string) => T) {
+  return onOpenPdf(planId);
 }

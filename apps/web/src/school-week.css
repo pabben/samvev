@@ -30,6 +30,14 @@
 .school-week-actions{display:flex;flex-wrap:wrap;gap:.65rem}
 .school-week-actions .button,.school-week-dialog-heading .button{min-height:44px}
 .school-week-dialog{max-width:min(96vw,1200px);overflow-y:auto}
+.school-week-pdf-dialog{max-width:min(94vw,820px);min-height:min(50vh,520px);display:grid;align-content:start;gap:.9rem;overflow-y:auto}
+.school-week-pdf-dialog>p{margin:0;line-height:1.5}
+.school-week-pdf-download{justify-self:start}
+.school-week-pdf-ready{padding:.8rem;border-radius:.8rem;background:var(--soft-teal);color:var(--text)}
+.school-week-plans{display:grid;grid-template-columns:minmax(0,1fr);gap:.75rem;min-width:0}
+.school-week-plans-loading{min-height:44px}
+.school-week-more-plans{justify-self:start;min-height:44px}
+.school-week-load-error{margin:.75rem 0;padding:.8rem;border:1px solid var(--line);border-radius:.8rem;color:var(--muted)}
 .school-week-dialog-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.85rem}
 .school-week-dialog-heading .eyebrow{margin:0;text-transform:none;font-weight:700;color:var(--text)}
 .school-week-full-days{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:.7rem}
@@ -41,4 +49,5 @@
 .school-week-card.is-compact .school-week-actions{gap:.45rem}
 @media(max-width:540px){.school-week-header{align-items:flex-start;flex-direction:column;gap:.55rem}.school-week-highlights{grid-template-columns:minmax(0,1fr)}.school-week-dialog-heading{align-items:flex-start;flex-direction:column}.school-week-actions{display:grid;grid-template-columns:1fr}.school-week-actions .button{justify-content:center}}
 @media(min-width:1000px) and (orientation:landscape){.school-week-dialog .school-week-full-days{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:800px){.school-week-plans{grid-template-columns:repeat(2,minmax(0,1fr))}.school-week-more-plans{grid-column:1/-1}}
 @media(min-width:700px) and (max-width:1100px) and (orientation:portrait){.school-week-dialog .school-week-full-days{grid-template-columns:repeat(2,minmax(0,1fr))}}

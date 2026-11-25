@@ -20,5 +20,12 @@
 .mcp-scopes li{padding:.3rem .55rem;border:1px solid var(--line);border-radius:999px;font-size:.82rem}
 .mcp-last-used{margin:0}
 .mcp-revoke-button{justify-self:start}
+.mcp-policy{display:grid;gap:.75rem;padding-top:.35rem;border-top:1px solid var(--line)}
+.mcp-policy h4{margin:0}
+.mcp-policy fieldset{display:grid;gap:.2rem;min-width:0;margin:0;padding:.65rem .75rem;border:1px solid var(--line);border-radius:.85rem}
+.mcp-policy fieldset legend{padding-inline:.2rem;font-size:.9rem;font-weight:650}
+.mcp-policy fieldset .check{align-items:flex-start;overflow-wrap:anywhere}
+.mcp-policy fieldset .check input{margin-top:.25rem}
+.mcp-policy-actions{display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap}
 .mcp-endpoint-copy .button{flex:0 0 auto}
 @media(max-width:520px){.mcp-endpoint-copy{align-items:stretch;flex-direction:column}.mcp-endpoint-copy .button{justify-content:center}.mcp-authorization-title{flex-wrap:wrap}}

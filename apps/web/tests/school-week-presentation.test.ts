@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { requestSchoolWeekPdf, schoolWeekDateAtNoon, schoolWeekDay, schoolWeekHomework, schoolWeekPdfAvailable, schoolWeekRequirementKey, schoolWeekTimeLabel, schoolWeekTomorrow, schoolWeekUncertaintyKey, type SchoolWeekPlan } from '../src/school-week-presentation';
+import { currentSchoolWeekPlans, requestSchoolWeekPdf, schoolWeekActivityAlreadyShown, schoolWeekDateAtNoon, schoolWeekDay, schoolWeekHomework, schoolWeekIdentity, schoolWeekPdfAvailable, schoolWeekPlansPath, schoolWeekRequirementKey, schoolWeekTimeLabel, schoolWeekTomorrow, schoolWeekUncertaintyKey, type SchoolWeekPlan } from '../src/school-week-presentation';
 
 const plan: SchoolWeekPlan = {
   id: 'synthetic-plan-id', personId: 'synthetic-person-id', isoYear: 2026, isoWeek: 48,
@@ -18,6 +18,32 @@ test('school week selectors find local today and tomorrow without changing the s
   assert.equal(schoolWeekDay(plan, schoolWeekTomorrow('2026-11-25'))?.date, '2026-11-26');
   assert.equal(schoolWeekTomorrow('2026-11-30'), '2026-12-01');
   assert.equal(plan.startsOn, '2026-11-23');
+});
+
+test('current school plan selection uses ISO week identity across calendar year boundaries', () => {
+  assert.deepEqual(schoolWeekIdentity('2026-12-31'), { isoYear: 2026, isoWeek: 53 });
+  assert.deepEqual(schoolWeekIdentity('2027-01-01'), { isoYear: 2026, isoWeek: 53 });
+  assert.deepEqual(schoolWeekIdentity('2027-01-04'), { isoYear: 2027, isoWeek: 1 });
+});
+
+test('school plan requests constrain the server list to the local ISO week with a bounded page size', () => {
+  assert.equal(schoolWeekPlansPath('2027-01-01', { display: true }), '/display/school-plans?isoYear=2026&isoWeek=53&limit=20');
+  assert.equal(schoolWeekPlansPath('2027-01-01', { display: false, householdId: 'synthetic-household-id' }), '/households/synthetic-household-id/school-plans?isoYear=2026&isoWeek=53&limit=20');
+});
+
+test('current week filtering ignores historical and future plans while keeping visible household members', () => {
+  const historical = { ...plan, id: 'synthetic-historical', isoYear: 2026, isoWeek: 47, startsOn: '2026-11-16', endsOn: '2026-11-22' };
+  const future = { ...plan, id: 'synthetic-future', isoYear: 2026, isoWeek: 49, startsOn: '2026-11-30', endsOn: '2026-12-06' };
+  const current = { ...plan, id: 'synthetic-current', isoYear: 2026, isoWeek: 48, startsOn: '2026-11-23', endsOn: '2026-11-29' };
+  const hiddenPerson = { ...current, id: 'synthetic-hidden-person', personId: 'synthetic-private-person' };
+  assert.deepEqual(currentSchoolWeekPlans([historical, future, current, hiddenPerson], '2026-11-25', ['synthetic-person-id']).map(item => item.id), ['synthetic-current']);
+});
+
+test('school week card omits an activity already visible in the existing household school monitor', () => {
+  const existing = [{ date: '2026-11-25', personId: 'synthetic-person-id', title: 'Synthetic library visit' }];
+  assert.equal(schoolWeekActivityAlreadyShown('2026-11-25', 'Synthetic library visit', 'synthetic-person-id', existing), true);
+  assert.equal(schoolWeekActivityAlreadyShown('2026-11-25', 'Synthetic library visit', 'another-person', existing), false);
+  assert.equal(schoolWeekActivityAlreadyShown('2026-11-26', 'Synthetic library visit', 'synthetic-person-id', existing), false);
 });
 
 test('calendar date strings retain their household-local day in widely separated time zones', () => {
