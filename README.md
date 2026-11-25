@@ -2,6 +2,15 @@
 
 > Everyday life, woven together.
 
+**M3 local development:** Samvev now has a family Home dashboard and a general
+External Intelligence API. People, Today/Tomorrow, important reminders, messages,
+summaries and lists share warm light and navy dark themes. External systems
+publish through household-scoped credentials; Samvev owns storage, permissions
+and live projections. AI monitoring remains experimental and secondary. No
+external service or production deployment is enabled by this milestone. See
+[M3 status](docs/implementation/M3_STATUS.md), [API contract](docs/implementation/M3_API.md)
+and [reviewed screenshots](docs/implementation/artifacts/m3/README.md).
+
 **Samvev** is a free and open-source platform for turning information into useful, timely messages, reminders and actions for a household or other small group.
 
 A user should be able to write something such as:
@@ -21,7 +30,7 @@ light and dark modes. New installations default to Norwegian Bokmål. Start with
 the [local demo](docs/implementation/M1_DEMO.md), [delivery evidence](docs/implementation/M1_DELIVERY.md)
 and [operations guide](docs/implementation/M1_OPERATIONS.md).
 
-M2.3 builds on those providers with general, reviewable tasks that monitor public HTML or text-based PDFs, skip AI when normalized content is unchanged, and reconcile future findings through the existing message/display lifecycle. AI starts disabled; paid fallback is absent. ChatGPT subscription feasibility remains partial and unavailable. See the [M2.3 delivery note](docs/implementation/M2_3.md), [M2.2 provider note](docs/implementation/M2_2.md) and [task architecture decision](docs/decisions/0013-general-ai-task-monitor.md).
+M2.3 builds on those providers with general, reviewable tasks that monitor public HTML or text-based PDFs, skip AI when normalized content is unchanged, and reconcile future findings through the existing message/display lifecycle. AI starts disabled; paid fallback is absent. The current preview also supports an explicitly connected ChatGPT subscription through OpenAI's documented OAuth and Responses surfaces; it never reuses browser cookies or falls back between paid routes. See the [connection guide](docs/CHATGPT_PLAN_CONNECTION.md), [M2.3 delivery note](docs/implementation/M2_3.md), [M2.2 provider note](docs/implementation/M2_2.md) and [task architecture decision](docs/decisions/0013-general-ai-task-monitor.md).
 
 [Les introduksjonen på norsk](README.nb.md)
 
@@ -114,6 +123,20 @@ bash scripts/m1.sh start
 It binds the local app only to `http://127.0.0.1:4173`; PostgreSQL is not
 published to the host. See [M1 local operations](docs/implementation/M1_OPERATIONS.md)
 for scoped status, logs, tests, synthetic-data reset and rollback guidance.
+
+The isolated display proof uses synthetic household data and checks display
+re-pairing, read-only boards, selected-person permissions and denied-display
+privacy:
+
+```bash
+./tests/e2e/display-proof/run.sh --screenshots
+```
+
+It writes 37 PNGs and a SHA-256 manifest under the ignored
+`.local/m3/round17/visual/` directory, including light and dark wall displays,
+manager previews and selected custom backgrounds. The denied display is checked
+against its ready display shell and board privacy fallback; it has no person or
+board grants.
 
 ## Contributing
 

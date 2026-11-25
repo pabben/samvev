@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import {calendarMemberAccess} from './calendar-provider-config';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { PhotoEditor } from "./profile-photo";
+import { calendarPendingHousehold } from "./calendar-connections";
+import { Home } from "./home";
+import { HouseholdActivityWeek } from "./home-activities";
+import type { HubPerson } from "./home-types";
+import { IntegrationsPanel } from "./integrations";
 import { api } from "./api";
 import type { Display, HouseholdDashboard, HouseholdSettings, Me, Message, Person } from "./types";
 import {
@@ -25,7 +32,7 @@ import { AiSettingsPanel } from "./ai-settings";
 import { MonitorsPanel } from "./monitors";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
 
-type MemberTab = "messages" | "people" | "displays" | "monitors" | "ai";
+import { initialMemberTab, memberTabUrl, primaryMemberTab, type MemberTab } from "./member-navigation";
 
 export function MemberApp({
   me,
@@ -41,10 +48,28 @@ export function MemberApp({
   onSessionChange: () => Promise<void>;
 }) {
   const { t, locale } = useI18n();
-  const [household, setHousehold] = useState(me.memberships[0]!.household_id);
+  const [household, setHousehold] = useState(()=>me.memberships.find(m=>m.household_id===calendarPendingHousehold())?.household_id??me.memberships[0]!.household_id);
   const member = me.memberships.find((m) => m.household_id === household)!;
+  const canAccessCalendars = calendarMemberAccess(member);
+  const canManageHousehold = member.capabilities.includes("household.manage");
+  const canAccessIntegrations = canAccessCalendars||canManageHousehold;
   const base = `/households/${household}`;
-  const [tab, setTab] = useState<MemberTab>("messages");
+  const [tab, setTab] = useState<MemberTab>(()=>initialMemberTab(location.href));
+  const [taskNavigation,setTaskNavigation]=useState<{taskId?:string;personId?:string;key:number}>({key:0});
+  const [photoPersonId,setPhotoPersonId]=useState<string>();
+  const openTask=(taskId:string)=>{setTaskNavigation({taskId,key:Date.now()});setTab("monitors")};
+  const newPersonTask=(personId:string)=>{setTaskNavigation({personId,key:Date.now()});setTab("monitors")};
+  useEffect(()=>{history.replaceState(null,"",memberTabUrl(location.href,tab))},[tab]);
+  const previousTab=useRef(tab);
+  const activePrimary=primaryMemberTab(tab);
+  useEffect(()=>{
+    if(previousTab.current===tab)return;
+    previousTab.current=tab;
+    let observer:MutationObserver|undefined;
+    const focusHeading=()=>{const heading=document.querySelector<HTMLElement>('#main h1');if(!heading)return false;heading.tabIndex=-1;heading.focus({preventScroll:true});observer?.disconnect();return true;};
+    const frame=requestAnimationFrame(()=>{window.scrollTo(0,0);if(!focusHeading()){const main=document.getElementById('main');main?.focus({preventScroll:true});if(main){observer=new MutationObserver(focusHeading);observer.observe(main,{childList:true,subtree:true});}}});
+    return()=>{cancelAnimationFrame(frame);observer?.disconnect();};
+  },[tab]);
   const [lane, setLane] = useState<"now" | "planned" | "history">("now");
   const [people, setPeople] = useState<Person[]>([]);
   const [displays, setDisplays] = useState<Display[]>([]);
@@ -95,10 +120,10 @@ export function MemberApp({
       );
   }, [member.id]);
   useEffect(() => {
-    if (["ai", "monitors"].includes(tab) && !member.capabilities.includes("household.manage")) {
+    if ((["ai", "monitors"].includes(tab) && !canManageHousehold)||(tab==="integrations"&&!canAccessIntegrations)) {
       setTab("messages");
     }
-  }, [member.id, tab]);
+  }, [member.id, tab, canManageHousehold, canAccessIntegrations]);
   const nextStep = async (next: string) => {
     await api("/setup/progress", "PATCH", { setupStep: next });
     setStep(next);
@@ -120,13 +145,10 @@ export function MemberApp({
   );
   const can = (cap: string) => member.capabilities.includes(cap);
   const navigation: MemberTab[] = [
-    "messages",
-    "people",
-    "displays",
-    ...(can("household.manage") ? (["monitors", "ai"] as const) : []),
+    "home", "calendar", "messages", "people", "more",
   ];
   const goHome = () => {
-    setTab("messages");
+    setTab("home");
     setLane("now");
     setCompose(undefined);
     setWithdraw(null);
@@ -135,7 +157,7 @@ export function MemberApp({
     requestAnimationFrame(() => document.getElementById("main")?.focus());
   };
   return (
-    <div className="app-shell">
+    <div className="app-shell member-shell" data-member-tab={tab}>
       <a className="skip-link" href="#main">
         {t("skip")}
       </a>
@@ -167,18 +189,20 @@ export function MemberApp({
             <button
               key={key}
               aria-label={t(key)}
-              aria-current={tab === key ? "page" : undefined}
-              className={tab === key ? "nav-item active" : "nav-item"}
+              aria-current={activePrimary === key ? "page" : undefined}
+              className={activePrimary === key ? "nav-item active" : "nav-item"}
               onClick={() => setTab(key)}
             >
               <Icon
                 name={
-                  key === "messages"
+                  key === "home" ? "home" : key === "more" ? "more" : key === "messages"
                     ? "message"
                     : key === "displays"
                       ? "display"
-                      : key === "people"
+                    : key === "people"
                         ? "people"
+                      : key === "calendar"
+                        ? "calendar"
                         : "spark"
                 }
               />
@@ -190,12 +214,9 @@ export function MemberApp({
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="sidebar-motto">
-            <Icon name="leaf" size={32} />
-            <p>{t("tagline")}</p>
-          </div>
-          <button className="account-button" onClick={() => setSettings(true)}>
-            <Avatar name={member.display_name} />
+
+          <button className="account-button" aria-label={t("preferences")} onClick={() => setSettings(true)}>
+            <Avatar name={member.display_name} personId={member.person_id} colorToken={people.find(person=>person.id===member.person_id)?.colorToken} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
             <span>
               <strong>{member.display_name}</strong>
               <small>{t("preferences")}</small>
@@ -206,20 +227,13 @@ export function MemberApp({
       </aside>
       <div className="main-wrap">
         <header className="member-topbar">
-          <span className="topbar-title">{t(tab)}</span>
-          <span className="topbar-date">
-            {formatDate(Date.now(), locale, member.timezone, {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-            })}
-          </span>
+          <Brand onHome={goHome} />
           <button
             className="mobile-account icon-button"
             aria-label={t("preferences")}
             onClick={() => setSettings(true)}
           >
-            <Icon name="settings" />
+            <Avatar name={member.display_name} personId={member.person_id} colorToken={people.find(person=>person.id===member.person_id)?.colorToken} avatarKey={people.find(person=>person.id===member.person_id)?.avatarKey} photo={people.find(person=>person.id===member.person_id)?.photo}/>
           </button>
         </header>
         <main id="main" className="member-main" tabIndex={-1}>
@@ -263,14 +277,28 @@ export function MemberApp({
               </button>
             </section>
           )}
+          {activePrimary==='more'&&tab!=='more'&&<div className="member-context"><button className="text-button" onClick={()=>setTab('more')}><Icon name="back"/>{t('backToMore')}</button><span aria-hidden="true">/</span><span>{t(tab)}</span></div>}
           <ErrorNotice error={error} />
           <ErrorNotice error={loadError} />
-          {tab === "monitors" && can("household.manage") ? (
-            <MonitorsPanel householdId={household} timezone={member.timezone} people={people} displays={displays}/>
+          {photoPersonId&&people.some(p=>p.id===photoPersonId)&&<PhotoEditor person={people.find(p=>p.id===photoPersonId)!} householdId={household} onClose={()=>setPhotoPersonId(undefined)} onSaved={refresh}/>}
+          {tab === "home" ? (
+            <Home key={household} householdId={household} member={member} people={people} displays={displays} canManageHousehold={canManageHousehold} canManageDisplays={can("display.manage")} taskAccess={canManageHousehold?{householdId:household,onOpen:openTask,onNew:newPersonTask}:undefined} onEditPhoto={personId=>{if(personId===member.person_id||can("people.manage"))setPhotoPersonId(personId)}} editablePhotoIds={people.filter(person=>person.id===member.person_id||can("people.manage")).map(person=>person.id)} onSessionChange={onSessionChange} onManagePeople={can("people.manage") ? () => setTab("people") : undefined} onCompose={can("message.create.household") ? () => setCompose(null) : undefined}/>
+          ) : tab === "calendar" ? (
+            !loaded ? <Loading /> : <section className="member-calendar-page">
+              <header className="section-heading"><div><p className="eyebrow">{t("calendarTab")}</p><h1>{t("calendarOverviewTitle")}</h1><p>{t("calendarOverviewBody")}</p></div></header>
+              <HouseholdActivityWeek householdId={household} localDate={householdLocalDate(member.timezone)} zone={member.timezone} people={people.map(toHubPerson)} showNextActivity />
+            </section>
+          ) : tab === "integrations" && canAccessIntegrations ? (
+            <IntegrationsPanel key={household} member={member} displays={displays} people={people} installationId={me.account.installation_id} accountId={me.account.id}/>
+          ) : tab === "more" ? (
+            <><section className="section-heading"><div><p className="eyebrow">Samvev</p><h1>{t("more")}</h1><p>{t("hubMoreBody")}</p></div></section><div className="hub-more-grid"><button className="surface-card hub-more-card" onClick={() => setTab("displays")}><Icon name="display" size={30}/><h2>{t("displays")}</h2><p>{t("displaysBody")}</p></button>{canAccessIntegrations && <button className="surface-card hub-more-card" onClick={() => setTab("integrations")}><Icon name="spark" size={30}/><h2>{t("integrations")}</h2><p>{t("calendarIntro")}</p></button>}{can("household.manage")&&<><section className="surface-card hub-experimental"><p className="eyebrow">{t("hubExperimental")}</p><button className="button" onClick={() => setTab("monitors")}>{t("monitors")}</button><button className="button" onClick={() => setTab("ai")}>{t("ai")}</button></section></>}</div></>
+          ) : tab === "monitors" && can("household.manage") ? (
+            <MonitorsPanel key={`${household}-${taskNavigation.key}`} initialTaskId={taskNavigation.taskId} initialPersonId={taskNavigation.personId} householdId={household} timezone={member.timezone} people={people} displays={displays}/>
           ) : tab === "ai" && can("household.manage") ? (
             <AiSettingsPanel
               key={household}
               householdId={household}
+              ownerAccountId={me.account.id}
               timezone={member.timezone}
             />
           ) : !loaded ? (
@@ -280,6 +308,7 @@ export function MemberApp({
               people={people}
               displays={displays}
               member={member}
+              onOpenTask={canManageHousehold?openTask:undefined} onNewTask={canManageHousehold?newPersonTask:undefined}
               householdSettings={householdSettings}
               refresh={refresh}
             />
@@ -287,6 +316,7 @@ export function MemberApp({
             <DisplaysPanel
               displays={displays}
               member={member}
+              people={people}
               refresh={refresh}
             />
           ) : (
@@ -294,7 +324,7 @@ export function MemberApp({
               <section className="board-hero">
                 <div>
                   <p className="eyebrow">{t("boardEyebrow")}</p>
-                  <h1>{t("boardTitle")}</h1>
+                  <h1>{t("messages")}</h1>
                   <p>{t("boardBody")}</p>
                 </div>
                 <div className="hero-sprig" aria-hidden="true">
@@ -354,8 +384,9 @@ export function MemberApp({
                   aria-label={t("people")}
                 >
                   {people.slice(0, 4).map((p, i) => (
-                    <Avatar key={p.id} name={p.display_name} index={i} />
+                    <Avatar key={p.id} name={p.display_name} index={i} personId={p.id} colorToken={p.colorToken} avatarKey={p.avatarKey} photo={p.photo}/>
                   ))}
+                  {people.length>4&&<span className="people-stack-more">+{people.length-4}</span>}
                 </div>
               </div>
               <section
@@ -407,6 +438,8 @@ export function MemberApp({
                       <div className="card-meta">
                         <Avatar
                           name={message.author_name}
+                          personId={message.author_person_id}
+                          avatarKey={people.find(person=>person.id===message.author_person_id)?.avatarKey} photo={people.find(person=>person.id===message.author_person_id)?.photo}
                           index={people.findIndex(
                             (p) => p.id === message.author_person_id,
                           )}
@@ -537,10 +570,7 @@ export function MemberApp({
             </>
           )}
         </main>
-        <footer className="member-footer">
-          <span>samvev.</span>
-          <span>{t("tagline")}</span>
-        </footer>
+
       </div>
       {compose !== undefined && (
         <Composer
@@ -613,6 +643,15 @@ export function MemberApp({
       )}
     </div>
   );
+}
+
+function householdLocalDate(timezone:string):string {
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:timezone,year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const value=(type:string)=>parts.find(part=>part.type===type)?.value??"00";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+function toHubPerson(person:Person):HubPerson {
+  return {id:person.id,displayName:person.display_name,avatarKey:person.avatarKey,colorToken:person.colorToken,photo:person.photo,photoRevision:person.photoRevision,ageGroup:person.age_group};
 }
 
 function BirthdayCard({ birthday, locale }: { birthday: NonNullable<HouseholdDashboard["upcomingBirthday"]>; locale: "en" | "nb" }) {

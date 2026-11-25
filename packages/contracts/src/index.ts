@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const locales = ['en', 'nb'] as const;
 export const themes = ['light', 'dark', 'system'] as const;
+export const avatarKeys = ['avatar-01','avatar-02','avatar-03','avatar-04','avatar-05','avatar-06'] as const;
+export const personColorTokens = ['teal','blue','violet','rose','amber','green','coral','orange','lime','cyan','sky','indigo'] as const;
 export const ageGroups = ['adult', 'teen', 'child', 'unspecified'] as const;
 export const rolePresets = ['installation_admin', 'household_admin', 'member', 'limited'] as const;
 export const capabilities = [
@@ -51,6 +53,7 @@ export const preferencesSchema = z.object({ locale: localeSchema.optional(), the
 
 export const personCreateSchema = z.object({
   displayName: nameSchema,
+  avatarKey: z.enum(avatarKeys).nullable().optional(),
   birthDate: birthDateSchema.nullable().optional(),
   ageGroup: z.enum(ageGroups).optional(),
   rolePreset: rolePresetSchema,
@@ -68,10 +71,29 @@ export const personCreateSchema = z.object({
 
 export const personUpdateSchema = z.object({
   displayName: nameSchema.optional(),
+  avatarKey: z.enum(avatarKeys).nullable().optional(),
+  colorToken: z.enum(personColorTokens).optional(),
   birthDate: birthDateSchema.nullable().optional(),
   ageGroup: z.enum(ageGroups).optional(),
   expectedRevision: z.number().int().positive()
-}).strict().refine((value) => value.displayName !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
+}).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.colorToken !== undefined || value.birthDate !== undefined || value.ageGroup !== undefined);
+
+export const personPhotoCropSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().gt(0).max(1),
+  height: z.number().gt(0).max(1)
+}).strict().refine((value) => value.x + value.width <= 1 && value.y + value.height <= 1, 'crop_out_of_bounds');
+
+export const personPhotoUploadSchema = z.object({
+  imageBase64: z.string().min(4).max(14_000_000).regex(/^[A-Za-z0-9+/]+={0,2}$/, 'image_base64_invalid'),
+  expectedPhotoRevision: z.number().int().nonnegative(),
+  crop: personPhotoCropSchema.optional()
+}).strict();
+
+export const personPhotoRevisionSchema = z.object({
+  expectedPhotoRevision: z.number().int().positive()
+}).strict();
 
 const loginSetupSchema = z.object({
   email: emailSchema,
@@ -134,21 +156,316 @@ export const messageUpdateSchema = z.object({
   expectedRevision: z.number().int().positive()
 }).strict();
 
+export const displayMessageCreateSchema = z.object({
+  body: z.string().trim().min(1).max(1000),
+  importance: z.enum(['normal', 'attention']).default('normal'),
+  audience: z.object({
+    personIds: z.array(uuidSchema).max(50).default([]),
+    displayIds: z.array(uuidSchema).max(50).default([])
+  }).strict().refine((value) => value.personIds.length > 0 || value.displayIds.length > 0, 'audience_required'),
+  publishAt: isoInstant.optional(),
+  expiresAt: isoInstant,
+  idempotencyKey: z.string().min(8).max(128)
+}).strict();
+
+export const displayActionPolicyUpdateSchema = z.object({
+  expectedRevision: z.number().int().positive(),
+  messageCreate: z.boolean(),
+  messageSchedule: z.boolean(),
+  groceryWrite: z.boolean(),
+  dinnerWrite: z.boolean(),
+  photoUpload: z.boolean(),
+  homeAssistantControl: z.boolean(),
+  personIds: z.array(uuidSchema).max(50).refine((value) => new Set(value).size === value.length, 'duplicate_person'),
+  displayIds: z.array(uuidSchema).max(50).refine((value) => new Set(value).size === value.length, 'duplicate_display')
+}).strict();
+
+const boardRequestKey = z.string().min(8).max(128);
+export const groceryCreateSchema = z.object({ label: z.string().trim().min(1).max(120), checked: z.boolean(), requestKey: boardRequestKey }).strict();
+export const groceryUpdateSchema = z.object({ label: z.string().trim().min(1).max(120).optional(), checked: z.boolean().optional(), expectedRevision: z.number().int().positive(), requestKey: boardRequestKey }).strict().refine((value)=>value.label!==undefined||value.checked!==undefined,'grocery_change_required');
+export const groceryDeleteSchema = z.object({ expectedRevision: z.number().int().positive(), requestKey: boardRequestKey }).strict();
+export const dinnerOptionCreateSchema = z.object({ title: z.string().trim().min(1).max(80), emoji: z.string().trim().min(1).max(16), requestKey: boardRequestKey }).strict();
+export const dinnerOptionUpdateSchema = z.object({ title: z.string().trim().min(1).max(80).optional(), emoji: z.string().trim().min(1).max(16).optional(), expectedRevision: z.number().int().positive(), requestKey: boardRequestKey }).strict().refine((value)=>value.title!==undefined||value.emoji!==undefined,'dinner_option_change_required');
+export const dinnerAssignmentSchema = z.object({ optionId: uuidSchema.nullable(), expectedRevision: z.number().int().nonnegative(), requestKey: boardRequestKey }).strict();
+export const displayBoardReadGrantSchema = z.object({ expectedRevision: z.number().int().positive(), groceryRead: z.boolean(), dinnerRead: z.boolean() }).strict();
+
 export const pairingStartSchema = z.object({ verifierHash: z.string().regex(/^[a-f0-9]{64}$/) }).strict();
 export const pairingApproveSchema = z.object({
-  code: z.string().regex(/^\d{6}$/), name: nameSchema, locale: localeSchema, theme: themeSchema,
+  code: z.string().regex(/^\d{6}$/), name: nameSchema, locale: localeSchema.optional(), theme: themeSchema.optional(),
+  setupId: uuidSchema.optional(),
   privacyMode: z.boolean().default(false), allowedContent: z.enum(['household_messages']).default('household_messages')
 }).strict();
 export const pairingRedeemSchema = z.object({ pairingId: uuidSchema, verifier: z.string().min(43).max(256) }).strict();
+export const displayReconnectApproveSchema = z.object({code:z.string().regex(/^\d{6}$/),expectedCredentialGeneration:z.number().int().positive()}).strict();
+export const displayDisconnectSchema = z.object({}).strict();
+const displaySetupIdsSchema = z.array(uuidSchema).max(100)
+  .refine((value) => new Set(value).size === value.length, 'duplicate_display_setup_id');
 export const displayUpdateSchema = z.object({
-  locale: localeSchema.optional(), theme: themeSchema.optional(), privacyMode: z.boolean().optional(), revoked: z.literal(true).optional()
-}).strict().refine((value) => Object.keys(value).length > 0);
+  setupId: uuidSchema.optional(),locale: localeSchema.nullable().optional(), theme: themeSchema.nullable().optional(), privacyMode: z.boolean().optional(),
+  externalItemsEnabled: z.boolean().optional(), revoked: z.literal(true).optional(),
+  profilePersonIds: displaySetupIdsSchema.optional(),birthdayPersonIds:displaySetupIdsSchema.optional(),
+  birthdayMode:z.enum(['off','all']).optional(),personIdsOverride:displaySetupIdsSchema.nullable().optional()
+}).strict().refine((value) => Object.keys(value).length > 0)
+  .refine((value)=>!(value.birthdayMode!==undefined&&value.birthdayPersonIds!==undefined),'conflicting_birthday_policy');
+
+export const displaySetupCards = ['household_messages','new_message','family_layout','external_items','worth_remembering','today','tomorrow','people','week','next','groceries','dinners','photos','home_assistant'] as const;
+const displaySetupCardSchema = z.enum(displaySetupCards);
+const displaySetupCardListSchema = z.array(displaySetupCardSchema).max(displaySetupCards.length)
+  .refine((value) => new Set(value).size === value.length, 'duplicate_display_setup_card');
+const displaySetupFieldsSchema = z.object({
+  name: nameSchema,
+  cards: displaySetupCardListSchema.default(['household_messages','family_layout','external_items']),
+  cardOrder: displaySetupCardListSchema.default(['household_messages','family_layout','external_items']),
+  familyLayoutEnabled: z.boolean().default(true),
+  allSources: z.boolean().default(false),
+  allSensors: z.boolean().default(false),
+  personIds: displaySetupIdsSchema.default([]),
+  sourceIds: displaySetupIdsSchema.default([]),
+  calendarSourceIds: displaySetupIdsSchema.default([]),
+  sensorIds: displaySetupIdsSchema.default([]),
+  albumIds: displaySetupIdsSchema.default([]),
+  backgroundId: uuidSchema.nullable().default(null),
+  locale: localeSchema,
+  theme: themeSchema.default('system')
+}).strict();
+function refineDisplaySetup(value: z.infer<typeof displaySetupFieldsSchema>, context: z.RefinementCtx): void {
+  if (value.cardOrder.length !== value.cards.length || value.cardOrder.some((card) => !value.cards.includes(card))) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['cardOrder'], message: 'card_order_must_match_cards' });
+  }
+}
+export const displaySetupCreateSchema = displaySetupFieldsSchema.superRefine(refineDisplaySetup);
+export const displaySetupUpdateSchema = displaySetupFieldsSchema.extend({ expectedRevision: z.number().int().positive() }).strict().superRefine(refineDisplaySetup);
+export const displaySetupPreviewSchema = z.object({setupId:uuidSchema.optional(),draft:displaySetupCreateSchema.optional()}).strict().refine(value=>Boolean(value.setupId)!==Boolean(value.draft),'exactly_one_preview_source_required');
+export const displayPreviewSelectionSchema = z.object({cards:displaySetupCardListSchema,familyLayoutEnabled:z.boolean(),allSources:z.boolean(),allSensors:z.boolean(),personIds:displaySetupIdsSchema,sourceIds:displaySetupIdsSchema,calendarSourceIds:displaySetupIdsSchema,sensorIds:displaySetupIdsSchema,albumIds:displaySetupIdsSchema,backgroundId:uuidSchema.nullable()}).strict();
+
+export const mediaAlbumCreateSchema=z.object({name:nameSchema,kind:z.enum(['photos','backgrounds']).default('photos')}).strict();
+export const mediaAlbumUpdateSchema=z.object({expectedRevision:z.number().int().positive(),name:nameSchema}).strict();
+export const mediaAlbumGrantSchema=z.object({expectedRevision:z.number().int().positive(),membershipId:uuidSchema.nullable(),householdWide:z.boolean(),canRead:z.boolean(),canUpload:z.boolean(),canManage:z.boolean(),revoke:z.boolean().default(false)}).strict().refine(value=>value.revoke||value.canRead||value.canUpload||value.canManage,{path:['canRead'],message:'media_grant_requires_permission'}).refine(value=>(value.householdWide&&value.membershipId===null)||(!value.householdWide&&value.membershipId!==null),{path:['membershipId'],message:'invalid_media_grant_target'});
+export const mediaDisplayGrantSchema=z.object({expectedRevision:z.number().int().positive().nullable(),canRead:z.boolean(),canUpload:z.boolean(),revoke:z.boolean().default(false)}).strict().refine(value=>value.revoke||value.canRead||value.canUpload,{path:['canRead'],message:'media_grant_requires_permission'});
+export const mediaAssetUploadSchema=z.object({title:nameSchema.max(120),description:z.string().max(500).default(''),imageBase64:z.string().min(4).max(14_000_000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)}).strict();
+export const mediaAssetUpdateSchema=z.object({expectedRevision:z.number().int().positive(),title:nameSchema.max(120),description:z.string().max(500)}).strict();
+export const mediaAssetReplaceSchema=mediaAssetUpdateSchema.extend({imageBase64:z.string().min(4).max(14_000_000).regex(/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/)}).strict();
+export const mediaAssetDeleteSchema=mediaAssetUpdateSchema.pick({expectedRevision:true}).strict();
+export const mediaBackgroundUpdateSchema=z.object({expectedRevision:z.number().int().positive(),assetId:uuidSchema.nullable()}).strict();
+export type MediaAlbumCreate=z.infer<typeof mediaAlbumCreateSchema>;
+export type MediaAlbumUpdate=z.infer<typeof mediaAlbumUpdateSchema>;
+export type MediaAlbumGrant=z.infer<typeof mediaAlbumGrantSchema>;
+export type MediaDisplayGrant=z.infer<typeof mediaDisplayGrantSchema>;
+export type MediaAssetUpload=z.infer<typeof mediaAssetUploadSchema>;
+export type MediaAssetUpdate=z.infer<typeof mediaAssetUpdateSchema>;
+export type MediaAssetReplace=z.infer<typeof mediaAssetReplaceSchema>;
+export type MediaAssetDelete=z.infer<typeof mediaAssetDeleteSchema>;
+export type MediaBackgroundUpdate=z.infer<typeof mediaBackgroundUpdateSchema>;
 export const renderAckSchema = z.object({ cardId: uuidSchema, revision: z.number().int().positive(), renderedAt: isoInstant }).strict();
+
+export const installationPublicContactUpdateSchema = z.object({
+  expectedRevision: z.number().int().nonnegative(),
+  operatorName: z.string().trim().min(2).max(160),
+  postalAddress: z.string().trim().min(5).max(500),
+  contactEmail: z.string().trim().email().max(254)
+}).strict();
+export type InstallationPublicContactUpdate = z.infer<typeof installationPublicContactUpdateSchema>;
+
+export const integrationItemKinds = ['reminder', 'alert', 'event', 'summary', 'list', 'observation'] as const;
+export const integrationItemPriorities = ['low', 'normal', 'high', 'urgent'] as const;
+export const integrationCapabilities = ['integration.items.write', 'integration.items.delete', 'integration.items.read', 'ha.groceries.read', 'ha.groceries.write', 'ha.messages.read', 'ha.messages.write', 'ha.calendar.read', 'ha.calendar.write'] as const;
+export const integrationUncertaintyLevels = ['low', 'medium', 'high', 'unknown'] as const;
+export const integrationItemCategories = ['school', 'childcare', 'activity', 'meal', 'travel', 'weather', 'home', 'other'] as const;
+
+export const integrationCapabilitySchema = z.enum(integrationCapabilities);
+const safeHttpUrlSchema = z.string().url().max(2048).refine((value) => {
+  try {
+    const url = new URL(value);
+    const credentialQueryKeys=new Set([
+      'token','accesstoken','refreshtoken','idtoken','apikey','key','auth','authorization','bearer','jwt','credential',
+      'password','secret','clientsecret','signature','sharedaccesssignature','sastoken','sig','session','cookie','securitytoken',
+      'sr','st','spr'
+    ]);
+    return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password && !url.hash
+      && [...url.searchParams.keys()].every((key)=>{
+        const compact=key.normalize('NFKC').toLowerCase().replace(/[^a-z0-9]/g,'');
+        return !credentialQueryKeys.has(compact)&&!/^(?:xamz|xgoog)(?:signature|credential|securitytoken)$/.test(compact);
+      });
+  } catch { return false; }
+}, 'safe_http_url_required');
+const integrationExternalIdSchema = z.string().trim().min(1).max(160)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]*$/, 'external_id_invalid');
+const integrationTargetsSchema = z.object({
+  household: z.boolean().default(false),
+  personIds: z.array(uuidSchema).max(50).default([]),
+  displayIds: z.array(uuidSchema).max(50).default([])
+}).strict().refine((value) => value.household || value.personIds.length > 0 || value.displayIds.length > 0, 'targets_required')
+  .refine((value) => new Set(value.personIds).size === value.personIds.length, 'duplicate_person_target')
+  .refine((value) => new Set(value.displayIds).size === value.displayIds.length, 'duplicate_display_target');
+const integrationSourceSchema = z.object({
+  label: z.string().trim().min(1).max(120),
+  url: safeHttpUrlSchema.optional(),
+  links: z.array(z.object({
+    label: z.string().trim().min(1).max(120),
+    url: safeHttpUrlSchema
+  }).strict()).max(8).default([]),
+  observedAt: isoInstant,
+  generatedAt: isoInstant.optional(),
+  uncertainty: z.enum(integrationUncertaintyLevels)
+}).strict().refine((value) => new TextEncoder().encode(JSON.stringify(value)).byteLength <= 3500, 'source_too_large');
+const integrationMetadataSchema = z.object({
+  category: z.enum(integrationItemCategories).optional(),
+  icon: z.string().regex(/^[a-z0-9-]{1,40}$/).optional(),
+  location: z.string().trim().min(1).max(160).optional(),
+  allDay: z.boolean().optional(),
+  actionUrl: safeHttpUrlSchema.optional()
+}).strict().refine((value) => new TextEncoder().encode(JSON.stringify(value)).byteLength <= 3500, 'metadata_too_large');
+const integrationEntrySchema = z.object({
+  label: z.string().trim().min(1).max(200),
+  detail: z.string().trim().min(1).max(500).optional()
+}).strict();
+
+export const integrationItemUpsertSchema = z.object({
+  externalId: integrationExternalIdSchema,
+  expectedRevision: z.number().int().nonnegative(),
+  kind: z.enum(integrationItemKinds),
+  contentLocale: localeSchema,
+  targets: integrationTargetsSchema,
+  title: z.string().trim().min(1).max(160),
+  body: z.string().trim().min(1).max(4000),
+  entries: z.array(integrationEntrySchema).max(40).default([]),
+  priority: z.enum(integrationItemPriorities).default('normal'),
+  publishAt: isoInstant.nullable().default(null),
+  startsAt: isoInstant.nullable().default(null),
+  endsAt: isoInstant.nullable().default(null),
+  expiresAt: isoInstant.nullable().default(null),
+  source: integrationSourceSchema,
+  metadata: integrationMetadataSchema.default({})
+}).strict().superRefine((value, context) => {
+  if (value.kind === 'list' && value.entries.length === 0) context.addIssue({ code: 'custom', path: ['entries'], message: 'list_entries_required' });
+  if (value.kind !== 'list' && value.entries.length > 0) context.addIssue({ code: 'custom', path: ['entries'], message: 'entries_only_supported_for_list' });
+  if (value.kind === 'event' && !value.startsAt) context.addIssue({ code: 'custom', path: ['startsAt'], message: 'event_start_required' });
+  if (value.source.generatedAt && new Date(value.source.generatedAt) < new Date(value.source.observedAt)) context.addIssue({ code: 'custom', path: ['source', 'generatedAt'], message: 'generated_before_observed' });
+  if (value.startsAt && value.endsAt && new Date(value.endsAt) < new Date(value.startsAt)) context.addIssue({ code: 'custom', path: ['endsAt'], message: 'ends_before_start' });
+  if (value.publishAt && value.expiresAt && new Date(value.expiresAt) <= new Date(value.publishAt)) context.addIssue({ code: 'custom', path: ['expiresAt'], message: 'expires_before_publish' });
+  if (value.startsAt && value.expiresAt && new Date(value.expiresAt) <= new Date(value.startsAt)) context.addIssue({ code: 'custom', path: ['expiresAt'], message: 'expires_before_start' });
+});
+
+export const integrationItemWithdrawSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const integrationConnectionCreateSchema = z.object({
+  name: nameSchema,
+  displayIds: z.array(uuidSchema).max(50).default([]),
+  credential: z.object({
+    name: nameSchema,
+    capabilities: z.array(integrationCapabilitySchema).min(1).max(integrationCapabilities.length)
+      .refine((value) => new Set(value).size === value.length, 'duplicate_capability'),
+    expiresAt: isoInstant.nullable().default(null)
+  }).strict().optional()
+}).strict();
+export const integrationConnectionUpdateSchema = z.object({
+  name: nameSchema.optional(),
+  displayIds: z.array(uuidSchema).max(50).optional(),
+  expectedRevision: z.number().int().positive()
+}).strict().refine((value) => value.name !== undefined || value.displayIds !== undefined, 'update_required');
+export const integrationConnectionRevisionSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const integrationCredentialCreateSchema = z.object({
+  name: nameSchema,
+  capabilities: z.array(integrationCapabilitySchema).min(1).max(integrationCapabilities.length)
+    .refine((value) => new Set(value).size === value.length, 'duplicate_capability'),
+  expiresAt: isoInstant.nullable().default(null),
+  expectedRevision: z.number().int().positive()
+}).strict();
+export const integrationCredentialRevokeSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+
+export const calendarProviders = ['google','microsoft','ics','home_assistant'] as const;
+export const calendarBridgeKinds = ['direct','spond_calendar','spond_home_assistant'] as const;
+const calendarSecretUrlSchema=z.string().url().max(4096).transform((value)=>new URL(value.replace(/^webcal:/i,'https:')).toString()).refine((value)=>{try{const url=new URL(value);return url.protocol==='https:'&&!url.username&&!url.password&&!url.hash;}catch{return false;}},'https_calendar_url_required');
+export const calendarConnectionCreateSchema=z.object({
+  provider:z.enum(calendarProviders),
+  name:nameSchema,
+  bridgeKind:z.enum(calendarBridgeKinds).default('direct'),
+  icsUrl:calendarSecretUrlSchema.optional(),
+  syncIntervalMinutes:z.union([z.literal(5),z.literal(15),z.literal(30)]).optional(),
+  replacesConnectionId:uuidSchema.optional()
+}).strict().superRefine((value,ctx)=>{
+  if(value.provider==='ics'&&!value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_required'});
+  if(value.provider!=='ics'&&value.icsUrl)ctx.addIssue({code:'custom',path:['icsUrl'],message:'ics_url_not_allowed'});
+  if(value.bridgeKind==='spond_calendar'&&value.provider==='ics')ctx.addIssue({code:'custom',path:['provider'],message:'spond_bridge_requires_google_or_microsoft'});
+  if(value.provider==='home_assistant'&&!['direct','spond_home_assistant'].includes(value.bridgeKind))ctx.addIssue({code:'custom',path:['bridgeKind'],message:'home_assistant_bridge_invalid'});
+  if(value.provider!=='home_assistant'&&value.bridgeKind==='spond_home_assistant')ctx.addIssue({code:'custom',path:['provider'],message:'spond_home_assistant_requires_home_assistant'});
+  if(value.replacesConnectionId&&value.provider!=='microsoft')ctx.addIssue({code:'custom',path:['replacesConnectionId'],message:'replacement_requires_microsoft'});
+  if(value.provider!=='ics'&&value.syncIntervalMinutes!==undefined)ctx.addIssue({code:'custom',path:['syncIntervalMinutes'],message:'sync_interval_requires_ics'});
+});
+export const calendarIcsUrlUpdateSchema=z.object({expectedRevision:z.number().int().positive(),icsUrl:calendarSecretUrlSchema}).strict();
+export const calendarSourceUpdateSchema=z.object({
+  expectedRevision:z.number().int().positive(),
+  enabled:z.boolean(),
+  bridgeKind:z.enum(calendarBridgeKinds).default('direct'),
+  purpose:z.enum(['calendar','waste']).default('calendar'),
+  displayName:z.string().trim().min(1).max(80).nullable().optional(),
+  syncWindowDays:z.object({past:z.number().int().min(0).max(31),future:z.number().int().min(1).max(366)}).strict().optional(),
+  appliesTo:z.object({household:z.boolean().default(false),personIds:z.array(uuidSchema).max(50).default([])}).strict()
+    .refine((value)=>value.household||value.personIds.length>0,'calendar_subject_required')
+    .refine((value)=>new Set(value.personIds).size===value.personIds.length,'duplicate_person_subject'),
+  visibility:z.object({
+    household:z.boolean().default(false),
+    personIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_person_reader'),
+    displayIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_display_target')
+  }).strict().refine((value)=>value.household||value.personIds.length>0||value.displayIds.length>0,'calendar_reader_required')
+}).strict().superRefine((value,ctx)=>{
+  if(value.purpose==='waste'&&(!value.appliesTo.household||value.appliesTo.personIds.length))ctx.addIssue({code:'custom',path:['appliesTo'],message:'waste_requires_household_subject'});
+});
+export const calendarSourceRefreshSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const temperatureSensorDiscoverySchema=z.object({expectedRevision:z.number().int().positive(),search:z.string().trim().max(100).default(''),cursor:z.number().int().min(0).default(0)}).strict();
+export const temperatureSensorSelectSchema=z.object({expectedRevision:z.number().int().positive(),externalId:z.string().min(1).max(500)}).strict();
+export const temperatureSensorUpdateSchema=z.object({
+  expectedRevision:z.number().int().positive(),enabled:z.boolean(),
+  displayName:z.string().trim().min(1).max(80),order:z.number().int().min(0).max(1000),
+  visibility:z.object({
+    household:z.boolean().default(false),
+    personIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_person_reader'),
+    displayIds:z.array(uuidSchema).max(50).default([]).refine((value)=>new Set(value).size===value.length,'duplicate_display_target')
+  }).strict().refine((value)=>value.household||value.personIds.length>0||value.displayIds.length>0,'temperature_reader_required')
+}).strict();
+export const temperatureSensorRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const homeAssistantControlActions=['light.turn_on','light.turn_off','cover.open_cover'] as const;
+export const homeAssistantControlDiscoverySchema=z.object({expectedConnectionRevision:z.number().int().positive()}).strict();
+export const homeAssistantControlSelectSchema=z.object({
+  expectedConnectionRevision:z.number().int().positive(),registryId:z.string().trim().min(1).max(512),
+  displayName:z.string().trim().min(1).max(80).nullable().optional()
+}).strict();
+export const homeAssistantControlGrantSchema=z.object({
+  expectedRevision:z.number().int().positive(),
+  personGrants:z.array(z.object({personId:uuidSchema,canRead:z.boolean(),actions:z.array(z.enum(homeAssistantControlActions)).max(3)}).strict()).max(50),
+  displayGrants:z.array(z.object({displayId:uuidSchema,canRead:z.boolean(),actions:z.array(z.enum(homeAssistantControlActions)).max(3)}).strict()).max(50)
+}).strict().refine((value)=>new Set(value.personGrants.map((row)=>row.personId)).size===value.personGrants.length,'duplicate_person_grant')
+  .refine((value)=>new Set(value.displayGrants.map((row)=>row.displayId)).size===value.displayGrants.length,'duplicate_display_grant')
+  .superRefine((value,ctx)=>{
+    for(const [index,grant] of value.personGrants.entries()){if(!grant.canRead&&grant.actions.length)ctx.addIssue({code:'custom',path:['personGrants',index,'actions'],message:'control_action_requires_read'});if(!grant.canRead&&!grant.actions.length)ctx.addIssue({code:'custom',path:['personGrants',index],message:'omit_empty_control_grant'});}
+    for(const [index,grant] of value.displayGrants.entries()){if(!grant.canRead&&grant.actions.length)ctx.addIssue({code:'custom',path:['displayGrants',index,'actions'],message:'control_action_requires_read'});if(!grant.canRead&&!grant.actions.length)ctx.addIssue({code:'custom',path:['displayGrants',index],message:'omit_empty_control_grant'});}
+  });
+export const homeAssistantControlRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const homeAssistantControlDispatchSchema=z.object({
+  expectedRevision:z.number().int().positive(),action:z.enum(homeAssistantControlActions),idempotencyKey:z.string().min(16).max(128),
+  confirmationToken:z.string().min(32).max(256).optional()
+}).strict().superRefine((value,ctx)=>{
+  if(value.action!=='cover.open_cover'&&value.confirmationToken)ctx.addIssue({code:'custom',path:['confirmationToken'],message:'confirmation_not_allowed'});
+});
+export const calendarConnectionRevisionSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const calendarSyncScheduleSchema=z.object({expectedRevision:z.number().int().positive(),syncIntervalMinutes:z.union([z.literal(5),z.literal(15),z.literal(30)])}).strict();
+export const calendarOAuthCompleteSchema=z.object({completionToken:z.string().min(32).max(256)}).strict();
+export const calendarPreviewSchema=z.object({expectedSourceRevision:z.number().int().positive(),syncWindowDays:z.object({past:z.number().int().min(0).max(31),future:z.number().int().min(1).max(366)}).strict().optional()}).strict();
+export const calendarConnectionDeleteSchema=z.object({expectedRevision:z.number().int().positive()}).strict();
+export const calendarConnectionDeleteBatchSchema=z.object({connections:z.array(z.object({id:uuidSchema,expectedRevision:z.number().int().positive()}).strict()).min(1).max(12)}).strict().superRefine((value,ctx)=>{if(new Set(value.connections.map(row=>row.id)).size!==value.connections.length)ctx.addIssue({code:'custom',path:['connections'],message:'duplicate_calendar_connection'});});
+export const calendarProviderConfigurationSchema=z.object({
+  expectedRevision:z.number().int().nonnegative(),
+  status:z.enum(['active','disabled']),
+  clientId:z.string().trim().min(1).max(1000).optional(),
+  clientSecret:z.string().trim().min(1).max(4000).optional(),
+  tenant:z.string().trim().min(1).max(100).optional(),
+  origin:z.string().url().max(2048).optional(),
+  googleOAuthJson:z.unknown().optional()
+}).strict();
 
 export const aiOperations = ['generate', 'extract', 'classify', 'plan'] as const;
 export const aiModelTiers = ['routine', 'strong'] as const;
 export const aiReasoningEfforts = ['none', 'low', 'medium', 'high'] as const;
-export const aiProviderIds = ['openai', 'chatgpt_subscription', 'openai_compatible', 'gemini'] as const;
+export const aiProviderIds = ['openai', 'chatgpt_subscription', 'openai_compatible', 'gemini', 'anthropic'] as const;
 export const aiUncertaintyLevels = ['low', 'medium', 'high', 'unknown'] as const;
 
 export const aiSourceEvidenceSchema = z.object({
@@ -177,7 +494,10 @@ export const aiTaskSchema = z.object({
 
 export const aiUsageSchema = z.object({
   inputTokens: z.number().int().nonnegative().optional(),
-  outputTokens: z.number().int().nonnegative().optional()
+  outputTokens: z.number().int().nonnegative().optional(),
+  cachedInputTokens: z.number().int().nonnegative().optional(),
+  cacheWriteTokens: z.number().int().nonnegative().optional(),
+  reasoningTokens: z.number().int().nonnegative().optional()
 }).strict();
 
 export const aiResultSchema = z.object({
@@ -185,6 +505,8 @@ export const aiResultSchema = z.object({
   generatedAt: isoInstant,
   uncertainty: z.enum(aiUncertaintyLevels),
   sources: z.array(aiSourceEvidenceSchema).max(20),
+  actualModel: z.string().trim().min(1).max(100).optional(),
+  actualServiceTier: z.string().trim().min(1).max(80).optional(),
   usage: aiUsageSchema.optional()
 }).strict();
 
@@ -211,12 +533,16 @@ export const aiProviderTurnSchema = z.object({
   output: z.string().trim().min(1).max(32_000).optional(),
   toolCalls: z.array(aiToolCallSchema).max(8).default([]),
   generatedAt: isoInstant,
+  actualModel: z.string().trim().min(1).max(100).optional(),
+  actualServiceTier: z.string().trim().min(1).max(80).optional(),
   usage: aiUsageSchema.optional()
 }).strict().refine((value) => Boolean(value.output) !== (value.toolCalls.length > 0), {
   message: 'exactly_one_of_output_or_tool_calls'
 });
 
 export const aiSettingsUpdateSchema = z.object({
+  fallbackProvider:z.enum(['openai','anthropic','openai_compatible']).nullable().optional(),
+  dailyDispatchLimit:z.number().int().min(1).max(1000000).nullable().optional(),
   enabled: z.boolean().optional(),
   provider: z.enum(aiProviderIds).optional(),
   apiKey: z.string().min(1).max(512).nullable().optional(),
@@ -229,6 +555,31 @@ export const aiSettingsUpdateSchema = z.object({
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'expectedRevision'));
 
 export const aiConnectionTestSchema = z.object({ modelTier: z.enum(aiModelTiers) }).strict();
+
+export const aiChatGptCredentialRecordSchema = z.object({
+  version: z.literal(1),
+  label: nameSchema,
+  email: emailSchema.optional(),
+  issuer: z.literal('https://auth.openai.com'),
+  subject: z.string().min(1).max(500),
+  clientId: z.string().min(8).max(300).refine((value)=>value!=='dynamic_agent_client'),
+  extAgentHostId: z.string().regex(/^urn:uuid:[0-9a-f-]{36}$/),
+  idToken: z.string().min(20).max(16_000),
+  accessToken: z.string().min(20).max(16_000),
+  refreshToken: z.string().min(20).max(16_000),
+  tokenType: z.literal('Bearer'),
+  expiresAt: isoInstant,
+  earliestRefreshAt: isoInstant.optional(),
+  scopes: z.array(z.string().min(1).max(160)).max(30),
+  savedAt: isoInstant
+}).strict();
+export const aiChatGptImportSchema = z.object({
+  credential: aiChatGptCredentialRecordSchema,
+  expectedRevision: z.number().int().nonnegative()
+}).strict();
+export const aiChatGptDisconnectSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const aiChatGptSelectSchema = z.object({ expectedRevision: z.number().int().nonnegative() }).strict();
+export const aiUsageQuerySchema = z.object({ days: z.coerce.number().int().refine((value)=>value===7||value===30).default(30) }).strict();
 
 export const monitorProviderPolicies = ['default', 'local', 'openai'] as const;
 export const monitorToolNames = ['web.open', 'weather.forecast'] as const;
@@ -261,6 +612,15 @@ export const monitorTaskUpdateSchema = monitorTaskCreateSchema.partial().extend(
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'expectedRevision'));
 
 export const monitorTaskRevisionSchema = z.object({ expectedRevision: z.number().int().positive() }).strict();
+export const monitorTaskSubjectsSchema = z.object({
+  expectedSubjectsRevision: z.number().int().positive(),
+  personIds: z.array(uuidSchema).max(50)
+    .refine((value) => new Set(value).size === value.length, 'duplicate_person_subject')
+}).strict();
+export const monitorResultReviewSchema = z.object({
+  disposition: z.enum(['saved','handled','dismissed']),
+  expectedRevision: z.number().int().nonnegative()
+}).strict();
 export const monitorTaskQualitySchema = z.object({
   expectedRevision: z.number().int().positive(),
   quality: z.enum(['standard', 'smarter'])
@@ -396,8 +756,16 @@ export type ErrorCode =
   | 'CLAIM_EXPIRED' | 'INVITATION_INVALID' | 'INVITATION_EXPIRED' | 'PAIRING_EXPIRED' | 'PAIRING_INVALID' | 'SCHEDULE_INVALID'
   | 'AI_CONFIGURATION_INVALID' | 'AI_DISABLED' | 'AI_PROVIDER_UNAVAILABLE' | 'AI_UPSTREAM_ERROR'
   | 'AI_RESPONSE_INVALID' | 'AI_TIMEOUT' | 'AI_ENDPOINT_BLOCKED'
+  | 'AI_REAUTHORIZATION_REQUIRED' | 'AI_PLAN_PERMISSION_REQUIRED' | 'AI_PLAN_USAGE_LIMITED' | 'AI_PLAN_NOT_ELIGIBLE' | 'AI_STREAM_INTERRUPTED'
+  | 'AI_KEY_INVALID' | 'AI_PERMISSION_DENIED' | 'AI_BILLING_REQUIRED' | 'AI_PROVIDER_RATE_LIMITED' | 'AI_MODEL_UNAVAILABLE'
   | 'MONITOR_SOURCE_UNAVAILABLE' | 'MONITOR_SOURCE_TIMEOUT' | 'MONITOR_SOURCE_TOO_LARGE'
   | 'MONITOR_SOURCE_UNSUPPORTED' | 'MONITOR_SOURCE_REQUIRED' | 'MONITOR_SOURCE_AMBIGUOUS'
+  | 'CALENDAR_SOURCE_USE_ICS'
+  | 'CALENDAR_ICS_ACCESS_DENIED' | 'CALENDAR_ICS_BUSY' | 'CALENDAR_ICS_GOOGLE_VIEW_URL'
+  | 'CALENDAR_ICS_HTTP_ERROR' | 'CALENDAR_ICS_INVALID' | 'CALENDAR_ICS_NETWORK_ERROR'
+  | 'CALENDAR_ICS_PARSE_FAILED' | 'CALENDAR_ICS_PARSE_LIMIT' | 'CALENDAR_ICS_PARSE_TIMEOUT'
+  | 'CALENDAR_ICS_TIMEOUT' | 'CALENDAR_ICS_TOO_LARGE' | 'CALENDAR_ICS_UNSUPPORTED'
+  | 'CALENDAR_ICS_URL_CHANGED'
   | 'MONITOR_INTERPRETATION_INVALID' | 'MONITOR_INTERPRETATION_SCHEMA_INVALID'
   | 'MONITOR_INTERPRETATION_SOURCE_REFUSAL' | 'MONITOR_OWNER_UNAUTHORIZED' | 'MONITOR_RUNNING'
   | 'MONITOR_WORKER_INTERRUPTED'

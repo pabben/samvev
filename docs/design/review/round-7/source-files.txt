@@ -1,0 +1,11 @@
+apps/web/src/ai-presentation.ts
+apps/web/src/ai-settings.tsx
+apps/web/src/family-hub.tsx
+apps/web/src/home-presentation.ts
+apps/web/src/home.css
+apps/web/src/locales/en.ts
+apps/web/src/locales/nb.ts
+apps/web/src/style.css
+apps/web/tests/ai-presentation.test.ts
+apps/web/tests/home-presentation.test.ts
+apps/web/tests/round7-design.mjs

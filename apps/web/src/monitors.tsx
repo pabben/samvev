@@ -1,41 +1,52 @@
+import { SubjectEditor } from "./person-tasks";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api";
 import type { Display, MonitorExecution, MonitorRunResult, MonitorSource, MonitorTask, Person } from "./types";
 import type { TranslationKey } from "./locales/en";
 import { Field, Icon, Loading, useI18n } from "./ui";
 import { formatDate } from "./time";
-import { isWeatherSource, locationCandidates, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
+import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorResultNoticeKey, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
 
 interface Draft {
   name: string; instruction: string; sourceUrl: string;
   checkIntervalMinutes: number; noticeDaysBefore: number; noticeLocalTime: string;
-  personIds: string[]; displayIds: string[];
+  personIds: string[]; displayIds: string[]; subjectIds:string[];
 }
 type Action = 'interpret' | 'approve' | 'pause' | 'resume' | 'test' | 'run' | 'smarter' | 'quality';
+type PresentationKind = 'school' | null;
+type MonitorPresentation = { kind: PresentationKind; schoolEndLocalTime: string | null; revision: number };
+type PresentationDraft = { taskId: string; kind: PresentationKind; schoolEndLocalTime: string; revision: number; conflict: boolean };
+const presentationPath = (householdId: string, taskId: string) => `/households/${householdId}/monitors/${taskId}/presentation`;
 
-const empty = (displays: Display[]): Draft => ({ name: '', instruction: '', sourceUrl: '', checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: '18:00', personIds: [], displayIds: displays[0] ? [displays[0].id] : [] });
-const fromTask = (task: MonitorTask): Draft => ({ name: task.name, instruction: task.instruction, sourceUrl: task.sourceUrl ?? '', checkIntervalMinutes: task.checkIntervalMinutes, noticeDaysBefore: task.noticeDaysBefore, noticeLocalTime: task.noticeLocalTime, ...task.targets });
+const empty = (displays: Display[]): Draft => ({ name: '', instruction: '', sourceUrl: '', checkIntervalMinutes: 1440, noticeDaysBefore: 1, noticeLocalTime: '18:00', subjectIds:[], personIds: [], displayIds: displays[0] ? [displays[0].id] : [] });
+const fromTask = (task: MonitorTask): Draft => ({ name: task.name, instruction: task.instruction, sourceUrl: task.sourceUrl ?? '', checkIntervalMinutes: task.checkIntervalMinutes, noticeDaysBefore: task.noticeDaysBefore, noticeLocalTime: task.noticeLocalTime, ...task.targets, subjectIds:task.subjects.personIds });
 
 
-export function MonitorsPanel({ householdId, timezone, people, displays }: { householdId: string; timezone: string; people: Person[]; displays: Display[] }) {
+export function MonitorsPanel({ householdId, timezone, people, displays, initialPersonId, initialTaskId }: { householdId: string; timezone: string; people: Person[]; displays: Display[];initialPersonId?:string;initialTaskId?:string }) {
   const { t, locale } = useI18n();
   const base = `/households/${householdId}/monitors`;
   const [tasks, setTasks] = useState<MonitorTask[]>();
-  const [editing, setEditing] = useState<MonitorTask | null | undefined>();
-  const [draft, setDraft] = useState<Draft>(() => empty(displays));
+  const [editing, setEditing] = useState<MonitorTask | null | undefined>(initialPersonId?null:undefined);
+  const [subjectTask,setSubjectTask]=useState<MonitorTask>();
+  const [presentationDraft, setPresentationDraft] = useState<PresentationDraft>();
+  const [presentationBusy, setPresentationBusy] = useState(false);
+  const [presentationError, setPresentationError] = useState<'invalid' | 'conflict' | 'session' | 'generic'>();
+  const presentationRequestId = useRef(0);
+  const [draft, setDraft] = useState<Draft>(() => ({...empty(displays),subjectIds:initialPersonId?[initialPersonId]:[]}));
   const [error, setError] = useState<{ taskId?: string; value: unknown }>();
   const [formBusy, setFormBusy] = useState(false);
   const [taskBusy, setTaskBusy] = useState<Record<string, boolean>>({});
   const pending = useRef(new Set<string>());
   const formOwner = useRef<symbol | null>(null);
   const loadVersion = useRef(0);
-  const [focus, setFocus] = useState<string>();
+  const [focus, setFocus] = useState<string|undefined>(initialTaskId?`monitor-card-${initialTaskId}`:initialPersonId?'monitor-instruction':undefined);
   const [announcement, setAnnouncement] = useState('');
   const [results, setResults] = useState<Record<string, { action: Action; value: MonitorRunResult }>>({});
   const [pollFailed, setPollFailed] = useState(false);
   const [now, setNow] = useState(Date.now);
   const observedExecutions = useRef(new Map<string, string>());
   const [deleting, setDeleting] = useState<string>();
+  useEffect(() => () => { presentationRequestId.current += 1; }, []);
   const load = useCallback(async () => {
     const version = ++loadVersion.current;
     const response = await api<{ tasks: MonitorTask[] }>(base);
@@ -101,15 +112,12 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
     try {
       const body = { instruction: draft.instruction, ...(draft.name.trim() ? { name: draft.name.trim() } : {}), ...(editing || draft.sourceUrl.trim() ? { sourceUrl: draft.sourceUrl.trim() } : {}), checkIntervalMinutes: draft.checkIntervalMinutes, noticeDaysBefore: draft.noticeDaysBefore, noticeLocalTime: draft.noticeLocalTime, targets: { personIds: draft.personIds, displayIds: draft.displayIds } };
       saved = editing ? await api<MonitorTask>(`${base}/${editing.id}`, 'PATCH', { ...body, expectedRevision: editing.revision }) : await api<MonitorTask>(base, 'POST', body);
+      if(!editing&&draft.subjectIds.length){await api(`${base}/${saved.id}/subjects`,'PATCH',{expectedSubjectsRevision:saved.subjects.revision,personIds:draft.subjectIds});}
       upsert(saved); markBusy(saved.id, true);
       setResults((current) => { const next = { ...current }; delete next[saved!.id]; return next; });
       setEditing(undefined); releaseForm();
-      setFocus(`monitor-card-${saved.id}`); setAnnouncement(t('monitorWorking'));
-      // The durable draft stays visible and recoverable while setup is running.
-      const response = await api<{ run: MonitorExecution }>(`${base}/${saved.id}/interpret`, 'POST', { expectedRevision: saved.revision });
-      if (response.run) acceptRun(response.run);
+      setFocus(`monitor-card-${saved.id}`); setAnnouncement(t('monitorDraftSaved'));
       await load().catch(() => setPollFailed(true));
-      if (!response.run || response.run.status === 'succeeded') { setFocus(`monitor-preview-${saved.id}`); setAnnouncement(t('monitorReady')); }
     } catch (value) { await load().catch(() => undefined); fail(value, saved?.id); }
     finally { if (saved) markBusy(saved.id, false); if (editingId) markBusy(editingId, false); releaseForm(); }
   };
@@ -142,6 +150,56 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
     } finally { markBusy(task.id, false); }
   };
   const toggle = (key: 'personIds' | 'displayIds', id: string) => setDraft((value) => ({ ...value, [key]: value[key].includes(id) ? value[key].filter((item) => item !== id) : [...value[key], id] }));
+  const openPresentation = (task: MonitorTask) => {
+    if (presentationBusy) return;
+    presentationRequestId.current += 1;
+    const presentation = task.presentation;
+    setPresentationDraft({ taskId: task.id, kind: presentation?.kind ?? null, schoolEndLocalTime: presentation?.schoolEndLocalTime ?? '13:00', revision: presentation?.revision ?? 1, conflict: false });
+    setPresentationError(undefined);
+  };
+  const reloadPresentation = async () => {
+    if (!presentationDraft || presentationBusy) return;
+    const requestId = ++presentationRequestId.current;
+    setPresentationBusy(true); setPresentationError(undefined);
+    try {
+      const current = await api<{ taskId: string; presentationKind: PresentationKind; schoolEndLocalTime: string | null; presentationRevision: number }>(presentationPath(householdId, presentationDraft.taskId));
+      if (requestId !== presentationRequestId.current) return;
+      setPresentationDraft({ taskId: current.taskId, kind: current.presentationKind, schoolEndLocalTime: current.schoolEndLocalTime ?? '13:00', revision: current.presentationRevision, conflict: false });
+      setTasks((items) => items?.map((task) => task.id === current.taskId ? { ...task, presentation: { kind: current.presentationKind, schoolEndLocalTime: current.schoolEndLocalTime, revision: current.presentationRevision } } : task));
+    } catch (value) {
+      if (requestId === presentationRequestId.current) {
+        const denied = value instanceof ApiError && (value.status === 401 || value.status === 403 || ['FORBIDDEN', 'UNAUTHORIZED', 'UNAUTHENTICATED'].includes(value.code));
+        setPresentationDraft((current) => current ? { ...current, conflict: true } : current);
+        setPresentationError(denied ? 'session' : 'generic');
+      }
+    } finally { if (requestId === presentationRequestId.current) setPresentationBusy(false); }
+  };
+  const savePresentation = async () => {
+    if (!presentationDraft || presentationBusy) return;
+    let body: ReturnType<typeof monitorPresentationUpdateBody>;
+    try { body = monitorPresentationUpdateBody(presentationDraft.kind, presentationDraft.schoolEndLocalTime, presentationDraft.revision); }
+    catch { setPresentationError('invalid'); return; }
+    const requestId = ++presentationRequestId.current;
+    setPresentationBusy(true); setPresentationError(undefined);
+    try {
+      const saved = await api<{ taskId: string; presentationKind: PresentationKind; schoolEndLocalTime: string | null; presentationRevision: number }>(presentationPath(householdId, presentationDraft.taskId), 'PUT', body);
+      if (requestId !== presentationRequestId.current) return;
+      setTasks((items) => items?.map((task) => task.id === saved.taskId ? { ...task, presentation: { kind: saved.presentationKind, schoolEndLocalTime: saved.schoolEndLocalTime, revision: saved.presentationRevision } } : task));
+      setPresentationDraft(undefined); setAnnouncement(t('monitorPresentationSaved'));
+    } catch (value) {
+      if (requestId !== presentationRequestId.current) return;
+      if (value instanceof ApiError && (value.status === 409 || value.code === 'REVISION_CONFLICT')) {
+        await load().catch(() => undefined);
+        if (requestId !== presentationRequestId.current) return;
+        setPresentationDraft((current) => current ? { ...current, conflict: true } : current);
+        setPresentationError('conflict');
+      } else if (value instanceof ApiError && (value.status === 401 || value.status === 403 || ['FORBIDDEN', 'UNAUTHORIZED', 'UNAUTHENTICATED'].includes(value.code))) {
+        setPresentationDraft((current) => current ? { ...current, conflict: true } : current);
+        setPresentationError('session');
+      }
+      else setPresentationError('generic');
+    } finally { if (requestId === presentationRequestId.current) setPresentationBusy(false); }
+  };
   const names = (task: MonitorTask) => [...people.filter((p) => task.targets.personIds.includes(p.id)).map((p) => p.display_name), ...displays.filter((d) => task.targets.displayIds.includes(d.id)).map((d) => d.name)].join(', ') || t('monitorRuleNone');
   const list = (values: string[]) => values.join(', ') || t('monitorRuleNone');
   const errorNotice = (taskId?: string) => {
@@ -150,8 +208,11 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
     const value = error && error.taskId === taskId ? error.value : storedError;
     if (!value) return null;
     const candidates = locationCandidates(value);
+    const validationIssues = value instanceof ApiError ? monitorValidationIssues(value.details) : [];
     return <div className="notice error monitor-error" id={taskId ? `monitor-error-${taskId}` : 'monitor-error'} tabIndex={-1} role="alert">
       <p>{t(taskErrorKey(value))}</p>
+      {storedError && task?.lastCheckedAt && <small>{t('monitorFailureLastChecked', { time: formatDate(task.lastCheckedAt, locale, timezone) })}</small>}
+      {validationIssues.length > 0 && <ul className="monitor-validation-issues">{validationIssues.map(({ field, issue }, index) => <li key={`${field}:${issue}:${index}`}>{t('monitorValidationIssue', { field: t(field), issue: t(issue) })}</li>)}</ul>}
       {candidates.length > 0 && <ul className="monitor-location-options">{candidates.map((place) => <li key={place}>
         {task && task.lifecycle.actions.edit.enabled && task.instruction.length + t('monitorLocationClarification', { place }).length < 2000 ? <button type="button" disabled={formBusy || Boolean(taskBusy[task.id])} onClick={() => {
           beginEdit(task);
@@ -167,7 +228,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
     {source.forecastUpdatedAt && <small>{t('monitorForecastUpdated')} <time dateTime={source.forecastUpdatedAt}>{formatDate(source.forecastUpdatedAt, locale, timezone)}</time></small>}
     {source.validFrom && <small>{t('monitorForecastValid')} <time dateTime={source.validFrom}>{formatDate(source.validFrom, locale, timezone)}</time>{source.validTo && <> – <time dateTime={source.validTo}>{formatDate(source.validTo, locale, timezone)}</time></>}</small>}
   </>;
-  const findings = (events: MonitorTask['events']) => events.length ? events.map((event, index) => <div className="monitor-finding" key={`${event.date}:${index}`}><strong>{event.date}{event.time ? ` ${event.time.slice(0, 5)}` : ''} · {event.description}</strong>{event.actions.length > 0 && <p>{event.actions.join(' · ')}</p>}{event.who.length > 0 && <p>{event.who.join(', ')}</p>}<blockquote>{event.evidence.quote}</blockquote><a href={event.evidence.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a>{event.evidence.sources?.map((source, sourceIndex)=><div className="monitor-supporting-evidence" key={`${source.sourceUrl}:${sourceIndex}`}><small>{t('monitorSupportingEvidence')}</small><blockquote>{source.quote}</blockquote><a href={source.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a></div>)}{event.uncertainty && <p>{t('monitorUncertainty')}: {event.uncertainty}</p>}</div>) : <p>{t('monitorNoEvents')}</p>;
+  const findings = (events: MonitorTask['events']) => events.length ? events.map((event, index) => <div className="monitor-finding" key={`${event.date}:${index}`}><strong>{event.date}{event.time ? ` ${event.time.slice(0, 5)}` : ''} · {event.description}</strong>{event.actions.length > 0 && <p>{event.actions.join(' · ')}</p>}{event.who.length > 0 && <p>{event.who.join(', ')}</p>}<details><summary>{t('monitorSourceEvidence')}</summary><blockquote>{event.evidence.quote}</blockquote><a href={event.evidence.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a>{event.evidence.sources?.map((source, sourceIndex)=><div className="monitor-supporting-evidence" key={`${source.sourceUrl}:${sourceIndex}`}><small>{t('monitorSupportingEvidence')}</small><blockquote>{source.quote}</blockquote><a href={source.sourceUrl} target="_blank" rel="noreferrer">{t('monitorOpenSource')}</a></div>)}{event.uncertainty && <p>{t('monitorUncertainty')}: {event.uncertainty}</p>}</details></div>) : <p>{t('monitorNoEvents')}</p>;
   if (!tasks) return <section className="monitor-page">{errorNotice()}{error ? <button className="button" onClick={() => void load().then(() => setError(undefined)).catch((value) => fail(value))}>{t('retry')}</button> : <Loading />}</section>;
   return <section className="monitor-page" aria-labelledby="monitor-title">
     <header className="section-heading"><div><p className="eyebrow">{t('monitorEyebrow')}</p><h1 id="monitor-title" tabIndex={-1}>{t('monitors')}</h1><p>{t('monitorBody')}</p></div><button className="button primary" disabled={formBusy} onClick={() => beginEdit(null)}><Icon name="plus" />{t('monitorNew')}</button></header>
@@ -184,10 +245,12 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
           <Field label={t('monitorName')}><input maxLength={80} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></Field>
           <div className="form-grid"><Field label={t('monitorFrequency')}><select value={draft.checkIntervalMinutes} onChange={(e) => setDraft({ ...draft, checkIntervalMinutes: Number(e.target.value) })}>{![60, 360, 1440, 10080].includes(draft.checkIntervalMinutes) && <option value={draft.checkIntervalMinutes}>{t('monitorRuleScheduleValue', { minutes: draft.checkIntervalMinutes })}</option>}<option value={60}>{t('monitorHourly')}</option><option value={360}>{t('monitorSixHours')}</option><option value={1440}>{t('monitorDaily')}</option><option value={10080}>{t('monitorWeekly')}</option></select></Field><Field label={t('monitorDaysBefore')}><input type="number" min={0} max={30} required value={draft.noticeDaysBefore} onChange={(e) => setDraft({ ...draft, noticeDaysBefore: Number(e.target.value) })} /></Field><Field label={t('monitorNotice')}><input type="time" required value={draft.noticeLocalTime} onChange={(e) => setDraft({ ...draft, noticeLocalTime: e.target.value })} /></Field></div>
         </div></details>
+        {!editing&&<fieldset><legend>{t('subjectsTitle')}</legend><p className="field-hint">{t('subjectsSeparateHint')}</p><label className="check"><input type="checkbox" checked={!draft.subjectIds.length} onChange={e=>{if(e.target.checked)setDraft({...draft,subjectIds:[]})}}/>{t('subjectsHousehold')}</label>{people.map(person=><label className="check" key={person.id}><input type="checkbox" checked={draft.subjectIds.includes(person.id)} onChange={e=>setDraft({...draft,subjectIds:e.target.checked?[...draft.subjectIds,person.id]:draft.subjectIds.filter(id=>id!==person.id)})}/>{person.display_name}</label>)}</fieldset>}
         <fieldset><legend>{t('monitorRecipients')}</legend><div className="monitor-targets">{people.map((p) => <label key={p.id}><input type="checkbox" checked={draft.personIds.includes(p.id)} onChange={() => toggle('personIds', p.id)} />{p.display_name}</label>)}{displays.map((d) => <label key={d.id}><input type="checkbox" checked={draft.displayIds.includes(d.id)} onChange={() => toggle('displayIds', d.id)} />{d.name}</label>)}</div><p className="field-hint">{t('monitorRecipientsHint')}</p></fieldset>
-        <div className="card-actions"><button className="button primary" disabled={!draft.personIds.length && !draft.displayIds.length}>{formBusy ? t('monitorWorking') : t('monitorCreateSetup')}</button><button type="button" className="button" onClick={() => { setEditing(undefined); setFocus('monitor-title'); }}>{t('cancel')}</button></div>
+        <div className="card-actions"><button className="button primary" disabled={!draft.personIds.length && !draft.displayIds.length}>{formBusy ? t('monitorWorking') : t('monitorSaveDraft')}</button><button type="button" className="button" onClick={() => { setEditing(undefined); setFocus('monitor-title'); }}>{t('cancel')}</button></div>
       </fieldset>
     </form>}
+    {subjectTask&&<SubjectEditor task={subjectTask} people={people} householdId={householdId} onClose={()=>setSubjectTask(undefined)} onSaved={load}/>}
     <div className="monitor-grid">{tasks.map((task) => {
       const completedRun = task.latestExecution;
       const completedSummary = completedRun?.resultSummary;
@@ -195,6 +258,8 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
       const persistedPreview = completedRun?.status === 'succeeded' && completedRun.kind !== 'interpretation' && completedSummary?.outcome && summaryCanRender ? { action: completedRun.kind === 'manual' ? 'run' as const : completedRun.kind === 'scheduled' ? 'saved' as const : completedRun.kind, value: completedSummary } : undefined;
       const preview = persistedPreview ?? results[task.id] ?? (task.state !== 'draft' && task.latestResult ? { action: 'saved' as const, value: { ...task.latestResult, outcome: 'changed' as const } } : undefined);
       const visibleResult = preview?.value.outcome === 'unchanged' ? (task.state !== 'draft' ? task.latestResult : null) : preview?.value;
+      const resultNotice = monitorResultNotice(completedRun, Boolean(task.latestResult || task.events.length || task.lastResult));
+      const resultNoticeKey = monitorResultNoticeKey(resultNotice);
       const lifecycle = task.lifecycle;
       const execution = task.activeExecution;
       const working = Boolean(taskBusy[task.id]) || Boolean(execution) || lifecycle.status === 'running';
@@ -203,7 +268,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
       const can = (name: keyof typeof lifecycle.actions) => !working && lifecycle.actions[name].enabled;
       const rule = lifecycle.setupComplete ? task.interpretedRule : null;
       const statusKey: TranslationKey = working ? execution?.status === 'queued' ? 'monitorQueued' : stillWorking ? 'monitorStillWorking' : 'monitorStateRunning' : lifecycle.status === 'setup_failed' && ['MONITOR_LOCATION_REQUIRED', 'MONITOR_LOCATION_AMBIGUOUS', 'MONITOR_LOCATION_NOT_FOUND'].includes(task.errorCode ?? '') ? 'monitorStateLocationNeeded' : ({ incomplete: 'monitorStateIncomplete', setup_failed: 'monitorStateSetupFailed', ready_for_approval: 'monitorStateDraft', active: 'monitorStateActive', paused: 'monitorStatePaused', running: 'monitorStateRunning' } as const)[lifecycle.status];
-      const blockedReason = (reason: string | null): TranslationKey => reason === 'permission_denied' ? 'monitorErrorPermission' : reason === 'targets_invalid' ? 'monitorErrorTargets' : reason === 'running' ? 'monitorErrorRunning' : 'monitorErrorSetupRequired';
+      const blockedReason = (reason: string | null): TranslationKey => reason === 'permission_denied' ? 'monitorErrorPermission' : reason === 'targets_invalid' ? task.lastCheckedAt ? 'monitorErrorTargetsChecked' : 'monitorErrorTargets' : reason === 'running' ? 'monitorErrorRunning' : 'monitorErrorSetupRequired';
       const resultSourceUrl = visibleResult?.result?.evidence?.sourceUrl ?? visibleResult?.sourceUrl ?? preview?.value.sourceUrl;
       const resultSources = [...new Map((visibleResult?.sources ?? []).map((source) => [source.sourceUrl, source])).values()];
       const resultSource = resultSources.find((source) => source.sourceUrl === resultSourceUrl);
@@ -212,7 +277,16 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
       const durableWorking=Boolean(execution || lifecycle.status === 'running');
       return <article className="surface-card monitor-card" key={task.id} id={`monitor-card-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-name-${task.id}`}>
         <div className="card-top"><h2 id={`monitor-name-${task.id}`}>{task.name}</h2><span className={`monitor-state ${task.state}`}>{t(statusKey)}</span></div>
-        <p>{task.instruction}</p>
+        <p>{task.instruction}</p><div className="monitor-subjects"><p>{t("subjectsTitle")}: {people.filter(person=>task.subjects.personIds.includes(person.id)).map(person=>person.display_name).join(" · ")||t("subjectsHousehold")}</p><button className="button" onClick={()=>setSubjectTask(task)}>{t("subjectsEdit")}</button></div>
+        <div className="monitor-presentation-row"><p>{t('monitorPresentationLabel')}: {task.presentation.kind === 'school' ? t('monitorPresentationSchoolUntil', { time: task.presentation.schoolEndLocalTime ?? '13:00' }) : t('monitorPresentationOff')}</p><button className="button" type="button" disabled={presentationBusy} onClick={() => openPresentation(task)}>{t('monitorPresentationEdit')}</button></div>
+        {presentationDraft?.taskId === task.id && <form className="monitor-presentation-editor" onSubmit={(event) => { event.preventDefault(); void savePresentation(); }} aria-busy={presentationBusy}>
+          <h3>{t('monitorPresentationTitle')}</h3><p className="field-hint">{t('monitorPresentationHint')}</p>
+          <label className="check"><input type="checkbox" checked={presentationDraft.kind === 'school'} disabled={presentationBusy} onChange={(event) => { setPresentationDraft((current) => current ? { ...current, kind: event.target.checked ? 'school' : null } : current); if (!presentationDraft.conflict) setPresentationError(undefined); }} />{t('monitorPresentationEnable')}</label>
+          {presentationDraft.kind === 'school' && <div className="field"><label htmlFor={`monitor-school-time-${task.id}`}>{t('monitorPresentationEndTime')}</label><input id={`monitor-school-time-${task.id}`} type="time" required value={presentationDraft.schoolEndLocalTime} disabled={presentationBusy} onChange={(event) => { setPresentationDraft((current) => current ? { ...current, schoolEndLocalTime: event.target.value } : current); if (!presentationDraft.conflict) setPresentationError(undefined); }} /></div>}
+          <p className="field-hint">{t('monitorPresentationExpiryHint')}</p>
+          {presentationError && <div className="notice error" role="alert"><p>{t(presentationError === 'invalid' ? 'monitorPresentationInvalidTime' : presentationError === 'conflict' ? 'monitorPresentationConflict' : presentationError === 'session' ? 'monitorPresentationSession' : 'monitorPresentationError')}</p>{(presentationError === 'conflict' || presentationError === 'session') && <button type="button" disabled={presentationBusy} onClick={() => void reloadPresentation()}>{t('monitorPresentationReload')}</button>}</div>}
+          <div className="card-actions"><button className="button primary" disabled={presentationBusy || presentationDraft.conflict}>{presentationBusy ? t('monitorWorking') : t('save')}</button><button className="button" type="button" disabled={presentationBusy} onClick={() => { presentationRequestId.current += 1; setPresentationDraft(undefined); setPresentationError(undefined); }}>{t('cancel')}</button></div>
+        </form>}
         {task.usesSmarterAi && <p className="monitor-quality-preference">{t('monitorUsesSmarterAi')}</p>}
         <div className="monitor-source-list">
           {task.sourceUrl && <a className="monitor-source" href={task.sourceUrl} target="_blank" rel="noreferrer">{weatherTask ? `${t('monitorWebSource')}: ${new URL(task.sourceUrl).hostname}` : task.sourceUrl}</a>}
@@ -234,14 +308,15 @@ export function MonitorsPanel({ householdId, timezone, people, displays }: { hou
             <div><dt>{t('monitorRuleTargets')}</dt><dd>{names(task)}</dd></div>
           </dl>{task.state === 'draft' && <p>{t('monitorApprovalHint')}</p>}
         </div>}
-        {preview && <section className="monitor-result" id={`monitor-result-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-result-title-${task.id}`}><h3 id={`monitor-result-title-${task.id}`}>{t(preview.action === 'smarter' ? 'monitorSmarterResult' : preview.action === 'test' ? 'monitorTestResult' : 'monitorLastResult')}</h3><>{preview.action !== 'saved' && <p className="field-hint">{t(preview.action === 'run' ? 'monitorRunPreservesSchedule' : 'monitorPreviewHint')}</p>}</>{preview.value.outcome === 'unchanged' && <p>{t('monitorResultUnchanged')}</p>}{visibleResult?.resultKind === 'answer' ? <><p className="monitor-answer">{visibleResult.result?.answer}</p>{visibleResult.result?.evidence && shouldShowAnswerEvidence(resultSources) && <blockquote>{visibleResult.result.evidence.quote}</blockquote>}{visibleResult.result?.uncertainty && <p>{t('monitorUncertainty')}: {visibleResult.result.uncertainty}</p>}</> : visibleResult?.resultKind === 'events' ? findings(visibleResult.result?.events ?? []) : null}{resultSourceUrl && <a className="monitor-result-source" href={resultSourceUrl} target="_blank" rel="noreferrer">{resultSource && isWeatherSource(resultSource) ? t('monitorWeatherSource') : t('monitorOpenSource')}</a>}{observedAt && <small className="monitor-observed-at">{t('monitorSourceChecked')} <time dateTime={observedAt}>{formatDate(observedAt, locale, timezone)}</time></small>}{resultSource && resultSources.length === 1 && isWeatherSource(resultSource) && <div className="monitor-forecast-details">{sourceDetails(resultSource, false)}</div>}{resultSources.length > 1 && <details className="monitor-sources"><summary>{t('monitorSourcesUsed')}</summary><ul>{resultSources.map((source) => <li key={source.sourceUrl}><a href={source.sourceUrl} target="_blank" rel="noreferrer">{sourceName(source)}</a>{sourceDetails(source)}</li>)}</ul></details>}{preview.action === 'smarter' && task.state !== 'draft' && <><p>{t('monitorSmarterChoice')}</p><div className="card-actions"><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'smarter')}>{t('monitorKeepSmarter')}</button><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'standard')}>{t('monitorKeepStandard')}</button></div></>}</section>}
+        {resultNoticeKey && <p className="notice" role="status">{t(resultNoticeKey)}</p>}
+        {preview && <section className="monitor-result" id={`monitor-result-${task.id}`} tabIndex={-1} aria-labelledby={`monitor-result-title-${task.id}`}><h3 id={`monitor-result-title-${task.id}`}>{t(preview.action === 'smarter' ? 'monitorSmarterResult' : preview.action === 'test' ? 'monitorTestResult' : 'monitorLastResult')}</h3><>{preview.action !== 'saved' && <p className="field-hint">{t(preview.action === 'run' ? 'monitorRunPreservesSchedule' : 'monitorPreviewHint')}</p>}</>{preview.value.outcome === 'unchanged' && <p>{t('monitorResultUnchanged')}</p>}{visibleResult?.resultKind === 'answer' ? (visibleResult.result?.status === 'none' ? <p>{t('monitorNoFindingsSuccess')}</p> : <><p className="monitor-answer">{visibleResult.result?.answer}</p>{(visibleResult.result?.evidence && shouldShowAnswerEvidence(resultSources) || visibleResult.result?.uncertainty) && <details><summary>{t('monitorSourceEvidence')}</summary>{visibleResult.result?.evidence && shouldShowAnswerEvidence(resultSources) && <blockquote>{visibleResult.result.evidence.quote}</blockquote>}{visibleResult.result?.uncertainty && <p>{t('monitorUncertainty')}: {visibleResult.result.uncertainty}</p>}</details>}</>) : visibleResult?.resultKind === 'events' ? (resultNotice === 'success_no_findings' ? null : findings(visibleResult.result?.events ?? [])) : null}{resultSourceUrl && <a className="monitor-result-source" href={resultSourceUrl} target="_blank" rel="noreferrer">{resultSource && isWeatherSource(resultSource) ? t('monitorWeatherSource') : t('monitorOpenSource')}</a>}{observedAt && <small className="monitor-observed-at">{t('monitorSourceChecked')} <time dateTime={observedAt}>{formatDate(observedAt, locale, timezone)}</time></small>}{resultSource && resultSources.length === 1 && isWeatherSource(resultSource) && <div className="monitor-forecast-details">{sourceDetails(resultSource, false)}</div>}{resultSources.length > 1 && <details className="monitor-sources"><summary>{t('monitorSourcesUsed')}</summary><ul>{resultSources.map((source) => <li key={source.sourceUrl}><a href={source.sourceUrl} target="_blank" rel="noreferrer">{sourceName(source)}</a>{sourceDetails(source)}</li>)}</ul></details>}{preview.action === 'smarter' && task.state !== 'draft' && <><p>{t('monitorSmarterChoice')}</p><div className="card-actions"><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'smarter')}>{t('monitorKeepSmarter')}</button><button disabled={!can('quality')} onClick={() => void action(task, 'quality', 'standard')}>{t('monitorKeepStandard')}</button></div></>}</section>}
         {!preview && task.state !== 'draft' && task.events.length > 0 && <details className="monitor-findings"><summary>{t('monitorFindings', { count: task.events.length })}</summary>{findings(task.events)}</details>}
         {!preview && task.state !== 'draft' && task.lastResult && !/^(\d+) event\(s\)$|^unchanged$|^failed$/.test(task.lastResult) && <section className="monitor-result"><h3>{t('monitorLastResult')}</h3><p className="monitor-answer">{task.lastResult}</p>{(task.source?.finalUrl || task.sourceUrl) && <a href={task.source?.finalUrl || task.sourceUrl!} target="_blank" rel="noreferrer">{weatherTask ? t('monitorWeatherSource') : t('monitorOpenSource')}</a>}</section>}
         <dl className="monitor-meta"><div><dt>{t('monitorNext')}</dt><dd>{task.nextCheckAt ? formatDate(task.nextCheckAt, locale, timezone) : '—'}</dd></div><div><dt>{t('monitorLastCheck')}</dt><dd>{task.lastCheckedAt ? formatDate(task.lastCheckedAt, locale, timezone) : '—'}</dd></div></dl>
         <p className="monitor-stats">{t('monitorStats', { checks: task.stats.checks, ai: task.stats.aiCalls })}</p>
-        {errorNotice(task.id)}{!working && !completedRun?.errorCode && task.errorCode && error?.taskId !== task.id && <p className="notice error" role="alert">{t(taskErrorKey(completedRun?.errorCode || task.errorCode))}</p>}
+        {errorNotice(task.id)}{!working && !task.latestExecution?.errorCode && task.errorCode && error?.taskId !== task.id && <p className="notice error" role="alert">{t(taskErrorKey(task.errorCode))}</p>}
         {working && <div className="notice monitor-progress" id={`monitor-working-${task.id}`} role="status"><p className="monitor-progress-stage"><span className="spinner monitor-progress-spinner" aria-hidden="true" /><strong>{t(durableWorking ? stageKey : 'monitorStarting')}</strong></p>{durableWorking && execution?.usesLocalAi && <p>{t('monitorLocalWork')}</p>}{durableWorking && execution && <p>{t('monitorExpectedDuration', { minimum: Math.max(1, Math.ceil(execution.expectedDurationSeconds / 150)), minutes: Math.max(1, Math.ceil(execution.expectedDurationSeconds / 60)) })}</p>}{execution?.id && <p>{t('monitorLeavePage')}</p>}</div>}
-        {!working && lifecycle.status === 'incomplete' && <p className="field-hint">{t(lifecycle.actions.test.reason === 'targets_invalid' ? 'monitorErrorTargets' : 'monitorIncompleteHint')}</p>}
+        {!working && lifecycle.status === 'incomplete' && <p className="field-hint">{lifecycle.actions.test.reason === 'targets_invalid' ? t(blockedReason('targets_invalid'), task.lastCheckedAt ? { time: formatDate(task.lastCheckedAt, locale, timezone) } : undefined) : t('monitorIncompleteHint')}</p>}
         {!working && lifecycle.status === 'setup_failed' && <p className="field-hint">{t('monitorSetupFailedHint')}</p>}
         {!working && lifecycle.status === 'ready_for_approval' && !can('approve') && <p className="notice" id={`monitor-approve-reason-${task.id}`}>{t(blockedReason(lifecycle.actions.approve.reason))}</p>}
         <div className="card-actions monitor-actions" aria-busy={working}>

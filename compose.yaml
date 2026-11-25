@@ -91,6 +91,14 @@ services:
       SAMVEV_DEMO_MODE: ${SAMVEV_DEMO_MODE:-true}
       SAMVEV_PUBLIC_ORIGIN: "${SAMVEV_PUBLIC_ORIGIN:-http://127.0.0.1:${SAMVEV_PORT:-4173}}"
       SAMVEV_TRUST_PROXY: ${SAMVEV_TRUST_PROXY:-false}
+      # OAuth client registration is optional.  Keep the credentials only in the
+      # ignored runtime .env; empty values intentionally leave the calendar
+      # connection wizard in its documented setup state.
+      SAMVEV_GOOGLE_CALENDAR_CLIENT_ID: ${SAMVEV_GOOGLE_CALENDAR_CLIENT_ID:-}
+      SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET: ${SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET:-}
+      SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID: ${SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID:-}
+      SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET: ${SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET:-}
+      SAMVEV_MICROSOFT_CALENDAR_TENANT: ${SAMVEV_MICROSOFT_CALENDAR_TENANT:-common}
       # Disabled by default. When explicitly enabled, exposes only the narrowly
       # scoped synthetic live-E2E fixture and authenticated diagnostics.
       SAMVEV_LIVE_E2E_ENABLED: ${SAMVEV_LIVE_E2E_ENABLED:-false}
@@ -113,6 +121,13 @@ services:
     environment:
       DATABASE_URL: postgresql://${SAMVEV_DB_USER:-samvev}:${SAMVEV_DB_PASSWORD:-local-development-only}@db:5432/${SAMVEV_DB_NAME:-samvev}
       SAMVEV_WORKER_HEALTH_FILE: /tmp/samvev-worker-health.json
+      # The worker owns calendar polling and therefore receives the same
+      # registration-only configuration as the API. Secrets stay in .env.
+      SAMVEV_GOOGLE_CALENDAR_CLIENT_ID: ${SAMVEV_GOOGLE_CALENDAR_CLIENT_ID:-}
+      SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET: ${SAMVEV_GOOGLE_CALENDAR_CLIENT_SECRET:-}
+      SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID: ${SAMVEV_MICROSOFT_CALENDAR_CLIENT_ID:-}
+      SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET: ${SAMVEV_MICROSOFT_CALENDAR_CLIENT_SECRET:-}
+      SAMVEV_MICROSOFT_CALENDAR_TENANT: ${SAMVEV_MICROSOFT_CALENDAR_TENANT:-common}
     depends_on:
       migrate:
         condition: service_completed_successfully

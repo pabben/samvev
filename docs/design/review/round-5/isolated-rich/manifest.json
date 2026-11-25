@@ -1,0 +1,132 @@
+{
+  "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+  "recordedAt": "2026-10-04T12:37:02.533Z",
+  "origin": "http://round5-test-app:4173",
+  "database": "samvev_test",
+  "lanQaDataMutated": false,
+  "providerCalls": 0,
+  "liveChatGptVerified": false,
+  "fixtureDescription": "Nine new integration items including three Today events, one human message; created through actual scoped API in isolated restored synthetic database. Captures precede controlled stress projection routes.",
+  "screenshots": [
+    {
+      "filename": "desktop-1920-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "width": 1920,
+      "height": 1080,
+      "theme": "light",
+      "surface": "memberHome",
+      "sha256": "7dc40369cb6935d8ba28a43d912017edd5356a50551d55c987a681774de9837d",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    },
+    {
+      "filename": "desktop-1920-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "width": 1920,
+      "height": 1080,
+      "theme": "dark",
+      "surface": "memberHome",
+      "sha256": "b0b16cc6fda3b5987b349c2dc8747c9b5486796065554c715e2740ad66fd76ce",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    },
+    {
+      "filename": "mobile-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "width": 390,
+      "height": 844,
+      "theme": "light",
+      "surface": "memberHome",
+      "sha256": "5f1191e19b63be2c3b38e3132ac4e58db3617b90330061c225bfb1a9e011725c",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    },
+    {
+      "filename": "mobile-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "width": 390,
+      "height": 844,
+      "theme": "dark",
+      "surface": "memberHome",
+      "sha256": "1cc43e92e5dc348578b8ef0d44f57875dca5418ad1241a206ab3a8540615836a",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    },
+    {
+      "filename": "ipad-portrait-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "width": 820,
+      "height": 1180,
+      "theme": "light",
+      "surface": "memberHome",
+      "sha256": "90a43ec72774556a8fc4f9900e75f17c53930244b9ccffe7bf25223c581ad019",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    },
+    {
+      "filename": "ipad-portrait-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "width": 820,
+      "height": 1180,
+      "theme": "dark",
+      "surface": "memberHome",
+      "sha256": "d52c388237fa18f57c18979c2bc1acc692ca23b82c9a674b706e6148b3215e10",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    },
+    {
+      "filename": "display-1920-light.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "width": 1920,
+      "height": 1080,
+      "theme": "light",
+      "surface": "pairedDisplay",
+      "sha256": "d2119bf6bd0f1d4db14a721691af7b35885017da62d2d321085ecd53f3d181b7",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    },
+    {
+      "filename": "display-1920-dark.png",
+      "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "width": 1920,
+      "height": 1080,
+      "theme": "dark",
+      "surface": "pairedDisplay",
+      "sha256": "5e18fb9abe1b9f21802b1f1a9a022fa7b534b5efb94d3d46e1a49a5081990aae",
+      "injectedTransport": false,
+      "syntheticIsolatedDatabase": true
+    }
+  ]
+}

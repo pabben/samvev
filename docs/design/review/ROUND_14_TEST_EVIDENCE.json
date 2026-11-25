@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+  "candidateImageId": "sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342",
+  "roundId": "20261028032511-971913e3-046fbbb8",
+  "runner": {
+    "location": "existing local codex-dev Docker runners",
+    "composeProject": "samvev-m1",
+    "testDatabase": "isolated samvev_test",
+    "realProviderCalls": false,
+    "physicalHomeAssistantCommands": false
+  },
+  "typechecks": {
+    "exitCode": 0,
+    "workspaces": 5
+  },
+  "tests": {
+    "web": 153,
+    "contracts": 5,
+    "core": 3,
+    "api": 365,
+    "worker": 0,
+    "totalPassed": 526,
+    "exitCode": 0
+  },
+  "additionalChecks": {
+    "reviewHelpersPassed": 32,
+    "privacyBrowserPassed": 1,
+    "restoreFixturesPassed": 19,
+    "tabletNavigationGeometryPassed": 56,
+    "sparsePopulatedHomeGeometryPassed": 20
+  },
+  "canonicalCapture": {
+    "count": 14,
+    "sourceRuntimeDistBound": true,
+    "imageAssetHashesMatchQa": 12
+  },
+  "publicRestore": {
+    "status": "passed",
+    "baselineMigrations": 37,
+    "candidateMigrations": 41,
+    "requiredFlagsVerifiedByCoordinator": 28,
+    "cloneOnly": true,
+    "noLiveMigration": true
+  },
+  "publicDeployment": {
+    "status": "passed",
+    "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+    "imageId": "sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342",
+    "host": "claude",
+    "composeProject": "samvev-m1",
+    "cutoverExitCode": 0,
+    "coordinatorVerifiedTopLevelPreservationFlags": 15,
+    "fresh037BackupRestore": "passed",
+    "postdeploy041BackupRestore": "passed",
+    "postdeployRequiredFlagsVerified": 11,
+    "appWorkerDatabaseHealthy": true,
+    "https": {
+      "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+      "origin": "https://samvev.pabben.org",
+      "startedAt": "2026-10-28T03:58:17.538Z",
+      "screenshotsCaptured": false,
+      "preferencesModified": false,
+      "nonAuthMutationsAttempted": false,
+      "calendarHasWeekEntries": false,
+      "calendarShowsEmptyState": true,
+      "peopleColorControl": "not-authorized",
+      "finishedAt": "2026-10-28T03:59:45.703Z",
+      "checks": [
+        "anonymous public pages load directly and survive refresh",
+        "anonymous account and display projections stay private",
+        "publicly served files match the frozen R14 expected-dist hashes",
+        "retained synthetic household account signs in through the actual form",
+        "all member destinations survive direct load and reload on desktop and mobile",
+        "Calendar route renders a compact week view and a truthful empty state when applicable",
+        "Integrations exposes ICS setup and opening it performs no create",
+        "AI Anthropic setup is viewable without saving or testing",
+        "People route read; color editing not authorized for public smoke account (synthetic editing tests passed)",
+        "Home and Displays navigation remain reachable through the UI",
+        "UI logout invalidates only this retained session"
+      ],
+      "completed": true,
+      "authenticatedIdentityMatched": true,
+      "expectedAssetCount": 12
+    }
+  },
+  "externalVerification": {
+    "anthropic": "synthetic transport only",
+    "ics": "actual UI with synthetic transport; no private owner subscription authorized",
+    "googleMicrosoft": "owner authorization remains separate"
+  },
+  "privateEvidence": [
+    ".local/m3/round14/final-qa-971913e/",
+    ".local/m3/round14/final-review-helper-tests.log",
+    ".local/m3/round14/ops/public-restore-result.private.json",
+    ".local/m3/round14/ops-fixture-final.log",
+    ".local/m3/round14/ops/cutover-result.private.json",
+    ".local/m3/round14/ops/postdeploy-restore-result.private.json",
+    ".local/m3/round14/public-browser/postdeploy-smoke.json"
+  ],
+  "releaseGate": {
+    "status": "PASS for authorized public test cutover",
+    "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+    "independentSourceHashesVerified": 329,
+    "canonicalImagesVerified": 14,
+    "supplementalImagesVerified": 77,
+    "candidateAssetsVerified": 12,
+    "publicRestoreRequiredFlagsVerified": 28,
+    "finalPublicAcceptance": "PASS: independently verified live image/health, backup receipt chains, preservation, postdeploy restore, scoped HTTPS smoke"
+  },
+  "visualReview": {
+    "status": "PASS",
+    "canonicalScreenshots": 14,
+    "supplementalScreenshots": 77,
+    "comparisonComposites": 2,
+    "syntheticMainFixture": {
+      "adults": 2,
+      "children": 4
+    },
+    "referenceDifferences": "Light display uses portrait cards for recognition; real content and six people need responsive layouts."
+  }
+}

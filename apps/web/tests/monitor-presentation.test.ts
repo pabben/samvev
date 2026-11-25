@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/api.ts';
-import { isWeatherSource, locationCandidates, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
+import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorResultNoticeKey, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
 import { en } from '../src/locales/en.ts';
 import { nb } from '../src/locales/nb.ts';
 
@@ -14,7 +14,25 @@ test('weather and location failures have dedicated NB/EN recovery copy', () => {
     assert.notEqual(en[key], nb[key]);
   }
   assert.equal(taskErrorKey('MONITOR_SOURCE_TIMEOUT'), 'monitorErrorSourceTimeout');
+  assert.equal(taskErrorKey(new ApiError('CALENDAR_SOURCE_USE_ICS',422)), 'calendarSourceUseIcs', 'the persisted calendar-specific code retains ICS guidance without unsafe URL details');
+  assert.match(en.calendarSourceUseIcs,/Integrations.*ICS/);assert.match(nb.calendarSourceUseIcs,/Integrasjoner.*ICS/);
   assert.equal(taskErrorKey('REVISION_CONFLICT'), 'monitorErrorConflict');
+});
+
+test('stored owner authorization failures stay distinct from the current actor permission error', () => {
+  assert.equal(taskErrorKey('MONITOR_OWNER_UNAUTHORIZED'), 'monitorStoredOwnerUnauthorized');
+  assert.equal(taskErrorKey(new ApiError('FORBIDDEN', 403)), 'monitorErrorPermission');
+  assert.doesNotMatch(en.monitorErrorPermission, /account|sign in|log in/i);
+  assert.doesNotMatch(nb.monitorErrorPermission, /konto|logg inn/i);
+  assert.match(en.monitorStoredOwnerUnauthorized, /could not verify.*authorization.*recipients or screens.*paused/i);
+  assert.match(nb.monitorStoredOwnerUnauthorized, /kunne ikke bekrefte.*tilgang.*mottakere eller skjermer.*pause/i);
+  assert.match(en.monitorFailureLastChecked, /Last checked \{time\}/);
+  assert.match(nb.monitorFailureLastChecked, /Sist kontrollert \{time\}/);
+  assert.match(en.monitorErrorTargetsChecked, /recipient and display access.*Last checked \{time\}/i);
+  assert.match(nb.monitorErrorTargetsChecked, /tilgang.*Sist kontrollert \{time\}/i);
+  assert.match(en.displayEmptyBody, /calendars.*household.*home/i);
+  assert.match(nb.displayEmptyBody, /Kalendere.*husstand.*hjem/i);
+  assert.ok(en.monitorSourceEvidence); assert.ok(nb.monitorSourceEvidence);
 });
 
 test('ambiguity projects only bounded, human-readable place fields', () => {
@@ -39,12 +57,93 @@ test('canonical place and weather source labels never need raw coordinates', () 
 test('transport errors remain distinct from bounded server timeout in both locales', () => {
   assert.equal(taskErrorKey(new ApiError('OFFLINE')), 'monitorConnectionLost');
   assert.equal(taskErrorKey('AI_TIMEOUT'), 'monitorErrorTimeout');
+  assert.equal(taskErrorKey('AI_PLAN_USAGE_LIMITED'), 'aiPlanLimited');
+  assert.equal(taskErrorKey('AI_PLAN_NOT_ELIGIBLE'), 'AI_PLAN_NOT_ELIGIBLE');
+  assert.equal(taskErrorKey('AI_PLAN_PERMISSION_REQUIRED'), 'aiPlanReauth');
+  assert.equal(taskErrorKey('AI_REAUTHORIZATION_REQUIRED'), 'aiPlanReauth');
   assert.equal(taskErrorKey('MONITOR_WORKER_INTERRUPTED'), 'monitorErrorInterrupted');
   for (const messages of [nb,en]) {
     assert.notEqual(messages.monitorConnectionLost,messages.monitorErrorTimeout);
     assert.ok(messages.monitorLeavePage);
     assert.ok(messages.monitorStillWorking);
   }
+});
+
+test('sanitized AI diagnostics distinguish response formatting from source evidence', () => {
+  for (const reason of ['invalid_json', 'schema_mismatch', 'response_too_large', 'invalid_json_or_schema']) {
+    const key = taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'final_schema', validationReason: reason, raw: 'private' }));
+    assert.equal(key, 'monitorErrorResponseFormat');
+    assert.ok(en[key]); assert.ok(nb[key]);
+  }
+  assert.equal(taskErrorKey(new ApiError('MONITOR_INTERPRETATION_SCHEMA_INVALID', 502, { validationStage: 'final_schema', validationReason: 'invalid_json_or_schema' })), 'monitorErrorResponseFormat');
+  assert.equal(taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'evidence_anchor', validationReason: 'claim' })), 'monitorErrorVerification');
+  assert.equal(taskErrorKey(new ApiError('AI_RESPONSE_INVALID', 502, { validationStage: 'evidence_selection', validationReason: 'selection_source' })), 'monitorErrorVerification');
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response' })), 'monitorErrorProviderResponse');
+  assert.equal(taskErrorKey(new ApiError('MONITOR_EXECUTION_FAILED')), 'monitorErrorGeneric');
+  assert.match(en.monitorErrorResponseFormat, /required format/i);
+  assert.match(nb.monitorErrorResponseFormat, /forventet format/i);
+});
+
+test('provider connection failures and safe schema issue summaries are distinct and private', () => {
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response', validationReason: 'network_error', message: 'private endpoint' })), 'monitorErrorProviderNetwork');
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { validationStage: 'provider_response', validationReason: 'upstream_http_5xx' })), 'monitorErrorProviderResponse');
+  assert.equal(taskErrorKey(new ApiError('AI_UPSTREAM_ERROR', 502, { message: 'private endpoint' })), 'monitorErrorGeneric', 'unknown failures stay generic');
+  const details = { validationIssues: [
+    { path: 'events[].date', code: 'invalid_type', value: 'private model text' },
+    { path: 'events[].evidence.quote', code: 'too_small', value: 'private quote' },
+    { path: 'private.child.name', code: 'invalid_type' },
+    { path: 'events[].date', code: 'invalid_type' },
+    { path: 'summary', code: 'private_code' },
+  ], rawOutput: 'do not show this' };
+  const issues = monitorValidationIssues(details);
+  assert.deepEqual(issues, [
+    { field: 'monitorIssueFieldDate', issue: 'monitorIssueCodeType' },
+    { field: 'monitorIssueFieldQuote', issue: 'monitorIssueCodeRequired' },
+  ]);
+  for (const messages of [en, nb]) {
+    assert.ok(messages.monitorErrorProviderNetwork);
+    assert.ok(messages.monitorErrorProviderResponse);
+    assert.ok(messages.monitorValidationIssue);
+    assert.ok(messages.monitorIssueFieldDate);
+    assert.ok(messages.monitorIssueCodeType);
+  }
+  assert.doesNotMatch(JSON.stringify(issues), /private/);
+  const additionalSchemaPaths = monitorValidationIssues({ validationIssues: [
+    { path: 'version', code: 'invalid_value' },
+    { path: 'resultKind', code: 'invalid_value' },
+    { path: 'events[].who', code: 'invalid_type' },
+    { path: 'events[].actions', code: 'invalid_type' },
+    { path: 'events[].privateKey', code: 'invalid_type' },
+    { path: 'unknown.events[].who', code: 'invalid_type' },
+  ] });
+  assert.deepEqual(additionalSchemaPaths, [
+    { field: 'monitorIssueFieldVersion', issue: 'monitorIssueCodeValue' },
+    { field: 'monitorIssueFieldResultType', issue: 'monitorIssueCodeValue' },
+    { field: 'monitorIssueFieldPeople', issue: 'monitorIssueCodeType' },
+    { field: 'monitorIssueFieldActions', issue: 'monitorIssueCodeType' },
+  ], 'recognized schema fields get localized labels; arbitrary paths are discarded');
+  for (const messages of [en, nb]) {
+    assert.ok(messages.monitorIssueFieldVersion);
+    assert.ok(messages.monitorIssueFieldResultType);
+    assert.ok(messages.monitorIssueFieldPeople);
+    assert.ok(messages.monitorIssueFieldActions);
+    assert.ok(messages.monitorIssueFieldOther);
+  }
+});
+
+test('monitor result notices distinguish an empty successful check from a stale result', () => {
+  assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'events', result: { events: [] } } }, false), 'success_no_findings');
+  assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'answer', result: { version: 1, status: 'none' } } }, false), 'success_no_findings');
+  assert.equal(monitorResultNotice({ status: 'succeeded', resultSummary: { outcome: 'changed', resultKind: 'events', result: { events: [{ date: '2030-01-01' }] } } }, false), null);
+  assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, true), 'stale_previous_success');
+  assert.equal(monitorResultNotice({ status: 'failed', resultSummary: null }, false), null);
+  assert.equal(monitorResultNoticeKey('success_no_findings'), 'monitorNoFindingsSuccess');
+  assert.equal(monitorResultNoticeKey('stale_previous_success'), 'monitorPreviousResultStale');
+  assert.equal(monitorResultNoticeKey(null), null);
+  assert.match(en.monitorNoFindingsSuccess, /completed successfully/i);
+  assert.match(nb.monitorNoFindingsSuccess, /fullført/);
+  assert.match(en.monitorPreviousResultStale, /earlier successful check/);
+  assert.match(nb.monitorPreviousResultStale, /tidligere vellykket kontroll/);
 });
 
 
@@ -78,4 +177,21 @@ test('daily conditional preview describes strict forecast mean wind and the no-a
   assert.equal(nb.monitorConditionOr,'ELLER'); assert.equal(en.monitorConditionOr,'OR');
   assert.match(nb.monitorWeatherNoAlert,/Ingen beskjed/);
   assert.match(en.monitorWeatherNoAlert,/No notification/);
+});
+
+test('school presentation editor sends only metadata with revision and strict local time', () => {
+  assert.deepEqual(monitorPresentationUpdateBody('school', '13:45', 4), {
+    expectedPresentationRevision: 4, presentationKind: 'school', schoolEndLocalTime: '13:45',
+  });
+  assert.deepEqual(monitorPresentationUpdateBody(null, 'not used', 2), {
+    expectedPresentationRevision: 2, presentationKind: null, schoolEndLocalTime: null,
+  });
+  for (const time of ['24:00', '13:60', '9:30', 'noon']) assert.throws(() => monitorPresentationUpdateBody('school', time, 1));
+  assert.throws(() => monitorPresentationUpdateBody('school', '13:00', 0));
+  for (const messages of [en, nb]) {
+    assert.match(messages.monitorPresentationHint, /instructions|instruksjoner/i);
+    assert.match(messages.monitorPresentationExpiryHint, /expiry|utløpstidene/i);
+    assert.ok(messages.monitorPresentationConflict && messages.monitorPresentationReload);
+    assert.ok(messages.monitorPresentationSession && messages.monitorPresentationSaved);
+  }
 });

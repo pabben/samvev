@@ -1,0 +1,320 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "sourceBound": true,
+  "transport": "actual isolated API/database; private DI synthetic calendar transport only",
+  "screenshots": [
+    {
+      "file": "calendar/outlook-connected-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual Outlook callback completion",
+      "sha256": "0c15e83fef42c00c901c9d623d7594ebccc98be66a4659b37ee0b7e63eda2198"
+    },
+    {
+      "file": "calendar/ics-active-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual ICS source activation",
+      "sha256": "1b91573cc8d7d0c633a84200d5ed0d5ce2ee86bfbb76be13d0d235be43cdcd33"
+    },
+    {
+      "file": "calendar/ics-active-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual ICS source activation",
+      "sha256": "74bef0780ce5c19e597a5c3aebb8fc15ea13391b4e76f8096c12b107edccb039"
+    },
+    {
+      "file": "calendar/spond-reuse-preview-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual Spond reuse preview",
+      "sha256": "46e3088d3d19e75cf250104b9ee39b2c58fbac23a3d91cadd9d84bf93efb6975"
+    },
+    {
+      "file": "tasks/task-multiple-subjects-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual two-task person detail; restored after capture",
+      "sha256": "05f4754be945f7dea7c54b49fb5dfaea8f495ba91690e55b90209b7e3777eab4"
+    },
+    {
+      "file": "tasks/task-person-prefill-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual unsaved person-prefilled draft",
+      "sha256": "7e600f9a693bca6dd998baf9547fbeae22845b07313c80976f77579f0ed4e7f7"
+    },
+    {
+      "file": "messages/birthday-33-days-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual fictional birthday exactly 33 days away",
+      "sha256": "5e2dd035b3a3a02ce08e0fd65a1d4bdd1026a0ffb5858649346e7204627b6e8b"
+    },
+    {
+      "file": "messages/birthday-33-days-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual fictional birthday exactly 33 days away",
+      "sha256": "217c9e3e4c06410152b55e66ddd69081571db5b398afa48d8dd69aa4bdcf6ee5"
+    },
+    {
+      "file": "photo/matrix-actions-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "ab82fe6a4d23223c5e119fd17bdbe98c373bfe7bcbefbaeab13365d085e12b33"
+    },
+    {
+      "file": "photo/matrix-actions-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "01ee7876e8d8e62497a9cc81a5e682f45f20bea82abf4de708dc7d7749e3dc5f"
+    },
+    {
+      "file": "photo/matrix-actions-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "660e9ad8f75f982afefd3025cdec9f117c959d4f3bb7c4caa5db43efb70708d4"
+    },
+    {
+      "file": "photo/matrix-actions-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "2ac8561727817c8f0b40a4e7e2065088ad75ce765f97f833d25f0b4d9b5618fa"
+    },
+    {
+      "file": "photo/matrix-editor-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "2c94ee59cc7e070efd1623f4721afaf6a57bd5c909d9e23eee1d8ba9461d1492"
+    },
+    {
+      "file": "photo/matrix-editor-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "adc738f1171724e8778788ec71e8540d75920a60d705b2fbe096074c955ee319"
+    },
+    {
+      "file": "photo/matrix-editor-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "a458fdc9cb2fbe7ac63cddd7fd706687e1f7a520230638fb44907c3eba7d62d7"
+    },
+    {
+      "file": "photo/matrix-editor-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual protected photo editor matrix",
+      "sha256": "c2b048836a02ef7de536cfd0c78c3976f82773a6e6a943acf8cdec4552006ac8"
+    },
+    {
+      "file": "tasks/matrix-failed-older-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "db3596be82069216a54d30e42859f74b18c6d584507ee6bd67bfae4ee7a0ebdc"
+    },
+    {
+      "file": "tasks/matrix-failed-older-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "ab72ec860f90972fb1b7ad79a62aa305691bc6af08dd8b839b411139ddc69cfb"
+    },
+    {
+      "file": "tasks/matrix-failed-older-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "cd5fa9c4a3524488c20bdc021acafcb4133961fb00d86e41b87a8851c78c67ba"
+    },
+    {
+      "file": "tasks/matrix-failed-older-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "3e4be6d85ed58301eb0f6e814b26000aa26a202c4cdd8171ffb67d28bf1ffdaf"
+    },
+    {
+      "file": "tasks/matrix-subject-editor-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "06d29243dbb39476395d20de3cdbffec2020bb17d49fe1debce31e00a867c248"
+    },
+    {
+      "file": "tasks/matrix-subject-editor-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "f3c3706d4072c96aeb1b4963cb4d57ae47aa83375d6e2e4415b356744d5e3a97"
+    },
+    {
+      "file": "tasks/matrix-subject-editor-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "f7d7a95a58e87837bfd6707ff745fe724a42d0a7542d9748d478a1b9eedbc5fe"
+    },
+    {
+      "file": "tasks/matrix-subject-editor-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual task metadata and result matrix",
+      "sha256": "0e3710a2b80cfb49928ad4e1a981aaa7998b093da4a8ad4ca684c226fa7ae4f9"
+    },
+    {
+      "file": "calendar/matrix-actions-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "46d0943d1e29a23d59c0e0a14de29e3a4a9e40f4f3fff6e91a3ab2049398c058"
+    },
+    {
+      "file": "calendar/matrix-actions-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "36fa9ec28c42b8fbbfcd78d3305b0f1286a45d30a3877cabee90fb313c0f40cc"
+    },
+    {
+      "file": "calendar/matrix-actions-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "32470f18d51d128e9d62eb311e6cd223e2ebbee191d42a32ddf4d416a1abf09d"
+    },
+    {
+      "file": "calendar/matrix-actions-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "b3f270f00830336f0bb9da0169b963538902002a8408eb45e5dd67a34bab58da"
+    },
+    {
+      "file": "calendar/matrix-active-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "29d24b7fedb62de8d6927f86eb887c83f7539373047809c2c2dfc4c2fd1936c3"
+    },
+    {
+      "file": "calendar/matrix-active-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "eb4f054468424ef5329e6810c54cc090fc1ed4bf98ca6f8ada801c62ea10d8d2"
+    },
+    {
+      "file": "calendar/matrix-active-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "b93849a4d785eeceb1b63ea1413069e7d6067fb184c898b17b1e0047cfcd8d62"
+    },
+    {
+      "file": "calendar/matrix-active-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "54e8390a655f71fb0986a35d60d61649065cee61868e847c81ee940ffa4b9576"
+    },
+    {
+      "file": "calendar/matrix-preview-events-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "28b23700daa23a395f05701db4f372d0167757b97b1259fe05c3d8415dc38913"
+    },
+    {
+      "file": "calendar/matrix-preview-events-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "36fa9ec28c42b8fbbfcd78d3305b0f1286a45d30a3877cabee90fb313c0f40cc"
+    },
+    {
+      "file": "calendar/matrix-preview-events-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "8638011df633589d9ad8d942c7c2437d6d86d8c346ad6d1dac2c2363169929c0"
+    },
+    {
+      "file": "calendar/matrix-preview-events-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual calendar source preview and activation matrix",
+      "sha256": "ed9ba04642e83897b2f95aea59f90c1d0a4e3e9985ebcfe3849ba20f38e62d23"
+    },
+    {
+      "file": "ai/matrix-helper-controls-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "6d40d2f1b1fe395c6edfe0cb07268925f110daa2f848fa79e59e39f2d3944baf"
+    },
+    {
+      "file": "ai/matrix-helper-controls-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "50d28ac9fc7867d4eb3d1a4c683c5605b763d59d2df4c5b6b4c7073c227c240d"
+    },
+    {
+      "file": "ai/matrix-helper-controls-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "e772f1519bb93645facaa0609ae4bb98275152328a27eee8747b65a81a51bf51"
+    },
+    {
+      "file": "ai/matrix-helper-controls-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "6e484e5f43dc1fb9cfbe36e0ccd7060797c6b47d8ba8d00fa82d867c014f69a2"
+    },
+    {
+      "file": "ai/matrix-ready-missing-desktop-dark.png",
+      "viewport": "desktop",
+      "theme": "dark",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "f2971f230d8c8daf6538719c43e544c91fe952ad61ffa43c2da5558ec962c9ec"
+    },
+    {
+      "file": "ai/matrix-ready-missing-desktop-light.png",
+      "viewport": "desktop",
+      "theme": "light",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "17d7bdcc1f047eea7310972bc0758a6f7826cabe9037b6b688f9274db194264c"
+    },
+    {
+      "file": "ai/matrix-ready-missing-mobile-dark.png",
+      "viewport": "mobile",
+      "theme": "dark",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "e86977faa01aa993fced986608d3df8b51cff3f24a8c20b87e36555eecab14a5"
+    },
+    {
+      "file": "ai/matrix-ready-missing-mobile-light.png",
+      "viewport": "mobile",
+      "theme": "light",
+      "evidence": "actual ChatGPT guide matrix",
+      "sha256": "c277fbf7bbb2f0f770634146900b7fe3a414ff3d571315bad1057f2d7a3ade9f"
+    }
+  ],
+  "privacy": "fictional fixture names and synthetic images only; no IDs, connection URLs, or credentials included",
+  "captureTreatment": {
+    "chatgptHelperControls": "Actual guide state and controls; the generated private host ID is replaced with [redacted] only in public evidence pixels.",
+    "keyboardFocus": "Skip-link focus was separately verified in the private focus receipt. Its transient focus overlay is suppressed only in the normal-state ChatGPT visual capture."
+  }
+}

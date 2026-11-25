@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import { resolve } from 'node:path';
 import test, { after, before } from 'node:test';
@@ -32,6 +33,7 @@ const transport = async (url: string, init: RequestInit): Promise<Response> => {
   seenAuthorization.push(new Headers(init.headers).get('authorization'));
   seenReasoningEfforts.push(body.reasoning_effort);
   if (transportHook) { const hook = transportHook; transportHook = undefined; await hook(); }
+  if(url==='https://api.anthropic.com/v1/messages')return new Response(JSON.stringify({id:'msg_synthetic',type:'message',role:'assistant',model:'claude-haiku-5-5-20261021',stop_reason:'end_turn',content:[{type:'text',text:'OK'}],usage:{input_tokens:6,cache_read_input_tokens:2,cache_creation_input_tokens:1,output_tokens:1}}),{status:200});
   if (url.endsWith('/chat/completions')) {
     if (transportMode === 'incomplete') return new Response(JSON.stringify({
       choices: [], usage: { prompt_tokens: 7, completion_tokens: 64 }
@@ -45,7 +47,7 @@ const transport = async (url: string, init: RequestInit): Promise<Response> => {
     status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, usage: { input_tokens: 7, output_tokens: 64 }
   }), { status: 200 });
   return new Response(JSON.stringify({
-    status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: 'OK' }] }],
+    status: 'completed', model:body.model,service_tier:'standard', output: [{ type: 'message', content: [{ type: 'output_text', text: 'OK' }] }],
     usage: { input_tokens: 6, output_tokens: 1 }
   }), { status: 200 });
 };
@@ -86,6 +88,17 @@ before(async () => {
   app = await buildApp({ aiKeyFile: keyFile, aiTransport: transport });
 });
 
+test('Anthropic provider configuration uses the existing encrypted admin record and logs actual usage on its own route',async()=>{
+  const f=await fixture();
+  const configured=await app.inject({method:'PATCH',url:`/api/v1/households/${f.householdId}/ai/settings`,headers:auth(f.adminToken,f.adminCsrf),payload:{enabled:true,provider:'anthropic',apiKey:'synthetic-anthropic-key-never-return-this',defaultModel:'claude-haiku-5-5',strongModel:'claude-sonnet-5-5',expectedRevision:0}});
+  assert.equal(configured.statusCode,200,configured.body);assert.equal(configured.json().provider,'anthropic');assert.equal(configured.json().activeRoute,'anthropic_api');assert.equal(configured.json().hasApiKey,true);assert.equal(configured.body.includes('synthetic-anthropic-key-never-return-this'),false);
+  const saved=(await pool.query<{api_key_ciphertext:string;revision:number}>('SELECT api_key_ciphertext,revision FROM ai_provider_configurations WHERE household_id=$1 AND provider=$2',[f.householdId,'anthropic'])).rows[0]!;assert.ok(saved.api_key_ciphertext);assert.equal(saved.revision,1);assert.equal(saved.api_key_ciphertext.includes('synthetic-anthropic-key-never-return-this'),false);
+  const testResult=await app.inject({method:'POST',url:`/api/v1/households/${f.householdId}/ai/test`,headers:auth(f.adminToken,f.adminCsrf),payload:{modelTier:'routine'}});assert.equal(testResult.statusCode,200,testResult.body);assert.equal(testResult.json().available,true);
+  assert.equal(seenModels.at(-1),'claude-haiku-5-5');assert.equal(seenAuthorization.at(-1),'Bearer synthetic-anthropic-key-never-return-this');
+  const usage=(await pool.query<{provider:string;route:string;requested_model:string;actual_model:string;input_tokens:number;cached_input_tokens:number;cache_write_tokens:number;output_tokens:number;actual_dispatch:boolean;rate_snapshot_id:string|null;api_equivalent_rate_snapshot_id:string|null}>('SELECT provider,route,requested_model,actual_model,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,actual_dispatch,rate_snapshot_id,api_equivalent_rate_snapshot_id FROM ai_usage_events WHERE household_id=$1 ORDER BY occurred_at DESC LIMIT 1',[f.householdId])).rows[0]!;
+  assert.deepEqual(usage,{provider:'anthropic',route:'anthropic_api',requested_model:'claude-haiku-5-5',actual_model:'claude-haiku-5-5-20261021',input_tokens:9,cached_input_tokens:2,cache_write_tokens:1,output_tokens:1,actual_dispatch:true,rate_snapshot_id:null,api_equivalent_rate_snapshot_id:null});
+});
+
 after(async () => {
   await app.close();
   await pool.end();
@@ -100,11 +113,13 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
 
   const initial = await app.inject({ method: 'GET', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: { cookie: cookie(f.adminToken) } });
   assert.equal(initial.statusCode, 200, initial.body);
+  assert.equal(initial.headers['cache-control'],'private, no-store');
   assert.equal(initial.json().revision, 0);
   assert.equal(initial.json().enabled, false);
   assert.equal(initial.json().defaultReasoningEffort, 'none');
   assert.equal(initial.json().strongReasoningEffort, 'medium');
-  assert.equal(initial.json().chatGptSubscription.status, 'unavailable');
+  assert.equal(initial.json().chatGptSubscription.status, 'not_configured');
+  assert.equal(initial.json().chatGptSubscription.feasibility, 'documented_preview');
 
   const callsBeforeDisabledExecution = seenModels.length;
   await assert.rejects(
@@ -164,8 +179,10 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   assert.equal(whileDisabled.json().available, true);
 
   const usage = await app.inject({ method: 'GET', url: `/api/v1/households/${f.householdId}/ai/usage`, headers: { cookie: cookie(f.adminToken) } });
-  assert.deepEqual(usage.json().summary, { requests: 5, successes: 3, failures: 2, inputTokens: 25, outputTokens: 67 });
-  assert.equal(usage.json().recent.some((row: { purpose: string; success: boolean }) => row.purpose === 'synthetic_plan' && row.success), true);
+  assert.equal(usage.statusCode,200,usage.body);
+  assert.equal(usage.headers['cache-control'],'private, no-store');
+  assert.deepEqual(usage.json().summary, { requests: 3, successes: 2, failures: 1, inputTokens: 19, outputTokens: 66,unknownUsageCount:0,preflightRejections:0,pendingAttempts:0,legacyUnknownAttempts:0 });
+  assert.equal(usage.json().recent.some((row: { purpose: string; success: boolean }) => row.purpose === 'connection_test' && row.success), true);
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM ai_usage_events WHERE household_id=$1', [f.otherHouseholdId])).rows[0].count, 0);
 
   transportHook = async () => {
@@ -238,6 +255,13 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   assert.equal(seenModels.at(-1),'local-strong','format repair must keep the selected strong model');
   assert.equal(seenReasoningEfforts.at(-1),'none','format repair must reserve output budget instead of producing a reasoning trace');
 
+  const preflightTransportCalls=seenModels.length;
+  const malformed=await aiAdmin.createTaskSession(f.householdId,{operation:'plan',purpose:'synthetic_preflight',input:'Synthetic',modelTier:'routine',sources:[]},'default',[{name:'synthetic.lookup',description:'Synthetic only',inputSchema:{type:'object',properties:{},additionalProperties:false}}]);
+  await assert.rejects(malformed.next([{callId:'not-pending',name:'synthetic.lookup',output:'{}'}]),(error:unknown)=>(error as {code?:string}).code==='AI_RESPONSE_INVALID');
+  malformed.close();
+  assert.equal(seenModels.length,preflightTransportCalls,'provider-local rejection must not be recorded as an HTTP dispatch');
+  assert.deepEqual((await pool.query(`SELECT actual_dispatch,outcome FROM ai_usage_events WHERE household_id=$1 AND purpose='synthetic_preflight'`,[f.householdId])).rows,[{actual_dispatch:false,outcome:'preflight_rejected'}]);
+
   const localKey = await app.inject({
     method: 'PATCH', url: `/api/v1/households/${f.householdId}/ai/settings`, headers: auth(f.adminToken, f.adminCsrf),
     payload: { apiKey: 'short-local-key', expectedRevision: 4 }
@@ -261,13 +285,20 @@ test('AI admin settings enforce auth, keep secrets server-side, test selected mo
   assert.equal(blockedEndpoint.statusCode, 422, blockedEndpoint.body);
   assert.equal(blockedEndpoint.json().error.code, 'AI_ENDPOINT_BLOCKED');
 
+  const routeRevision=(await pool.query<{revision:number}>('SELECT revision FROM ai_settings WHERE household_id=$1',[f.householdId])).rows[0]!.revision;
+  const staleSession=await aiAdmin.createTaskSession(f.householdId,{operation:'plan',purpose:'synthetic_execution_binding',input:'Synthetic',modelTier:'routine',sources:[]},'default',[],undefined,'analysis',{expectedProvider:'openai_compatible',expectedSettingsRevision:routeRevision});
+  await pool.query('UPDATE ai_settings SET revision=revision+1 WHERE household_id=$1',[f.householdId]);const callsBeforeStaleDispatch=seenModels.length;await assert.rejects(staleSession.next(),(error:unknown)=>(error as {code?:string}).code==='AI_CONFIGURATION_INVALID');staleSession.close();assert.equal(seenModels.length,callsBeforeStaleDispatch,'a queued stale route binding must be rejected before transport');assert.deepEqual((await pool.query(`SELECT actual_dispatch,outcome FROM ai_usage_events WHERE household_id=$1 AND purpose='synthetic_execution_binding'`,[f.householdId])).rows,[{actual_dispatch:false,outcome:'preflight_rejected'}]);
+  const owner=(await pool.query<{account_id:string;membership_id:string}>(`SELECT m.account_id,m.id membership_id FROM memberships m JOIN accounts a ON a.id=m.account_id WHERE m.household_id=$1 AND a.email_normalized='ai-admin@test.invalid'`,[f.householdId])).rows[0]!;const draftTask=(await pool.query<{id:string}>(`INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,tool_plan,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier) VALUES($1,$2,'Synthetic first preview','Interpret a synthetic source','https://example.invalid/source','["web.open"]',60,1,'18:00','default','routine') RETURNING id`,[f.householdId,owner.membership_id])).rows[0]!;const previewLease=randomUUID();await pool.query("UPDATE monitor_tasks SET lease_token=$2,lease_expires_at=clock_timestamp()+interval '1 minute' WHERE id=$1",[draftTask.id,previewLease]);const currentRevision=routeRevision+1;const preview=await aiAdmin.createTaskSession(f.householdId,{operation:'plan',purpose:'monitor_interpretation',input:'Synthetic',modelTier:'routine',sources:[]},'default',[],undefined,'analysis',{ownerAccountId:owner.account_id,ownerMembershipId:owner.membership_id,taskId:draftTask.id,taskLeaseToken:previewLease,taskRevision:1,category:'setup',expectedProvider:'openai_compatible',expectedSettingsRevision:currentRevision});assert.equal((await preview.next()).output,'OK','a first draft interpretation preview does not require recurring-task approval');preview.close();
+  const controller=new AbortController();const abortSession=await aiAdmin.createTaskSession(f.householdId,{operation:'plan',purpose:'synthetic_abort_during_authorization',input:'Synthetic',modelTier:'routine',sources:[]},'default',[],controller.signal,'analysis',{expectedProvider:'openai_compatible',expectedSettingsRevision:currentRevision});const lock=await pool.connect();await lock.query('BEGIN');await lock.query('SELECT household_id FROM ai_settings WHERE household_id=$1 FOR UPDATE',[f.householdId]);const callsBeforeAbort=seenModels.length;const aborted=abortSession.next();await new Promise((resolve)=>setTimeout(resolve,30));controller.abort();await lock.query('ROLLBACK');lock.release();await assert.rejects(aborted,(error:unknown)=>(error as {code?:string}).code==='AI_TIMEOUT');abortSession.close();assert.equal(seenModels.length,callsBeforeAbort,'an abort while final authorization waits must never reach transport');assert.deepEqual((await pool.query(`SELECT actual_dispatch,outcome FROM ai_usage_events WHERE household_id=$1 AND purpose='synthetic_abort_during_authorization'`,[f.householdId])).rows,[{actual_dispatch:false,outcome:'preflight_rejected'}]);
+
   const usageBeforeLargeTotals = await app.inject({
     method: 'GET', url: `/api/v1/households/${f.householdId}/ai/usage`, headers: { cookie: cookie(f.adminToken) }
   });
+  const ownerAccountId=(await pool.query<{id:string}>(`SELECT id FROM accounts WHERE email_normalized='ai-admin@test.invalid'`)).rows[0]!.id;
   await pool.query(`INSERT INTO ai_usage_events(
-    household_id,provider,model,operation,purpose,success,input_tokens,output_tokens
-  ) VALUES ($1,'openai_compatible','synthetic-large-counter','generate','synthetic_counter',true,2000000000,0),
-           ($1,'openai_compatible','synthetic-large-counter','generate','synthetic_counter',true,2000000000,0)`, [f.householdId]);
+    household_id,provider,model,operation,purpose,success,input_tokens,output_tokens,owner_account_id,actual_dispatch,outcome,route,category
+  ) VALUES ($1,'openai_compatible','synthetic-large-counter','generate','synthetic_counter',true,2000000000,0,$2,true,'completed','local','normal'),
+           ($1,'openai_compatible','synthetic-large-counter','generate','synthetic_counter',true,2000000000,0,$2,true,'completed','local','normal')`, [f.householdId,ownerAccountId]);
   const usageAfterLargeTotals = await app.inject({
     method: 'GET', url: `/api/v1/households/${f.householdId}/ai/usage`, headers: { cookie: cookie(f.adminToken) }
   });
@@ -311,3 +342,59 @@ test('reasoning migration preserves existing provider configuration and adds onl
     client.release();
   }
 });
+
+test('usage accounting keeps exact token categories, historical rates, owner isolation and zero calendar days',async()=>{
+  const f=await fixture();const owner=(await pool.query<{id:string}>(`SELECT id FROM accounts WHERE email_normalized='ai-admin@test.invalid'`)).rows[0]!.id;const other=(await pool.query<{id:string}>(`SELECT id FROM accounts WHERE email_normalized='ai-member@test.invalid'`)).rows[0]!.id;const snapshot=(await pool.query<{id:string}>(`SELECT id FROM ai_rate_snapshots WHERE route='chatgpt_plan' AND model='gpt-6.1-sol' AND context_variant='standard'`)).rows[0]!.id;const apiSnapshot=(await pool.query<{id:string}>(`SELECT id FROM ai_rate_snapshots WHERE route='openai_api' AND model='gpt-6.1-sol' AND context_variant='standard' AND service_tier='standard'`)).rows[0]!.id;
+  await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,requested_model,actual_model,operation,purpose,success,failure_code,owner_account_id,actual_dispatch,outcome,route,category,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,reasoning_tokens,rate_snapshot_id,api_equivalent_rate_snapshot_id,api_equivalent_assumption) VALUES
+    ($1,'chatgpt_subscription','gpt-6.1-sol','configured-alias','gpt-6.1-sol','plan','normal_usage',true,NULL,$2,true,'completed','chatgpt_plan','normal',1000,100,50,200,150,$4,$5,'standard_tier_no_region_exact_model'),
+    ($1,'chatgpt_subscription','configured-alias','configured-alias',NULL,'plan','unknown_usage',false,'AI_STREAM_INTERRUPTED',$2,true,'interrupted','chatgpt_plan','normal',NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol','gpt-6.1-sol','plan','foreign_usage',true,NULL,$3,true,'completed','chatgpt_plan','normal',999999,0,0,0,0,$4,NULL,NULL)`,[f.householdId,owner,other,snapshot,apiSnapshot]);
+  const usage=await aiAdmin.usage(f.householdId,7,owner) as any;assert.equal(usage.byDay.length,7);assert.equal(usage.byDay.filter((day:any)=>day.calls===0).length,6);assert.equal(usage.summary.requests,2);assert.equal(usage.summary.unknownUsageCount,1);assert.equal(usage.summary.inputTokens,1000);assert.equal(usage.summary.outputTokens,200);assert.equal(usage.chatGptCredits.estimatedCredits,'0.09525000','reasoning tokens are already a subset of output and must not be charged twice');assert.equal(usage.apiEquivalent.amount,'0.00383500');assert.equal(usage.apiEquivalent.scenarioOnly,true);assert.equal(usage.chatGptCredits.pricePerCredit,null);assert.equal(usage.forecast.chatGptCredits.status,'preliminary');assert.equal(usage.recent.find((row:any)=>row.purpose==='normal_usage').actualModel,'gpt-6.1-sol');
+  await pool.query(`INSERT INTO ai_rate_snapshots(route,model,context_variant,context_threshold_tokens,service_tier,unit,input_rate,cached_input_rate,cache_write_rate,output_rate,effective_from,observed_at,source_url) VALUES('openai_api','gpt-6.1-sol','standard',272000,'standard','USD_PER_MILLION_TOKENS',999,999,999,999,NULL,'2031-01-01T00:00:00Z','https://developers.openai.com/api/docs/pricing') ON CONFLICT DO NOTHING`);const unchanged=await aiAdmin.usage(f.householdId,7,owner) as any;assert.equal(unchanged.apiEquivalent.amount,'0.00383500','a later rate observation must not reprice historical attempts');await assert.rejects(()=>pool.query(`UPDATE ai_rate_snapshots SET input_rate=1 WHERE id=$1`,[apiSnapshot]),/append-only/);await aiAdmin.updateSettings(f.householdId,{enabled:true,provider:'openai',apiKey:'syntheticApiKeyOnlyForHistoricalRateTest',defaultModel:'gpt-6.1-sol',strongModel:'gpt-6.1-sol',expectedRevision:0});await aiAdmin.executeTask(f.householdId,{operation:'generate',purpose:'historical_snapshot_binding',input:'Synthetic',modelTier:'routine',sources:[]});const pinned=(await pool.query<{rate_snapshot_id:string|null}>(`SELECT rate_snapshot_id FROM ai_usage_events WHERE household_id=$1 AND purpose='historical_snapshot_binding'`,[f.householdId])).rows[0];assert.equal(pinned?.rate_snapshot_id,apiSnapshot,'an unknown-effective-date rate observed after the attempt cannot bind retroactively');
+});
+
+test('usage pricing requires a compatible snapshot and unresolved dispatch keeps forecasts preliminary',async()=>{
+  const f=await fixture();
+  const owner=(await pool.query<{id:string}>(`SELECT id FROM accounts WHERE email_normalized='ai-admin@test.invalid'`)).rows[0]!.id;
+  const other=(await pool.query<{id:string}>(`SELECT id FROM accounts WHERE email_normalized='ai-member@test.invalid'`)).rows[0]!.id;
+  const validPlan=(await pool.query<{id:string}>(`SELECT id FROM ai_rate_snapshots WHERE route='chatgpt_plan' AND model='gpt-6.1-sol' AND context_variant='standard' AND unit='CREDITS_PER_MILLION_TOKENS' ORDER BY observed_at LIMIT 1`)).rows[0]!.id;
+  const zeroModel=`synthetic-zero-rate-${randomUUID()}`;
+  const zeroPlan=(await pool.query<{id:string}>(`INSERT INTO ai_rate_snapshots(route,model,context_variant,service_tier,unit,input_rate,cached_input_rate,cache_write_rate,output_rate,effective_from,observed_at,source_url) VALUES('chatgpt_plan',$1,'standard',NULL,'CREDITS_PER_MILLION_TOKENS',0,0,0,0,CURRENT_DATE-interval '10 days',CURRENT_DATE-interval '10 days','https://learn.chatgpt.com/docs/pricing') RETURNING id`,[zeroModel])).rows[0]!.id;
+  await assert.rejects(pool.query(`INSERT INTO ai_rate_snapshots(route,model,context_variant,service_tier,unit,input_rate,cached_input_rate,cache_write_rate,output_rate,effective_from,observed_at,source_url) VALUES('chatgpt_plan','synthetic-negative-rate','standard',NULL,'CREDITS_PER_MILLION_TOKENS',-1,0,0,0,CURRENT_DATE,clock_timestamp(),'https://learn.chatgpt.com/docs/pricing')`),/ai_rate_snapshots_nonnegative_rates/);
+  await assert.rejects(pool.query(`INSERT INTO ai_rate_snapshots(route,model,context_variant,service_tier,unit,input_rate,cached_input_rate,cache_write_rate,output_rate,effective_from,observed_at,source_url) VALUES('chatgpt_plan','synthetic-nan-rejected','standard',NULL,'CREDITS_PER_MILLION_TOKENS','NaN'::numeric,0,0,0,CURRENT_DATE,clock_timestamp(),'https://learn.chatgpt.com/docs/pricing')`),/ai_rate_snapshots_nonnegative_rates/);
+  const nanModel=`synthetic-legacy-nan-${randomUUID()}`;
+  await pool.query('ALTER TABLE ai_rate_snapshots DROP CONSTRAINT ai_rate_snapshots_nonnegative_rates');
+  let nanPlan!:string;
+  try{
+    nanPlan=(await pool.query<{id:string}>(`INSERT INTO ai_rate_snapshots(route,model,context_variant,service_tier,unit,input_rate,cached_input_rate,cache_write_rate,output_rate,effective_from,observed_at,source_url) VALUES('chatgpt_plan',$1,'standard',NULL,'CREDITS_PER_MILLION_TOKENS','NaN'::numeric,0,0,0,CURRENT_DATE-interval '10 days',CURRENT_DATE-interval '10 days','https://learn.chatgpt.com/docs/pricing') RETURNING id`,[nanModel])).rows[0]!.id;
+  }finally{
+    await pool.query(`ALTER TABLE ai_rate_snapshots ADD CONSTRAINT ai_rate_snapshots_nonnegative_rates CHECK (input_rate>=0 AND input_rate<>'NaN'::numeric AND cached_input_rate>=0 AND cached_input_rate<>'NaN'::numeric AND cache_write_rate>=0 AND cache_write_rate<>'NaN'::numeric AND output_rate>=0 AND output_rate<>'NaN'::numeric) NOT VALID`);
+  }
+  await pool.query(`INSERT INTO ai_settings(household_id,usage_tracking_started_at) VALUES($1,CURRENT_DATE-interval '10 days')`,[f.householdId]);
+  await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,requested_model,actual_model,operation,purpose,success,failure_code,owner_account_id,actual_dispatch,outcome,route,category,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,rate_snapshot_id,occurred_at) VALUES
+    ($1,'chatgpt_subscription','unknown-model','unknown-model','unknown-model','generate','missing_snapshot',true,NULL,$2,true,'completed','chatgpt_plan','normal',1000,0,0,200,NULL,CURRENT_DATE-interval '2 days'),
+    ($1,'chatgpt_subscription','wrong-model','wrong-model','wrong-model','generate','mismatched_snapshot',true,NULL,$2,true,'completed','chatgpt_plan','normal',1000,0,0,200,$3,CURRENT_DATE-interval '2 days'),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol','gpt-6.1-sol','generate','known_call',true,NULL,$2,true,'completed','chatgpt_plan','normal',1000,0,0,200,$3,CURRENT_DATE-interval '2 days'),
+    ($1,'chatgpt_subscription',$5,$5,$5,'generate','known_zero_rate',true,NULL,$2,true,'completed','chatgpt_plan','normal',0,0,0,0,$4,CURRENT_DATE-interval '2 days'),
+    ($1,'chatgpt_subscription',$7,$7,$7,'generate','legacy_nan_rate',true,NULL,$2,true,'completed','chatgpt_plan','normal',1000,0,0,200,$6,CURRENT_DATE-interval '2 days'),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol',NULL,'generate','unresolved_started',false,NULL,$2,NULL,'started','chatgpt_plan','normal',NULL,NULL,NULL,NULL,NULL,CURRENT_DATE-interval '3 days'),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol',NULL,'generate','legacy_null_route',false,NULL,$2,NULL,NULL,NULL,'normal',NULL,NULL,NULL,NULL,NULL,CURRENT_DATE-interval '3 days'),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol',NULL,'generate','other_owner_legacy_null_route',false,NULL,$8,NULL,NULL,NULL,'normal',NULL,NULL,NULL,NULL,NULL,CURRENT_DATE-interval '3 days'),
+    ($1,'openai_compatible','local','local',NULL,'generate','local_legacy_null_route',false,NULL,$2,NULL,NULL,NULL,'normal',NULL,NULL,NULL,NULL,NULL,CURRENT_DATE-interval '3 days'),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol',NULL,'generate','test_legacy_null_route',false,NULL,$2,NULL,NULL,NULL,'test',NULL,NULL,NULL,NULL,NULL,CURRENT_DATE-interval '3 days'),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol',NULL,'generate','old_legacy_null_route',false,NULL,$2,NULL,NULL,NULL,'normal',NULL,NULL,NULL,NULL,NULL,CURRENT_DATE-interval '10 days'),
+    ($1,'chatgpt_subscription','gpt-6.1-sol','gpt-6.1-sol',NULL,'generate','known_preflight',false,'AI_DISABLED',$2,false,'preflight_rejected','chatgpt_plan','normal',NULL,NULL,NULL,NULL,NULL,CURRENT_DATE-interval '3 days')`,[f.householdId,owner,validPlan,zeroPlan,zeroModel,nanPlan,nanModel,other]);
+  const usage=await aiAdmin.usage(f.householdId,30,owner) as any;
+  assert.equal(usage.chatGptCredits.knownCalls,2,'only model-compatible, unit-compatible snapshots are priced, including valid zero rates');
+  assert.equal(usage.chatGptCredits.unknownPricedAttempts,6,'the selected 30-day view keeps missing, mismatched and non-finite prices plus relevant unresolved dispatch unknown');
+  assert.notEqual(usage.chatGptCredits.estimatedCredits,'NaN');
+  assert.equal(usage.forecast.chatGptCredits.status,'preliminary');
+  assert.equal(usage.forecast.chatGptCredits.reason,'unresolved_dispatch');
+  assert.equal(usage.forecast.chatGptCredits.totalCalls,7,'confirmed calls and same-owner explicit or legacy plan uncertainty are represented');
+  assert.equal(usage.forecast.chatGptCredits.knownCalls,2);
+  assert.equal(usage.forecast.apiUsd.totalCalls,7,'the API-equivalent scenario retains the same plan-call uncertainty set');
+  assert.equal(usage.forecast.apiUsd.reason,'unresolved_dispatch');
+  assert.equal(usage.summary.preflightRejections,1,'known preflight rejection is excluded from possible provider charges');
+});
+
+test('API-only forecast is independent and nullable cache categories never become invented zeroes',async()=>{const f=await fixture();const owner=(await pool.query<{id:string}>(`SELECT id FROM accounts WHERE email_normalized='ai-admin@test.invalid'`)).rows[0]!.id;const apiSnapshot=(await pool.query<{id:string}>(`SELECT id FROM ai_rate_snapshots WHERE route='openai_api' AND model='gpt-6.1-sol' AND context_variant='standard' AND service_tier='standard' ORDER BY observed_at LIMIT 1`)).rows[0]!.id;await pool.query(`INSERT INTO ai_settings(household_id,usage_tracking_started_at) VALUES($1,CURRENT_DATE-interval '10 days')`,[f.householdId]);await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,requested_model,actual_model,actual_service_tier,operation,purpose,success,owner_account_id,actual_dispatch,outcome,route,category,input_tokens,cached_input_tokens,cache_write_tokens,output_tokens,rate_snapshot_id,occurred_at) VALUES($1,'openai','alias','alias','gpt-6.1-sol','standard','generate','api_normal',true,$2,true,'completed','openai_api','normal',1000,100,50,200,$3,CURRENT_DATE-interval '2 days'),($1,'openai','alias','alias','gpt-6.1-sol','standard','generate','api_unknown_cache',true,$2,true,'completed','openai_api','normal',1000,NULL,50,200,$3,CURRENT_DATE-interval '2 days'),($1,'openai_compatible','local','local','local','local','generate','local_normal',true,$2,true,'completed','local','normal',1000,0,0,200,NULL,CURRENT_DATE-interval '2 days')`,[f.householdId,owner,apiSnapshot]);const usage=await aiAdmin.usage(f.householdId,30,owner) as any;assert.equal(usage.forecast.chatGptCredits.reason,'insufficient_history');assert.equal(usage.forecast.apiUsd.status,'preliminary');assert.equal(usage.forecast.apiUsd.reason,'unknown_pricing');assert.equal(usage.forecast.apiUsd.totalCalls,2,'local model calls must not enter the API scenario');assert.equal(usage.forecast.apiUsd.knownCalls,1);assert.equal(usage.apiEquivalent.unknownPricedAttempts,1);await pool.query(`UPDATE ai_usage_events SET cached_input_tokens=0 WHERE household_id=$1 AND purpose='api_unknown_cache'`,[f.householdId]);const complete=await aiAdmin.usage(f.householdId,30,owner) as any;assert.equal(complete.forecast.chatGptCredits.reason,'insufficient_history');assert.equal(complete.forecast.apiUsd.status,'available','an API-only household gets an independent forecast after every API event is priceable');assert.equal(complete.forecast.apiUsd.monthlyAmount,'0.03368571');await pool.query(`INSERT INTO ai_usage_events(household_id,provider,model,operation,purpose,success,owner_account_id,actual_dispatch,outcome,route,category,occurred_at) VALUES($1,'openai_compatible','local','generate','older_than_seven_days',true,$2,true,'completed','local','normal',CURRENT_DATE-interval '20 days')`,[f.householdId,owner]);assert.equal((await aiAdmin.usage(f.householdId,7,owner) as any).recent.some((event:any)=>event.purpose==='older_than_seven_days'),false);assert.equal((await aiAdmin.usage(f.householdId,30,owner) as any).recent.some((event:any)=>event.purpose==='older_than_seven_days'),true);});

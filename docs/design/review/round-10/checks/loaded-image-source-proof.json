@@ -1,0 +1,10 @@
+{
+  "all231SourceInputsMatch": true,
+  "inputCount": 231,
+  "reviewArtifactsExcluded": true,
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "liveContainerIdsAndImagesUnchanged": true,
+  "liveAllThreeHealthy": true,
+  "remoteAvailableAfterLoadBytes": 403857408,
+  "remainingClonePlusMarginRequiredBytes": 384964861
+}

@@ -1,0 +1,95 @@
+{
+  "sourceSha": "1a10e7702b7c290dfb437a0a340072a9b0fa8f7a",
+  "actualUi": true,
+  "isolatedDatabase": "samvev_calendar_ha_final@test-db",
+  "providerTransport": "injected synthetic only",
+  "liveProviderVerification": false,
+  "screenshots": [
+    {
+      "filename": "admin-google-configured-nb-light.png",
+      "sha256": "0c4e0a6fc6200cf32b3701a8a2a26fd78679f2e45bf78b4af1ab785ff2c16009",
+      "surface": "admin",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "microsoft-preview-events-nb-light.png",
+      "sha256": "2d108fa7472277adf69b654b6edb7c82906474066d020d9939eea0b813156897",
+      "surface": "microsoft-preview-events",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "spond-ha-preview-events-nb-light.png",
+      "sha256": "593a35b38e55791ad7088ceb77f23fa0e046995f6f19613539e2bb03a4a23e07",
+      "surface": "spond-ha-preview-events",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "six-people-home-nb-light.png",
+      "sha256": "7a4fb431c238e784925773c377143ffda0169f0585811e9b452562a941ef2517",
+      "surface": "home",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "calendar-mobile-en-dark.png",
+      "sha256": "1be0187561c455b51270f8416f3fa44b2bd74b6ece2cd6b66c65e8a686d685b9",
+      "surface": "integrations",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "calendar-ipad-nb-dark.png",
+      "sha256": "7bd01232a29cdac8d52809bd43a266240ada786dc0a5f357310717e2e5cdafb3",
+      "surface": "integrations",
+      "locale": "nb",
+      "theme": "dark",
+      "viewport": {
+        "width": 1024,
+        "height": 1366
+      }
+    },
+    {
+      "filename": "calendar-shelly-en-light.png",
+      "sha256": "cda10b8b6e9762343717a3d90556dc49df110cad2beb19c779cde808136a5464",
+      "surface": "integrations",
+      "locale": "en",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      }
+    }
+  ],
+  "flows": [
+    "administrator Google web-file import",
+    "administrator Microsoft manual registration",
+    "Google browser OAuth staged completion",
+    "Home Assistant Spond browser OAuth staged completion",
+    "source preview activation and zero-source rediscovery",
+    "NB/EN responsive axe"
+  ],
+  "allPass": true
+}

@@ -1,10 +1,15 @@
-import { useMemo, useState } from "react";
+import { PersonTasks } from "./person-tasks";
+import { PhotoEditor } from "./profile-photo";
+import { personAccent, personColorToken } from "./person-identity";
+import { avatarImages, avatarLabels } from "./avatars";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
 import { ageOnDate, initialDisplayGrants, loginPresentation } from "./person-policy";
 import type { Display, HouseholdSettings, Membership, Person } from "./types";
 import type { TranslationKey } from "./locales/en";
 import { Avatar, Check, Dialog, ErrorNotice, Field, Icon, Submit, useAction, useI18n } from "./ui";
 import { PASSWORD_MAX_LENGTH, validateNewPasswordInput } from "./password-policy";
+import { personColorTokens } from "@samvev/contracts";
 
 const caps: Record<string, TranslationKey> = {
   "household.view": "viewHousehold", "message.create.household": "createMessages",
@@ -30,8 +35,10 @@ function todayInTimezone(timeZone: string): string {
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
-export function PeoplePanel({ people, displays, member, householdSettings, refresh }: { people: Person[]; displays: Display[]; member: Membership; householdSettings: HouseholdSettings | null; refresh: () => Promise<void> }) {
+export function PeoplePanel({ people, displays, member, householdSettings, refresh,onOpenTask,onNewTask }: { people: Person[]; displays: Display[]; member: Membership; householdSettings: HouseholdSettings | null; refresh: () => Promise<void>;onOpenTask?:(id:string)=>void;onNewTask?:(id:string)=>void }) {
   const { t, locale } = useI18n();
+  const [taskPerson,setTaskPerson]=useState<Person>();
+  const [photoPerson,setPhotoPerson]=useState<Person>();
   const [editing, setEditing] = useState<Person | null | undefined>(undefined);
   return <>
     <section className="section-heading"><div><p className="eyebrow">{t("people")}</p><h1>{t("peopleTitle")}</h1><p>{t("peopleBody")}</p></div>
@@ -40,17 +47,22 @@ export function PeoplePanel({ people, displays, member, householdSettings, refre
     {member.capabilities.includes("household.manage") && householdSettings && <BirthdaySetting settings={householdSettings} householdId={member.household_id} refresh={refresh} />}
     <div className="person-grid">{people.map((person, index) => {
       const login = loginPresentation(person);
-      return <article className="person-card" key={person.id}>
-        <Avatar name={person.display_name} index={index} /><h2>{person.display_name}</h2>
+      return <article className="person-card" data-accent={personAccent(person.id,person.avatarKey)} data-color-token={personColorToken(person.id,person.colorToken,person.avatarKey)} data-person-id={person.id} key={person.id}>
+        <Avatar name={person.display_name} index={index} personId={person.id} colorToken={person.colorToken} avatarKey={person.avatarKey} photo={person.photo}/><h2>{person.display_name}</h2>
         <p>{t(person.role_preset as TranslationKey)}</p>
         <span className={`person-login ${person.account_status ?? "profile"}`}><Icon name={login.icon} />{t(login.label)}</span>
         {member.capabilities.includes("people.manage") && person.birth_date && <p className="person-birth-date">{t("bornWithAge", { date: new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${person.birth_date}T12:00:00Z`)), age: person.calculated_age ?? "" })}</p>}
         {member.capabilities.includes("account.manage") && person.email && <p className="person-email">{person.email}</p>}
         {member.capabilities.includes("people.manage") && <details className="permission-summary"><summary>{t("capabilityPreview")}</summary><ul className="permission-list">{person.capabilities.map((cap) => <li key={cap}><Icon name="check" size={14} />{t(caps[cap]!)}</li>)}</ul></details>}
         {member.capabilities.includes("people.manage") && <button className="button" onClick={() => setEditing(person)}>{t("editPerson")}</button>}
+        {(member.person_id===person.id||member.capabilities.includes("people.manage"))&&<button className="button" onClick={()=>setPhotoPerson(person)}>{t("photoEdit")}</button>}
+        {onOpenTask&&<PersonTasks householdId={member.household_id} personId={person.id} timezone={member.timezone} onOpen={onOpenTask} compact onViewDetails={()=>setTaskPerson(person)}/>}
+        {onNewTask&&<button className="button" onClick={()=>onNewTask(person.id)}>{t("monitorNew")}</button>}
       </article>;
     })}</div>
-    {editing !== undefined && <PersonEditor person={editing} displays={displays} member={member} onClose={() => setEditing(undefined)} onSaved={refresh} />}
+    {taskPerson&&onOpenTask&&<Dialog title={taskPerson.display_name} onClose={()=>setTaskPerson(undefined)}><PersonTasks householdId={member.household_id} personId={taskPerson.id} timezone={member.timezone} onOpen={id=>{setTaskPerson(undefined);onOpenTask(id)}} onNew={onNewTask?personId=>{setTaskPerson(undefined);onNewTask(personId)}:undefined}/></Dialog>}
+    {photoPerson&&<PhotoEditor person={photoPerson} householdId={member.household_id} onClose={()=>setPhotoPerson(undefined)} onSaved={refresh}/>}
+    {editing !== undefined && <PersonEditor person={editing?people.find(person=>person.id===editing.id)??editing:editing} displays={displays} member={member} onClose={() => setEditing(undefined)} onSaved={refresh} />}
   </>;
 }
 
@@ -62,7 +74,12 @@ function BirthdaySetting({ settings, householdId, refresh }: { settings: Househo
 function PersonEditor({ person, displays, member, onClose, onSaved }: { person: Person | null; displays: Display[]; member: Membership; onClose: () => void; onSaved: () => Promise<void> }) {
   const { t } = useI18n();
   const { busy, error, run } = useAction();
+  const [editingPhoto,setEditingPhoto]=useState(false);
+  const photoReturnFocus=useRef(false),photoButton=useRef<HTMLButtonElement>(null);
+  useEffect(()=>{if(!editingPhoto&&photoReturnFocus.current){photoReturnFocus.current=false;const frame=requestAnimationFrame(()=>photoButton.current?.focus());return()=>cancelAnimationFrame(frame)}},[editingPhoto]);
   const [name, setName] = useState(person?.display_name ?? "");
+  const [avatarKey, setAvatarKey] = useState<string | null>(person?.avatarKey ?? null);
+  const [colorToken,setColorToken]=useState<(typeof personColorTokens)[number]>(personColorToken(person?.id,person?.colorToken,person?.avatarKey));
   const [birthDate, setBirthDate] = useState(person?.birth_date ?? "");
   const [ageGroup, setAgeGroup] = useState(person?.age_group ?? "unspecified");
   const [role, setRole] = useState(person?.role_preset ?? "member");
@@ -81,14 +98,18 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
   const needsOwnerConfirmation = role === "installation_admin" && (!person || person.role_preset !== "installation_admin");
   const canManageAccount = member.capabilities.includes("account.manage");
   const canAssignOwner = member.capabilities.includes("installation.manage");
+  const canAssignHouseholdAdmin = member.capabilities.includes("household.manage");
   const capabilitiesChanged = person ? role !== person.role_preset || JSON.stringify([...permissions].sort()) !== JSON.stringify([...person.capabilities].sort()) || JSON.stringify([...displayIds].sort()) !== JSON.stringify([...person.display_ids].sort()) : true;
 
   const chooseRole = (next: string) => {
+    if ((next === "household_admin" && !canAssignHouseholdAdmin) || (next === "installation_admin" && !canAssignOwner)) return;
     setRole(next); setPermissions(roleCapabilities(next, member.capabilities)); setOwnerConfirmed(false);
     if (["household_admin", "installation_admin"].includes(next) && !login) setLogin(true);
   };
   const loginPayload = { email, loginMethod, ...(loginMethod === "password" ? { password } : {}), locale: member.household_locale, theme: "system" };
   const ownerConfirmation = needsOwnerConfirmation ? { confirmInstallationOwner: ownerConfirmed } : {};
+
+  if(editingPhoto&&person)return <PhotoEditor person={person} householdId={member.household_id} onSaved={onSaved} onClose={()=>{photoReturnFocus.current=true;setEditingPhoto(false)}}/>;
 
   if (invitationToken) {
     const inviteUrl = `${location.origin}/invitation#token=${invitationToken}`;
@@ -97,16 +118,16 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
 
   return <Dialog title={t(person ? "editPerson" : "addPerson")} onClose={onClose}>
     <form className="form-stack person-editor" onSubmit={(event) => { event.preventDefault(); void run(async () => {
-      const personChanged = person && (name !== person.display_name || birthDate !== (person.birth_date ?? "") || ageGroup !== person.age_group);
+      const personChanged = person && (name !== person.display_name || birthDate !== (person.birth_date ?? "") || ageGroup !== person.age_group || avatarKey !== (person.avatarKey ?? null) || colorToken !== personColorToken(person.id,person.colorToken,person.avatarKey));
       if (!person) {
         const created = await api<{ invitationToken: string | null }>(`/households/${member.household_id}/people`, "POST", {
-          displayName: name, birthDate: birthDate || null, ageGroup, rolePreset: role, capabilities: permissions, displayIds,
+          displayName: name, avatarKey, birthDate: birthDate || null, ageGroup, rolePreset: role, capabilities: permissions, displayIds,
           ...(login ? { login: loginPayload } : {}), ...ownerConfirmation,
         });
         await onSaved();
         if (created.invitationToken) { setInvitationToken(created.invitationToken); return; }
       } else {
-        if (personChanged) await api(`/households/${member.household_id}/people/${person.id}`, "PATCH", { displayName: name, birthDate: birthDate || null, ageGroup, expectedRevision: person.person_revision! });
+        if (personChanged) await api(`/households/${member.household_id}/people/${person.id}`, "PATCH", { displayName: name, avatarKey, colorToken, birthDate: birthDate || null, ageGroup, expectedRevision: person.person_revision! });
         if (!person.has_login && login) {
           const created = await api<{ invitationToken: string | null }>(`/households/${member.household_id}/memberships/${person.membership_id}/account`, "POST", { login: loginPayload, rolePreset: role, capabilities: permissions, displayIds, expectedRevision: person.revision, ...ownerConfirmation });
           await onSaved();
@@ -121,14 +142,16 @@ function PersonEditor({ person, displays, member, onClose, onSaved }: { person: 
       }
       onClose();
     }); }}>
-      <section className="editor-section"><h3>{t("personDetails")}</h3>
+      <section className="editor-section"><h3>{t("personDetails")}</h3>{person&&<button type="button" className="button" ref={photoButton} onClick={()=>setEditingPhoto(true)}>{t("photoEdit")}</button>}
         <Field label={t("personName")}><input value={name} onChange={(event) => setName(event.target.value)} required maxLength={80} autoFocus /></Field>
+        <fieldset className="avatar-picker"><legend>{t("avatarChoose")}</legend><p className="field-hint">{t("avatarChooseHint")}</p><div className="avatar-options">{[null,...Object.keys(avatarImages)].map((key,index)=><label key={key??"initials"} className={avatarKey===key?"selected":""}><input type="radio" name="person-avatar" checked={avatarKey===key} onChange={()=>setAvatarKey(key)}/><Avatar name={name} personId={person?.id} colorToken={colorToken} avatarKey={key}/><span>{t(index===0?"avatarInitials":avatarLabels[index-1]!)}</span></label>)}</div></fieldset>
+        {person&&<fieldset className="person-color-picker"><legend>{t("personColorLabel")}</legend><div className="person-color-options">{personColorTokens.map(token=><label key={token} className={colorToken===token?"selected":""} data-color-token={token}><input type="radio" name="person-color" value={token} checked={colorToken===token} onChange={()=>setColorToken(token)}/><span className="person-color-swatch" aria-hidden="true"/><span>{t(`personColor_${token}` as TranslationKey)}</span></label>)}</div></fieldset>}
         <div className="form-grid"><Field label={t("birthDate")} hint={t("birthDateHint")}><input type="date" value={birthDate} max={householdToday} min="1900-01-01" onChange={(event) => { const value=event.target.value; setBirthDate(value); if(value){const age=ageOnDate(value,householdToday);setAgeGroup(age>=18?"adult":age>=13?"teen":"child");} }} /></Field>
           <Field label={t("ageGroup")} hint={t("ageGroupHint")}><select value={ageGroup} onChange={(event) => setAgeGroup(event.target.value)}>{(["unspecified", "adult", "teen", "child"] as const).map((value) => <option key={value} value={value}>{t(value)}</option>)}</select></Field></div>
         {calculatedAge !== null && <p className="calculated-age" aria-live="polite">{t("calculatedAge", { age: calculatedAge })}</p>}
       </section>
       <section className="editor-section"><h3>{t("roleAndAccess")}</h3>
-        <Field label={t("role")}><select value={role} onChange={(event) => chooseRole(event.target.value)}>{["member", "limited", "household_admin", ...(canAssignOwner ? ["installation_admin"] : [])].map((value) => <option key={value} value={value}>{t(value as TranslationKey)}</option>)}</select></Field>
+        <Field label={t("role")}><select value={role} onChange={(event) => chooseRole(event.target.value)}>{["member", "limited", "household_admin", ...(canAssignOwner ? ["installation_admin"] : [])].map((value) => <option key={value} value={value} disabled={value === "household_admin" && !canAssignHouseholdAdmin}>{t(value as TranslationKey)}</option>)}</select></Field>
         {canManageAccount && !person?.has_login && <><Check label={t("withLogin")} checked={login} disabled={adminRole} onChange={setLogin} />{adminRole && <p className="field-hint">{t("adminLoginRequired")}</p>}</>}
         {login && !person?.has_login && <div className="account-setup"><Field label={t("email")}><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required maxLength={254} autoComplete="off" /></Field>
           <fieldset><legend>{t("loginSetup")}</legend><label className="radio-row"><input name="loginMethod" type="radio" checked={loginMethod === "invitation"} onChange={() => setLoginMethod("invitation")} />{t("sendInvitation")}</label><label className="radio-row"><input name="loginMethod" type="radio" checked={loginMethod === "password"} onChange={() => setLoginMethod("password")} />{t("setPasswordNow")}</label></fieldset>

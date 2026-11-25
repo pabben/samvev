@@ -1,0 +1,126 @@
+{
+  "title": "Round 13 supplemental Home visual evidence",
+  "createdAt": "2026-10-16T06:26:55.224999+00:00",
+  "captureTime": null,
+  "captureTimeNote": "The source snapshot does not record the screenshot capture timestamp.",
+  "canonicalCapture": false,
+  "sourceSnapshot": {
+    "baseCommit": "bb7255ccc023ef1f474f1c2632fb05e3718f93c1",
+    "runtimeEquivalentCommit": "943bd63c3a2eb23b938ad339a77fbe0546119ac5",
+    "runtimeFilesCompared": 256,
+    "uncommittedOverlayPresent": true,
+    "uncommittedOverlayPathCount": 14,
+    "privateSnapshotRecordSha256": "f8495a98be92b198f2c84a4538a3b334125234c1e294aace6aad808dd26e6ae1"
+  },
+  "layoutReview": {
+    "privateBoundsRecordSha256": "17b770136835a7b835f111621eb8fa3c8d6e44b92cd52ca11105c5f5fd7df2b7",
+    "syntheticOnly": true,
+    "temporaryCssInjection": false,
+    "screenshotsReviewed": 7
+  },
+  "reviewRecord": {
+    "status": "bounded_frontend_checks_pass_full_release_pending",
+    "screenshotsReviewed": 7,
+    "browserExit": 0,
+    "lifecycleExit": 0,
+    "unitTests": 117,
+    "canonicalCapture": false,
+    "publicDeployment": "unchanged R12",
+    "privateReviewRecordSha256": "2a112eae8e69484a398e993d877b5b9b0b592bfe1eb6792ffcb00edee6fe6bdf"
+  },
+  "fixture": {
+    "syntheticOnly": true,
+    "fictionalPersonCount": 6,
+    "privateHouseholdOrCredentialDataIncluded": false
+  },
+  "limitations": [
+    "Captured from an earlier noncanonical integration snapshot, not the later final integrated source.",
+    "Shows Home only; does not assert completion of display, grocery/dinner board, Home Assistant, or public information surfaces."
+  ],
+  "files": [
+    {
+      "file": "desktop-light.png",
+      "sha256": "9bbb026154a050918de1ad5b77fe919c9820d0376b2a65ff7a1830081fd20cab",
+      "width": 1920,
+      "height": 2009,
+      "viewportWidth": 1920,
+      "viewportHeight": 1080,
+      "theme": "light",
+      "surface": "Home",
+      "horizontalOverflow": false,
+      "syntheticOnly": true
+    },
+    {
+      "file": "desktop-dark.png",
+      "sha256": "0d65d55daa1558bef3abfcc6f26efccb59b65764e11695995618180f9ee52eed",
+      "width": 1920,
+      "height": 1980,
+      "viewportWidth": 1920,
+      "viewportHeight": 1080,
+      "theme": "dark",
+      "surface": "Home",
+      "horizontalOverflow": false,
+      "syntheticOnly": true
+    },
+    {
+      "file": "mobile-light.png",
+      "sha256": "8a932976e9e0cc7055469ed303c332dbfce7b30398cfc5dd36727031942d2a6f",
+      "width": 390,
+      "height": 2607,
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "theme": "light",
+      "surface": "Home",
+      "horizontalOverflow": false,
+      "syntheticOnly": true
+    },
+    {
+      "file": "mobile-dark.png",
+      "sha256": "3e4d950f33d2862aaf270a7c657dfbd70db6aafe344e93ec4dc12a02327f3235",
+      "width": 390,
+      "height": 2759,
+      "viewportWidth": 390,
+      "viewportHeight": 844,
+      "theme": "dark",
+      "surface": "Home",
+      "horizontalOverflow": false,
+      "syntheticOnly": true
+    },
+    {
+      "file": "tablet-light.png",
+      "sha256": "321567629265f6e221cd5d530e8a6112c9277d285ae9a7ad43f472c25b0fd4a6",
+      "width": 820,
+      "height": 2550,
+      "viewportWidth": 820,
+      "viewportHeight": 1180,
+      "theme": "light",
+      "surface": "Home",
+      "horizontalOverflow": false,
+      "syntheticOnly": true
+    },
+    {
+      "file": "shelly-light.png",
+      "sha256": "91bbce65f53be6bea9f3c59dee9f76bed7b17fa9dabd3d18364e67f9b01f90c1",
+      "width": 1280,
+      "height": 1899,
+      "viewportWidth": 1280,
+      "viewportHeight": 752,
+      "theme": "light",
+      "surface": "Home",
+      "horizontalOverflow": false,
+      "syntheticOnly": true
+    },
+    {
+      "file": "shelly-dark.png",
+      "sha256": "f306554bddec252083c47f76dd11bdd6602f38af3e49b71d524400f465cb7377",
+      "width": 1280,
+      "height": 1787,
+      "viewportWidth": 1280,
+      "viewportHeight": 752,
+      "theme": "dark",
+      "surface": "Home",
+      "horizontalOverflow": false,
+      "syntheticOnly": true
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { roleCapabilityPresets, birthDateSchema, emailSchema, localeSchema, name
 import { DomainError, opaqueToken, tokenHash, validateIanaTimezone } from '@samvev/core';
 import { pool, transaction } from '../db.ts';
 import { deriveAgeGroup, localDateInTimezone } from './domain.ts';
+import { assignPersonColor } from './person-colors.ts';
 
 const personInput=z.object({
   displayName:nameSchema,birthDate:birthDateSchema.nullable().optional(),ageGroup:z.enum(['adult','teen','child','unspecified']).optional(),
@@ -35,7 +36,8 @@ export async function runLocalBootstrap(raw:unknown):Promise<Record<string,unkno
     const created:Array<{membershipId:string;accountId:string|null;invitationId:string|null;token:string|null;email:string|null}>=[];
     for(const person of input.people){
       if((person.rolePreset==='installation_admin'||person.rolePreset==='household_admin')&&!person.email)throw new DomainError('VALIDATION_FAILED',400,{reason:'administrator_login_required'});
-      const personId=(await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group,birth_date) VALUES($1,$2,$3,$4) RETURNING id`,[live.id,person.displayName,person.ageGroup??deriveAgeGroup(person.birthDate,today),person.birthDate??null])).rows[0]!.id;
+      const colorToken=await assignPersonColor(client,live.id);
+      const personId=(await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group,birth_date,color_token) VALUES($1,$2,$3,$4,$5) RETURNING id`,[live.id,person.displayName,person.ageGroup??deriveAgeGroup(person.birthDate,today),person.birthDate??null,colorToken])).rows[0]!.id;
       let accountId:string|null=null;let invitationId:string|null=null;let token:string|null=null;
       if(person.email){
         accountId=(await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES($1,$2,NULL,$3,$4) RETURNING id`,[installationId,person.email,person.locale,person.theme])).rows[0]!.id;

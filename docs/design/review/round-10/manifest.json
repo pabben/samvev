@@ -1,0 +1,182 @@
+{
+  "round": "round-10",
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "actualUi": true,
+  "isolatedFixture": "six synthetic people; injected synthetic calendar transport; no external provider or model calls",
+  "calendarTransitions": [
+    "household",
+    "one person",
+    "two people+spond",
+    "household"
+  ],
+  "monitorStates": [
+    "never",
+    "earlyFailure",
+    "failedOlder",
+    "interrupted",
+    "normal",
+    "activeOlder"
+  ],
+  "screenshots": [
+    {
+      "filename": "calendar-desktop-nb-light.png",
+      "sha256": "d7e66509b17091c5bef04f17651df31d969b226278b5834b3a0945c5736b014c",
+      "surface": "calendar",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "calendar-mobile-nb-dark.png",
+      "sha256": "69e861898916ab70f35a992c9870111718ba85d1c4f4db7fb16be4297fbde983",
+      "surface": "calendar",
+      "locale": "nb",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "calendar-desktop-en-light.png",
+      "sha256": "f8b514d668ec9d14031e94953e7305930050e464fe3b86258cf771ec0cb8b9f3",
+      "surface": "calendar",
+      "locale": "en",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "calendar-mobile-en-dark.png",
+      "sha256": "0ad29dfdaf74308ee3807463d2120d92a9953f7793c6bdfc3ee6d37e070278ec",
+      "surface": "calendar",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "people-nb-dark-390.png",
+      "sha256": "765680c3dedb54b4f999c3dd7564a827085e0d55642c8f17d7dde2b69c04e06e",
+      "surface": "people",
+      "locale": "nb",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "people-en-light-1440.png",
+      "sha256": "9faf8b2269738299f5fc1ef8beb3a091e5fb10db6c2b920588699faa9d15e147",
+      "surface": "people",
+      "locale": "en",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "monitor-never-desktop-nb-light.png",
+      "sha256": "f2ca6665298fd0f80f54ca93b0ca54bac6cec851568c702505ea7ba2e09295c6",
+      "surface": "monitor",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "monitorState": "Round 10 UI state never"
+    },
+    {
+      "filename": "monitor-early-failure-desktop-nb-light.png",
+      "sha256": "07cfc58f2ffe14af35c54c5aa8bf989f122293119bf942d52defae6d07e4589a",
+      "surface": "monitor",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "monitorState": "Round 10 UI state early failure"
+    },
+    {
+      "filename": "monitor-failed-older-desktop-nb-light.png",
+      "sha256": "0cbd5531c934aeda55cc2f073f3caf286e6e22a90aba90b2f8f9c28ad36354fc",
+      "surface": "monitor",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "monitorState": "Round 10 UI state failed older result"
+    },
+    {
+      "filename": "monitor-interrupted-desktop-nb-light.png",
+      "sha256": "aee5ba3048b05a87c9cbfa0d1d6422ea54a0687ee14f09b1df0ea708c4c6fffc",
+      "surface": "monitor",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "monitorState": "Round 10 UI state interrupted"
+    },
+    {
+      "filename": "monitor-normal-desktop-nb-light.png",
+      "sha256": "2540eb53fba8ff5f58785c5697b408ab30a03eed6ad7402ff572b4f66934c5db",
+      "surface": "monitor",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "monitorState": "Round 10 UI state normal"
+    },
+    {
+      "filename": "monitor-active-older-desktop-nb-light.png",
+      "sha256": "2fc66612d988d25f0708c2f80c51387b5e98a063791123796a9479aea2229751",
+      "surface": "monitor",
+      "locale": "nb",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "monitorState": "Round 10 UI state active older result"
+    },
+    {
+      "filename": "person-failed-older-mobile-nb-dark.png",
+      "sha256": "49c754f6c5d76d261d1602d4ee0337222e425800e229ce147fcb3e49dec2b04d",
+      "surface": "person-task",
+      "locale": "nb",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "person-active-older-desktop-en-light.png",
+      "sha256": "14d1e03cd68028f943e632ff0fce20fe984afbefdad3bce9fa2fe6e359015bc3",
+      "surface": "person-task",
+      "locale": "en",
+      "theme": "light",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    }
+  ]
+}

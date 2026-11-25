@@ -1,0 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
+import { DomainError } from '@samvev/core';
+export function createOAuthAttempt(){const state=randomBytes(32).toString('base64url');const nonce=randomBytes(32).toString('base64url');const verifier=randomBytes(64).toString('base64url');return{state,nonce,verifier,challenge:createHash('sha256').update(verifier).digest('base64url')};}
+export function validateOAuthCallback(url:URL,expectedState:string){if(url.searchParams.get('state')!==expectedState)throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'oauth_state_mismatch'});const error=url.searchParams.get('error');if(error)return{error};const code=url.searchParams.get('code');if(!code)throw new DomainError('AI_CONFIGURATION_INVALID',422,{reason:'oauth_code_missing'});return{code};}

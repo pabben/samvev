@@ -1,643 +1,103 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "./api";
-import { formatDate } from "./time";
-import { Check, ErrorNotice, Field, Icon, Loading, useI18n } from "./ui";
+import { ChatGptGuide } from "./chatgpt-guide";
+import { registrationState, registrationIdentity, purposeKey, attemptState, forecastPresentation, formatKnownAmount, dispatchMetrics, type UsageForecast } from "./ai-presentation";
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { api } from './api';
+import { formatDate } from './time';
+import { Check, ErrorNotice, Field, Icon, Loading, useI18n } from './ui';
+import { en, type TranslationKey } from './locales/en';
+import { dailyDispatchLimitIsValid, fallbackProviderChoices, type AiFallbackProvider, type AiProviderId, type SavedAiProvider } from './ai-settings-presentation';
 
-type ProviderId =
-  | "openai"
-  | "chatgpt_subscription"
-  | "openai_compatible"
-  | "gemini";
-type ModelTier = "routine" | "strong";
-type ReasoningEffort = "none" | "low" | "medium" | "high";
-type AvailabilityStatus =
-  | "not_tested"
-  | "not_configured"
-  | "available"
-  | "unavailable"
-  | "error";
-
-interface AiSettings {
-  enabled: boolean;
-  provider: ProviderId;
-  hasApiKey: boolean;
-  baseUrl: string | null;
-  defaultModel: string;
-  strongModel: string;
-  defaultReasoningEffort: ReasoningEffort;
-  strongReasoningEffort: ReasoningEffort;
-  revision: number;
-  availability: {
-    status: AvailabilityStatus;
-    available: boolean;
-    errorCode: string | null;
-    checkedAt: string | null;
-  };
-  providers: {
-    id: ProviderId;
-    runtimeAvailable: boolean;
-    reasonCode: string | null;
-  }[];
-  chatGptSubscription: {
-    feasibility: "partial";
-    status: "unavailable";
-    reasonCode: string;
-  };
+type ProviderId=AiProviderId;
+type ReasoningEffort='none'|'low'|'medium'|'high';
+type Configuration={provider:ProviderId;hasApiKey:boolean;baseUrl:string|null;defaultModel:string;strongModel:string;defaultReasoningEffort:ReasoningEffort;strongReasoningEffort:ReasoningEffort};
+type SavedConfiguration=Configuration&SavedAiProvider&{revision:number};
+type Registration={id:string;label:string;status:string;revision:number;isOwner:boolean;canManage:boolean;email?:string|null;subjectSuffix?:string;errorCode?:string|null};
+type AiSettings=Configuration&{enabled:boolean;revision:number;fallbackProvider:AiFallbackProvider|null;fallbackConfigurationRevision:number|null;dailyDispatchLimit:number|null;dailyDispatchUsage:{utcDate:string;reservedDispatches:number;remainingDispatches:number|null};savedProviders:SavedConfiguration[];availability:{status:'not_tested'|'not_configured'|'available'|'unavailable'|'error';available:boolean;errorCode:string|null;checkedAt:string|null};chatgpt:{hostId:string;activeRegistrationId:string|null;registrations:Registration[];usageUrl:string;companionDownloads:{name:string;url:string}[];companionCommand:string;importCommand:string}};
+type Counts={calls:number;inputTokens:number;outputTokens:number};
+type Pricing={amount?:string|null;estimatedCredits?:string|null;knownCalls:number;unknownPricedAttempts:number;sourceUrl:string;observedAt:string|null;effectiveFrom:string|null};
+type AiUsage={period:{days:number;from:string|null;to:string|null};summary:{requests:number;successes:number;failures:number;inputTokens:number;outputTokens:number;unknownUsageCount:number;preflightRejections:number;pendingAttempts:number;legacyUnknownAttempts:number};byDay:(Counts&{date:string;unknownUsageCount:number})[];byModel:(Counts&{model:string;route:string})[];byPurpose:(Counts&{purpose:string;category:string})[];chatGptCredits:Pricing;apiEquivalent:Pricing;forecast:{chatGptCredits:UsageForecast;apiUsd:UsageForecast};recent:{provider:ProviderId;route:string|null;model:string|null;actualModel:string|null;requestedModel:string|null;actualServiceTier:string|null;purpose:string;category:string|null;success:boolean;outcome?:string;actualDispatch?:boolean|null;errorCode:string|null;inputTokens:number|null;outputTokens:number|null;fallbackFromProvider:ProviderId|null;fallbackReason:'transient'|'network_error'|'provider_rate_limited'|null;configurationRevision:number|null;occurredAt:string}[]};
+type Draft=Omit<Configuration,'hasApiKey'|'baseUrl'>&{enabled:boolean;baseUrl:string;fallbackProvider:AiFallbackProvider|null;dailyLimitEnabled:boolean;dailyDispatchLimit:string};
+const asDraft=(settings:AiSettings):Draft=>({enabled:settings.enabled,provider:settings.provider,baseUrl:settings.baseUrl??'',defaultModel:settings.defaultModel,strongModel:settings.strongModel,defaultReasoningEffort:settings.defaultReasoningEffort??'none',strongReasoningEffort:settings.strongReasoningEffort??'medium',fallbackProvider:settings.fallbackProvider??null,dailyLimitEnabled:settings.dailyDispatchLimit!==null,dailyDispatchLimit:settings.dailyDispatchLimit===null?'100':String(settings.dailyDispatchLimit)});
+const routeKey=(route:string):TranslationKey=>route==='openai'||route==='openai_api'?'aiRouteApi':route==='anthropic'||route==='anthropic_api'?'aiRouteAnthropic':route==='chatgpt_subscription'||route==='chatgpt_plan'?'aiRoutePlan':route==='openai_compatible'||route==='local'?'aiRouteLocal':'hubUnknown';
+const safeError=(code:string|null|undefined):TranslationKey=>code&&code in en?code as TranslationKey:'INTERNAL_ERROR';
+export function AnthropicModelField({field,value,disabled,label,hint,optionLabels,onChange}:{field:'defaultModel'|'strongModel';value:string;disabled:boolean;label:string;hint:string;optionLabels:{haiku:string;sonnet:string;custom:(model:string)=>string};onChange:(value:string)=>void}){
+ const modelName=value==='claude-haiku-5-5'?optionLabels.haiku:value==='claude-sonnet-5-5'?optionLabels.sonnet:value?optionLabels.custom(value):null;
+ const listId=`anthropic-${field}`;
+ return <Field label={label} hint={hint}>{[
+  <input key="model-input" list={listId} value={value} maxLength={100} autoComplete="off" disabled={disabled} onChange={event=>onChange(event.target.value)}/>,
+  <datalist key="model-options" id={listId}><option value="claude-haiku-5-5" label={optionLabels.haiku}/><option value="claude-sonnet-5-5" label={optionLabels.sonnet}/></datalist>,
+  modelName&&<small key="model-label" className="ai-model-name">{modelName}</small>,
+ ]}</Field>;
 }
+export function AiSettingsPanel({householdId,ownerAccountId,timezone}:{householdId:string;ownerAccountId:string;timezone:string}){
+ const {t,locale}=useI18n();const base=`/households/${householdId}/ai`;
+ const [view,setView]=useState<'usage'|'setup'>('usage');
+ const [settings,setSettings]=useState<AiSettings>();const [draft,setDraft]=useState<Draft>();const [usage,setUsage]=useState<AiUsage>();const [days,setDays]=useState<7|30>(30);
+ const [apiKey,setApiKey]=useState('');const [removeKey,setRemoveKey]=useState(false);const [error,setError]=useState<unknown>();const [loadError,setLoadError]=useState<unknown>();const [busy,setBusy]=useState(false);const [saved,setSaved]=useState(false);const [testResult,setTestResult]=useState<{available:boolean;errorCode?:string}>();const [models,setModels]=useState<{slug:string;displayName:string}[]>([]);
+ const load=useCallback(async()=>{setLoadError(undefined);try{const [s,u]=await Promise.all([api<AiSettings>(`${base}/settings`),api<AiUsage>(`${base}/usage?days=${days}`)]);setSettings(s);setDraft(asDraft(s));setUsage(u);setApiKey('');setRemoveKey(false)}catch(e){setLoadError(e)}},[base,days]);
+ useEffect(()=>{void load()},[load]);
+ const dirty=useMemo(()=>Boolean(settings&&draft&&(JSON.stringify(draft)!==JSON.stringify(asDraft(settings))||apiKey||removeKey)),[settings,draft,apiKey,removeKey]);
+ const activeRegistration=settings?.chatgpt.registrations.find(r=>r.id===settings.chatgpt.activeRegistrationId);
+ const ownsPlan=Boolean(activeRegistration?.isOwner&&activeRegistration.canManage);
+ const selectedSaved=settings?.savedProviders.find(p=>p.provider===draft?.provider);
+ const endpointChanged=draft?.provider==='openai_compatible'&&draft.baseUrl!==(selectedSaved?.baseUrl??settings?.baseUrl??'');
+ const hasKey=!endpointChanged&&(selectedSaved?.hasApiKey??(draft?.provider===settings?.provider&&Boolean(settings?.hasApiKey)));
+ const invalidKey=draft?.provider==='openai'&&apiKey.length>0&&apiKey.length<20;
+ const planSelected=draft?.provider==='chatgpt_subscription';
+ const fallbackChoices=settings&&draft?fallbackProviderChoices(settings.savedProviders,draft.provider):[];
+ const fallbackValid=!draft?.fallbackProvider||Boolean(draft&&draft.provider!=='chatgpt_subscription'&&fallbackChoices.includes(draft.fallbackProvider));
+ const dailyLimitValid=Boolean(draft&&dailyDispatchLimitIsValid(draft.dailyLimitEnabled,draft.dailyDispatchLimit));
+ const update=(next:Partial<Draft>)=>{if(draft)setDraft({...draft,...next});setSaved(false)};
+ const chooseProvider=(provider:ProviderId)=>{if(!draft||!settings)return;const savedProvider=settings.savedProviders.find(p=>p.provider===provider);const anthro=provider==='anthropic';setDraft({...draft,provider,baseUrl:savedProvider?.baseUrl??'',defaultModel:savedProvider?.defaultModel||(anthro?'claude-haiku-5-5':''),strongModel:savedProvider?.strongModel||(anthro?'claude-sonnet-5-5':''),defaultReasoningEffort:savedProvider?.defaultReasoningEffort??'none',strongReasoningEffort:savedProvider?.strongReasoningEffort??'medium'});setApiKey('');setRemoveKey(false);setSaved(false);setTestResult(undefined)};
+ const action=async(fn:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError(undefined);setSaved(false);try{await fn()}catch(e){setError(e)}finally{setBusy(false)}};
+ const save=()=>action(async()=>{if(!settings||!draft||!fallbackValid||!dailyLimitValid)return;const body:Record<string,unknown>={enabled:draft.enabled,provider:draft.provider,defaultModel:draft.defaultModel,strongModel:draft.strongModel,expectedRevision:settings.revision,fallbackProvider:draft.fallbackProvider,dailyDispatchLimit:draft.dailyLimitEnabled?Number(draft.dailyDispatchLimit):null};if(draft.provider==='openai_compatible')Object.assign(body,{baseUrl:draft.baseUrl,defaultReasoningEffort:draft.defaultReasoningEffort,strongReasoningEffort:draft.strongReasoningEffort});if(!planSelected){if(apiKey)body.apiKey=apiKey;else if(removeKey)body.apiKey=null}await api(`${base}/settings`,'PATCH',body);await load();setSaved(true)});
+ const test=(modelTier:'routine'|'strong')=>action(async()=>{setTestResult(await api(`${base}/test`,'POST',{modelTier},{timeoutMs:35000}));await load()});
+ const registrationAction=(registration:Registration,operation:'disconnect'|'resume'|'select')=>action(async()=>{if(operation==='disconnect'&&!window.confirm(t('aiDisconnectConfirm')))return;await api(`${base}/chatgpt/${registration.id}/${operation}`,'POST',{expectedRevision:operation==='select'?settings!.revision:registration.revision});setModels([]);await load()});
+ const loadModels=()=>action(async()=>{if(!activeRegistration?.isOwner)return;const result=await api<{models:{slug:string;displayName:string}[]}>(`${base}/chatgpt/${activeRegistration.id}/models`);setModels(result.models);setSettings(await api<AiSettings>(`${base}/settings`))});
+ if(!settings||!draft||!usage)return <section className="ai-settings" aria-label={t('aiTitle')}><ErrorNotice error={loadError}/>{!loadError?<Loading/>:<button className="button" onClick={()=>void load()}>{t('retry')}</button>}</section>;
+ const format=(value:number)=>new Intl.NumberFormat(locale).format(value);
+ const modelField=(field:'defaultModel'|'strongModel')=>draft.provider==='anthropic'?<AnthropicModelField field={field} value={draft[field]} disabled={busy} label={t(field==='defaultModel'?'aiRoutineModel':'aiStrongModel')} hint={t(field==='defaultModel'?'aiAnthropicRoutineHint':'aiAnthropicStrongHint')} optionLabels={{haiku:t('aiAnthropicHaiku55'),sonnet:t('aiAnthropicSonnet55'),custom:model=>t('aiAnthropicCustomModel',{model})}} onChange={value=>update({[field]:value})}/>:<Field label={t(field==='defaultModel'?'aiRoutineModel':'aiStrongModel')} hint={t(field==='defaultModel'?'aiRoutineModelHint':'aiStrongModelHint')}>{planSelected?<select value={draft[field]} disabled={busy||!ownsPlan||models.length===0} onChange={e=>update({[field]:e.target.value})}><option value="">{t('aiChooseModel')}</option>{draft[field]&&!models.some(m=>m.slug===draft[field])&&<option value={draft[field]}>{models.find(m=>m.slug===draft[field])?.displayName??draft[field]}</option>}{models.map(m=><option key={m.slug} value={m.slug}>{m.displayName}</option>)}</select>:<input value={draft[field]} maxLength={100} autoComplete="off" disabled={busy} onChange={e=>update({[field]:e.target.value})}/>}</Field>;
+ const source=(pricing:Pricing)=><p className="field-hint ai-price-source"><a href={pricing.sourceUrl} target="_blank" rel="noreferrer">{t('aiPriceSource')}</a>{pricing.observedAt?<> · {t('aiPriceChecked',{date:formatDate(pricing.observedAt,locale,timezone,{day:'numeric',month:'short',year:'numeric'})})}</>:<> · {t('aiPriceNoObservation')}</>}{pricing.effectiveFrom&&<> · {t('aiPriceEffective',{date:pricing.effectiveFrom})}</>}</p>;
+ return <section className="ai-settings" aria-labelledby="ai-title">
+  <header className="section-heading ai-heading"><h1 id="ai-title">{t('aiTitle')}</h1><span className={`ai-availability ai-${settings.availability.status}`} data-testid="ai-availability">{t(({not_tested:'aiStatusNotTested',not_configured:'aiStatusNotConfigured',available:'aiStatusAvailable',unavailable:'aiStatusUnavailable',error:'aiStatusError'} as const)[settings.availability.status])}</span></header>
+  <ErrorNotice error={loadError}/><ErrorNotice error={error}/>
+  <section className="ai-route-banner" data-testid="ai-overview"><Icon name="shield"/><div><strong>{t('aiSelectedRoute')}: {t(routeKey(settings.provider))}</strong><p className="ai-route-status">{t(settings.enabled?'aiOnShort':'aiOffShort')}{settings.provider==='chatgpt_subscription'&&<> · {activeRegistration?t(registrationState(activeRegistration.status)):t('aiPlanDisconnected')}</>}</p>{settings.provider==='chatgpt_subscription'?<a className="ai-usage-link" href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer">{t('aiAccountUsage')}<Icon name="arrow"/></a>:<p className="field-hint">{t(settings.provider==='openai_compatible'?'aiLocalRouteHelp':settings.provider==='anthropic'?'aiAnthropicBilling':'aiApiBilling')}</p>}</div></section>
+  <nav className="ai-section-switch" aria-label={t('aiSections')}><button type="button" className="button" aria-pressed={view==='usage'} aria-controls="ai-usage-panel" onClick={()=>setView('usage')}>{t('aiUsage')}</button><button type="button" className="button" aria-pressed={view==='setup'} aria-controls="ai-setup-panel" onClick={()=>setView('setup')}>{t('aiSetupSection')}{dirty&&<span aria-label={t('aiUnsaved')}> ·</span>}</button></nav>
+  <div className="ai-layout" data-view={view}><div className="ai-primary" id="ai-setup-panel" hidden={view!=='setup'}><form className="ai-card form-stack" aria-busy={busy} onSubmit={e=>{e.preventDefault();void save()}}>
+   <div className="ai-card-heading"><div><p className="eyebrow">{t('aiEyebrow')}</p><h2>{t('aiConfiguration')}</h2><p>{t('aiBody')}</p><p>{!settings.enabled?t('aiDisabledRoute'):t(settings.provider==='chatgpt_subscription'?'aiPlanBilling':settings.provider==='openai'?'aiApiBilling':settings.provider==='anthropic'?'aiAnthropicBilling':'aiLocalBilling')}</p><p>{draft.fallbackProvider?t('aiFallbackPolicyExplanation'):t('aiNoFallback')}</p></div><Check label={t('aiEnabled')} checked={draft.enabled} disabled={busy||(planSelected&&!ownsPlan)} onChange={enabled=>update({enabled})}/></div>
+   <fieldset className="ai-providers"><legend>{t('aiProvider')}</legend>{(['chatgpt_subscription','openai','anthropic','openai_compatible'] as const).map(provider=><label className={`ai-provider ${draft.provider===provider?'active':''}`} key={provider}><input type="radio" name="ai-provider" value={provider} checked={draft.provider===provider} disabled={busy} onChange={()=>chooseProvider(provider)}/><span><strong>{t(routeKey(provider))}</strong><small>{t(provider==='chatgpt_subscription'?'aiProviderChatGptHint':provider==='openai'?'aiProviderOpenAiHint':provider==='anthropic'?'aiAnthropicProviderHint':'aiProviderLocalHint')}</small></span></label>)}</fieldset>
+   {draft.provider==='anthropic'&&<section className="ai-anthropic-guidance"><h3>{t('aiAnthropicSetupTitle')}</h3><p>{t('aiAnthropicWorkspaceGuidance')}</p><div className="ai-source-links"><a href="https://platform.claude.com/docs/en/get-api-key" target="_blank" rel="noreferrer">{t('aiAnthropicKeyGuide')}</a><a href="https://platform.claude.com/docs/en/about-claude/pricing" target="_blank" rel="noreferrer">{t('aiAnthropicPricing')}</a><a href="https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers" target="_blank" rel="noreferrer">{t('aiAnthropicCredits')}</a></div></section>}
+   {planSelected&&<div className="ai-plan-configuration"><p>{t('aiPlanFirstUse')}</p><p className="field-hint">{ownsPlan?t('aiPlanOwnerOnly'):t('aiConnectBeforeEnable')}</p>{ownsPlan&&<button className="button" type="button" disabled={busy||!['connected','pending_validation'].includes(activeRegistration?.status??'')} onClick={()=>void loadModels()}><Icon name="spark"/>{t(activeRegistration?.status==='pending_validation'?'aiRetryValidation':'aiLoadModels')}</button>}{models.length>0&&<p role="status" className="field-hint">{t('aiModelsLoaded',{count:models.length})}</p>}</div>}
+   {draft.provider==='openai_compatible'&&<Field label={t('aiBaseUrl')} hint={t('aiBaseUrlHint')}><input type="url" value={draft.baseUrl} maxLength={2048} required disabled={busy} autoComplete="off" onChange={e=>update({baseUrl:e.target.value})}/></Field>}
+   <div className="form-grid">{modelField('defaultModel')}{modelField('strongModel')}</div>
+   {draft.provider==='openai_compatible'&&<div className="form-grid">{(['defaultReasoningEffort','strongReasoningEffort'] as const).map(field=><Field key={field} label={t(field==='defaultReasoningEffort'?'aiRoutineReasoning':'aiStrongReasoning')} hint={t(field==='defaultReasoningEffort'?'aiRoutineReasoningHint':'aiStrongReasoningHint')}><select value={draft[field]} disabled={busy} onChange={e=>update({[field]:e.target.value as ReasoningEffort})}>{(['none','low','medium','high'] as const).map(value=><option key={value} value={value}>{t(({none:'aiReasoningNone',low:'aiReasoningLow',medium:'aiReasoningMedium',high:'aiReasoningHigh'} as const)[value])}</option>)}</select></Field>)}</div>}
+   {!planSelected&&<><Field label={t(draft.provider==='openai_compatible'?'aiApiKeyOptional':'aiApiKey')} hint={t(draft.provider==='openai_compatible'?'aiApiKeyOptionalHint':'aiApiKeyHint')}><input type="password" value={apiKey} minLength={draft.provider==='openai'?20:1} maxLength={512} autoComplete="new-password" disabled={busy||removeKey} placeholder={hasKey?t('aiApiKeyConfigured'):t(draft.provider==='openai_compatible'?'aiApiKeyOptionalEmpty':'aiApiKeyEmpty')} onChange={e=>{setApiKey(e.target.value);setSaved(false)}}/></Field>{hasKey&&<Check label={t('aiRemoveApiKey')} checked={removeKey} disabled={busy} onChange={checked=>{setRemoveKey(checked);setApiKey('')}}/>}{invalidKey&&<p className="field-error">{t('aiApiKeyLength')}</p>}<p className="field-hint">{t('aiSavedRoutes')}</p></>}
+   <section className="ai-policy-settings" aria-labelledby="ai-policy-title"><h3 id="ai-policy-title">{t('aiRequestPolicy')}</h3><Field label={t('aiFallbackProvider')} hint={t('aiFallbackHint')}><select value={draft.fallbackProvider??''} disabled={busy} onChange={event=>update({fallbackProvider:event.target.value?event.target.value as AiFallbackProvider:null})}><option value="">{t('aiFallbackNone')}</option>{draft.fallbackProvider&&!fallbackChoices.includes(draft.fallbackProvider)&&<option value={draft.fallbackProvider} disabled>{t('aiFallbackMustChoose')}</option>}{fallbackChoices.map(provider=><option key={provider} value={provider}>{t(routeKey(provider))}</option>)}</select></Field>{!fallbackValid&&<p className="field-error">{t('aiFallbackMustChoose')}</p>}<p className="field-hint">{t('aiFallbackSavedProvidersHint')}</p><Check label={t('aiDailyLimitEnabled')} checked={draft.dailyLimitEnabled} disabled={busy} onChange={enabled=>update({dailyLimitEnabled:enabled,dailyDispatchLimit:enabled?(draft.dailyDispatchLimit||'100'):draft.dailyDispatchLimit})}/>{draft.dailyLimitEnabled&&<Field label={t('aiDailyLimit')} hint={t('aiDailyLimitHint')}><input type="number" inputMode="numeric" min={1} max={1000000} step={1} value={draft.dailyDispatchLimit} disabled={busy} onChange={event=>update({dailyDispatchLimit:event.target.value})}/></Field>}{!dailyLimitValid&&<p className="field-error">{t('aiDailyLimitValidation')}</p>}<p className="field-hint">{t('aiDailyUsage',{date:settings.dailyDispatchUsage.utcDate,reserved:settings.dailyDispatchUsage.reservedDispatches,remaining:settings.dailyDispatchUsage.remainingDispatches===null?t('aiUnlimited'):settings.dailyDispatchUsage.remainingDispatches})}</p><p className="field-hint">{t('aiDailyUsageScope')}</p></section>
+   <div className="form-actions"><span role="status">{saved?t('aiSettingsSaved'):''}</span><button type="submit" className="button primary" disabled={!dirty||busy||invalidKey||(planSelected&&!ownsPlan)||!fallbackValid||!dailyLimitValid}>{busy?t('saving'):t('save')}<Icon name="arrow"/></button></div>
+  </form>
+  <section className="ai-card ai-onboarding" aria-labelledby="ai-chatgpt-title"><h2 id="ai-chatgpt-title">{t('aiConnectChatGpt')}</h2><p>{t('aiConnectionSeparate')}</p>
+   {settings.chatgpt.registrations.length>0&&<div className="ai-registrations">{settings.chatgpt.registrations.map(r=><article key={r.id}><strong>{r.isOwner?registrationIdentity(r):t('aiOtherOwner')}</strong><p>{t(registrationState(r.status))}</p>{r.id===settings.chatgpt.activeRegistrationId&&<span className="ai-selected-account">{t('aiSelectedAccount')}</span>}{r.canManage&&r.status==='connected'&&r.id!==settings.chatgpt.activeRegistrationId&&<button type="button" className="button" disabled={busy||dirty} onClick={()=>void registrationAction(r,'select')}>{t('aiSelectAccount')}</button>}{r.status==='pending_validation'&&<p className="field-hint">{t('aiPendingValidationHint')}</p>}{r.isOwner&&r.status==='pending_validation'&&r.id===settings.chatgpt.activeRegistrationId&&<button type="button" className="button" disabled={busy} onClick={()=>void loadModels()}>{t('aiRetryValidation')}</button>}{r.errorCode&&r.isOwner&&r.errorCode in en&&<p className="field-hint">{t(safeError(r.errorCode))}</p>}{r.canManage&&!['disconnected','revocation_unconfirmed'].includes(r.status)&&<div className="ai-test-actions">{['usage_limited','not_eligible'].includes(r.status)&&<button type="button" className="button" disabled={busy} onClick={()=>void registrationAction(r,'resume')}>{t('aiResumePlan')}</button>}<button type="button" className="button subtle" disabled={busy} onClick={()=>void registrationAction(r,'disconnect')}>{t('aiDisconnect')}</button></div>}</article>)}</div>}
+   <ChatGptGuide householdId={householdId} status={activeRegistration?.isOwner?activeRegistration.status:undefined} onRefresh={load}/>
 
-interface AiUsage {
-  summary: {
-    requests: number;
-    successes: number;
-    failures: number;
-    inputTokens: number;
-    outputTokens: number;
-  };
-  recent: {
-    provider: ProviderId;
-    model: string | null;
-    purpose: string;
-    success: boolean;
-    errorCode: string | null;
-    inputTokens: number | null;
-    outputTokens: number | null;
-    occurredAt: string;
-  }[];
+   <a className="ai-usage-link" href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer">{t('aiAccountUsage')}<Icon name="arrow"/></a>
+  </section>
+  <section className="ai-card" aria-labelledby="ai-test-title"><h2 id="ai-test-title">{t('aiConnectionTest')}</h2><p>{t(settings.provider==='openai_compatible'?'aiLocalConnectionTestHint':'aiConnectionTestHint')}</p><div className="notice offline"><Icon name="spark"/><span>{t(settings.provider==='chatgpt_subscription'?'aiPlanTestWarning':settings.provider==='openai_compatible'?'aiLocalTestUsageWarning':settings.provider==='anthropic'?'aiAnthropicTestUsageWarning':'aiTestUsageWarning')}</span></div>{settings.availability.errorCode&&<p>{t(safeError(settings.availability.errorCode))}</p>}{dirty&&<p className="field-hint">{t('aiSaveBeforeTest')}</p>}<div className="ai-test-actions">{(['routine','strong'] as const).map(tier=><button key={tier} className="button" disabled={dirty||busy||(settings.provider==='chatgpt_subscription'&&(!ownsPlan||activeRegistration?.status!=='connected'))} onClick={()=>void test(tier)}>{t(tier==='routine'?'aiTestRoutine':'aiTestStrong')}</button>)}</div>{testResult&&<div className={`notice ${testResult.available?'':'error'}`} role="status" data-testid="ai-test-result">{testResult.available?t('aiStatusAvailable'):t(safeError(testResult.errorCode))}</div>}<p className="field-hint">{t('aiAvailabilityScope')}</p></section>
+  </div><div className="ai-secondary" id="ai-usage-panel" hidden={view!=='usage'}><p className="notice ai-usage-scope">{t("aiUsageOwnerScope")}</p>
+   <section className="ai-card" aria-labelledby="ai-usage-title"><div className="ai-card-heading"><h2 id="ai-usage-title">{t('aiUsage')}</h2><Field label={t('aiPeriod')}><select value={days} disabled={busy||dirty} onChange={e=>setDays(Number(e.target.value) as 7|30)}><option value={7}>{t('aiDays',{count:7})}</option><option value={30}>{t('aiDays',{count:30})}</option></select></Field></div><p className="field-hint ai-period-range">{usage.period.from} – {usage.period.to} · UTC</p><dl className="ai-summary">{dispatchMetrics(usage.summary).map(metric=><div key={metric.key} data-dispatch-metric={metric.key}><dt>{t(metric.key)}</dt><dd>{format(metric.count)}</dd></div>)}</dl>
+    <div className="ai-cost-overview" data-testid="ai-cost-overview">{([{key:'chatGptCredits',label:'aiKnownCreditsEstimate',amount:usage.chatGptCredits.estimatedCredits,unit:t('aiCreditUnit')},{key:'apiEquivalent',label:'aiApiEquivalent',amount:usage.apiEquivalent.amount,unit:'USD'}] as const).map(({key,label,amount,unit})=><section key={key}><h3>{t(label)}</h3><p className="ai-overview-amount" data-known-amount={amount??undefined}>{amount==null?t('hubUnknown'):`${formatKnownAmount(amount,locale)} ${unit}`}</p><p className="field-hint ai-pricing-coverage">{t('aiCoverageShort',{known:usage[key].knownCalls,unknown:usage[key].unknownPricedAttempts})}</p></section>)}</div><p className="field-hint ai-overview-caveat">{t('aiOverviewCaveatShort')}</p><p className="ai-forecast-status" data-testid="ai-forecast-status">{t(usage.forecast[settings.provider==='chatgpt_subscription'?'chatGptCredits':'apiUsd'].reason==='unresolved_dispatch'?'aiForecastUnresolvedShort':forecastPresentation(usage.forecast[settings.provider==='chatgpt_subscription'?'chatGptCredits':'apiUsd']).amount!==null?'aiForecastAvailable':'aiForecastPreliminaryShort')}</p>
+    <details className="ai-breakdown ai-usage-breakdowns"><summary>{t('aiUsageDetails')}</summary><p className="field-hint">{t('aiUsageOwnerScope')}</p><p>{t('aiKnownTokens')}: {format(usage.summary.inputTokens+usage.summary.outputTokens)}</p><p>{t('aiSucceeded')}: {format(usage.summary.successes)} · {t('aiUnknownUsage')}: {format(usage.summary.unknownUsageCount)}</p><p className="field-hint">{t('aiUsageStateCounts',{preflight:usage.summary.preflightRejections,pending:usage.summary.pendingAttempts,legacy:usage.summary.legacyUnknownAttempts})}</p>
+    <details className="ai-breakdown"><summary>{t('aiByDay')}</summary><div className="ai-table-wrap"><table><thead><tr><th>{t('aiDay')}</th><th>{t('aiRequests')}</th><th>{t('aiKnownTokens')}</th></tr></thead><tbody>{usage.byDay.map(d=><tr key={d.date}><th>{d.date}</th><td>{d.calls}</td><td>{format(d.inputTokens+d.outputTokens)}{d.unknownUsageCount>0&&` + ${t('hubUnknown')}`}</td></tr>)}</tbody></table></div></details>
+    <details className="ai-breakdown"><summary>{t('aiByModel')}</summary>{usage.byModel.length?usage.byModel.map((m,i)=><div className="ai-usage-row" key={i}><strong>{m.model==='unreported'?t('aiModelUnreported'):m.model}</strong><span>{t(routeKey(m.route))} · {t('aiCallCount',{count:m.calls})}</span><small>{t('aiKnownTokens')}: {format(m.inputTokens+m.outputTokens)}</small></div>):<p>{t('aiNoUsage')}</p>}</details>
+    <details className="ai-breakdown"><summary>{t('aiByPurpose')}</summary>{usage.byPurpose.length?usage.byPurpose.map((p,i)=><div className="ai-usage-row" key={i}><strong>{purposeLabel(p.purpose,t)}</strong><span>{t(p.category==='normal'?'aiNormalUse':'aiSetupTests')} · {t('aiCallCount',{count:p.calls})}</span><small>{t('aiKnownTokens')}: {format(p.inputTokens+p.outputTokens)}</small></div>):<p>{t('aiNoUsage')}</p>}</details>
+    </details>
+   </section>
+   <details className="ai-card ai-cost-details"><summary>{t('aiCostDetails')}</summary><div className="ai-estimate-grid">
+   <section className="ai-card ai-costs"><p className="eyebrow">{t('aiEstimate')}</p><h2>{t('aiPlanCredits')}</h2><p className="ai-cost-value">{usage.chatGptCredits.estimatedCredits??t('hubUnknown')}</p><p>{t('aiCreditsEstimateHint')}</p><p className="field-hint">{t('aiPricingCoverage',{known:usage.chatGptCredits.knownCalls,unknown:usage.chatGptCredits.unknownPricedAttempts})}</p>{source(usage.chatGptCredits)}<p className="notice">{t('aiBalanceUnknown')}</p><a className="ai-usage-link" href="https://chatgpt.com/settings/usage" target="_blank" rel="noreferrer">{t('aiAccountUsage')}<Icon name="arrow"/></a></section>
+   <section className="ai-card ai-costs"><p className="eyebrow">{t('aiScenario')}</p><h2>{t('aiApiEquivalent')}</h2><p className="ai-cost-value">{usage.apiEquivalent.amount===null?t('hubUnknown'):`${usage.apiEquivalent.amount} USD`}</p><p>{t('aiApiScenarioHint')}</p><p className="field-hint">{t('aiApiComparisonAssumption')}</p><p className="field-hint">{t('aiPricingCoverage',{known:usage.apiEquivalent.knownCalls,unknown:usage.apiEquivalent.unknownPricedAttempts})}</p>{source(usage.apiEquivalent)}</section>
+   <section className="ai-card"><h2>{t('aiForecast')}</h2>{(['chatGptCredits','apiUsd'] as const).map(key=>{const forecast=usage.forecast[key];const presentation=forecastPresentation(forecast);return <section className="ai-forecast-route" key={key}><h3>{t(key==='chatGptCredits'?'aiMonthlyCredits':'aiMonthlyApi')}</h3>{presentation.amount!==null?<p className="ai-cost-value">{presentation.amount}{key==='apiUsd'?' USD':` ${t('aiCreditUnit')}`}</p>:<p>{t(presentation.reasonKey)}</p>}<p className="field-hint">{forecast.from??t('hubUnknown')} – {forecast.to??t('hubUnknown')} · UTC</p><p className="field-hint">{t('aiForecastCoverage',{days:forecast.completeCalendarDays})}</p><p className="field-hint">{t('aiPricingCoverage',{known:forecast.knownCalls,unknown:Math.max(0,forecast.totalCalls-forecast.knownCalls)})}</p>{key==='apiUsd'&&<p className="field-hint">{t('aiApiComparisonAssumption')}</p>}</section>})}<p className="field-hint">{t('aiForecastNotCap')}</p></section>
+   </div></details>
+    <details className="ai-card ai-recent-details"><summary>{t('aiRecentActivity')}</summary><p className="field-hint">{t('aiRecentAllTime')}</p>{usage.recent.length?<div className="ai-usage-list">{usage.recent.map((r,i)=><article key={`${r.occurredAt}-${i}`}><div><strong>{purposeLabel(r.purpose,t)}</strong><span>{t(attemptState(r))}</span></div><p>{t('aiActualModel')}: {r.actualModel??t('aiModelUnreported')} · {t(routeKey(r.route??r.provider))}</p>{r.fallbackFromProvider&&r.fallbackReason&&<p className="field-hint">{t('aiFallbackFromProvider',{provider:t(routeKey(r.fallbackFromProvider))})} · {t(({transient:'aiFallbackReasonTransient',network_error:'aiFallbackReasonNetwork',provider_rate_limited:'aiFallbackReasonRateLimited'} as const)[r.fallbackReason])}</p>}{r.requestedModel&&<p className="field-hint">{t('aiRequestedModel')}: {r.requestedModel}</p>}<p className="field-hint">{t('aiReportedTier')}: {r.actualServiceTier??t('hubUnknown')}</p><small>{formatDate(r.occurredAt,locale,timezone)} · {t(r.category===null?'aiUsageCategoryUnknown':r.category==='normal'?'aiNormalUse':'aiSetupTests')}</small><p>{t('aiTokenPair',{input:r.inputTokens===null?t('hubUnknown'):r.inputTokens,output:r.outputTokens===null?t('hubUnknown'):r.outputTokens})}</p>{r.errorCode&&<p className="field-hint">{t(safeError(r.errorCode))}</p>}</article>)}</div>:<p>{t('aiNoUsage')}</p>}</details>
+  </div></div>
+ </section>;
 }
-
-interface Draft {
-  enabled: boolean;
-  provider: ProviderId;
-  baseUrl: string;
-  defaultModel: string;
-  strongModel: string;
-  defaultReasoningEffort: ReasoningEffort;
-  strongReasoningEffort: ReasoningEffort;
-}
-
-const asDraft = (settings: AiSettings): Draft => ({
-  enabled: settings.enabled,
-  provider: settings.provider,
-  baseUrl: settings.baseUrl ?? "",
-  defaultModel: settings.defaultModel,
-  strongModel: settings.strongModel,
-  defaultReasoningEffort: settings.defaultReasoningEffort ?? "none",
-  strongReasoningEffort: settings.strongReasoningEffort ?? "medium",
-});
-
-export function AiSettingsPanel({
-  householdId,
-  timezone,
-}: {
-  householdId: string;
-  timezone: string;
-}) {
-  const { t, locale } = useI18n();
-  const base = `/households/${householdId}/ai`;
-  const [settings, setSettings] = useState<AiSettings>();
-  const [usage, setUsage] = useState<AiUsage>();
-  const [draft, setDraft] = useState<Draft>();
-  const [apiKey, setApiKey] = useState("");
-  const [removeApiKey, setRemoveApiKey] = useState(false);
-  const [loadError, setLoadError] = useState<unknown>();
-  const [actionError, setActionError] = useState<unknown>();
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [testing, setTesting] = useState<ModelTier>();
-  const [testResult, setTestResult] = useState<{
-    tier: ModelTier;
-    available: boolean;
-    errorCode?: string;
-  }>();
-  const busy = saving || Boolean(testing);
-
-  const load = useCallback(async () => {
-    setLoadError(undefined);
-    try {
-      const [nextSettings, nextUsage] = await Promise.all([
-        api<AiSettings>(`${base}/settings`),
-        api<AiUsage>(`${base}/usage`),
-      ]);
-      setSettings(nextSettings);
-      setDraft(asDraft(nextSettings));
-      setUsage(nextUsage);
-      setApiKey("");
-      setRemoveApiKey(false);
-    } catch (error) {
-      setLoadError(error);
-    }
-  }, [base]);
-
-  useEffect(() => {
-    setSettings(undefined);
-    setUsage(undefined);
-    setDraft(undefined);
-    setSaved(false);
-    setTestResult(undefined);
-    void load();
-  }, [load]);
-
-  const dirty = useMemo(
-    () =>
-      Boolean(
-        settings &&
-          draft &&
-          (draft.enabled !== settings.enabled ||
-            draft.provider !== settings.provider ||
-            draft.baseUrl !== (settings.baseUrl ?? "") ||
-            draft.defaultModel !== settings.defaultModel ||
-            draft.strongModel !== settings.strongModel ||
-            draft.defaultReasoningEffort !== (settings.defaultReasoningEffort ?? "none") ||
-            draft.strongReasoningEffort !== (settings.strongReasoningEffort ?? "medium") ||
-            apiKey.length > 0 ||
-            removeApiKey),
-      ),
-    [apiKey, draft, removeApiKey, settings],
-  );
-  const credentialIdentityChanged = Boolean(
-    settings &&
-      draft &&
-      (draft.provider !== settings.provider ||
-        (draft.provider === "openai_compatible" &&
-          draft.baseUrl !== (settings.baseUrl ?? ""))),
-  );
-  const hasCurrentApiKey = Boolean(settings?.hasApiKey && !credentialIdentityChanged);
-  const invalidKey =
-    apiKey.length > 0 && draft?.provider === "openai" && apiKey.length < 20;
-
-  const save = async () => {
-    if (!settings || !draft || busy || invalidKey || !dirty) return;
-    setSaving(true);
-    setSaved(false);
-    setActionError(undefined);
-    setTestResult(undefined);
-    try {
-      const body: Record<string, unknown> = {
-        enabled: draft.enabled,
-        provider: draft.provider,
-        defaultModel: draft.defaultModel,
-        strongModel: draft.strongModel,
-        expectedRevision: settings.revision,
-      };
-      if (draft.provider === "openai_compatible") {
-        body.baseUrl = draft.baseUrl;
-        body.defaultReasoningEffort = draft.defaultReasoningEffort;
-        body.strongReasoningEffort = draft.strongReasoningEffort;
-      }
-      if (apiKey) body.apiKey = apiKey;
-      else if (removeApiKey) body.apiKey = null;
-      const next = await api<AiSettings>(`${base}/settings`, "PATCH", body);
-      setSettings(next);
-      setDraft(asDraft(next));
-      setApiKey("");
-      setRemoveApiKey(false);
-      setSaved(true);
-    } catch (error) {
-      setActionError(error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const testConnection = async (tier: ModelTier) => {
-    if (dirty || busy) return;
-    setTesting(tier);
-    setSaved(false);
-    setActionError(undefined);
-    setTestResult(undefined);
-    try {
-      const result = await api<{
-        available: boolean;
-        provider: ProviderId;
-        modelTier: ModelTier;
-        checkedAt: string;
-        errorCode?: string;
-      }>(`${base}/test`, "POST", { modelTier: tier }, { timeoutMs: 35000 });
-      setTestResult({
-        tier,
-        available: result.available,
-        errorCode: result.errorCode,
-      });
-      const [nextSettings, nextUsage] = await Promise.all([
-        api<AiSettings>(`${base}/settings`),
-        api<AiUsage>(`${base}/usage`),
-      ]);
-      setSettings(nextSettings);
-      setDraft(asDraft(nextSettings));
-      setUsage(nextUsage);
-    } catch (error) {
-      setActionError(error);
-    } finally {
-      setTesting(undefined);
-    }
-  };
-
-  if (!settings || !draft || !usage) {
-    return (
-      <section className="ai-settings" aria-label={t("aiTitle")}>
-        <ErrorNotice error={loadError} />
-        {!loadError && <Loading />}
-        {Boolean(loadError) && (
-          <button className="button" onClick={() => void load()}>
-            {t("retry")}
-          </button>
-        )}
-      </section>
-    );
-  }
-
-  const availabilityLabel = {
-    not_tested: t("aiStatusNotTested"),
-    not_configured: t("aiStatusNotConfigured"),
-    available: t("aiStatusAvailable"),
-    unavailable: t("aiStatusUnavailable"),
-    error: t("aiStatusError"),
-  }[settings.availability.status];
-
-  return (
-    <section className="ai-settings" aria-labelledby="ai-title">
-      <header className="section-heading ai-heading">
-        <div>
-          <p className="eyebrow">{t("aiEyebrow")}</p>
-          <h1 id="ai-title">{t("aiTitle")}</h1>
-          <p>{t("aiBody")}</p>
-        </div>
-        <span
-          className={`ai-availability ai-${settings.availability.status}`}
-          data-testid="ai-availability"
-        >
-          <span aria-hidden="true">{settings.availability.available ? "✓" : "•"}</span>
-          {availabilityLabel}
-        </span>
-      </header>
-
-      <div className="ai-layout">
-        <div className="ai-primary">
-          <form
-            className="ai-card form-stack"
-            aria-busy={busy}
-            onSubmit={(event) => {
-              event.preventDefault();
-              void save();
-            }}
-          >
-            <div className="ai-card-heading">
-              <div>
-                <h2>{t("aiConfiguration")}</h2>
-                <p>{t("aiConfigurationHint")}</p>
-              </div>
-              <Check
-                label={t("aiEnabled")}
-                checked={draft.enabled}
-                disabled={busy}
-                onChange={(enabled) => {
-                  setDraft({ ...draft, enabled });
-                  setSaved(false);
-                }}
-              />
-            </div>
-
-            <fieldset className="ai-providers">
-              <legend>{t("aiProvider")}</legend>
-              <label
-                className={`ai-provider ${draft.provider === "openai" ? "active" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="ai-provider"
-                  value="openai"
-                  checked={draft.provider === "openai"}
-                  disabled={busy}
-                  onChange={() => {
-                    setDraft({ ...draft, provider: "openai" });
-                    setSaved(false);
-                  }}
-                />
-                <span>
-                  <strong>OpenAI API</strong>
-                  <small>{t("aiProviderOpenAiHint")}</small>
-                </span>
-                <span className="ai-provider-state">{t("aiProviderAvailable")}</span>
-              </label>
-              <label
-                className={`ai-provider ${draft.provider === "openai_compatible" ? "active" : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="ai-provider"
-                  value="openai_compatible"
-                  checked={draft.provider === "openai_compatible"}
-                  disabled={busy}
-                  onChange={() => {
-                    setDraft({ ...draft, provider: "openai_compatible" });
-                    setSaved(false);
-                  }}
-                />
-                <span>
-                  <strong>{t("aiProviderLocal")}</strong>
-                  <small>{t("aiProviderLocalHint")}</small>
-                </span>
-                <span className="ai-provider-state">{t("aiProviderAvailable")}</span>
-              </label>
-              <div className="ai-provider unavailable" aria-disabled="true">
-                <Icon name="offline" />
-                <span>
-                  <strong>{t("aiProviderChatGpt")}</strong>
-                  <small>{t("aiProviderChatGptHint")}</small>
-                </span>
-                <span className="ai-provider-state">{t("aiUnavailableSlice")}</span>
-              </div>
-            </fieldset>
-
-            {draft.provider === "openai_compatible" && (
-              <Field label={t("aiBaseUrl")} hint={t("aiBaseUrlHint")}>
-                <input
-                  type="url"
-                  value={draft.baseUrl}
-                  maxLength={2048}
-                  required
-                  disabled={busy}
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  placeholder="http://localhost:11434/v1"
-                  onChange={(event) => {
-                    setDraft({ ...draft, baseUrl: event.target.value });
-                    setSaved(false);
-                  }}
-                />
-              </Field>
-            )}
-
-            <div className="form-grid">
-              <Field label={t("aiRoutineModel")} hint={t("aiRoutineModelHint")}>
-                <input
-                  value={draft.defaultModel}
-                  maxLength={100}
-                  disabled={busy}
-                  autoComplete="off"
-                  onChange={(event) => {
-                    setDraft({ ...draft, defaultModel: event.target.value });
-                    setSaved(false);
-                  }}
-                />
-              </Field>
-              <Field label={t("aiStrongModel")} hint={t("aiStrongModelHint")}>
-                <input
-                  value={draft.strongModel}
-                  maxLength={100}
-                  disabled={busy}
-                  autoComplete="off"
-                  onChange={(event) => {
-                    setDraft({ ...draft, strongModel: event.target.value });
-                    setSaved(false);
-                  }}
-                />
-              </Field>
-            </div>
-
-            {draft.provider === "openai_compatible" && (
-              <div className="form-grid">
-                {(["defaultReasoningEffort", "strongReasoningEffort"] as const).map((field) => (
-                  <Field
-                    key={field}
-                    label={t(field === "defaultReasoningEffort" ? "aiRoutineReasoning" : "aiStrongReasoning")}
-                    hint={t(field === "defaultReasoningEffort" ? "aiRoutineReasoningHint" : "aiStrongReasoningHint")}
-                  >
-                    <select
-                      value={draft[field]}
-                      disabled={busy}
-                      onChange={(event) => {
-                        setDraft({ ...draft, [field]: event.target.value as ReasoningEffort });
-                        setSaved(false);
-                      }}
-                    >
-                      <option value="none">{t("aiReasoningNone")}</option>
-                      <option value="low">{t("aiReasoningLow")}</option>
-                      <option value="medium">{t("aiReasoningMedium")}</option>
-                      <option value="high">{t("aiReasoningHigh")}</option>
-                    </select>
-                  </Field>
-                ))}
-              </div>
-            )}
-
-            <Field
-              label={t(
-                draft.provider === "openai_compatible"
-                  ? "aiApiKeyOptional"
-                  : "aiApiKey",
-              )}
-              hint={t(
-                draft.provider === "openai_compatible"
-                  ? "aiApiKeyOptionalHint"
-                  : "aiApiKeyHint",
-              )}
-            >
-              <input
-                type="password"
-                value={apiKey}
-                minLength={draft.provider === "openai" ? 20 : 1}
-                maxLength={512}
-                disabled={busy || (removeApiKey && hasCurrentApiKey)}
-                autoComplete="new-password"
-                placeholder={
-                  hasCurrentApiKey
-                    ? t("aiApiKeyConfigured")
-                    : draft.provider === "openai_compatible"
-                      ? t("aiApiKeyOptionalEmpty")
-                      : t("aiApiKeyEmpty")
-                }
-                onChange={(event) => {
-                  setApiKey(event.target.value);
-                  setSaved(false);
-                }}
-              />
-            </Field>
-            {invalidKey && <p className="field-error">{t("aiApiKeyLength")}</p>}
-            {credentialIdentityChanged && settings.hasApiKey && !apiKey && (
-              <p className="field-hint">{t("aiApiKeyResetOnProviderChange")}</p>
-            )}
-            {hasCurrentApiKey && (
-              <Check
-                label={t("aiRemoveApiKey")}
-                checked={removeApiKey}
-                disabled={busy}
-                onChange={(checked) => {
-                  setRemoveApiKey(checked);
-                  if (checked) setApiKey("");
-                  setSaved(false);
-                }}
-              />
-            )}
-
-            <ErrorNotice error={actionError} />
-            <div className="form-actions">
-              <span className="field-hint" role="status" aria-live="polite">
-                {saved ? t("aiSettingsSaved") : ""}
-              </span>
-              <button
-                className="button primary"
-                type="submit"
-                disabled={!dirty || invalidKey || busy}
-              >
-                {saving ? t("saving") : t("save")}
-                <Icon name={saving ? "clock" : "arrow"} />
-              </button>
-            </div>
-          </form>
-
-          <section
-            className="ai-card"
-            aria-labelledby="ai-test-title"
-            aria-busy={Boolean(testing)}
-          >
-            <div className="ai-card-heading">
-              <div>
-                <h2 id="ai-test-title">{t("aiConnectionTest")}</h2>
-                <p>{t(settings.provider === "openai_compatible" ? "aiLocalConnectionTestHint" : "aiConnectionTestHint")}</p>
-              </div>
-              {settings.availability.checkedAt && (
-                <small>
-                  {t("aiLastTest", {
-                    time: formatDate(
-                      settings.availability.checkedAt,
-                      locale,
-                      timezone,
-                    ),
-                  })}
-                </small>
-              )}
-            </div>
-            {settings.availability.errorCode && !testResult && (
-              <p className="ai-availability-reason">
-                {t(errorKey(settings.availability.errorCode))}
-              </p>
-            )}
-            <div className="notice offline ai-credit-notice">
-              <Icon name="spark" />
-              <span>
-                {t(
-                  settings.provider === "openai_compatible"
-                    ? "aiLocalTestUsageWarning"
-                    : "aiTestUsageWarning",
-                )}
-              </span>
-            </div>
-            {dirty && <p className="field-hint">{t("aiSaveBeforeTest")}</p>}
-            <div className="ai-test-actions">
-              {(["routine", "strong"] as const).map((tier) => (
-                <button
-                  key={tier}
-                  className="button"
-                  disabled={dirty || busy}
-                  onClick={() => void testConnection(tier)}
-                >
-                  <Icon name={testing === tier ? "clock" : "spark"} />
-                  {testing === tier
-                    ? t("aiTesting")
-                    : t(tier === "routine" ? "aiTestRoutine" : "aiTestStrong")}
-                </button>
-              ))}
-            </div>
-            {testResult && (
-              <div
-                className={`notice ${testResult.available ? "" : "error"}`}
-                role="status"
-                data-testid="ai-test-result"
-              >
-                <Icon name={testResult.available ? "check" : "shield"} />
-                <span>
-                  {testResult.available
-                    ? t("aiTestSucceeded", {
-                        tier: t(
-                          testResult.tier === "routine"
-                            ? "aiRoutineTier"
-                            : "aiStrongTier",
-                        ),
-                      })
-                    : t("aiTestFailed", {
-                        reason: testResult.errorCode
-                          ? t(errorKey(testResult.errorCode))
-                          : t("INTERNAL_ERROR"),
-                      })}
-                </span>
-              </div>
-            )}
-            <p className="field-hint">{t("aiAvailabilityScope")}</p>
-          </section>
-        </div>
-
-        <aside className="ai-secondary">
-          <section className="ai-card" aria-labelledby="ai-usage-title">
-            <h2 id="ai-usage-title">{t("aiUsage")}</h2>
-            <p className="field-hint">{t("aiUsageHint")}</p>
-            <dl className="ai-summary">
-              <div><dt>{t("aiRequests")}</dt><dd>{usage.summary.requests}</dd></div>
-              <div><dt>{t("aiSucceeded")}</dt><dd>{usage.summary.successes}</dd></div>
-              <div><dt>{t("aiFailed")}</dt><dd>{usage.summary.failures}</dd></div>
-              <div>
-                <dt>{t("aiTokens")}</dt>
-                <dd>{usage.summary.inputTokens + usage.summary.outputTokens}</dd>
-              </div>
-            </dl>
-            <h3>{t("aiRecentActivity")}</h3>
-            {usage.recent.length ? (
-              <div className="ai-usage-list">
-                {usage.recent.map((item, index) => (
-                  <article key={`${item.occurredAt}:${index}`}>
-                    <div>
-                      <strong>
-                        {item.purpose === "connection_test"
-                          ? t("aiConnectionTestPurpose")
-                          : item.purpose}
-                      </strong>
-                      <span className={item.success ? "success" : "failure"}>
-                        {item.success ? t("aiSucceeded") : t("aiFailed")}
-                      </span>
-                    </div>
-                    <p>{item.model || t("aiModelNotConfigured")}</p>
-                    <small>
-                      {formatDate(item.occurredAt, locale, timezone)} · {t("aiTokenPair", {
-                        input: item.inputTokens ?? 0,
-                        output: item.outputTokens ?? 0,
-                      })}
-                    </small>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="ai-empty-usage">{t("aiNoUsage")}</p>
-            )}
-          </section>
-        </aside>
-      </div>
-    </section>
-  );
-}
-
-type ErrorTranslationKey =
-  | "AI_CONFIGURATION_INVALID"
-  | "AI_PROVIDER_UNAVAILABLE"
-  | "AI_UPSTREAM_ERROR"
-  | "AI_RESPONSE_INVALID"
-  | "AI_TIMEOUT"
-  | "AI_ENDPOINT_BLOCKED"
-  | "AI_DISABLED"
-  | "CHATGPT_CONNECTION_NOT_CONFIGURED"
-  | "PROVIDER_NOT_IMPLEMENTED_M2_1";
-
-const errorLabels: Record<string, ErrorTranslationKey> = {
-  AI_CONFIGURATION_INVALID: "AI_CONFIGURATION_INVALID",
-  AI_PROVIDER_UNAVAILABLE: "AI_PROVIDER_UNAVAILABLE",
-  AI_UPSTREAM_ERROR: "AI_UPSTREAM_ERROR",
-  AI_RESPONSE_INVALID: "AI_RESPONSE_INVALID",
-  AI_TIMEOUT: "AI_TIMEOUT",
-  AI_ENDPOINT_BLOCKED: "AI_ENDPOINT_BLOCKED",
-  AI_DISABLED: "AI_DISABLED",
-  CHATGPT_CONNECTION_NOT_CONFIGURED: "CHATGPT_CONNECTION_NOT_CONFIGURED",
-  PROVIDER_NOT_IMPLEMENTED_M2_1: "PROVIDER_NOT_IMPLEMENTED_M2_1",
-};
-
-const errorKey = (code: string | null | undefined): ErrorTranslationKey | "INTERNAL_ERROR" =>
-  code && errorLabels[code] ? errorLabels[code]! : "INTERNAL_ERROR";
+function purposeLabel(purpose:string,t:(key:TranslationKey,values?:Record<string,string|number>)=>string){const key=purposeKey(purpose);return key?t(key):purpose}

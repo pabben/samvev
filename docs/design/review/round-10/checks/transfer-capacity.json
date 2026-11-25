@@ -1,0 +1,12 @@
+{
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "candidateImage": "samvev-m1/runtime:ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "remoteAvailableBytes": 890159104,
+  "missingLayers": 5,
+  "missingLayerBytes": 133407401,
+  "cloneReserveBytes": 70392061,
+  "loaderMarginBytes": 314572800,
+  "drMarginBytes": 314572800,
+  "requiredBytes": 832945062,
+  "eligible": true
+}

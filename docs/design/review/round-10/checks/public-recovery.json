@@ -1,0 +1,140 @@
+{
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "gates": {
+    "precutover": {
+      "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "mode": "precutover",
+      "generatedAt": "2026-10-14T11:42:08.599298+00:00",
+      "candidateImageId": "sha256:8fa9329df7a59773d1f294e030d045605cd14ad94ba6e8d557588a247f37a341",
+      "legacyImageId": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+      "freshCustomBackup": true,
+      "exactQuiescentBackupRestored": false,
+      "backupToc": true,
+      "isolatedPostgres17Restore": true,
+      "migration024AppliedOrNoop": true,
+      "ledgerChecksumsExact": true,
+      "migrationSecondRunNoop": true,
+      "opaquePhotosTasksCalendarIdsFingerprintsSubjectsAndRightsEqual": true,
+      "calendarProjectionRepairMatchesSource": true,
+      "amcheck": true,
+      "candidateAndLegacyProtectedPhotoHashesMatch": true,
+      "cloneHasNoWorkerOrVaultOrPorts": true,
+      "liveUnchangedBeforeAfter": true,
+      "candidateAuthenticatedRead": {
+        "authenticated": true,
+        "oneMembership": true,
+        "oneOwnPerson": true,
+        "protectedPhoto96": true,
+        "protectedPhoto512": true,
+        "personMonitorSummary": true
+      },
+      "legacyAuthenticatedRead": {
+        "authenticated": true,
+        "oneMembership": true,
+        "oneOwnPerson": true,
+        "protectedPhoto96": true,
+        "protectedPhoto512": true,
+        "personMonitorSummary": true
+      },
+      "candidateAssets": {
+        "allServedAssetsMatch": true,
+        "count": 10
+      }
+    },
+    "rollbackbackup": {
+      "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "mode": "rollbackbackup",
+      "generatedAt": "2026-10-14T11:55:56.177207+00:00",
+      "candidateImageId": "sha256:8fa9329df7a59773d1f294e030d045605cd14ad94ba6e8d557588a247f37a341",
+      "legacyImageId": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+      "freshCustomBackup": false,
+      "exactQuiescentBackupRestored": true,
+      "backupToc": true,
+      "isolatedPostgres17Restore": true,
+      "migration024AppliedOrNoop": true,
+      "ledgerChecksumsExact": true,
+      "migrationSecondRunNoop": true,
+      "opaquePhotosTasksCalendarIdsFingerprintsSubjectsAndRightsEqual": true,
+      "calendarProjectionRepairMatchesSource": true,
+      "amcheck": true,
+      "candidateAndLegacyProtectedPhotoHashesMatch": true,
+      "cloneHasNoWorkerOrVaultOrPorts": true,
+      "liveUnchangedBeforeAfter": true,
+      "candidateAuthenticatedRead": {
+        "authenticated": true,
+        "oneMembership": true,
+        "oneOwnPerson": true,
+        "protectedPhoto96": true,
+        "protectedPhoto512": true,
+        "personMonitorSummary": true
+      },
+      "legacyAuthenticatedRead": {
+        "authenticated": true,
+        "oneMembership": true,
+        "oneOwnPerson": true,
+        "protectedPhoto96": true,
+        "protectedPhoto512": true,
+        "personMonitorSummary": true
+      },
+      "candidateAssets": {
+        "allServedAssetsMatch": true,
+        "count": 10
+      }
+    },
+    "postcutover": {
+      "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+      "mode": "postcutover",
+      "generatedAt": "2026-10-14T11:56:25.232281+00:00",
+      "candidateImageId": "sha256:8fa9329df7a59773d1f294e030d045605cd14ad94ba6e8d557588a247f37a341",
+      "legacyImageId": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+      "freshCustomBackup": true,
+      "exactQuiescentBackupRestored": false,
+      "backupToc": true,
+      "isolatedPostgres17Restore": true,
+      "migration024AppliedOrNoop": true,
+      "ledgerChecksumsExact": true,
+      "migrationSecondRunNoop": true,
+      "opaquePhotosTasksCalendarIdsFingerprintsSubjectsAndRightsEqual": true,
+      "calendarProjectionRepairMatchesSource": true,
+      "amcheck": true,
+      "candidateAndLegacyProtectedPhotoHashesMatch": true,
+      "cloneHasNoWorkerOrVaultOrPorts": true,
+      "liveUnchangedBeforeAfter": true,
+      "candidateAuthenticatedRead": {
+        "authenticated": true,
+        "oneMembership": true,
+        "oneOwnPerson": true,
+        "protectedPhoto96": true,
+        "protectedPhoto512": true,
+        "personMonitorSummary": true
+      },
+      "legacyAuthenticatedRead": {
+        "authenticated": true,
+        "oneMembership": true,
+        "oneOwnPerson": true,
+        "protectedPhoto96": true,
+        "protectedPhoto512": true,
+        "personMonitorSummary": true
+      },
+      "candidateAssets": {
+        "allServedAssetsMatch": true,
+        "count": 10
+      }
+    }
+  },
+  "quiescentBackupHashAndInvariantHashVerifiedPrivately": true,
+  "allOwnedTemporaryResourcesRemoved": true,
+  "noWorkerVaultPortsOrExternalProviderModelCallsInClone": true,
+  "incident": {
+    "mainWrapperPathTypeError": true,
+    "exactBackupRestoreHadAlreadyPassed": true,
+    "automaticOldCodeConfigRecoveryHealthy": true,
+    "liveDatabaseAndSchema24NotRestoredOrOverwritten": true,
+    "candidateReappliedFromSameSavedConfigWithoutMigration": true,
+    "exactBackupAndFresh24GatesRerunPassed": true,
+    "actualLegacyWorkerHealthDuringEmergencyCodeRecovery": true,
+    "legacyWorkerNotStartedInIsolatedClone": true
+  },
+  "fullPrivateDumpsReceiptsAndHashesRetainedMode0600NotPublished": true,
+  "httpsAcceptanceSeparate": true
+}

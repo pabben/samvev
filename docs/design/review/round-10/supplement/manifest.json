@@ -1,0 +1,75 @@
+{
+  "round": "round-10-supplement",
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "actualUi": true,
+  "isolatedFixture": "existing six fictional people; exact temporary calendar error rows and existing monitor-state rows in samvev_round9; no external provider or model calls",
+  "preservesCore14": "../manifest.json is intentionally unchanged",
+  "calendarStates": [
+    "operator",
+    "expired"
+  ],
+  "monitorApiTimeFields": "lastRunAt and nextRunAt, compared exactly to controlled fixture logical timestamps",
+  "displayBoundary": "existing display session can project but receives 401 from member APIs",
+  "screenshots": [
+    {
+      "filename": "calendar-operator-desktop-nb-dark.png",
+      "sha256": "f7c96f143638e9fb80140e77ee84bc309ca4c08e49f4fb19be9bdbda29825656",
+      "surface": "calendar-error",
+      "calendarState": "operator",
+      "locale": "nb",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "actualUi": true,
+      "updateBlocked": true,
+      "previewBlocked": true,
+      "activateBlocked": true
+    },
+    {
+      "filename": "calendar-expired-mobile-en-light.png",
+      "sha256": "53e78c6b8c82bf5afdb6893f50ca925914d81ffc1ae2007681f9e2593080d895",
+      "surface": "calendar-error",
+      "calendarState": "expired",
+      "locale": "en",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "actualUi": true,
+      "updateBlocked": true,
+      "previewBlocked": true,
+      "activateBlocked": true
+    },
+    {
+      "filename": "person-failed-older-desktop-nb-dark.png",
+      "sha256": "5dfcb0a81c275ea4166c9c5ea1732b1b5bcb5863fa1bfb7bffebb504a43dff98",
+      "surface": "person-task",
+      "monitorState": "failedOlder",
+      "locale": "nb",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "actualUi": true,
+      "apiTimesVerified": true
+    },
+    {
+      "filename": "person-active-older-mobile-en-light.png",
+      "sha256": "127ba2d1cfaefa7908731b693abb45db062cc6c2a5dc2d865edb1f2a906efe43",
+      "surface": "person-task",
+      "monitorState": "activeOlder",
+      "locale": "en",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "actualUi": true,
+      "apiTimesVerified": true
+    }
+  ]
+}

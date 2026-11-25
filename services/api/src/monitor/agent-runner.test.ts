@@ -26,6 +26,17 @@ test('runner accepts a normal final turn without inventing a tool call',async()=
   assert.equal(result.output,'Synthetic final');assert.equal(result.aiCalls,1);assert.equal(result.documents.length,0);assert.equal(h.fetches,0);assert.deepEqual(h.choices,['auto']);
 });
 
+test('calendar subscriptions fail with localized ICS guidance before the runner opens an AI session',async()=>{
+  let aiSessions=0,fetches=0;
+  const ai={createTaskSession:async()=>{aiSessions++;throw new Error('AI session must not be created for a calendar URL');}} as unknown as AiAdminService;
+  const fetcher={fetch:async()=>{fetches++;throw new Error('Source fetch must not run for a calendar URL');}} as unknown as MonitorSourceFetcher;
+  const runner=new MonitorAgentRunner(ai,fetcher,1000);
+  for(const rootUrl of ['https://public.example/calendar.ics','https://calendar.google.com/calendar/u/0?cid=synthetic-calendar-id']){
+    await assert.rejects(()=>runner.run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='CALENDAR_SOURCE_USE_ICS'&&error.status===422);
+  }
+  assert.equal(aiSessions,0);assert.equal(fetches,0);
+});
+
 test('runner tags an invalid provider response with sanitized diagnostics',async()=>{
   const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_RESPONSE_INVALID',502,{rawOutput:'must not escape'});}})} as unknown as AiAdminService;
   await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='invalid_provider_response'&&error.details?.aiCalls===1&&!('rawOutput' in (error.details??{})));
@@ -34,6 +45,11 @@ test('runner tags an invalid provider response with sanitized diagnostics',async
 test('runner preserves an allowlisted provider response reason without raw provider details',async()=>{
   const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_RESPONSE_INVALID',502,{providerResponseReason:'empty_content',rawOutput:'must not escape',reasoning:'must not escape'});}})} as unknown as AiAdminService;
   await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='empty_content'&&!('providerResponseReason' in (error.details??{}))&&!('rawOutput' in (error.details??{}))&&!('reasoning' in (error.details??{})));
+});
+
+test('runner exposes a safe output limit diagnostic without raw partial JSON',async()=>{
+  const ai={createTaskSession:async()=>({provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>{throw new DomainError('AI_RESPONSE_INVALID',502,{providerResponseReason:'output_limit_reached',rawOutput:'SYNTHETIC_PRIVATE_PARTIAL_JSON'});}})} as unknown as AiAdminService;
+  await assert.rejects(new MonitorAgentRunner(ai,undefined,1000).run({householdId:'00000000-0000-4000-8000-000000000001',task,policy:'default',rootUrl:root.finalUrl,toolNames:['web.open']}),(error:unknown)=>error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&error.details?.validationStage==='provider_response'&&error.details?.validationReason==='output_limit_reached'&&!('providerResponseReason' in (error.details??{}))&&!('rawOutput' in (error.details??{})));
 });
 
 test('runner preserves only a safe upstream category',async()=>{
@@ -81,10 +97,10 @@ test('runner allows only one provider-response repair attempt',async()=>{
 });
 
 test('one format repair can reuse server-validated seed evidence without network or tool access',async()=>{
-  let toolCount=-1;let input='';let mode:unknown;let fetches=0;const root:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',text:'Outdoor activity 2030-09-20',headings:['Outdoor activity'],links:[],fingerprint:'seed',evidenceDates:['2030-09-20']};
+  let toolCount=-1;let input='';let mode:unknown;let fetches=0;const root:SourceDocument={finalUrl:'https://example.test/plan',contentType:'text/html',text:'Outdoor activity 2030-09-20',headings:['Outdoor activity'],links:[],fingerprint:'seed',evidenceDates:['2030-09-20'],evidenceComplete:false};
   const ai={createTaskSession:async(_household:string,task:AiTask,_policy:unknown,tools:unknown[],_signal:unknown,receivedMode:unknown)=>{toolCount=tools.length;input=task.input;mode=receivedMode;return{provider:'openai_compatible' as const,model:'synthetic',close:()=>{},next:async()=>({output:'repaired final',toolCalls:[],generatedAt:'2026-09-12T08:00:00Z'})};}} as unknown as AiAdminService;
-  const fetcher={fetch:async()=>{fetches++;throw new Error('must not fetch');}} as unknown as MonitorSourceFetcher;const result=await new MonitorAgentRunner(ai,fetcher).run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'repair',input:'Return strict JSON',modelTier:'strong',sources:[]},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open'],requiredTools:['web.open'],seedDocuments:[root],preloadSeedDocuments:true,maxTurns:1});
-  assert.equal(result.output,'repaired final');assert.equal(result.aiCalls,1);assert.equal(result.attemptedToolCount,0);assert.equal(toolCount,0);assert.equal(mode,'format_repair');assert.equal(fetches,0);assert.match(input,/already fetched and validated/);assert.equal(result.evidenceDocuments[0]!.finalUrl,root.finalUrl);
+  const fetcher={fetch:async()=>{fetches++;throw new Error('must not fetch');}} as unknown as MonitorSourceFetcher;const result=await new MonitorAgentRunner(ai,fetcher).run({householdId:'00000000-0000-4000-8000-000000000001',task:{operation:'extract',purpose:'repair',input:'Return strict JSON',modelTier:'strong',sources:[]},policy:'default',rootUrl:root.finalUrl,toolNames:['web.open'],requiredTools:['web.open'],seedDocuments:[root],preloadSeedDocuments:true,sessionMode:'extractive_answer',maxTurns:1});
+  assert.equal(result.output,'repaired final');assert.equal(result.aiCalls,1);assert.equal(result.attemptedToolCount,0);assert.equal(toolCount,0);assert.equal(mode,'format_repair');assert.equal(fetches,0);assert.match(input,/already fetched and validated/);assert.match(input,/contentComplete\\?":false/);assert.equal(result.evidenceDocuments[0]!.finalUrl,root.finalUrl);assert.equal(result.evidenceDocuments[0]!.evidenceComplete,false);
 });
 
 test('runner enforces a pinned provider before an escalation sends any task turn',async()=>{

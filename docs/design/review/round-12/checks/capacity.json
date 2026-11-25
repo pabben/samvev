@@ -1,0 +1,27 @@
+{
+  "codexDev": {
+    "diskBytes": 322122547200,
+    "logicalVolumeBeforeBytes": 106296246272,
+    "logicalVolumeAfterBytes": 213670428672,
+    "filesystemBeforeBytes": 104028168192,
+    "filesystemAfterBytes": 209718075392,
+    "availableBeforeBytes": 2335477760,
+    "availableAfterBytes": 103730622464,
+    "ownerExecutedReviewedHelper": true,
+    "independentlyVerified": true,
+    "identitiesStartSectorsAndMountsPreserved": true
+  },
+  "claude": {
+    "diskBytes": 107374182400,
+    "logicalVolumeBeforeBytes": 83747667968,
+    "logicalVolumeAfterBytes": 105222504448,
+    "filesystemBeforeBytes": 82312138752,
+    "filesystemAfterBytes": 103441707008,
+    "availableBeforeBytes": 392753152,
+    "availableAfterBytes": 20663500800,
+    "independentlyVerified": true,
+    "identitiesStartSectorsAndMountsPreserved": true
+  },
+  "bothAppWorkerDatabaseHealthyAfterExpansion": true,
+  "noCapacityOwnerActionRemaining": true
+}

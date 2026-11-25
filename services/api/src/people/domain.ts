@@ -9,6 +9,11 @@ export interface UpcomingBirthday {
   daysUntil:number;
   ageTurning:number;
 }
+export interface DueBirthday {
+  personId:string;
+  displayName:string;
+  due:'today'|'tomorrow';
+}
 
 function parts(value:string):CalendarDate {
   const [year,month,day]=value.split('-').map(Number);
@@ -54,4 +59,21 @@ export function nextBirthday(people:readonly BirthdayPerson[],today:string):Upco
     return {personId:person.id,displayName:person.displayName,date:iso(date),daysUntil:ordinal(date)-ordinal(current),ageTurning:date.year-birth.year};
   }).sort((left,right)=>left.daysUntil-right.daysUntil || left.displayName.localeCompare(right.displayName) || left.personId.localeCompare(right.personId));
   return candidates[0]??null;
+}
+
+/** Return only birthdays in the next two household-local calendar days.
+ * The projection deliberately contains neither birth year nor age. */
+export function birthdaysDueSoon(people:readonly BirthdayPerson[],today:string):DueBirthday[]{
+  const current=parts(today);
+  const due=people.flatMap((person)=>{
+    const birth=parts(person.birthDate);
+    for(const offset of [0,1] as const){
+      const targetDate=new Date((ordinal(current)+offset)*86_400_000);
+      const target={year:targetDate.getUTCFullYear(),month:targetDate.getUTCMonth()+1,day:targetDate.getUTCDate()};
+      const normalized=birthdayInYear(birth,target.year);
+      if(normalized.month===target.month&&normalized.day===target.day)return[{personId:person.id,displayName:person.displayName,due:offset===0?'today' as const:'tomorrow' as const}];
+    }
+    return[];
+  });
+  return due.sort((left,right)=>left.due.localeCompare(right.due)||left.displayName.localeCompare(right.displayName)||left.personId.localeCompare(right.personId));
 }

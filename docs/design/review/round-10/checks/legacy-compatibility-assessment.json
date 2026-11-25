@@ -1,0 +1,11 @@
+{
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "legacySourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "legacyImageId": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+  "workerFilesByteIdentical": 3,
+  "oldMigrationsByteIdentical": 23,
+  "migration024AdditiveReviewed": true,
+  "legacyWorkerRuntimeStartedInClone": false,
+  "reason": "Documented restore policy forbids clone workers/provider/model calls; runtime compatibility is assessed, not claimed exercised. Legacy app schema24 reads require separate actual restore receipt.",
+  "candidateWorkerIntegrationTestsPassed": true
+}

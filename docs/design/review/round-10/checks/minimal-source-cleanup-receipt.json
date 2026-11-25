@@ -1,0 +1,11 @@
+{
+  "removedOnlyRebuildableUnmountedSourceDirectories": [
+    "deploy-round9-48281ec/source",
+    "deploy-round9-dd171ac/source"
+  ],
+  "liveContainerIdsAndImagesUnchanged": true,
+  "allThreeLiveServicesHealthy": true,
+  "backupsImagesVolumesAndStageReceiptsNotRemoved": true,
+  "remoteAvailableBeforeBytes": 441757696,
+  "remoteAvailableAfterBytes": 891674624
+}

@@ -1,0 +1,36 @@
+{
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "apiTests": 235,
+  "webTests": 62,
+  "contractTests": 5,
+  "coreTests": 3,
+  "total": 305,
+  "e2eHarnessTests": 10,
+  "workspaceChecks": 5,
+  "npmAuditVulnerabilities": 0,
+  "sourceTestNote": "API/native browser tests completed at aacb762; a99 changed Dockerfile, 6f changed only host wrapper/test/guide. Application/package bytes independently identical. All 57 isolated captures, 14 latest, HTTPS63 and LAN suites actually rerun at 6f. Wrapper targeted3 tests and bash syntax independently passed at 6f. Interrupted/failed preliminary runs are not counted as PASS.",
+  "receipts": [
+    {
+      "privateLog": "backend-dependency-final.log",
+      "sha256": "23895f64b4b5279899daeffacbfa428546b430e128194e7e4817863de38b438c"
+    },
+    {
+      "privateLog": "backend-dependency-checks.log",
+      "sha256": "42f33af1c501600d30f4f71a3675569428dae4c8dbb17753f8ed9c8c548dfc50"
+    },
+    {
+      "privateLog": "backend-sharp-runtime.log",
+      "sha256": "a4622f5ef24c952fc81b8c968f063b74e6733a58254b989ea41b00cb31dbcdeb"
+    },
+    {
+      "privateLog": "check-final.log",
+      "sha256": "e0641762b01204f07ff1d2a97612091b66a358651220e65a02f2d1b6e2fc010a"
+    },
+    {
+      "privateLog": "patched-e2e-final.log",
+      "sha256": "203a75197b20633060c2d120b689a5e8ab5c91542a52908469da2182a91d4d92"
+    }
+  ],
+  "hostWrapperTests": 3,
+  "hostWrapperSyntax": "PASS"
+}

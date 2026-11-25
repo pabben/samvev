@@ -1,0 +1,114 @@
+{
+  "artifactType": "sanitized comparison provenance; composites are not app screenshots",
+  "candidate": {
+    "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+    "sourceTreeStatus": "local-candidate-not-published",
+    "roundId": "20261028032511-971913e3-046fbbb8",
+    "candidateImageSha256": "4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342"
+  },
+  "reference": {
+    "filename": "ChatGPT Image 24. sep. 2026, 23_52_06 (4).png",
+    "sha256": "092a4ad005c214a3f0dc25a2446a6818e507936e3e99f3bb7b99e92b9fd10e98",
+    "bytes": 1796364,
+    "filenameDateText": "24 Sep 2026 23:52:06"
+  },
+  "before": {
+    "sourceSha": "0f808404e1152e3849d7fabacc4081bcb8f9dcf1",
+    "publicationStatus": "baseline-pinned-archive",
+    "description": "Pinned archive; app code matches public R13 source per coordinator verification. It is not a screenshot captured from the live public site.",
+    "screenshotTimestamp": null,
+    "timestampLimitation": "The source manifest contains no capture timestamp and does not enumerate/hash these dark PNGs; direct PNG hashes and filesystem mtimes are retained in private provenance.",
+    "images": {
+      "desktop": {
+        "filename": "home-desktop-dark.png",
+        "sha256": "dcc97ab0df59c7dff81b68949de594552053397c5a2662934a8a2fb0d1e3fcf2",
+        "bytes": 1875201,
+        "dimensions": {
+          "width": 1920,
+          "height": 2490
+        },
+        "filesystemMtimeUtc": "2026-10-28T00:54:58.898Z"
+      },
+      "mobile": {
+        "filename": "home-mobile-dark.png",
+        "sha256": "d715ce515dd2261f34d3926287c4766c1ca5185d7e1667e86795eec478d66c90",
+        "bytes": 959060,
+        "dimensions": {
+          "width": 390,
+          "height": 6377
+        },
+        "filesystemMtimeUtc": "2026-10-28T00:23:49.741Z"
+      }
+    }
+  },
+  "after": {
+    "sourceSha": "971913e321dd82f491214fdbda81d08f8123a891",
+    "publicationStatus": "local-candidate-not-published",
+    "description": "Actual React/Vite UI served from the pinned local candidate source; not published.",
+    "screenshotTimestamp": null,
+    "timestampLimitation": "The final capture manifest contains no capture timestamp; source-image filesystem mtimes are retained in private provenance.",
+    "images": {
+      "desktop": {
+        "filename": "home-desktop-dark.png",
+        "sha256": "28de8d004d505ac616ec6ea5693a18582aa4dd7e92958786d2c12270f9ea18e7",
+        "bytes": 1367142,
+        "dimensions": {
+          "width": 1920,
+          "height": 2165
+        },
+        "filesystemMtimeUtc": "2026-10-28T03:35:21.326Z"
+      },
+      "mobile": {
+        "filename": "home-mobile-dark.png",
+        "sha256": "1bbcf2ef6f3df16988df32e25403cb2313ee7556191cdfc9e8c9cac19af1a74a",
+        "bytes": 703975,
+        "dimensions": {
+          "width": 390,
+          "height": 4085
+        },
+        "filesystemMtimeUtc": "2026-10-28T03:35:54.668Z"
+      }
+    },
+    "captureTimestamp": null
+  },
+  "crops": {
+    "desktop": {
+      "x": 41,
+      "y": 103,
+      "width": 1000,
+      "height": 562,
+      "note": "design-board desktop display; top/bottom framing cropped to 16:9"
+    },
+    "mobile": {
+      "x": 1080,
+      "y": 156,
+      "width": 324,
+      "height": 700,
+      "note": "design-board iPhone mockup crop, including device frame"
+    }
+  },
+  "panels": [
+    {
+      "filename": "home-desktop-dark-panel.png",
+      "sha256": "adca907a06934385b3b872af1c56ae01ccc7338e8ca50db6aa749e4f2bb7bf59",
+      "bytes": 596788,
+      "dimensions": {
+        "width": 1968,
+        "height": 489
+      },
+      "artifactType": "comparison composite, not app screenshot"
+    },
+    {
+      "filename": "home-mobile-dark-panel.png",
+      "sha256": "392c541c9777c2dc893b156955d1e830b09d891b9db6464d19f438b6573ef54b",
+      "bytes": 652168,
+      "dimensions": {
+        "width": 1218,
+        "height": 973
+      },
+      "artifactType": "comparison composite, not app screenshot"
+    }
+  ],
+  "label": "Labeled comparison composites, not app screenshots.",
+  "compositeCreatedAt": "2026-10-28T03:45:02.501Z"
+}

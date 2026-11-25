@@ -38,6 +38,15 @@ test('OpenAI-compatible response diagnostics classify only safe structural reaso
   }
 });
 
+test('OpenAI-compatible length finish reason rejects partial output while retaining usage and hiding content',()=>{
+  const partial='{"answer":"SYNTHETIC_PRIVATE_PARTIAL';
+  assert.throws(()=>chatCompletionTurn({choices:[{message:{content:partial},finish_reason:'length'}],usage:{prompt_tokens:23,completion_tokens:300}}),(error:unknown)=>
+    error instanceof AiProviderFailure&&error.code==='AI_RESPONSE_INVALID'&&error.responseReason==='output_limit_reached'&&
+    error.usage?.inputTokens===23&&error.usage?.outputTokens===300&&!error.message.includes('SYNTHETIC_PRIVATE_PARTIAL'));
+  assert.equal(chatCompletionTurn({choices:[{message:{content:'{}'},finish_reason:'stop'}]}).output,'{}');
+  assert.equal(chatCompletionTurn({choices:[{message:{tool_calls:[{id:'call',function:{name:'tool',arguments:'{}'}}]},finish_reason:'tool_calls'}]}).toolCalls.length,1);
+});
+
 test('provider configuration requires credentials only when the provider contract does',()=>{
   assert.doesNotThrow(()=>validateAiProviderConfiguration({provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}));
   assert.throws(()=>validateAiProviderConfiguration({provider:'openai',model:'remote'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_CONFIGURATION_INVALID');
@@ -229,13 +238,13 @@ test('OpenAI adapter rejects incomplete, refusal and upstream responses with nor
   const cases: Array<{ response: Response; code: string; usage?: unknown }> = [
     { response: new Response(JSON.stringify({ status: 'incomplete', incomplete_details: { reason: 'max_output_tokens' }, usage: { input_tokens: 3, output_tokens: 64 } }), { status: 200 }), code: 'AI_RESPONSE_INVALID', usage: { inputTokens: 3, outputTokens: 64 } },
     { response: new Response(JSON.stringify({ status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'not returned' }] }] }), { status: 200 }), code: 'AI_RESPONSE_INVALID' },
-    { response: new Response(JSON.stringify({ error: { message: 'must never escape' }, usage: { input_tokens: 2 } }), { status: 429 }), code: 'AI_UPSTREAM_ERROR', usage: { inputTokens: 2 } }
+    { response: new Response(JSON.stringify({ error: { message: 'must never escape' }, usage: { input_tokens: 2 } }), { status: 429 }), code: 'AI_PROVIDER_RATE_LIMITED', usage: { inputTokens: 2 } }
   ];
   for (const item of cases) {
     const provider = new OpenAiProvider(async () => item.response);
     await assert.rejects(
       provider.execute(task, { provider: 'openai', model: 'configured-routine', apiKey: 'synthetic-api-key-for-tests' }),
-      (error: unknown) => error instanceof AiProviderFailure && error.code === item.code && assert.deepEqual(error.usage, item.usage) === undefined
+      (error: unknown) => error instanceof AiProviderFailure && error.code === item.code && error.fallbackReason===undefined && assert.deepEqual(error.usage, item.usage) === undefined
     );
   }
 });
@@ -441,10 +450,10 @@ test('OpenAI-compatible endpoint policy permits localhost and LAN while blocking
 test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failures', async () => {
   const resolver = async () => [{ address: '127.0.0.1', family: 4 as const }];
   for (const item of [
-    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 401 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_http_4xx' },
+    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 401 }), code: 'AI_KEY_INVALID',reason:'upstream_http_4xx' },
     { response: new Response(JSON.stringify({ error: { message: 'the request exceeds the available context length and must not escape' } }), { status: 400 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_context_limit' },
     { response: new Response(JSON.stringify({ error: { message: 'response_format json_schema is unsupported and must not escape' } }), { status: 400 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_format_unsupported' },
-    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 429 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_rate_limited' },
+    { response: new Response(JSON.stringify({ error: { message: 'must never escape' } }), { status: 429 }), code: 'AI_PROVIDER_RATE_LIMITED',reason:'upstream_rate_limited' },
     { response: new Response('{', { status: 503 }), code: 'AI_UPSTREAM_ERROR',reason:'upstream_invalid_json' },
     { response: new Response(JSON.stringify({ choices: [] }), { status: 200 }), code: 'AI_RESPONSE_INVALID',reason:'missing_choices' },
     { response: new Response('{', { status: 200 }), code: 'AI_RESPONSE_INVALID',reason:'invalid_json_body' }
@@ -452,7 +461,7 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
     const provider = new OpenAiCompatibleProvider(async () => item.response, 1_000, resolver);
     await assert.rejects(
       provider.execute(task, { provider: 'openai_compatible', model: 'local', baseUrl: 'http://localhost:11434/v1' }),
-      (error: unknown) => error instanceof AiProviderFailure && error.code === item.code && error.responseReason===item.reason && error.message === item.code
+      (error: unknown) => error instanceof AiProviderFailure && error.code === item.code && error.responseReason===item.reason && error.fallbackReason===undefined && error.message === item.code
     );
   }
   const timeout = new OpenAiCompatibleProvider(
@@ -483,11 +492,13 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
     (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_TIMEOUT'
   );
 
-  const networkFailure=new OpenAiCompatibleProvider(async()=>{throw new Error('synthetic network failure');},1_000,resolver);
+  const networkFailure=new OpenAiCompatibleProvider(async()=>{throw new TypeError('synthetic network failure');},1_000,resolver);
   await assert.rejects(
     networkFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
-    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'
   );
+  const unclassifiedFailure=new OpenAiCompatibleProvider(async()=>{throw new Error('synthetic local exception');},1_000,resolver);
+  await assert.rejects(unclassifiedFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),(error:unknown)=>error instanceof AiProviderFailure&&error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'&&!error.message.includes('synthetic local exception'));
 
   const upstreamAbort=new OpenAiCompatibleProvider(async()=>{throw new DOMException('upstream aborted early','AbortError');},1_000,resolver);
   await assert.rejects(
@@ -498,7 +509,7 @@ test('OpenAI-compatible adapter normalizes upstream, malformed and timeout failu
   const dnsFailure=new OpenAiCompatibleProvider(async()=>new Response('{}'),1_000,async()=>{throw new Error('synthetic dns failure');});
   await assert.rejects(
     dnsFailure.execute(task,{provider:'openai_compatible',model:'local',baseUrl:'http://localhost:11434/v1'}),
-    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'
+    (error:unknown)=>error instanceof AiProviderFailure && error.code==='AI_UPSTREAM_ERROR'&&error.responseReason==='network_error'&&error.fallbackReason==='network_error'
   );
 
   const reasoningOnly=new OpenAiCompatibleProvider(async()=>new Response(JSON.stringify({choices:[{message:{content:null,reasoning_content:'No final answer'}}]})),1_000,resolver);

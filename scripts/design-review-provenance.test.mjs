@@ -1,0 +1,84 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { isRuntimeLeafCommand, requireMatchingProof, requireMatchingRuntimeProof, requireRuntimeTransition, requireRuntimeDockerignore, safeSha, verifyInputs } from './design-review-provenance.mjs';
+
+const sha = 'a'.repeat(40);
+const inputs = { sourceSha: sha, inputFingerprint: 'inputs' };
+const assets = { 'index.html': 'index', 'assets/app.js': 'bundle' };
+const runtime = { runtimeFingerprint: 'runtime' };
+const proof = { sourceSha: sha, inputFingerprint: 'inputs', distHashes: assets, runtimeFingerprint: 'runtime' };
+test('accepts an exact committed-input, runtime and built-bundle proof', () => assert.doesNotThrow(() => requireMatchingProof(proof, inputs, assets, runtime)));
+test('rejects changed build input and stale served bundle', () => {
+  assert.throws(() => requireMatchingProof(proof, { ...inputs, inputFingerprint: 'edited' }, assets, runtime), /stale/);
+  assert.throws(() => requireMatchingProof(proof, inputs, { ...assets, 'assets/app.js': 'stale' }, runtime), /bundle/);
+  assert.throws(() => requireMatchingProof(proof, inputs, assets, { runtimeFingerprint: 'restarted' }), /runtime/);
+});
+test('rejects an unsafe provenance SHA', () => {
+  assert.equal(safeSha('../not-a-commit'), false);
+  assert.throws(() => requireMatchingProof({ ...proof, sourceSha: 'bad' }, inputs, assets, runtime), /Invalid/);
+});
+test('requires published review artifacts to stay outside the runtime build context', () => {
+  assert.doesNotThrow(() => requireRuntimeDockerignore('.git\ndocs/design/review/\nnode_modules\n'));
+  assert.throws(() => requireRuntimeDockerignore('.git\nnode_modules\n'), /exclude published design-review artifacts/);
+  assert.throws(() => requireRuntimeDockerignore('docs/design/review/\n!docs/design/review/latest/\n'), /must not re-include/);
+});
+test('rejects stale runtime processes and database migration state', () => {
+  const migrations = { fingerprint: 'migrations', files: { 'services/api/migrations/001.sql': '1'.repeat(64) } };
+  const runtimeProof = { sourceSha: sha, inputFingerprint: 'inputs', migrationFingerprint: 'migrations', migrationFiles: migrations.files, runtimeFingerprint: 'runtime' };
+  const current = { runtimeFingerprint: 'runtime', appliedMigrations: migrations.files };
+  assert.doesNotThrow(() => requireMatchingRuntimeProof(runtimeProof, current, inputs, migrations));
+  assert.throws(() => requireMatchingRuntimeProof(runtimeProof, { ...current, runtimeFingerprint: 'leaf-replaced' }, inputs, migrations), /processes changed/);
+  assert.throws(() => requireMatchingRuntimeProof(runtimeProof, { ...current, appliedMigrations: {} }, inputs, migrations), /migrations do not exactly match/);
+});
+test('runtime transition requires app and worker restarts while preserving database and LAN config', () => {
+  const service = { containerId: 'container', imageId: 'image', configFingerprint: 'config', startedAt: 'before', publicOrigin: null };
+  const before = { app: { ...service, publicOrigin: 'http://192.168.0.220:4173' }, worker: service, db: { containerId: 'db', startedAt: 'db-start', restartCount: 0 }, syntheticDatabase: { fingerprint: 'synthetic' } };
+  const after = { app: { ...before.app, startedAt: 'after' }, worker: { ...before.worker, startedAt: 'after' }, db: { ...before.db }, syntheticDatabase: { ...before.syntheticDatabase } };
+  assert.doesNotThrow(() => requireRuntimeTransition(before, after));
+  assert.throws(() => requireRuntimeTransition(before, { ...after, worker: before.worker }), /worker was not restarted/);
+  assert.throws(() => requireRuntimeTransition(before, { ...after, db: { ...after.db, restartCount: 1 } }), /database was restarted/);
+});
+test('matches the actual tsx dist loader leaf and rejects its shell and wrapper parents', () => {
+  const source='services/api/src/server.ts';
+  assert.equal(isRuntimeLeafCommand(['/usr/local/bin/node','--require','/workspace/node_modules/tsx/dist/preflight.cjs','--import','file:///workspace/node_modules/tsx/dist/loader.mjs',source],source),true);
+  assert.equal(isRuntimeLeafCommand(['sh','-c',`tsx ${source}`],source),false);
+  assert.equal(isRuntimeLeafCommand(['node','/workspace/node_modules/.bin/tsx',source],source),false);
+  assert.equal(isRuntimeLeafCommand(['/usr/local/bin/node','--import','file:///workspace/node_modules/tsx/dist/loader.mjs','services/worker/src/index.ts'],source),false);
+});
+test('verifies real Git blob bytes and rejects an edited tracked input', async t => {
+  const base = join(process.cwd(), '.local/design-review-tests', randomUUID()); const source = join(base, 'source'); const mounted = join(base, 'mounted');
+  t.after(() => rm(base, { recursive: true, force: true })); await mkdir(join(source, 'apps/web/src'), { recursive: true });
+  await writeFile(join(source, 'apps/web/src/demo.js'), 'export const demo = 1;\n');
+  await writeFile(join(source, '.dockerignore'), 'docs/design/review/\n');
+  await writeFile(join(source, '.gitignore'), 'apps/web/dist/\n');
+  const run = (cwd, args) => execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+  execFileSync('git', ['init', source]); run(source, ['config', 'user.email', 'synthetic@example.invalid']); run(source, ['config', 'user.name', 'Synthetic']); run(source, ['add', '.']); run(source, ['commit', '-m', 'fixture']);
+  execFileSync('git', ['clone', source, mounted]);
+  const verified = await verifyInputs({ cloneDir: source, rootDir: mounted });
+  assert.equal(safeSha(verified.sourceSha), true);
+  await writeFile(join(mounted, '.dockerignore'), 'docs/design/review/\nnode_modules\n');
+  await assert.rejects(() => verifyInputs({ cloneDir: source, rootDir: mounted }), /differs/);
+  await writeFile(join(mounted, '.dockerignore'), 'docs/design/review/\n');
+  await mkdir(join(mounted, 'apps/web/dist'), { recursive: true }); await writeFile(join(mounted, 'apps/web/dist/generated.js'), 'generated\n');
+  await assert.doesNotReject(() => verifyInputs({ cloneDir: source, rootDir: mounted }));
+  await writeFile(join(mounted, 'apps/web/src/demo.js'), 'export const demo = 2;\n');
+  await assert.rejects(() => verifyInputs({ cloneDir: source, rootDir: mounted }), /differs/);
+  await writeFile(join(mounted, 'apps/web/src/demo.js'), 'export const demo = 1;\n');
+  await writeFile(join(mounted, 'apps/web/src/untracked.js'), 'export const untracked = true;\n');
+  await assert.rejects(() => verifyInputs({ cloneDir: source, rootDir: mounted }), /Untracked/);
+});
+
+test('activated proof binds the exact staged builder manifest and immutable image',()=>{
+ const stageHash='c'.repeat(64),imageId=`sha256:${'d'.repeat(64)}`;const activated={...runtime,transition:'qa-app-command-only-recreate',activation:{stageManifestSha256:stageHash},after:{app:{imageId}}};const staged={...proof,stageManifestSha256:stageHash,builderImageId:imageId};assert.doesNotThrow(()=>requireMatchingProof(staged,inputs,assets,activated));assert.throws(()=>requireMatchingProof({...staged,stageManifestSha256:'e'.repeat(64)},inputs,assets,activated),/staged builder/);assert.throws(()=>requireMatchingProof({...staged,builderImageId:`sha256:${'f'.repeat(64)}`},inputs,assets,activated),/staged builder/);
+});
+
+test('explicit recreation transition permits only tag to captured digest normalization',()=>{
+ const imageId=`sha256:${'b'.repeat(64)}`,service={containerId:'old',imageId,configFingerprint:'old',recreationInvariantFingerprint:'unchanged',startedAt:'before',publicOrigin:'http://192.168.0.220:4173'};
+ const before={app:{...service,imageReference:'samvev-m1/workspace:local'},worker:{...service},db:{containerId:'db',startedAt:'db-start',restartCount:0},syntheticDatabase:{fingerprint:'synthetic'}};
+ const after={app:{...before.app,containerId:'new',configFingerprint:'new',imageReference:imageId,startupCommand:['npm','run','dev:api'],startedAt:'after'},worker:{...before.worker,startedAt:'after'},db:{...before.db},syntheticDatabase:{...before.syntheticDatabase}};
+ assert.doesNotThrow(()=>requireRuntimeTransition(before,after,{appRecreated:true}));assert.throws(()=>requireRuntimeTransition(before,after),/configuration changed/);assert.throws(()=>requireRuntimeTransition(before,{...after,app:{...after.app,imageReference:'samvev-m1/workspace:local'}},{appRecreated:true}),/approved no-build/);assert.throws(()=>requireRuntimeTransition(before,{...after,app:{...after.app,imageId:`sha256:${'c'.repeat(64)}`}},{appRecreated:true}),/approved no-build/);
+});

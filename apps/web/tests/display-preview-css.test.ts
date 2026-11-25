@@ -1,0 +1,47 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { readFileSync } from "node:fs";
+
+const styles = readFileSync(new URL("../src/style.css", import.meta.url), "utf8");
+const homeStyles = readFileSync(new URL("../src/home.css", import.meta.url), "utf8");
+
+test("preview FamilyHub fieldset resets the editor fieldset cascade", () => {
+  const editorRule = styles.indexOf(".display-setup-editor fieldset,.display-policy-editor fieldset");
+  const snapshotRule = styles.indexOf(".display-setup-editor .display-preview-family-readonly,.display-policy-editor .display-preview-family-readonly");
+  assert.ok(editorRule >= 0 && snapshotRule > editorRule, "snapshot reset must follow editor fieldset styles");
+  assert.match(styles.slice(snapshotRule, snapshotRule + 260), /display:block[^}]*padding:0;border:0/);
+  assert.match(styles.slice(snapshotRule, snapshotRule + 260), /min-inline-size:0/);
+});
+
+test("preview image sizing does not override nested FamilyHub and media component images", () => {
+  assert.doesNotMatch(styles, /\.display-preview img\s*\{/);
+  assert.match(styles, /\.display-preview-background\{[^}]*max-width:min\(100%,360px\)[^}]*max-height:220px/);
+  assert.match(styles, /\.display-preview-person img\{width:40px;height:40px/);
+});
+
+test("portrait preview lets family and people cards span the full preview width", () => {
+  assert.match(styles, /\.display-preview-portrait \.display-preview-family_layout,\.display-preview-portrait \.display-preview-people\{grid-column:1\/-1\}/);
+  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-important,.*\.hub-support\{grid-column:1\/-1/);
+  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-day-plan\{grid-column:1\/-1;grid-row:auto;display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(homeStyles, /\.display-preview-portrait \.family-hub\.hub-display\.hub-compact \.hub-grid \.hub-day-plan \.hub-tomorrow\{border-top:0;border-left:1px solid var\(--hub-line\)\}/);
+});
+
+test("portrait week preview matches paired display columns and keeps read-only rows legible", () => {
+  assert.match(homeStyles, /\.display-preview-portrait \.display-preview-week\{grid-column:1\/-1\}/);
+  assert.match(homeStyles, /\.display-preview-portrait \.hub-display-week \.hub-week-days\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.match(homeStyles, /\.display-preview \.hub-display-week \.hub-week-row-button:disabled\{opacity:1;cursor:default\}/);
+});
+
+test("preview declares its own semantic theme and explicit system-light variables", () => {
+  assert.match(styles, /\.display-preview\[data-theme="light"\],\.display-preview\[data-theme="system"\][^{]*\{[^}]*--teal:#35665d;[^}]*--soft-teal:#e5efeb;[^}]*--person-teal:#168477/);
+  assert.match(styles, /@media\(prefers-color-scheme:dark\)\{\.display-preview\[data-theme="system"\][^{]*\{[^}]*--teal:#a9d7cb;[^}]*--soft-teal:#203b3c;[^}]*--person-teal:#89d6c7/);
+});
+
+test("admin preview adapts to its own frame width and keeps narrow text horizontal without widening the host", () => {
+  assert.match(styles, /\.display-preview\{container-name:display-preview;container-type:inline-size\}/);
+  assert.match(styles, /@container display-preview \(max-width:1000px\)/);
+  assert.match(styles, /\.display-preview-screen\{overflow-x:hidden;overflow-y:auto/);
+  assert.match(styles, /\.display-preview-screen :where\(\*\)\{writing-mode:horizontal-tb;word-break:normal\}/);
+  assert.match(styles, /@media\(max-width:640px\)\{[\s\S]*?\.display-preview-landscape \.display-preview-layout,\.display-preview-portrait \.display-preview-layout\{grid-template-columns:minmax\(0,1fr\)!important\}/);
+});

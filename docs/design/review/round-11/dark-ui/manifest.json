@@ -1,0 +1,94 @@
+{
+  "currentUiSourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "fixtureSeedSourceSha": "1a10e7702b7c290dfb437a0a340072a9b0fa8f7a",
+  "actualUi": true,
+  "isolatedDatabase": "samvev_calendar_ha_final@test-db",
+  "providerTransport": "injected synthetic only",
+  "liveProviderVerification": false,
+  "preferencesRestored": true,
+  "screenshots": [
+    {
+      "filename": "admin-google-dialog-en-dark.png",
+      "sha256": "d9def61ddab29fe5da277c49f0a74698ad81ea598238a1e17e9be3f9a8be9c4d",
+      "surface": "provider-registration",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "admin-microsoft-dialog-en-dark.png",
+      "sha256": "060d4be9b00ae8830bc6daa38410334284b67b427ed77470914a9ed6e6c7b8ca",
+      "surface": "provider-registration",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "admin-home-assistant-dialog-en-dark.png",
+      "sha256": "6f25196048345aa0e642a2a363092ba44301a47bb95952c7c164efdda2335c1e",
+      "surface": "provider-registration",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "mobile-person-reader-controls-en-dark.png",
+      "sha256": "dd1b067246a98fb0091a68a82730cfabc920feaedf73c743c370eb4fd241218c",
+      "surface": "calendar-source-editor",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      }
+    },
+    {
+      "filename": "six-people-home-long-names-en-dark-desktop.png",
+      "sha256": "fec84ab69a6c09ae2031682afb9d3bb6db6214e3fc14dce48ae7fbb1366f748e",
+      "surface": "home-desktop",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    {
+      "filename": "six-people-home-long-names-en-dark-ipad-landscape.png",
+      "sha256": "7fd1487e4e718afcb3f276767a703b7b13608a726dcf3ec5438f23b8872ad072",
+      "surface": "home-ipad-landscape",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      }
+    },
+    {
+      "filename": "six-people-home-long-names-en-dark-shelly.png",
+      "sha256": "41a8f7017797f5e648986a5692e7c6386eee45577da9236a622d6a87d45715af",
+      "surface": "home-shelly",
+      "locale": "en",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      }
+    }
+  ],
+  "flows": [
+    "English dark provider dialogs secret-safe",
+    "English dark mobile person-subject and reader controls",
+    "English dark six-person long-name Home desktop/iPad landscape/Shelly"
+  ],
+  "allPass": true
+}

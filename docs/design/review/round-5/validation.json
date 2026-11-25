@@ -1,0 +1,112 @@
+{
+  "sourceSha": "b6a30b2d95443a02192da7bc089820585fde8169",
+  "roundId": "20261004124113-b6a30b2d-7d49ba64",
+  "checkedAt": "2026-10-04T12:50:49.899126+00:00",
+  "screenshotFilesVerified": 34,
+  "preservedPriorReviewFiles": 94,
+  "inputFingerprint": "1df71689006168c443ef79e93197a38983097b1947eeba3f1ab922c4e066eb45",
+  "sourceRootCloneAndServedDistHashesMatch": true,
+  "qaHealth": "ok",
+  "adminAdminUiLoginAndLogout": true,
+  "fullRetest": {
+    "passed": 261,
+    "failed": 0,
+    "workspaces": {
+      "web": 40,
+      "contracts": 5,
+      "core": 3,
+      "api": 213,
+      "worker": 0
+    }
+  },
+  "pipelineTestsPassed": 11,
+  "browserGroups": {
+    "round5": 17,
+    "m3": 11
+  },
+  "contrast": {
+    "surfaceCount": 30,
+    "minimumByMode": {
+      "normal": 4.68,
+      "fallback": 4.68
+    },
+    "allPass": true,
+    "independentPythonCrossCheck": true
+  },
+  "nativeBrowserZoom": {
+    "factor": 2,
+    "runs": 4,
+    "failures": 0
+  },
+  "preservationAudit": {
+    "accounts": {
+      "unchanged": true,
+      "beforeCount": 3,
+      "afterCount": 3
+    },
+    "households": {
+      "unchanged": true,
+      "beforeCount": 1,
+      "afterCount": 1
+    },
+    "persons": {
+      "unchanged": true,
+      "beforeCount": 4,
+      "afterCount": 4
+    },
+    "memberships": {
+      "unchanged": true,
+      "beforeCount": 4,
+      "afterCount": 4
+    },
+    "messages": {
+      "unchanged": true,
+      "beforeCount": 17,
+      "afterCount": 17
+    },
+    "integration_connections": {
+      "unchanged": true,
+      "beforeCount": 31,
+      "afterCount": 31
+    },
+    "integration_items": {
+      "unchanged": true,
+      "beforeCount": 213,
+      "afterCount": 213
+    },
+    "avatars": {
+      "count": 4,
+      "keys": [
+        "avatar-01",
+        "avatar-02",
+        "avatar-03",
+        "avatar-04"
+      ],
+      "revisions": [
+        2,
+        2,
+        2,
+        2
+      ]
+    },
+    "protectedGit": {
+      "unchanged": true,
+      "fileCount": 229
+    },
+    "migrations": {
+      "before": 18,
+      "after": 19
+    },
+    "allPass": true
+  },
+  "liveOAuthVerified": false,
+  "providerCallsAgainstRealAccounts": 0,
+  "publishedScreenshotInjectedTransport": false,
+  "automatedStressAndAiStateTestsUseInjectedTransport": true,
+  "releaseGate": {
+    "result": "PASS",
+    "blockingFindings": 0,
+    "finalSourceAllWorkspaceTypecheck": "PASS",
+    "reviewerChangedFiles": 0
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "sourceSha": "585a7204ce89bc7e953f6b79cf871c1845a12f9f",
+  "canonicalAndServedQaDistHashesExact": true,
+  "distHashes": {
+    "assets/avatar-01-D7jqfrwr.webp": "64603ebdee174f66871902614c46965e9bbe846f22ca77dbf7391c483131a02b",
+    "assets/avatar-02-DdgMOJAz.webp": "257f114120c3be2922d7d7a11e62e02dc369e393ebaed6ceb4ae61860192a9c0",
+    "assets/avatar-03-DA7Jq2DZ.webp": "eb58083435f2bc71a311ccb841f4be800b7dceec0f526b8b573c6a9a4b6724a5",
+    "assets/avatar-04-Bl-4M4Ux.webp": "b070702be770dab25849ad59769b0245e6a4a832c9053729ff40adc9822caf22",
+    "assets/avatar-05-BkiEJE6s.webp": "1844441b735eeca5cc4aeb94b101ba8e25d8608fec37ca5b8cc859e4883732a3",
+    "assets/avatar-06-DnQiLfLt.webp": "1fe1c8a8955232e9ee3b32e21be2d18dfe96256951d984dafbbeba3b7f3e8086",
+    "assets/index-B-0hR_Uy.js": "b34f6f3bd4d6f9ad32e067c7ac55a53b9781330d7b7bb631d9c34050c74a16da",
+    "assets/index-BkWFCS0y.css": "99946fc33c053a6cc3645d1a34d4d6a25d63ac17f8e3b015ac2a2776ad3b32aa",
+    "assets/nordic-dusk-v2-JZmjLCmU.png": "9e493d5dcc1955cf194e3ccf6d5617ec4e1bb024c985bb747567bd2cb1183efa",
+    "index.html": "7961f0d3c78458d1e1f1364c25b638f2a794f5a2bf22f5f6f37a66b9e5f91e4d"
+  }
+}

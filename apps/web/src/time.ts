@@ -1,3 +1,11 @@
+export interface MonotonicClockAnchor { serverAt: number; monotonicAt: number }
+export function monotonicClockAnchor(serverAt: number, monotonicAt: number): MonotonicClockAnchor {
+  return { serverAt, monotonicAt };
+}
+export function monotonicClockNow(anchor: MonotonicClockAnchor, monotonicNow: number): number {
+  return anchor.serverAt + Math.max(0, monotonicNow - anchor.monotonicAt);
+}
+
 /** Convert a household wall-clock time to an instant. Reject DST gaps AND folds. */
 export function wallToInstant(local: string, zone: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(local))
@@ -50,3 +58,20 @@ export const formatDate = (
   new Intl.DateTimeFormat(locale, { timeZone: zone, ...options }).format(
     new Date(value),
   );
+
+/** Full localized range, in the household zone; date changes are never hidden. */
+export function formatEventRange(start:string,end:string|null,locale:string,zone:string,allDay=false):string {
+ const options:Intl.DateTimeFormatOptions=allDay
+  ? {weekday:'short',day:'numeric',month:'short',year:'numeric'}
+  : {weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'};
+ if(!end||Date.parse(end)<=Date.parse(start))return formatDate(start,locale,zone,options);
+ return new Intl.DateTimeFormat(locale,{timeZone:zone,...options}).formatRange(new Date(start),new Date(end));
+}
+
+/** Calendar all-day bounds are civil dates with an exclusive end, not local clock instants. */
+export function formatCalendarEventRange(start:string,end:string|null,locale:string,zone:string,allDay=false):string {
+ if(!allDay)return formatEventRange(start,end,locale,zone);
+ const startDay=start.slice(0,10),endDay=end?.slice(0,10);
+ const inclusiveEnd=endDay&&endDay>startDay?new Date(Date.parse(`${endDay}T12:00:00Z`)-86400000).toISOString().slice(0,10):startDay;
+ return formatEventRange(`${startDay}T12:00:00Z`,`${inclusiveEnd}T12:00:00Z`,locale,'UTC',true);
+}

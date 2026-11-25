@@ -1,0 +1,11 @@
+export const homeAssistantActions=['light.turn_on','light.turn_off','cover.open_cover'] as const;
+export type HomeAssistantAction=typeof homeAssistantActions[number];
+export type HomeAssistantStateStatus='current'|'unknown'|'unavailable';
+export type HomeAssistantEntity={registryId:string;entityId:string;deviceRegistryId:string|null;domain:'light'|'cover';name:string;supportedActions:HomeAssistantAction[];state:string|null;stateStatus:HomeAssistantStateStatus;lastChangedAt:string|null};
+export type HomeAssistantGrant={personId:string;canRead:boolean;actions:HomeAssistantAction[]};
+export type HomeAssistantDisplayGrant={displayId:string;canRead:boolean;actions:HomeAssistantAction[]};
+export type ManagedHomeAssistantEntity={id:string;connectionId:string;registryId:string;entityId:string;deviceRegistryId:string|null;domain:'light'|'cover';name:string;displayName?:string|null;supportedActions:HomeAssistantAction[];revision:number;selected:boolean;requiresReselection:boolean;personGrants:HomeAssistantGrant[];displayGrants:HomeAssistantDisplayGrant[]};
+export type ReadableHomeAssistantEntity=Pick<ManagedHomeAssistantEntity,'id'|'connectionId'|'registryId'|'entityId'|'deviceRegistryId'|'domain'|'name'|'supportedActions'|'revision'> & {grantRevision:number};
+export type HomeAssistantObservation=ReadableHomeAssistantEntity & {state:string|null;stateStatus:HomeAssistantStateStatus;lastChangedAt:string|null;readAt:string|null;stateAuthority:'home_assistant';physicalConfirmation:'not_available';errorCode:string|null};
+export type HomeAssistantReceipt={id:string;status:'reported'|'accepted'|'unknown';observedState:string|null;errorCode:string|null;stateAuthority:'home_assistant';physicalConfirmation:'not_available'};
+export type HomeAssistantConfirmation={confirmationToken:string;expiresInSeconds:number};

@@ -27,6 +27,16 @@ export const monitorAnswerResponseSchema:ResponseSchema={
   },required:['version','outputLocale','answer','evidence','confidence','uncertainty']}
 };
 
+/** A model selects server-owned evidence instead of copying private source text. */
+export const monitorAnswerSelectionResponseSchema:ResponseSchema={
+  name:'monitor_answer_selection',
+  schema:{type:'object',additionalProperties:false,properties:{
+    version:{type:'integer',const:1},outputLocale:locale,status:{type:'string',enum:['found','none']},
+    sourceUrl:{type:['string','null'],maxLength:2048},segmentId:{type:['string','null'],maxLength:100},
+    date:{type:['string','null'],pattern:'^\\d{4}-\\d{2}-\\d{2}$'},confidence
+  },required:['version','outputLocale','status','sourceUrl','segmentId','date','confidence']}
+};
+
 const evidenceSource={type:'object',additionalProperties:false,properties:{
   quote:{type:'string',minLength:1,maxLength:1000},sourceUrl:{type:'string',format:'uri',maxLength:2048},claims:stringArray(20,500)
 },required:['quote','claims']};

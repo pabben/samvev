@@ -1,4 +1,483 @@
+# Current public status — 2026-11-19 (Round 19B)
+
+Public app and worker run source `8391041ca17ffea124870118b7312f0c50e3da5c` on schema 48. The focused Home composition follow-up passed 274/274 web tests, typecheck, a clean 60-image isolated browser proof, scoped reviews, public backup/isolated restore/cutover/postrestore and authenticated HTTPS smoke 11/11. See [Round 19B report](../design/review/ROUND_19B_REPORT.md) and [synthetic manifest](../design/review/round-19b/after/manifest.json). The earlier Round 19 source `c3ad869e207820d4edadd9b478c212ac6bb3d121` is the immediate rollback image. The original Round 19 feature review and open owner checks remain applicable.
+
+---
+
+# Historical Round 19 public status — 2026-11-19
+
+Public app and worker run source `c3ad869e207820d4edadd9b478c212ac6bb3d121` on schema 48. The 60-image isolated display proof, 783/783 tests, workspace typecheck, backup/isolated restore/cutover/postrestore, healthy containers and authenticated public HTTPS smoke 11/11 passed. The signed source is on `feat/m3-family-hub`; the separate [Round 19 report](../design/review/ROUND_19_REPORT.md) and [synthetic visual manifest](../design/review/round-19/after/manifest.json) record scope and limits. #22 visual acceptance, physical fridge, the private failing ICS calendar and Windows Chrome select contrast remain open. School AI jobs and schedules were not changed.
+
+---
+
+# Historical issue #20 cleanup and issue review — 2026-11-13
+
+At that checkpoint, public source/deploy was `079abc88b0152d04e2cb24656b4ebb9eb8092ecb`, a descendant of the previously live HA source `92ac58bebe09565b8130fb46ebd18c7608b8cf7a`. Schema remains 48. Disconnected calendar cleanup now respects the API's 12-entry batch limit, preserves confirmation revisions, reports partial success, and reconciles stale entries after reactivation or permission changes. #18's appearance summary and #19's logo layout are corrected. Local isolated QA passed 772/772; workspace check and clean-source 48-image browser proof passed. Public backup, isolated pre/post restores, image-bound rollback proof, cutover, healthy app/worker/db and HTTPS smoke 11/11 with 15/15 served asset hashes passed. See [issue review](../design/review/ISSUE_20_STATUS_20261113.md) and [visual manifest](../design/review/issue-20-20261113/manifest.json). Physical fridge/iPad/Windows Chrome and private provider checks are not claimed.
+
+---
+
+# Historical Round 18 design and external display test publication — 2026-11-06
+
+Public source/deploy is `eccb1554081c9600a6f3e63b9fc855854aaa9596`. A clean 45-image synthetic browser set, isolated full QA, TypeScript, security/requirements/UX review and release gate passed. Public code-only backup, isolated restore, cutover, postrestore, health and 13 exact asset hashes passed. A fresh authenticated public login test was unavailable because the prior temporary synthetic credential had been deleted; physical fridge testing remains owner-only. School A/B execution and schedules were not changed; unpublished AI source `727c8dc` was explicitly reverted before the design candidate. See [Round 18 report](../design/review/ROUND_18_REPORT.md) and [manifest](../design/review/round-18/after/manifest.json).
+
+---
+
+# Historical Round 17h grounded-answer candidate — 2026-11-06
+
+Public source/deploy `42c1a9995c540cd36264d7b7df486af00d3a9324` is verified on schema 46. A web-answer repair now binds a model-selected excerpt ID to the exact server-held source snapshot and constructs the extractive answer/quote on the server; incorrect source/date/unsupported selection remains rejected. Isolated QA 744/744, final affected tests 65/65 and workspace checks passed. Guarded pre/post backups with isolated restores, code-only cutover and public synthetic HTTPS smoke 11/11 with 13/13 assets passed. No ordinary school A execution had completed on the new worker at the single postdeploy check, so **A is not yet live-confirmed**. No real model test was run. B and the rest of Round 17 remain unchanged. See [Round 17h school status](../design/review/ROUND_17H_SCHOOL_STATUS.md).
+
+---
+
+# Historical Round 17g school diagnostic checkpoint — 2026-11-05
+
+Verified public source is R17g `971c6267740d9ac7f267e91126427c11a7f7d076`. Four natural R17g school A executions observed through 2026-11-06 00:32 UTC all failed: two final-schema failures, then `answer_not_in_source`, then `quote_not_in_source`. The latter two show distinct unsupported model outputs were correctly rejected; they do not prove why the model produced them. R17g retains exact source/quote/answer validation and stores no private content in diagnostics. Synthetic local agent-runner/domain 61/61, scheduled-worker integration 38/38, complete isolated QA 725/725 and workspace typecheck passed. Public code-only prepare/cutover/postrestore, backups with isolated restore checks, exact healthy app/worker/db runtime, synthetic HTTPS smoke 11/11 and 13/13 static asset hashes passed. Immediate rollback image is R17f `bc2baefc5046020637bdaa79530e8643d813b6de`. No real A success is claimed. No new code, task, provider, display rights, recipients or schedules were changed in the 2026-11-06 follow-up. See [school status](../design/review/ROUND_17F_SCHOOL_STATUS.md). The full goal remains open.
+
+---
+
+# Historical Round 17f checkpoint — 2026-11-05
+
+The last independently verified public source remains R17e `f99c68876f4c766cf09cdd92d2ccdef4c90d6721`, with signed review `e523eeaeab878be4fb382f079ed6c92ee67107af`. Read-only scheduled evidence shows School A now reaches exact evidence validation but still fails (`quote` on 2026-11-05 18:15 UTC; recent `source`/`claim`/schema failures). School B is paused after `MONITOR_OWNER_UNAUTHORIZED` on 2026-11-03: its selected display is revoked, while its owner account and required capabilities remain present. Earlier B source request timeouts remain a separate unresolved issue. A narrow answer-prompt candidate removes contradictory optional URL/claim examples while retaining all server validation; it is not yet a proven live repair. No real task, source, recipients, approval, schedule, family content or background was changed. See [current school status](../design/review/ROUND_17F_SCHOOL_STATUS.md) and [owner actions](../design/review/ROUND_17_OWNER_ACTIONS.md). The full goal remains open.
+
+---
+
+# Historical Round 17 checkpoint — 2026-10-30
+R17e source `f99c68876f4c766cf09cdd92d2ccdef4c90d6721` is publicly deployed and verified: prepare/cutover/postrestore passed, app/worker/database are healthy, health returned 200, and HTTPS browser smoke passed 11/11 with 13 frozen asset hashes, including synthetic form login/navigation/logout. Immediate code-only rollback is prior public R17d source/image `4ad3273b09e3b77e0ccbe33e7f7c763f47e6058a`. QA passed 723/723, focused 95/95, and `npm run check` exited 0. A's latest scheduled outcome remains the 19:52:09 UTC R17d failure `AI_RESPONSE_INVALID`/`provider_response/output_limit_reached` after two calls (final output_tokens=2048); R17e has no scheduled result yet. A remains unresolved and B unverified. Screenshot attribution remains visual source `9f3e83b7e3102d04bcf3569330f81475afd5076c`, Round ID `20261030163806-9f3e83b7-50a1fe1f` (latest14, rich45, before8; hashes unchanged). No UI screenshot changes are claimed. The temporary credential was deleted; no private credential entered Git. No full-goal PASS or review SHA is claimed. See [Round 17 report](../design/review/ROUND_17_REPORT.md), [requirements matrix](../design/review/ROUND_17_REQUIREMENTS.md), [school follow-up](../design/review/ROUND_17_SCHOOL_FOLLOWUP.md), and [owner actions](../design/review/ROUND_17_OWNER_ACTIONS.md).
+
+R16 notes below are historical evidence and must not be read as current R17 deployment status.
+
+---
+
+# Historical Round 16 checkpoint — 2026-10-30
+
+Code and public test deployment source is `000bf7ab03db3f4f34c2da09e20ad18d5a78b027`, image `sha256:53f18fd919f7e02ec4e9a725fe85560fbbdddcad2e1498e1363fa0c7aec5cdc5`. Canonical capture is Round ID `20261029232208-000bf7ab-83b5308a`, with 14 verified images and manifest in `docs/design/review/latest/`. At earlier R16 code checkpoint `b9b7b8ea4aa52779295288c919b30eaa4611d753`, isolated API 437/437, contracts 7/7 and core 3/3 passed; backend source was unchanged through `000bf7a`. At final source, isolated web suite passed 242/242, with five workspace checks, host scripts 33/33, browser privacy 1/1, final Home targeted 13/13 and typecheck. Later local synthetic real-API browser proofs passed for old/new display re-pairing and six-person standing preview/live parity at `d4cd96a`, plus rich unit preview 9/9 at `82d2960`. Security and UX re-reviews passed their scoped checks. Public app/worker image labels and health, synthetic HTTPS login/navigation/privacy/logout, pre-cutover backup and isolated postdeploy restore passed on 2026-10-30 UTC. The whole product goal remains open on school A/B; no real provider, actual public Kjøleskap or physical screen acceptance is claimed. See [Round 16 report](../design/review/ROUND_16_REPORT.md), [requirements matrix](../design/review/ROUND_16_REQUIREMENTS.md) and [owner actions](../design/review/ROUND_16_OWNER_ACTIONS.md). Do not present R15 test/deploy claims below as current R16 evidence.
+
+Public read-only observation: HA calendar sync succeeded 2026-10-29 21:35 UTC, so the earlier TLS-blocker statement is stale. Kjøleskap showed 14 cards, six profiles/birthdays, zero source display targets, board read grants false and zero HA control entities. These observations do not imply automatic sharing or prove the actual public screen contents. Six-person synthetic rich preview passed 9/9 at `82d2960`; integrated real-API/paired-browser re-pair and standing preview/live parity passed in disposable local proof at `d4cd96a`. Physical screen behavior remains owner-only.
+
+Latest public read-only scheduled outcomes (2026-10-30): task A `AI_RESPONSE_INVALID`, safely classified `final_schema/invalid_json` at 00:39 UTC after two successful `web.open` attempts, successful interpretation escalation and five scheduled AI calls; task B `MONITOR_SOURCE_TIMEOUT` at 01:02 UTC after about ten seconds with zero AI calls. The previous B `AI_UPSTREAM_ERROR` after tools remains a distinct historical failure. These identify failing stages, not verified repairs or private raw causes. No manual run, task mutation, new model call, or schedule/approval change was made.
+
+Issue #19 provider marks are bundled in the R16 code checkpoint; owner authorization and asset provenance are recorded in `apps/web/src/assets/calendar-providers/PROVENANCE.md` (commit `30e8075`). Candidate asset tests passed in the full web suite and visual review covered mobile/iPad/Shelly in both themes. No real names, private data, URLs, tokens or credentials are recorded. See [Round 16 requirements and evidence matrix](../design/review/ROUND_16_REQUIREMENTS.md).
+
+R15 and older checkpoint notes below are historical records only. Public R15 deployment at `05cf86dc` was previously verified and is superseded by the R16 test deployment above.
+
+---
+
 # M1 implementation status
+
+Round 17-statusen øverst i dette dokumentet er gjeldende. Avsnittene nedenfor er historisk dokumentasjon for tidligere kilderunder og må ikke leses som gjeldende publiserings- eller QA-status.
+
+## Historical Round 15 checkpoint — 2026-10-28 (superseded by current summary above)
+
+Round 15 remains in local implementation and review. The public R14 baseline
+below is unchanged at source `971913e321dd82f491214fdbda81d08f8123a891`.
+Integrated local checkpoints are time `84f51f7`, school `3a15602`, and
+screen/ICS/school UI `d4490a5`. Recorded checks passed: time 40 tests, school
+153 tests, UI 13 focused tests, then Next/history 11 API tests and the full
+159-test web suite. The prior integrated DST day-history regression is fixed;
+current person cards retain their explicit stricter eligibility rule.
+
+At this historical checkpoint, the observed records showed one final JSON/schema
+validation failure with discarded raw output and one older generic failure of
+unknown cause. Neither root cause was established; provider fault is not established. Their school presentation metadata
+remains unset; owner activation is separate. Migration 042 has only been tested
+on the isolated test database; legacy producer links stay `NULL` without a
+guessed backfill. Home visual review, screenshots, final reviews/QA, restore
+evidence and public test deployment remain pending. The earlier final-delivery
+entries below describe R14, not completion of Round 15. See
+[Round 15 status](../design/review/ROUND_15_STATUS.md).
+
+## Historical R14 final delivery — 2026-10-28 03:59 UTC (superseded for current deployment by the Round 15 summary above)
+
+Public test deployment and scoped HTTPS verification **PASS** at https://samvev.pabben.org/. Source/deploy `971913e321dd82f491214fdbda81d08f8123a891`; image `sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`. Round `20261028032511-971913e3-046fbbb8`. Final local 526 tests, UX/security/readiness gate, fresh pre-cutover restore and postdeployment restore passed. Owner authorization/key/private-calendar/school actions remain separate. Public People color editing was not authorized for the synthetic smoke account; isolated editing tests passed. All lower checkpoint/pending statements are retained historical records, not current status.
+
+
+## Round 14 current status — 2026-10-28
+
+R14 final local candidate is `971913e321dd82f491214fdbda81d08f8123a891`
+(image `sha256:4aef88306949a5b591e4af94ce0e769d3dffe73526dad663fa90ab8e44160342`).
+UX review passed. Home and Calendar use the reference-led composition and
+persisted person colors. ICS exposes separate subjects/readers/screens,
+preview/activation and durable 5/15/30-minute schedules. Anthropic uses encrypted
+provider configuration, with an explicit opt-in reserve and UTC daily
+physical-request admission limit.
+
+The final source passed five workspace typechecks and 526 tests (web 153,
+contracts 5, core 3, API 365). Final visual evidence is the 70-image desktop,
+mobile and tablet matrix plus seven supplements. See [R14 status](../design/review/ROUND_14_STATUS.md),
+[delivery report](../design/review/ROUND_14_REPORT.md), [visual evidence index](../design/review/round-14/README.md),
+and [sanitized visual manifest](../design/review/round-14/manifest.json). Public
+deployment and HTTPS post-deployment smoke remain pending. No live Anthropic or
+private ICS verification is claimed. Google/Microsoft and existing school
+activation remain separate owner actions. No real model or physical HA calls
+have been made.
+
+The public baseline was freshly rechecked: source `7c61557`, healthy app/worker
+and schema 037. LAN data/dist remain preserved. Root Git matches all 229 saved
+fingerprints; authoritative commits are in `.local/design-review-publish` on
+`feat/m3-family-hub`. Never infer candidate provenance from protected root HEAD.
+Existing data, vault, integrations, permissions and task schedules are preserved.
+
+## Historical Round 13 status — 2026-10-16
+
+At the R13 checkpoint, all 13 owner-request areas were active. The source then was
+`7c61557b92333408c628911784aff267411479ba`. Immutable full QA at base
+`fb08236` passed 485/485 (web 141, contracts 5, core 3, API 336, worker 0)
+and all five workspace checks. The source delta contains only three capture
+helper files; two actual browser cases and eight helper tests pass. The
+predeploy release gate and public restore for current source passed.
+
+Canonical14 round `20261016061136-7c61557b-3a479144` passed: root reviewed and
+hash-verified all 14 images; `ux13_final` reviewed the visuals; root and `release13` verified 305 inputs,
+12 assets and 229 Git checks. The earlier host rejection of hyphenated privacy
+labels was corrected before the accepted round. The LAN runtime has schema 037
+and the current candidate with admin verification. Public cutover later completed
+successfully: fresh schema-026 restore/forward-037/no-op and fresh schema-037
+postdeploy restore/no-op passed; existing data, runtime, env, vault and database
+volume were preserved. The seven-check HTTPS smoke passed, including all three
+anonymous page reloads, privacy boundary, 12 asset hashes, retained account
+identity, Home/Displays navigation, Your settings dialog open without mutation and logout. The
+earlier safe preflight refusal while the monitor held a schema-026 lease is
+historical. No schedule or model changes were made.
+
+The requested birthday registration, opt-in and household-local date were
+independently verified privately; no birth year was read or inferred and no
+household data changed. Display address screenshot is accepted. Existing saved
+school tasks still need safe classification/activation from actual source and
+subject under an authorized `household.manage` session. This owner-session
+action does not block otherwise feasible delivery, but the overall goal remains
+incomplete until resolved. Preserve the task's history, approval and schedule;
+never impersonate, copy tasks, or call AI. Contact values are confirmed
+privately and initialized through private runtime config; the final contact API
+and page/reload check passed. Values stay out of Git. Google/Microsoft live
+consent remains owner-controlled.
+
+HA controls remain synthetic-only; no physical HA commands or manual model calls
+were made. Economical implementation used `gpt-6-luna/high`; bounded security
+and operations review used `gpt-6.1-sol/high`. Coordinator model and costs are
+unknown and not estimated. Protected root Git metadata is intentionally stale;
+use publisher identity. Preserve existing user data, vault, calendars, HA and
+Google connections, schedules, LAN admin and runtime. No disk work is needed.
+
+## Local candidate UI checkpoints — 2026-10-16
+
+The dated notes below are historical evidence snapshots; the current public
+deployment and verification state is summarized above and in
+ROUND_13_STATUS.md.
+
+Historical candidate snapshot; current implementation and evidence are
+summarized above and in ROUND_13_STATUS.md.
+
+Native boards A has isolated real-browser evidence in
+`.local/m3/round13/boards-browser/`: grocery add/check/uncheck, two-page sync,
+dinner assignment/reload, option delete/snapshot clear, stale 503 and clear 403
+states, mobile hit testing, six fictional people. The real-HTTP run exposed
+unavailable `crypto.randomUUID`; the secure `getRandomValues` fallback and
+regression were added. Root reviewed four actual images and mobile form/list
+behavior. This remains bounded candidate evidence, not full UI acceptance.
+
+Guides037 has six actual local browser captures under
+`.local/m3/round13/public-pages-browser/` (three pages in mobile-light and
+desktop-dark) reviewed locally; no public HTTPS claim. Media frontend 109
+tests/check/build pass, and browser authorization/playback review later passed
+on the synthetic fixture. The early `8e3440a` overlay is historical and not the
+current feature source. Display layout source is DCO-pushed at
+`d91436addb4a55f7b27ae27df549b173fa276fe7`; latest targeted address and web
+TypeScript checks pass, and root reviewed and accepted the desktop screenshot.
+
+An intermediate Vite build touched LAN-bound `dist`. Root restored all ten R12
+assets from the immutable R12 image, byte-checked them against canonical proof
+`00ddc36`, and verified existing LAN admin authentication, health and FamilyHub.
+No application data changed. A later C2 build repeated the mistake and was
+again restored/hash-checked; evidence is summarized in ROUND_13_STATUS.md. Direct
+all intermediate builds to `/tmp`; do not write to LAN-bound `dist`. This
+historical checkpoint predates the current LAN schema-037 candidate; public
+runtime remains R12.
+
+See [Round 13 status](../design/review/ROUND_13_STATUS.md) and
+[requirements/evidence matrix](../design/review/ROUND_13_REQUIREMENTS.md).
+
+## HA / calendar round 12 — publicly test-published and verified
+
+Mailbox 1acfd46; DCO source 00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a.
+Today/Tomorrow, chronological person details, general HA calendars, household
+waste, selected temperatures and F1–F3 are implemented. Complete suite 374/374,
+five workspace checks/builds, exact canonical 246 inputs/10 assets, QA/public
+schema-026 isolated restore gates pass. Both guest disk expansions are complete.
+LAN admin/admin passes on this candidate. The preserved real Spond source sync
+was separately verified on the preceding a665 source checkpoint.
+All 37 current-source captures pass visual/privacy review, including 23 isolated
+six-person/recovery supplements. Public HTTPS login/logout, navigation, ACL, SSE and ten asset checks pass.
+Exact quiescent24 and fresh postdeploy26 backups passed isolated restore.
+See [Round 12 report](../design/review/ROUND_12_REPORT.md). Public test source is 00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a;
+owner provider consent and explicit source/sensor choices remain separately listed.
+
+## M3 round 10 — public test verified, 2026-10-14
+
+Mailbox `48221157acd74aed2ab4ab218a81e870d2219f21`; signed source/deploy
+`ca7359b0ce511f930aec3df0e11ce94ac4d203e6`. All five targeted calendar/person
+read-model corrections are implemented and reproduced RED-before-GREEN,
+including the initiating-session OAuth race found in security review.
+Complete final serial retest **326/326**, no skips; host pipeline **16/16** and
+workspace check/build PASS. The initial duplicate test-job collision is retained
+as failed evidence and did not touch ordinary QA or public data.
+
+Full canonical Git-archive runtime build PASS (no overlay), immutable image
+`sha256:8fa9329df7a59773d1f294e030d045605cd14ad94ba6e8d557588a247f37a341`.
+All 231 build inputs match root/publisher/image; all ten served assets match.
+Migration 024 is additive/idempotent; 001–023 checksums are unchanged. Latest14
+source-bound captures use round `20261014094940-ca7359b0-428c5403`. UX opened
+all **32** actual images: latest14 masked retained five-person LAN household,
+core14 plus supplement4 using an isolated six-person fixture (2 adults/4 children).
+NB/EN, both themes/screen classes, all six monitor states, calendar grouping and
+strict SSE, blocked permanent calendar errors, exact last/next times, focus,
+existing-task navigation, display boundary and axe/overflow checks PASS.
+
+Public app, one normal worker and DB healthy on the exact candidate. Full runtime
+config, network aliases, env, security, mounts, DB identity/start and volume are
+preserved. Fresh pre23 restore→24/noop/invariants/amcheck/legacy app reads,
+exact quiescent23 backup restore and separate fresh post24 restore PASS. All
+clones are isolated without worker/vault/ports; backups and rollback images kept.
+Actual HTTPS UI **17/17 PASS**, including login/logout, affected UI, photos,
+cookies, CSRF/household/anonymous/display boundaries and SSE ready/heartbeat.
+Provider/model guards were strengthened and the complete HTTPS check repeated.
+
+A private main-wrapper TypeError after the first successful exact-backup restore
+triggered code/config recovery to healthy legacy6f on schema24; no live data was
+restored or overwritten. The wrapper was fixed, ledger/invariants/idle checked,
+the same candidate config reapplied without migration, and exact/fresh restore
+checks rerun PASS. This incident is retained honestly in the round report.
+
+Literal LAN admin/admin UI login/logout and assets PASS at final verification.
+All 14 selected QA and nine selected public domain tables match original full
+JSON hashes/counts. Protected main Git229 and historical review566 files unchanged;
+prior latest15 preserved in archive. The two private tasks' identities, approvals,
+subjects/audits, approved schedule settings and recipient targets remain exact.
+Natural approved worker runtime activity is reported separately, without private
+values. No manual dispatch/copy/interpretation/reactivation or paid QA fallback.
+
+Real external Google/Microsoft/ICS/Spond/ChatGPT and local AI remain not
+live-verified; owner-controlled setup/consent is still required. No secrets or
+private household content were introduced into published artifacts. No PR,
+merge, main/force push, tag, release or Actions dispatch. Review SHA is the signed
+featurebranch commit containing the final report/evidence.
+See [ROUND_10_REPORT.md](../design/review/ROUND_10_REPORT.md) for receipts and links.
+
+## M3 design round 8 — 2026-10-13
+
+Revised mailbox `0de2d814`; frozen signed source
+`15d047192abd63f4be18a90108fe969096da78d0`. Shared product shell, six synthetic
+people (two adults/four children), truthful personal counts and stable identities
+are implemented. Actual contrast/reflow/control measurements drove focused fixes.
+Complete retest278/278, five workspace checks, four non-web builds, pipeline11/11
+and demo guards4/4 PASS. Home70, shell139, actual M3 eleven checks and four genuine
+200% browser-zoom runs PASS. Contrast128 actual states in each normal/no-blur mode
+PASS; independent four-state-per-mode PNG comparison agrees exactly across38 groups.
+All14 latest and94 supplementary actual screenshots are source-bound; two derived
+reference/R7/current comparisons are explicitly distinguished. Round
+`20261013220837-15d04719-3db04bd7`;199 source inputs match working files, publishing
+clone, build/runtime and served assets. Prior224 evidence files and protected229
+Git files are unchanged, as are all nine QA tables (five people/18 messages).
+Literal admin/admin login/logout works on LAN; qa-db/app/worker remain healthy.
+Temporary apps/setup DB removed. Local QA and isolated captures made no live provider requests and used no
+real/private data.
+Public test publication is deployed on the same frozen source/image91ec.
+HTTPS56 checks PASS: normal restricted-account UI login/logout,32 page/theme/
+viewport journeys, permissions/cookies/Origin/CSRF, source assets and unbuffered
+SSE. All58 originals reviewed;50 published,8 account/provider originals private.
+Existing public core7 hashes match; canonical017–020 applied, old image/config
+and fresh private backups retained. Three existing daily local-provider attempts
+failed after their pre-existing due times; no browser/manual AI action, no settings
+change. Worker resumed normally, all3public services healthy; next runs on2026-10-14.
+Current-version prescribed post-deployment restore PASS: fresh258237-byte backup,
+exact recorded flags,20 NOOP checksums/integrity/auth/cleanup/live unchanged.
+Final public release gate PASS; actual container/source/assets/data/recovery verified.
+Initial old restore exact ownership/privilege flags were not auditable; the later
+drill is not falsely labelled pre-cutover.
+See [Round 8 report](../design/review/ROUND_8_REPORT.md),
+[public deployment](../design/review/ROUND_8_PUBLIC_DEPLOY.md) and
+[validation](../design/review/round-8/validation.json). No PR/merge/main/force push
+or Actions dispatch; no new migration and no private data/secret introduced.
+
+## M3 design round 7 — 2026-10-13
+
+Activated mailbox `37cfcb6`; final signed source
+`f65d75f55cdf3ed0a7fd2915e97d045923c6e35c`. Light-mobile authorized compose,
+surface-aware reminder previews, full-width portrait reminder and whole Shelly
+controls are verified. Light framing is quieter; dark outer/inner glass has more
+depth. AI global dispatch counts and known normal-use estimates have explicit
+NB/EN scope; no backend/OAuth/provider/accounting change or new migration.
+Complete retest272/272, five workspace checks, non-web builds4/4, pipeline11/11,
+normal browser51/51, actual M3 11/11 and genuine native200% four runs PASS.
+Composited contrast30 states in each normal/no-blur mode PASS, minimum4.680:1;
+independent PNG four representative states per mode agree exactly.
+All14 latest +21 actual supplementary captures personally opened/hash/source
+verified, plus two explicitly derived reference/R6/R7 comparisons. Round
+`20261013194236-f65d75f5-ba8caa81`; source/root/clone/runtime/build/served assets
+agree across191 input files. Previous181 evidence files and protected229 Git
+files remain byte-identical. All nine QA tables are unchanged; existing fifth
+person and avatar choices retained, all names user-confirmed synthetic.
+Admin/admin login/logout works on LAN; qa-db/app/worker stay healthy. Temporary
+isolated services removed. No real provider calls; live ChatGPT consent/eligibility/
+inference/credits remain unverified. See [Round7 report](../design/review/ROUND_7_REPORT.md)
+for changes, residual visual gaps, evidence and frontend-only rollback.
+Final independent release gate returned PASS before signed feature publication. No PR,
+merge, deploy, main/force push, Actions dispatch or private data introduced.
+
+## M3 design round 6 — 2026-10-12
+
+Activated mailbox `8e2ab1`: prioritized real family content, warm/light and navy/glass
+materials shared by paired display, full person intervals and usage-first AI setup.
+Final signed source `158d9e33949715403998b914d2180d95b66e9ae3` fixes SQL missing-price and
+unresolved-dispatch accounting, safely retains rotated pending-validation credentials,
+and persists private token-free companion registration for resuming consent.
+Full retest 270/270, pipeline11/11, browser37 + M3 11, native browser200% four runs
+PASS. Actual composited contrast: 32 surfaces plus two opened source states in each
+normal/fallback mode, minimum4.680:1, with independent PNG cross-check.
+All14 latest +22 supplementary screenshots are regenerated/opened/hash verified,
+round `20261012234005-158d9e33-d7fb5bdb`; only the labeled recovery image injects
+a synthetic DTO. Runtime/build/root/publishing-clone bytes and all20 migration
+checksums agree. Migration020 preserves stored QA; all9 data-table snapshots and
+229 protectedGit files are unchanged. Admin/admin works on LAN; QA services remain
+running. Live OAuth consent/eligibility/inference/account credits remain unverified,
+with zero real provider calls. See [Round6 report](../design/review/ROUND_6_REPORT.md)
+for changes, evidence, user connection steps and data-preserving rollback.
+The final independent release gate returned PASS before feature publication; no PR, merge,
+deploy or private data is introduced.
+
+## M3 design round 5 — 2026-10-04
+
+Activated mailbox `34faa81`: reference-based light/dark/mobile composition, six
+local selectable avatars, direct person drawer/sheet, removed footer, complete
+ChatGPT-plan OAuth onboarding/provider and honest usage/credit/API scenarios.
+Final signed source `b6a30b2d95443a02192da7bc089820585fde8169`: complete isolated
+retest 261/261, pipeline 11/11, browser groups 17+11 PASS. Actual composited
+contrast on 30 surfaces normal/fallback minimum 4.680:1; native 200% browser
+zoom four runs PASS. All 14 latest and 20 supplementary images opened/hash
+verified, round `20261004124113-b6a30b2d-7d49ba64`. Source/root/clone/runtime/served
+assets agree; additive migration019 preserves existing QA. Admin/admin works on
+LAN. Protected Git, authentication and stored content are preserved, apart from
+four explicitly permitted avatar choices. Only real OAuth consent/account
+eligibility/live inference remains unverified; no real provider calls were made.
+See [Round 5 report](../design/review/ROUND_5_REPORT.md) for evidence, limitations,
+connection instructions and data-preserving rollback. No production change or
+private data was introduced. Independent final release gate PASS; signed feature
+publication follows without changing tested build inputs.
+
+## M3 design round 4 — 2026-10-01
+
+Activated mailbox `4ec2c24`: CSS-only sky/mint family atmosphere, layered navy
+glass, coherent existing icons and full-card identity-axis correction. Final
+DCO source `8cc0236b4a3dd4ce43eee36591f74e75de6f4e88` also fixes genuine 200% native-zoom
+heading/hero/navigation collisions without changing the five normal layouts.
+Node 24 check and 32/32 tests; complete focused LAN regressions/14 read-only
+stress cases; 12 NB/EN axis cases, fallback/Axe and native zoom PASS. Fresh
+actual composited contrast normal/fallback minimum 5.031:1 PASS. Existing
+admin/admin and synthetic QA data are preserved; natural October 1 Today1 /
+Tomorrow0 is documented. All 14 actual Home images are opened/hash verified, round
+`20261001144432-8cc0236b-66eead31`; post-capture literal admin/admin UI login/logout
+and unchanged content/authentication snapshots PASS. Independent final release
+gate PASS. Final capture/publication
+evidence is recorded in
+[Round 4 report](../design/review/ROUND_4_REPORT.md). No mutating M3 harness,
+production change or private data introduced; protected root Git is untouched.
+
+## M3 design round 3 — 2026-09-30
+
+Activated mailbox `de14831`: dark Tomorrow/support column and balanced portrait,
+clear reminder/person detail controls, stronger light identity/message hierarchy
+and calmer dark materials. Final signed source
+`da31a7d757d81b4a8308b9a41f6239c2367d3952` fixes proven disclosure relocation
+focus/open-state loss. Node 24 web check and 32/32 tests pass; complete focused
+LAN QA and fresh actual composited contrast pass. Admin/admin, ordinary hash
+authentication and existing synthetic data are preserved. No mutating M3 harness
+was needed for presentation-only work. All 14 final Home images are opened/hash
+verified, round `20260930182826-da31a7d7-1886d5b2`; post-capture literal
+admin/admin UI login/logout and unchanged content/authentication aggregates pass.
+Evidence is prepared for signed feature-branch publication;
+see [Round 3 evidence and limits](../design/review/ROUND_3_REPORT.md).
+
+
+## M3 design round 2 — 2026-09-30
+
+The explicitly activated mailbox `127a3b7` is implemented: independent low-height
+panels, earlier reminders/messages, real message/support composition, compact
+mobile agenda, original local dusk landscape and verified photo-backed contrast.
+The synthetic LAN QA UI accepts literal `admin/admin` through ordinary hash
+verification. Its guarded idempotent credential procedure preserves other accounts
+and household data; ordinary email and strong new-password rules are unchanged.
+
+Signed source `99185975a758548dacbe11210834c9fbd9a06c55`: Node 24 web check,
+28/28 web tests, 4/4 QA credential tests, 6/6 policy/core tests, 7/7 tooling tests;
+focused browser and one canonical M3 run (10/10 groups) pass. All 14 final
+screenshots are visually/hash verified, round `20260930035832-99185975-5a933bde`;
+post-capture literal admin login and UI logout pass. Review evidence is prepared
+for signed feature-branch publication. Full evidence
+and limits are recorded in [the round 2 report](../design/review/ROUND_2_REPORT.md).
+Protected root Git metadata and isolated running QA data are preserved.
+
+## M3 design round 1 — 2026-09-30
+
+The explicitly activated [design mailbox](../design/review/NEXT_CODEX_PROMPT.md)
+is implemented in member Home and the shared paired-display Family Hub:
+compact Home navigation; early light person/day-plan composition; dark adjacent
+Today/Tomorrow/Family/Remember panels; named compact identities and early agenda
+on smaller surfaces; human messages before support cards; local decorative
+landscape; consistent initial avatars and neutral personal-content labels.
+There are no backend/API changes or migrations. The protected main checkout Git
+metadata remains untouched; signed checkpoints are published through the existing
+`.local/design-review-publish` checkout on `feat/m3-family-hub`.
+
+Build/capture provenance now compares mounted source bytes with the canonical
+checkpoint, records bundle SHA-256 hashes and verifies the actual served HTML
+and assets. Capture uses only the exact configured synthetic QA origin, including
+`http://192.168.0.220:4173`, rather than misidentifying the stale main-checkout HEAD
+as the new UI source. Full evidence, source SHA, final review manifest and limits
+are recorded in [the round report](../design/review/ROUND_1_REPORT.md).
+Final source `11d43fd93c6a0be4f7d37978071866c237629c91`: web check/build,
+24/24 web tests, 7/7 tooling tests and 10/10 complete M3 browser groups pass.
+All 14 final images were opened; security, requirements, UX and independent
+release gate pass. No production changes or private data were introduced.
+
+## M3 design-review mailbox — 2026-09-29
+
+The local review routine is documented in
+[the design-review README](../design/review/README.md). It uses the existing
+synthetic QA environment, publishes real member Home screenshots and a source-SHA
+manifest to `docs/design/review/latest/`, and archives previous successful rounds.
+The mailbox `NEXT_CODEX_PROMPT.md` requires explicit user invocation; it is never
+automatically executed. This is QA/documentation tooling, with no UI changes or
+database migration. TV and Shelly dimensions capture member Home, not the paired
+display projection or physical hardware.
+
+First round `20260929230125-390f6a6a-76ac151b` completed: 10 light/dark viewport
+captures plus four mobile/desktop full-page images. The source UI SHA is
+`390f6a6a6027e257a5250cfed1cc0517b6974bd3`; the later evidence commit contains the
+new routine. All 14 images were visually inspected as actual Family Hub UI,
+without login/error screens. Manifest hashes and PNG dimensions were independently
+verified. Shell/Node syntax, diff checks and three archive/rollback tests passed.
+Only a signed-off commit and push to `feat/m3-family-hub` are authorized; no PR,
+Actions dispatch, merge, release or deployment is authorized. No secrets or
+private data were introduced; there is no migration and rollback is a Git revert
+of the review tooling/evidence.
+
+## M3 local development — 2026-09-25
+
+Current branch: `feat/m3-family-hub`. Implementation, design iteration and full
+local QA are complete. **Independent final gate: PASS at `80d0df0`, with no
+blocking findings.** Final documentation records that result only. No PR,
+push, merge, release, deployment or GitHub Actions run was performed.
+
+M3 adds scoped integration credentials, six generic item types, additive
+migrations 017–018, member/display live projections and the responsive warm
+light/navy dark Family Hub. Existing M1 message ACK semantics remain intact.
+
+Final QA: 182 workspace tests, 10 E2E harness unit tests, synthetic E2E browser
+flow, legacy smoke 16/review 10/UX 10, and all 10 M3 browser groups with 15
+screenshots pass. Check/build pass. The lint dispatcher exits zero but has no
+configured workspace linter. Fresh/rerun 001–018 and upgrade preservation pass.
+Security, requirements and visual reviews pass; see [M3_STATUS.md](M3_STATUS.md)
+and [M3_QA_REPORT.md](M3_QA_REPORT.md) for evidence and limits.
+
+The dated M1/M2 entries below are historical evidence, not the current M3 gate.
 
 Updated: 2026-09-20. Branch: `feat/m1-first-runnable-slice`.
 Overall status: **PASS — local acceptance and backup restoration passed; Git
@@ -649,3 +1128,252 @@ host-global service modified. No merge, tag, release or production deployment.
   checks, all typechecks, production build, browser/Axe/responsive/reduced-motion
   smoke, and a two-run fresh migration 001–016 gate. It has not been committed,
   deployed or exercised by the expanded post-fix live Lillesand matrix.
+
+## M3 round 9 — 2026-10-14
+
+Mailbox `74eeaab` is implemented in source
+`6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e`. The immutable public test image is
+`sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453`.
+Protected person photos, task subjects, Google/Microsoft/ICS read adapters, the
+Spond calendar bridge and the truthful ChatGPT guide are available. The isolated
+suite passed 305 tests, five workspace checks and 10 E2E checks on byte-identical
+application/package inputs before the a99 Dockerfile-only packaging correction; the current
+ordinary 14-image round is `20261014052355-6f9f5c50-3f5e1278`, supplemented by
+57 isolated source-bound flow images. Public cutover preserves schema 23,
+configuration and data. The actual 6f HTTPS suite passed 63 checks and produced 62
+control captures. External OAuth/ICS/Spond/ChatGPT consent and live provider
+validation remain owner actions, and Gemini is not implemented. A final 6f
+post-cutover PostgreSQL 17 clone/backup/photo/subject/audit/amcheck recovery
+gate and native no-import/no-provider runtime-wrapper readiness check also
+passed. Final UX review opened 75 review outputs without an outstanding visual
+blocker; it does not claim owner design approval. The detailed
+boundaries, recovery evidence and user actions are in
+[ROUND_9_REPORT.md](../design/review/ROUND_9_REPORT.md).
+
+## Calendar GUI and Home Assistant implementation package — 2026-10-14
+
+Mailbox `23c01cc4fd849448060633825f1d6d368a46b6f3` is implemented in source
+`585a7204ce89bc7e953f6b79cf871c1845a12f9f`. The canonical candidate image is
+`sha256:5f63b1afb11d68aea1fdb8e1bc72cad2c099f1bab4377f7cc8aee6581d6eee12`.
+Direct Google/Microsoft read-only calendars now have a separate encrypted,
+installation-admin registration wizard. Spond has a primary Home Assistant
+browser-auth/discovery/explicit-person/preview/fullsnapshot path, with truthful
+cache, identity and task-availability limitations. Session/adult/household/display
+boundaries remain server-enforced; provider failure retains stale last-good data.
+
+Final isolated retest: **351/351**, zero skips; all five workspace checks/builds
+pass. Canonical image, working files and QA agree on all 240 source inputs and
+10 webassets. Visual iteration fixed long-name six-person card readability and
+all-day/exclusive-end dates. All 14 latest plus sixteen final-source targeted images
+were individually inspected and approved. Latest round:
+`20261014223031-585a7204-59693e69`. LAN literal `admin/admin` login/logout,
+Family Hub and source-bound assets pass; existing ordinary QA data is preserved.
+
+A fresh public schema-24 backup was restored in a local isolated PostgreSQL 17
+clone, migrated to 25 twice (second no-op), and checked for ledger/domain/rights
+preservation and amcheck. Candidate authenticated reads/assets and deployed R10
+image authenticated reads on schema 25 pass without worker, vault, model/provider
+calls or host ports. Temporary clone resources were removed.
+
+**The new candidate is not publicly deployed.** Public test remains R10 source
+`ca7359b0ce511f930aec3df0e11ce94ac4d203e6` / image `8fa9329d…`, with actual HTTPS
+synthetic login, Family Hub/People/Integrations and logout verified. Remote disk
+capacity is below the safe candidate-load/rollback margin, even with local
+restore. Existing public configuration, data, rights and two private tasks are
+preserved. Real Google/Microsoft consent, actual Home Assistant address/access,
+installed tracker inspection and external synchronization remain owner actions;
+none is called live-verified. Prior ChatGPT import/consent and local-AI owner
+validation also remain explicitly unverified. No PR/merge/main/force push,
+tag/release or Actions dispatch has occurred.
+
+See [ROUND_11_REPORT.md](../design/review/ROUND_11_REPORT.md) for source/deploy/review
+boundaries, changed files, evidence, migration/rollback and the GUI owner checklist.
+
+
+## Historical Round 13 checkpoint — 2026-10-15
+
+This section records the state at the 2026-10-15 checkpoint; it is superseded
+by the current deployment and verification summary above.
+
+The current public test baseline supersedes historical R11 state above:
+source/deploy `00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a`, review
+`fb9998b83ac1d7962edc05747d7982a99f18fcd5`. The main agent confirmed the
+public app and worker image and healthy services. Existing public HA connection
+is present and must be preserved; no new disk work is in scope.
+
+The full 13-area owner request is active. Temperature T1–T3 implementation is
+in the root worktree, with additive migration 027, 7 new and 16 existing targeted
+tests passing locally and API typecheck passing. Main reviewed evidence and
+old migration identity. No R13 public deployment has occurred. Remaining scope,
+model choices, review corrections and owner dependencies are recorded in
+[ROUND_13_STATUS.md](../design/review/ROUND_13_STATUS.md) and
+[ROUND_13_REQUIREMENTS.md](../design/review/ROUND_13_REQUIREMENTS.md).
+
+Round 13 local Home backend checkpoint (2026-10-15): additive migration 028,
+birthday/chronology and explicit school presentation metadata implemented;
+15 focused/regression tests and API typecheck pass. Bounded review findings
+closed. UI, integrated QA, screenshots, release gate and public deployment remain
+open; public source remains 00ddc36. See ROUND_13_STATUS.md for evidence.
+
+Round 13 display backend checkpoint: additive migration 029 and reusable setup
+selection with independent device grants reviewed. Complete local API 4/4 and
+Round 9 5/5 regressions plus API typecheck pass; main inspected logs and critical
+ACL predicates. UI/actions/browser verification and public release still open.
+See docs/design/review/ROUND_13_STATUS.md; this is not a release completion.
+
+Round 13 display-message checkpoint: additive 030 persists true device authors,
+explicit action/recipient policy and safe replay. Main independently ran 20/20
+combined backend tests on isolated local Compose; bounded review findings closed.
+UI/native-content/media/HA/public pages and release verification remain open.
+Older member-only readers cannot be treated as a complete rollback for new
+messages; preserve history and use compatible/forward recovery.
+
+Main independently reran the combined backend checkpoint on 2026-10-16:
+**21/21 pass**, no failures/skips/cancellations, isolated local Compose test runner.
+Evidence: `.local/m3/round13/backend-board-checkpoint.log` (actual exit 0).
+This includes native boards plus existing API, Round 9, display-message, Home
+and temperature regressions. Frontend/media/HA controls/pages/release remain open;
+public deployment is still R12.
+
+Main media integration checkpoint (2026-10-16): **31/31** serial tests pass,
+actual exit 0, no failures/skips/cancellations, isolated local Compose runner.
+Evidence `.local/m3/round13/backend-media-checkpoint.log`. Migrations 001–031
+remain unchanged. All 229 baseline protected root Git hashes are unchanged.
+This is a backend checkpoint; UI/HA controls/pages/restore/release and public
+acceptance remain open. Public runtime is still R12.
+
+Round 13 native boards/media frontend checkpoint (2026-10-16): web check,
+109 web tests and isolated Vite build pass. Main actual-browser tests pass for
+boards, media upload/persistence, explicit two-account image grant/revocation,
+playback pause across refresh and Home background apply/reset. Main reviewed
+mobile/desktop screenshots. Dedicated synthetic data only; no public deployment
+or full release acceptance is implied. See ROUND_13_STATUS.md for evidence and
+remaining work.
+
+## Issue #22 prospect board — 2026-11-11 (branch `design/issue-22-prospect`, not deployed)
+
+Landscape shared displays, their admin preview and member Home on desktop now use
+the original prospect's board: greeting and clock, one row with Today, Tomorrow and
+Family (school notes per child, idle people as name chips), and a low row where the
+handwritten household note and the photo share a bottom edge. Dinner is a footer
+strip in each day card, ended activities show a check, photo controls appear only
+on touch or keyboard focus, and missing cards hand their space to the others.
+Inter (SIL OFL 1.1, `apps/web/public/fonts/Inter-OFL.txt`) is bundled beside Kalam.
+Phones show the next few activities for today and two for tomorrow; portrait
+displays keep today's activities first and are otherwise unchanged.
+
+Evidence is local and synthetic only (six fictional people, repo-bundled landscape).
+Blind A/B against the cropped TV surface and phone figure of
+`docs/design/ChatGPT Image 24. sep. 2026, 23_52_06 (4).png`, labels and brand
+marks blurred, independent critic per pair: paired display won 3–0 (round 14) and
+1–0 (round 18); member Home won 2–1 (round 18); phone won 3–0 (round 18). All 261
+web unit tests and the workspace type checks pass. Not run: Docker E2E/display-proof
+(no Docker access on this host), physical device test, deployment. Behaviour
+changes: landscape boards show one household note with a "see all" link, and
+phones list up to three of today's remaining activities instead of one.
+
+## Portrait board and member Home below the fold — 2026-11-12 (branch `feat/portrait-board`, not deployed)
+
+- Portrait shared displays (fridge panels) now use the #22 board, stacked: today and tomorrow side by side, then family, note and photo at full width, with larger type for reading at a distance. A blind critic preferred it over the previous portrait layout.
+- Idle people are wrapping chips again on landscape displays and member Home. The previous column layout pushed the note/photo row below the 1280×752 screen; long synthetic names still render full width or wrap to their own line inside the card.
+- Member Home below the first screen: the household summary is one row, the week filters sit beside the week navigation, and the week and photo panels use the board glass. "Hele dagen" is hidden visually in the week list too (screen readers still hear it). The photo panel toggle uses a plain "+" so it no longer renders as a missing-glyph box.
+- Checks: `tsc --noEmit`, `npm run check`, 261/261 web unit tests. Not run: Docker display-proof E2E, physical device test.
+
+## Native Home Assistant adapter — 2026-11-12 (isolated development only)
+
+Branch `feat/native-ha-bridge` extends the current `feat/m3-family-hub` baseline
+`a298203` for the separate `pabben/samvev-homeassistant` custom integration. This
+is native HA entity support, separate from PR #25's iframe embedding. It does
+not install into active HA, deploy Samvev or modify production configuration.
+
+Delivered: explicit default-deny household/person/source/list export policy,
+six scoped HA capabilities using existing hashed/revocable credentials, standard
+shopping-board mutations through HouseholdBoardService, connection-authored
+messages using existing lifecycle tables, own events in existing integration_items,
+read-only imported-calendar interval exports and Samvev-calendar import-loop
+prevention. Migration047 is additive. Board receipts/created-by actors identify
+the integration connection; message/event audits also record the credential.
+No HA dashboard user is impersonated as a Samvev person.
+The bounded HA authentication budget also covers the supported50-source polling
+volume while preserving legacy and invalid-token abuse limits.
+
+Main-agent verification: complete workspace typecheck passed; independent QA's
+clean complete API run passed **493/493**, zero skipped/failed. Three actual-server
+roundtrip tests passed against real Samvev HTTP and actual HA entities/actions:
+shopping mutations/CAS/repeated-press protection, member+HA messages/lifecycle,
+native calendar creation/DST/all-day/edit/cancellation, imported calendar complete
+reads/read-only flags, HA reload, narrowing grants and revocation, and actual
+manager provisioning. The HA unit/harness suite separately verifies timed30s
+polling, outage recovery, durable retry metadata and in-flight disclosure fencing.
+
+Actual isolated HA2026.2.3 frontend screenshots were reviewed at1280x752 and390x844,
+light/dark, using only synthetic data. A single measured server-ack-to-dashboard
+update was **24.219s** with a30s polling interval; native checkbox changes were
+confirmed by Samvev. This is not a real-time or maximum-delay guarantee.
+Physical Shelly firmware/touch/session validation remains unverified.
+
+Security review findings were fixed with regressions: write-only response reads,
+calendar writes retaining removed recipients, stale receipt audience reads,
+browser-added display audiences, and delayed HA calendar responses after sharing
+changes. No secret or private household data was introduced. See
+`docs/implementation/HA_BRIDGE_API.md` and ADR0026 for contract, migration and
+rollback boundaries. Adapter validation/screenshots and installation instructions
+live in its separate repository. No merge, tag, release or production deployment.
+
+## Issue #29: no "Hele dagen" text, fridge portrait gauntlet — 2026-11-13 (branch `fix/issue-29`, not deployed)
+
+- No visible "Hele dagen" anywhere: day cards, week list, person rows, detail cards, the display's selected card, school meta and the calendar import preview. Screen readers still hear it (`sr-only`). All-day items come first and their titles stay in the same column as timed titles; long titles are clamped/ellipsized without overlap.
+- Portrait board (fridge, 800×1280): rows grow for two-line titles, the photo absorbs the leftover height so the board fits one screen, and secondary text is larger.
+- Blind gauntlet, 3 independent judges, fridge 800×1280 against the prospect TV surface: ours chosen 3–0.
+- Checks: `tsc --noEmit`, `npm run check`, 261/261 web unit tests (the all-day label test now expects the screen-reader-only label). Not run: Docker display-proof E2E, physical device test.
+
+
+## Explicit HA writes to shared native content — 2026-11-13 (development candidate)
+
+Branch `fix/ha-native-household-writes` preserves current production baseline
+`58d9d96` (including display readability and scoped bridge metadata), including the
+merged HA bridge from PR #28 (`3451bcf`). Migration 048 adds the manager-owned
+`allowSharedNativeWrites` policy, default false. It permits existing UI-authored
+native message edits/withdrawals and other connections' genuine native HA events
+only under paired read/write capabilities and complete household/person grants.
+Original authors/source IDs remain unchanged; the editing connection is audited.
+Existing same-household display recipients require the explicit flag and household
+sharing, and their selection cannot be widened by HA. Monitor/worker-generated
+messages and provider/generic producer appointments remain read-only.
+
+The Samvev calendar UI has no local appointment editor/member CRUD API at this
+baseline. No roundtrip for UI-created local appointments is claimed; no new UI or
+calendar engine is introduced. Genuine native HA event and normal UI message
+roundtrips are tested separately. Disclosure flags and durable receipt replay use
+the same current policy/type/full-target checks, including withdrawal tombstones.
+
+Independent main-agent verification passed: all 499 API tests, the whole-workspace
+TypeScript checks, and five cross-repository tests running the actual Samvev API
+and HA integration against an isolated synthetic database. These include an HA
+action editing/withdrawing a UI-authored message and actual provisioning/reuse of
+all six capabilities with explicit sharing. Security review findings concerning
+producer-controlled provenance and display revocation/expiry during lock waits
+were fixed with regressions. No private household data is part of this entry.
+Production deployment/restore evidence is a separate operator record; this test
+result does not claim a live HA install or physical Shelly validation. Policy
+rollback is disabling the new false-default flag, retaining additive schema/data.
+
+## Issue #29 round 2: owner findings from the real fridge — 2026-11-14 (branch `fix/issue-29-round2`)
+
+Owner findings from the physical portrait tablet and their fixes (synthetic data only):
+
+1. **Portrait at any resolution.** A paired display now uses the stacked portrait board whenever it is in portrait orientation, not only below 1000 px width. 1200×1920 previously fell back to three narrow columns with empty space. Busy people sit in two columns on wide portrait screens, so 800×1280 fits above the fold with an all-day event, long titles and six people.
+2. **Nothing raw below the board.** When the family board is shown on `/display`, secondary cards (calendar items, new message, worth remembering, next, shopping list, week) are no longer rendered below it. The board is the whole screen.
+3. **No false "…".** The stale calendar badge ("Kan være utdatert") is shown on the board as a ◷ glyph with the full text as an accessible label and tooltip, so it no longer forces a fitting title into an ellipsis.
+4. **"Ingenting planlagt" chips** no longer overlap in light theme. The cause was inline-size containment (`.hub-light.hub-wide .hub-person`) collapsing the chips to 0 px. The board also no longer uses the adaptive card grid.
+5. **All-day rows** drop the empty time column and render as a deliberate tinted band at the top of the day, in both the board and the week list.
+6. **Home:** a temperature sensor shows either its last known value with a time, or "Utilgjengelig", never both. Home Assistant controls rerun a refresh that was requested while another was in flight, instead of staying on "Gjør alt klart …" until the next 60 s poll.
+7. **Greeting:** 23–05 says "God natt". The family card is called "Familien" on every surface.
+
+Checks: `tsc --noEmit`, `npm run check`, 264/264 web unit tests (new night-greeting and single-temperature-state assertions). Blind gauntlet rounds at 800×1280 and 1200×1920 against the prospect are recorded in the issue #29 comment. Not run: Docker display-proof E2E or the physical device; the owner confirms on the fridge.
+
+## Round 19: display fit and ICS error clarity — 2026-11-19
+
+Public app and worker source: `c3ad869e207820d4edadd9b478c212ac6bb3d121`, schema 48. This is a descendant of the issue #29 round-2 candidate. The 1280×752 family display now fits its full message/photo row with 16 px bottom clearance, wraps long all-day titles, keeps 44 px person targets in both themes, and shortens empty cards. Explicitly selected grocery content remains visible under existing grants; dinner is not repeated, and preview follows the same board policy. ICS notices no longer show raw placeholders or confuse download size with occurrence limits, and moved recurring events overlapping the window are retained.
+
+Verification: isolated 783/783 workspace tests and typecheck PASS; 60 source-bound synthetic browser captures PASS; security/requirements/UX review findings addressed. The public code-only schema-48 cutover used fresh backups, isolated restore and a retained rollback image/Compose override. App, worker and DB are healthy; public HTTPS synthetic login/navigation/asset/logout smoke passed 11/11. See `docs/design/review/ROUND_19_REPORT.md` and its selected 14-image manifest. Physical fridge, owner visual acceptance for #22, Windows theme-menu contrast and the private failing ICS source remain separate checks. No AI task, schedule, HA connection, user data or vault was changed in this round.

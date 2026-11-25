@@ -1,0 +1,63 @@
+{
+  "sourceSha": "00ddc36f74fa41925fc0cc6e9b7e6b462e96a37a",
+  "candidateImageId": "sha256:baa1c70f781ae887a791e52c120a674384f1b9737a6093aee2d1785aa0806a02",
+  "actualUi": true,
+  "syntheticOnly": true,
+  "isolatedDatabase": "samvev_ha12_a665_fixture@test-db",
+  "providerTransport": "injected synthetic only",
+  "liveProviderVerification": false,
+  "stagedProviderConsentCount": 1,
+  "screenshots": [
+    {
+      "filename": "recovery-f1-invalid-client-nb-light.png",
+      "sha256": "cf8cee03d495ff35e7fd579ca15e1a8d5a25408573156e8480984ce81a15cd12",
+      "flow": "F1 invalid client leaves retained content stale and directs operator repair",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "locale": "nb",
+      "theme": "light"
+    },
+    {
+      "filename": "recovery-f1-repaired-retry-nb-light.png",
+      "sha256": "b540b59b10d4edb5f2eadb589cc8c682be89bd8fcf98723feff2e3f32deea6dd",
+      "flow": "F1 same-client repaired configuration enables a successful ordinary retry",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "locale": "nb",
+      "theme": "light"
+    },
+    {
+      "filename": "recovery-f2-explicit-replacement-nb-light.png",
+      "sha256": "fd6c17f572b5ae937b081639f00cbad832b2dd037cdf80aec849336b24a783f7",
+      "flow": "F2 displays the explicit new-account replacement choice before consent",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "locale": "nb",
+      "theme": "light"
+    },
+    {
+      "filename": "recovery-f2-new-binding-nb-light.png",
+      "sha256": "95834c94d0741e446291c2de6c9e749aa5a900195ae89e4390780f93d01f9580",
+      "flow": "F2 completed a new Microsoft binding with no copied source or reader ACL",
+      "viewport": {
+        "width": 1440,
+        "height": 1000
+      },
+      "locale": "nb",
+      "theme": "light"
+    }
+  ],
+  "assertions": [
+    "F1 invalid_client makes connection and source stale while retaining the prior projection",
+    "F1 same-client repair remains retry-pending and source-stale before actual sync, then returns current only after success",
+    "F2 replacement starts only through explicit dialog",
+    "F2 replacement creates a new binding and does not copy source/reader/display ACL"
+  ],
+  "allPass": true
+}

@@ -1,0 +1,21 @@
+{
+  "sourceSha": "a99fbce575a11498fc7d1206bb998ef94eb83010",
+  "scope": "Historical post-cutover recovery proof for the earlier public test candidate",
+  "supersededBy": "FINAL6fpost-cutover-recovery.json",
+  "freshCurrentCustomBackup": true,
+  "backupTocValidated": true,
+  "backupFileMode": "0600",
+  "isolatedPostgres17Restore": true,
+  "migrationLedgerRows": 23,
+  "migrationNoop": true,
+  "currentPhotoHttpNativeWebp96": true,
+  "currentPhotoHttpNativeWebp512": true,
+  "currentPhotoVariantsByteIdentical": true,
+  "directDatabasePhotoVariantComparison": true,
+  "twoExistingTaskSubjectLinksPreserved": true,
+  "taskSubjectAuditRowsPreserved": true,
+  "amcheckPassed": true,
+  "cloneRestrictions": {"internalNetworkOnly": true, "publishedPorts": false, "readOnlyRootFilesystem": true, "readOnlyBindMounts": 2, "workerStarted": false, "liveVaultMounted": false, "modelCalls": false},
+  "cloneResourcesCleaned": true,
+  "liveConfigurationUnchanged": true
+}

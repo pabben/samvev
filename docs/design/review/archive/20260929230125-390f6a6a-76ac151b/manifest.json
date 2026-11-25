@@ -1,0 +1,293 @@
+{
+  "roundId": "20260929230125-390f6a6a-76ac151b",
+  "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+  "workingTreeDirty": true,
+  "capturedAt": "2026-09-29T23:01:25.756Z",
+  "source": {
+    "origin": "http://qa-app:4173",
+    "account": "admin@demo.invalid",
+    "syntheticDemo": true
+  },
+  "screenshots": [
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:27.355Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "filename": "desktop-1920-light.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "61dd9069ca19a79d70e5459986335d401c175745c69e1f8eea8e1d326a05a12b"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:27.516Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "filename": "mobile-light.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "f0e2df2d367497ec72cf064a8daa52bdd3acf8407c4dc16b268f71face62d82d"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:27.818Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "light",
+      "filename": "ipad-portrait-light.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "7b591dea4d291f542062468b2626b934be17d56916ddb8ad7a81634bbd5c251a"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:28.072Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "light",
+      "filename": "ipad-landscape-light.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "f8774781679c82d2ea3786a9d1cbbab70ba9a247c1e26b246b16f0cac6d1aa7f"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:28.416Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "light",
+      "filename": "shelly-1280-light.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "63ca989d3e7b87c672d6c4baf9541026b608d08419e74bb76c66e53d7f49b7ed"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:28.738Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "light",
+      "filename": "mobile-light-full.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": true,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "4185256c6d12c53bde666c8430ca60a74bb2e394dad37c3497939b84e96e33fb"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:29.295Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "light",
+      "filename": "desktop-1920-light-full.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": true,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "70cf43de9942a63a9819b88b23398c507ee6af50781e62c54820beddcd282e49"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:29.945Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "filename": "desktop-1920-dark.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "2741c45d2ec852d1a87ca70ba30bf2c1003af2c79f3fefa1f4cf7a1d63951fd0"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:30.103Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "filename": "mobile-dark.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "9841d4b993b18b0101d851b680d031eeefa50ffd0ee87c9ecf613bdec6c762e4"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:30.417Z",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "theme": "dark",
+      "filename": "ipad-portrait-dark.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "6a2dd92777c6ed62cc25a6697fc1793023f40179df7daedcaa5895b72dee5dd7"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:30.692Z",
+      "viewport": {
+        "width": 1180,
+        "height": 820
+      },
+      "theme": "dark",
+      "filename": "ipad-landscape-dark.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "a41012224cb2692ddbca3b7efd7e070e0b5e0f64ed9bcfe34829ecf95140c114"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:31.083Z",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "theme": "dark",
+      "filename": "shelly-1280-dark.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": false,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "6949c720ad519e413bd697820a721791a418b902f70103cfc60095438f8dcdbb"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:31.426Z",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "theme": "dark",
+      "filename": "mobile-dark-full.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": true,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "b2ea4512732db75b3bb50fbeabee2b975e832c9dbfc5bb16aea7d723f7c76772"
+    },
+    {
+      "commitSha": "390f6a6a6027e257a5250cfed1cc0517b6974bd3",
+      "capturedAt": "2026-09-29T23:01:32.105Z",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "theme": "dark",
+      "filename": "desktop-1920-dark-full.png",
+      "surface": "member-home",
+      "path": "/",
+      "locale": "nb",
+      "fullPage": true,
+      "uiVerification": {
+        "peopleCount": 4,
+        "itemCount": 9,
+        "itemTitlesHash": "ec386dbe17d73df84982fc8ce3f87f4e8bdb22a0dc21b03886d790221e372964"
+      },
+      "sha256": "d9f02d735424bef01a3da85f3fc5be2c55db41b7b25e9ee71316711e9fed6bec"
+    }
+  ]
+}

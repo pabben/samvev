@@ -1,0 +1,20 @@
+{
+  "sourceSha": "ca7359b0ce511f930aec3df0e11ce94ac4d203e6",
+  "origin": "https://samvev.pabben.org",
+  "checkedAt": "2026-10-14T22:47:29.787Z",
+  "actualHttpsBrowser": true,
+  "injectedTransport": false,
+  "syntheticAccountOnly": true,
+  "checks": [
+    "HTTPS health",
+    "public rejects LAN admin/admin",
+    "synthetic HTTPS UI login and Family Hub",
+    "People navigation",
+    "Integrations navigation",
+    "UI logout"
+  ],
+  "external": [],
+  "writes": [],
+  "errors": [],
+  "complete": true
+}

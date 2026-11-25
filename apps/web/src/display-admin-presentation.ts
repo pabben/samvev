@@ -1,0 +1,234 @@
+import type { Locale, Theme } from './types';
+
+export type BirthdayMode = 'off'|'all'|'legacy_selected';
+export type CalendarReadiness = 'privacy'|'none_selected'|'external_disabled'|'not_shared'|'ready';
+
+export type DisplayReviewAccess = {
+  canShareCalendars: boolean;
+  selectedCalendarDisplayIds: string[];
+  requestedCalendarDisplayIds: string[];
+  selectedAlbumReadIds: string[];
+  managedAlbumIds: string[];
+  requestedAlbumReadIds: string[];
+};
+
+/** A review plan never creates grants implicitly: only explicit, authorized opt-ins become writes. */
+export function displayReviewAccessPlan(current: DisplayReviewAccess, requested: DisplayReviewAccess) {
+  const calendarDenied = !requested.canShareCalendars && requested.requestedCalendarDisplayIds.some(id => !current.selectedCalendarDisplayIds.includes(id));
+  const calendarDisplayIds = requested.canShareCalendars
+    ? [...new Set(requested.requestedCalendarDisplayIds)]
+    : current.selectedCalendarDisplayIds;
+  const permittedAlbums = new Set(requested.managedAlbumIds);
+  const albumDisplayIds = requested.requestedAlbumReadIds.filter(id => permittedAlbums.has(id));
+  const deniedAlbumIds = requested.requestedAlbumReadIds.filter(id => !permittedAlbums.has(id));
+  return {
+    calendarDisplayIds,
+    calendarChanged: !sameIds(current.selectedCalendarDisplayIds, calendarDisplayIds),
+    calendarDenied,
+    albumDisplayIds,
+    albumChangedIds: [...new Set([...current.selectedAlbumReadIds, ...albumDisplayIds])].filter(id => current.selectedAlbumReadIds.includes(id) !== albumDisplayIds.includes(id)),
+    deniedAlbumIds,
+  };
+}
+
+export async function savePrivateDisplaySetupDraft<T extends { id: string }>(changed: boolean, createCopy: () => Promise<T>, assignToDisplay: (setupId: string) => Promise<unknown>): Promise<string | null> {
+  if (!changed) return null;
+  const copy = await createCopy();
+  await assignToDisplay(copy.id);
+  return copy.id;
+}
+
+export function displayActionHasMessageRecipients(policy: { personIds?: string[]; displayIds?: string[] }): boolean {
+  return Boolean(policy.personIds?.length || policy.displayIds?.length);
+}
+
+export function displayReviewCanApply(confirmed: boolean, deltaCount: number): boolean {
+  return confirmed && deltaCount > 0;
+}
+
+export function displayReviewCardChange<T extends { cards: string[]; cardOrder: string[]; familyLayoutEnabled: boolean }>(draft: T, cardId: string, checked: boolean): T {
+  return { ...draft, cards: checked ? [...new Set([...draft.cards, cardId])] : draft.cards.filter(id => id !== cardId), cardOrder: checked ? [...draft.cardOrder, ...(draft.cardOrder.includes(cardId) ? [] : [cardId])] : draft.cardOrder.filter(id => id !== cardId), familyLayoutEnabled: cardId === 'family_layout' ? checked : draft.familyLayoutEnabled };
+}
+
+export function displaySetupPeopleSelection(personIds: string[], personId: string, checked: boolean): string[] {
+  return checked ? [...new Set([...personIds, personId])] : personIds.filter(id => id !== personId);
+}
+
+export type DisplayActionPolicy = {
+  revision: number;
+  messageCreate: boolean;
+  messageSchedule: boolean;
+  groceryWrite: boolean;
+  dinnerWrite: boolean;
+  photoUpload: boolean;
+  homeAssistantControl: boolean;
+  personIds: string[];
+  displayIds: string[];
+};
+export type DisplayActionPolicyUpdate = Omit<DisplayActionPolicy, "revision"> & { expectedRevision: number };
+
+const displayActionFlags = ["messageCreate", "messageSchedule", "groceryWrite", "dinnerWrite", "photoUpload", "homeAssistantControl"] as const;
+
+export function displayActionPolicyRevocationPlan(current: DisplayActionPolicy, desired: DisplayActionPolicy) {
+  const revokePeople = current.personIds.filter(id => !desired.personIds.includes(id));
+  const revokeDisplays = current.displayIds.filter(id => !desired.displayIds.includes(id));
+  const revoked = {
+    expectedRevision: current.revision,
+    ...Object.fromEntries(displayActionFlags.map(key => [key, current[key] && !desired[key] ? false : current[key]])),
+    personIds: current.personIds.filter(id => desired.personIds.includes(id)),
+    displayIds: current.displayIds.filter(id => desired.displayIds.includes(id)),
+  } as DisplayActionPolicyUpdate;
+  const hasRevocations = revokePeople.length > 0 || revokeDisplays.length > 0 || displayActionFlags.some(key => current[key] && !desired[key]);
+  const hasAdditions = displayActionFlags.some(key => !current[key] && desired[key]) || desired.personIds.some(id => !current.personIds.includes(id)) || desired.displayIds.some(id => !current.displayIds.includes(id));
+  return { revoked, hasRevocations, hasAdditions };
+}
+
+/** Persist capability and recipient removals before other review writes; apply additions only after those writes succeed. */
+export async function applyDisplayReviewWrites<T extends DisplayActionPolicy>(
+  current: T,
+  desired: T,
+  updatePolicy: (patch: DisplayActionPolicyUpdate) => Promise<T>,
+  applyOtherWrites: () => Promise<void>,
+  onRevocationsApplied?: (policy: T) => void,
+): Promise<T> {
+  const plan = displayActionPolicyRevocationPlan(current, desired);
+  let latest = current;
+  if (plan.hasRevocations) {
+    latest = await updatePolicy(plan.revoked);
+    onRevocationsApplied?.(latest);
+  }
+  await applyOtherWrites();
+  if (plan.hasAdditions) {
+    const { revision: _revision, ...fields } = desired;
+    latest = await updatePolicy({ ...fields, expectedRevision: latest.revision });
+  }
+  return latest;
+}
+
+export function displayCalendarSourceUpdate(source: { revision: number; enabled: boolean; purpose: string; displayName: string|null; bridgeKind: string; syncWindowDays: { past: number; future: number }; appliesTo: { household: boolean; personIds: string[] }; visibility: { household: boolean; personIds: string[]; displayIds: string[] } }, displayId: string, share: boolean) {
+  const displayIds = share ? [...new Set([...source.visibility.displayIds, displayId])] : source.visibility.displayIds.filter(id => id !== displayId);
+  return { expectedRevision: source.revision, enabled: source.enabled, purpose: source.purpose, displayName: source.displayName, bridgeKind: source.bridgeKind, syncWindowDays: source.syncWindowDays, appliesTo: source.appliesTo, visibility: { ...source.visibility, displayIds } };
+}
+
+function sameIds(left: string[], right: string[]) {
+  return left.length === right.length && left.every(id => right.includes(id));
+}
+
+export function effectiveDisplayLocale(override: Locale|null|undefined, setupDefault: Locale|undefined, fallback: Locale): Locale {
+  return override ?? setupDefault ?? fallback;
+}
+
+export function effectiveDisplayTheme(override: Theme|null|undefined, setupDefault: Theme|undefined, fallback: Theme): Theme {
+  return override ?? setupDefault ?? fallback;
+}
+
+/** Convert the admin select's explicit inheritance choice to the nullable API fields. */
+export function displayLocalePatch(selection: Locale|'inherit'): { locale: Locale|null } {
+  return { locale: selection === 'inherit' ? null : selection };
+}
+
+export function displayThemePatch(selection: Theme|'inherit'): { theme: Theme|null } {
+  return { theme: selection === 'inherit' ? null : selection };
+}
+
+export function changedDevicePeople(currentOverride: string[]|null, effectiveIds: string[], personId: string, checked: boolean): { personIdsOverride: string[] } {
+  const current = currentOverride ?? effectiveIds;
+  const ids = checked ? [...current, personId] : current.filter(id => id !== personId);
+  return { personIdsOverride: [...new Set(ids)] };
+}
+
+export function selectedDevicePeople(ids: string[]): { personIdsOverride: string[] } {
+  return { personIdsOverride: [...new Set(ids)] };
+}
+
+export function noDevicePeople(): { personIdsOverride: string[] } {
+  return { personIdsOverride: [] };
+}
+
+export function inheritDevicePeople(): { personIdsOverride: null } {
+  return { personIdsOverride: null };
+}
+
+export function birthdayInputState(mode: BirthdayMode): { checked: boolean; mixed: boolean } {
+  return { checked: mode === 'all', mixed: mode === 'legacy_selected' };
+}
+
+export function birthdayModePatch(mode: 'off'|'all'): { birthdayMode: 'off'|'all' } {
+  return { birthdayMode: mode };
+}
+
+export function visibleDisplayBirthdays(mode: BirthdayMode|undefined, entries: { personId:string; displayName:string; due:'today'|'tomorrow' }[]): typeof entries {
+  return mode === 'off' ? [] : entries;
+}
+
+/** A separate People card hides the duplicate roster only, never family-layout birthdays. */
+export function familyLayoutBirthdayEntries(mode: BirthdayMode|undefined, entries: { personId:string; displayName:string; due:'today'|'tomorrow' }[], _separatePeopleCard: boolean): typeof entries {
+  return visibleDisplayBirthdays(mode, entries);
+}
+
+export function displayFamilyCardPlan(cards: readonly string[], familyLayoutEnabled: boolean, privacyMode: boolean) {
+  const familyLayout = cards.includes('family_layout') && familyLayoutEnabled && !privacyMode;
+  return { familyLayout, peopleCard: cards.includes('people') && !familyLayout && !privacyMode, rosterInFamilyLayout: familyLayout };
+}
+
+/** The family board consumes its core/default cards. Optional selected boards
+ * and controls still render below it; their renderers enforce current grants. */
+export function displaySecondaryCardVisible(card: string, familySelected: boolean, familyHasContent = true): boolean {
+  // An empty scaffold still needs the selected calendar sharing/empty reason.
+  if (card === 'external_items' && !familyHasContent) return true;
+  return !familySelected || !['family_layout','household_messages','people','today','tomorrow','week','next','external_items','photos','dinners'].includes(card);
+}
+
+/** Family overview first, followed by optional weekly and calendar detail cards. */
+export function recommendedDisplayLayout<T extends { cards: string[]; cardOrder: string[]; familyLayoutEnabled: boolean }>(draft: T): T {
+  const coreCards = ['family_layout', 'household_messages', 'week', 'external_items'];
+  const optionalCards = [...draft.cardOrder, ...draft.cards].filter(card => draft.cards.includes(card) && !coreCards.includes(card));
+  const cards = [...coreCards, ...new Set(optionalCards)] as T['cards'];
+  return { ...draft, cards, cardOrder: cards, familyLayoutEnabled: true } as T;
+}
+
+/** A per-display recommendation edits presentation only; access and personalization stay intact. */
+export function displayPresentationOnlyChange<T extends { cards: string[]; cardOrder: string[]; familyLayoutEnabled: boolean; personIds: string[]; sourceIds: string[]; calendarSourceIds: string[]; sensorIds: string[]; albumIds: string[]; backgroundId: string | null }>(current: T): T {
+  return recommendedDisplayLayout(current);
+}
+
+export function displaySecondaryCalendarItems<T extends { metadata?: { calendar?: unknown }; startsAt?: string | null }>(items: T[], hasFamilyLayout: boolean, today: string, zone: string): T[] {
+  const tomorrow = new Date(Date.parse(`${today}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  return items.filter(item => {
+    if (!item.metadata?.calendar) return false;
+    if (!hasFamilyLayout || !item.startsAt) return true;
+    const date = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(Date.parse(item.startsAt));
+    return date > tomorrow;
+  }).slice(0, 8);
+}
+
+export function displayPreviewContentVisible(content: unknown): boolean {
+  if (content === null || content === undefined || content === false) return false;
+  if (Array.isArray(content)) return content.length > 0;
+  return typeof content !== 'string' || content.trim().length > 0;
+}
+
+export function displayFamilyContentVisible(familyLayout: boolean, peopleCount: number, messageCount: number, itemCount: number, birthdayCount: number): boolean {
+  return familyLayout && (peopleCount > 0 || messageCount > 0 || itemCount > 0 || birthdayCount > 0);
+}
+
+export function displayChromePlan(familyDisplay: boolean) {
+  return { displayIdentity: !familyDisplay, displayClock: !familyDisplay, familyHero: familyDisplay };
+}
+
+export function displayReadinessCard(cards: readonly string[]): 'external_items'|'today'|'tomorrow'|null {
+  if (cards.includes('external_items')) return 'external_items';
+  if (cards.includes('today')) return 'today';
+  if (cards.includes('tomorrow')) return 'tomorrow';
+  return null;
+}
+
+export function calendarReadinessMessage(status: CalendarReadiness|undefined): 'displayReadinessUnknown'|'displayReadinessPrivacy'|'displayReadinessNoPeople'|'displayReadinessDisabled'|'displayReadinessNotShared'|'displayReadinessReady' {
+  if (!status) return 'displayReadinessUnknown';
+  return ({ privacy: 'displayReadinessPrivacy', none_selected: 'displayReadinessNoPeople', external_disabled: 'displayReadinessDisabled', not_shared: 'displayReadinessNotShared', ready: 'displayReadinessReady' } as const)[status];
+}
+
+/** Distinguish a configured empty calendar from a missing/unknown display grant. */
+export function calendarEmptyMessage(status: CalendarReadiness|undefined): 'displayCalendarEmpty'|'displayReadinessUnknown'|'displayReadinessPrivacy'|'displayReadinessNoPeople'|'displayReadinessDisabled'|'displayReadinessNotShared' {
+  return status === 'ready' ? 'displayCalendarEmpty' : calendarReadinessMessage(status) as Exclude<ReturnType<typeof calendarReadinessMessage>, 'displayReadinessReady'>;
+}

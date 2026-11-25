@@ -23,3 +23,12 @@ Architectural decision records (ADRs) capture decisions that should remain under
 | [0017](0017-durable-asynchronous-monitor-executions.md) | Persistent background monitor runs with bounded local-AI latency classes | Accepted for the M2.4 follow-up |
 | [0018](0018-synthetic-live-e2e-identity.md) | Registered synthetic household, normal authentication and execution-scoped deployed-runtime E2E | Accepted for implementation; live gate pending |
 | [0019](0019-daily-conditional-weather-rules.md) | Calendar-based daily weather rules with deterministic rain/wind evaluation | Accepted for implementation; live verification pending |
+| [0020](0020-external-intelligence-family-hub.md) | Scoped external intelligence connections and durable family-hub items | Accepted for M3 implementation |
+| [0021](0021-chatgpt-plan-oauth-and-usage-accounting.md) | Owner-bound ChatGPT OAuth, public Responses dispatch and auditable route-specific usage | Accepted for M3 preview |
+| [0022](0022-person-assets-calendar-and-task-subjects.md) | Protected person photos, read-only calendar snapshots and independent task subjects | Accepted for M3 R9 test candidate |
+| [0023](0023-calendar-registration-and-home-assistant.md) | Installation calendar GUI registration, adult private sources and optional HA Spond snapshots | Accepted for authorized test candidate |
+| [0024](0024-home-assistant-calendar-snapshots-and-temperature.md) | General HA calendar snapshots, waste purposes and selected temperature observations | Accepted for authorized test candidate |
+
+- [0025: Explicit AI reserve and UTC dispatch limit](0025-opt-in-ai-fallback-and-dispatch-limits.md)
+
+- [0026: Native HA entities and explicit export sharing](0026-native-home-assistant-bridge.md)

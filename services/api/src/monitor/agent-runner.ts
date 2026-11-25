@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
 import type { AiModelTier, AiProviderId, AiProviderTurn, AiTask, AiToolResult, MonitorProviderPolicy, MonitorToolName } from '@samvev/contracts';
 import { DomainError } from '@samvev/core';
-import type { AiAdminService } from '../ai/admin-service.ts';
-import { MonitorSourceFetcher, normalizeMonitorUrl, type SourceDocument } from './source-fetcher.ts';
+import type { AiAdminService, AiExecutionContext, AiSessionMode } from '../ai/admin-service.ts';
+import { isCalendarSubscriptionUrl, MonitorSourceFetcher, normalizeMonitorUrl, type SourceDocument } from './source-fetcher.ts';
 import { monitorToolRegistry, monitorWebTool, webOpenArgsSchema, type ApprovedWeatherScope } from './tool-registry.ts';
 import { MET_PUBLIC_FORECAST_URL, MetWeatherClient, norwegianWeatherDate, weatherEvidenceText, type WeatherForecast, type WeatherForecastArgs } from './weather.ts';
 import { sanitizedValidationDetails, validationError } from './validation-diagnostics.ts';
@@ -105,7 +105,7 @@ function boundedPayload(source:SourceDocument,rootOrigin:string):{output:string;
   const text=truncateUtf8(source.text,MAX_TOOL_TEXT_BYTES);let low=0;let high=text.length;let output=JSON.stringify(base);
   while(low<=high){const middle=Math.floor((low+high)/2);const candidate=JSON.stringify({...base,text:text.slice(0,middle)});if(Buffer.byteLength(candidate)<=MAX_TOOL_PAYLOAD_BYTES){output=candidate;low=middle+1;}else high=middle-1;}
   if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
-  const visible=JSON.parse(output) as typeof base;visible.contentComplete=visible.text===source.text;output=JSON.stringify(visible);if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
+  const visible=JSON.parse(output) as typeof base;visible.contentComplete=source.evidenceComplete!==false&&visible.text===source.text;output=JSON.stringify(visible);if(Buffer.byteLength(output)>MAX_TOOL_PAYLOAD_BYTES)fail('MONITOR_TOOL_LIMIT',413);
   return{output,links,evidenceDocument:{finalUrl:visible.url,contentType:visible.contentType,text:visible.text,fingerprint:visible.fingerprint,fetchedAt:visible.fetchedAt,evidenceComplete:visible.contentComplete,...(visible.title?{title:visible.title}:{}),headings:visible.headings,links:visible.links}};
 }
 
@@ -134,9 +134,9 @@ export class MonitorAgentRunner {
 
   async run(input:{
     householdId:string;task:AiTask;policy:MonitorProviderPolicy;rootUrl?:string;toolNames?:MonitorToolName[];requiredTools?:MonitorToolName[];expectedProvider?:AiProviderId;approvedWeatherScope?:ApprovedWeatherScope;
-    seedDocuments?:SourceDocument[];preloadSeedDocuments?:boolean;signal?:AbortSignal;requireTool?:boolean;maxTurns?:number;maxToolExecutions?:number;observer?:MonitorExecutionObserver;
+    seedDocuments?:SourceDocument[];preloadSeedDocuments?:boolean;sessionMode?:AiSessionMode;signal?:AbortSignal;requireTool?:boolean;maxTurns?:number;maxToolExecutions?:number;observer?:MonitorExecutionObserver;executionContext?:AiExecutionContext;
   }):Promise<MonitorAgentResult>{
-    const rootUrl=input.rootUrl?canonical(input.rootUrl):undefined;const toolNames=input.toolNames??(rootUrl?['web.open']:[]);if(!toolNames.length)fail('MONITOR_TOOL_INVALID',422);if(toolNames.includes('web.open')&&!rootUrl)fail('MONITOR_TOOL_INVALID',422);const contracts=monitorToolRegistry.select(toolNames);if(contracts.length!==new Set(toolNames).size)fail('MONITOR_TOOL_INVALID',422);const requiredTools=new Set(input.requiredTools??(input.requireTool?toolNames:[]));
+    const rootUrl=input.rootUrl?canonical(input.rootUrl):undefined;const toolNames=input.toolNames??(rootUrl?['web.open']:[]);if(!toolNames.length)fail('MONITOR_TOOL_INVALID',422);if(toolNames.includes('web.open')&&!rootUrl)fail('MONITOR_TOOL_INVALID',422);if(rootUrl&&toolNames.includes('web.open')&&isCalendarSubscriptionUrl(new URL(rootUrl)))throw new DomainError('CALENDAR_SOURCE_USE_ICS',422);const contracts=monitorToolRegistry.select(toolNames);if(contracts.length!==new Set(toolNames).size)fail('MONITOR_TOOL_INVALID',422);const requiredTools=new Set(input.requiredTools??(input.requireTool?toolNames:[]));
     const controller=new AbortController();const abort=()=>controller.abort();if(input.signal?.aborted)controller.abort();else input.signal?.addEventListener('abort',abort,{once:true});const timeout=setTimeout(abort,this.deadlineMs);
     const documents=new Map<string,SourceDocument>();const cache=new Map<string,SourceDocument>();const completedCalls=new Map<string,{tool:MonitorToolName;requested:string}>();
     for(const source of input.seedDocuments??[]){cache.set(canonical(source.finalUrl),source);}
@@ -195,7 +195,7 @@ export class MonitorAgentRunner {
       session=await this.ai.createTaskSession(
         input.householdId,sessionTask,input.policy,
         contracts.filter((item)=>(item.name==='web.open'&&allowFollowLinks)||!usedTools.has(item.name)).map((item)=>item.definition),
-        controller.signal,input.preloadSeedDocuments?'format_repair':'analysis'
+        controller.signal,input.preloadSeedDocuments?'format_repair':input.sessionMode??'analysis',input.executionContext
       );
       if(input.expectedProvider&&session.provider!==input.expectedProvider)throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);
       let results:AiToolResult[]=[];let terminalRepairAttempted=false;
@@ -203,15 +203,16 @@ export class MonitorAgentRunner {
         if(controller.signal.aborted)throw new DomainError('AI_TIMEOUT',504);
         const sourceRequired=[...requiredTools].some((name)=>!usedTools.has(name));
         await input.observer?.progress('analyzing');aiCalls++;const providerStarted=Date.now();let turn:AiProviderTurn;
-        try{turn=await (async()=>{try{return await session.next(results,sourceRequired?'required':'auto');}finally{input.observer?.providerTurn(Date.now()-providerStarted);}})();}
+        const dispatchedBefore=session.physicalAttempts??0;
+        try{turn=await (async()=>{try{return await session.next(results,sourceRequired?'required':'auto');}finally{aiCalls+=session.physicalAttempts===undefined?0:Math.max(0,session.physicalAttempts-dispatchedBefore)-1;input.observer?.providerTurn(Date.now()-providerStarted);}})();}
         catch(error){
-          const provider=session.provider;const canRepair=error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&!sourceRequired&&requiredTools.size>1&&evidenceDocuments.size>1&&!terminalRepairAttempted&&!input.preloadSeedDocuments&&turnNumber<maxTurns&&Boolean(input.task.responseSchema);
+          const provider=session.provider;const canRepair=error instanceof DomainError&&error.code==='AI_RESPONSE_INVALID'&&!sourceRequired&&requiredTools.size>1&&evidenceDocuments.size>1&&!terminalRepairAttempted&&!input.preloadSeedDocuments&&turnNumber<maxTurns&&Boolean(input.task.responseSchema)&&!session.usedFallback;
           if(!canRepair)throw error;
           terminalRepairAttempted=true;session.close();results=[];
           const repairTask={...input.task,input:boundedRepairInput(input.task.input,verifiedEvidenceContext(evidenceDocuments.values()))};
-          session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair');
+          session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair',input.executionContext);
           if(session.provider!==provider||(input.expectedProvider&&session.provider!==input.expectedProvider)){session.close();throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);}
-          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();try{turn=await session.next([],'auto');}finally{input.observer?.providerTurn(Date.now()-repairStarted);}
+          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();const repairDispatchedBefore=session.physicalAttempts??0;try{turn=await session.next([],'auto');}finally{aiCalls+=session.physicalAttempts===undefined?0:Math.max(0,session.physicalAttempts-repairDispatchedBefore)-1;input.observer?.providerTurn(Date.now()-repairStarted);}
         }
         results=[];
         if(turn.output){if(sourceRequired)throw validationError('AI_RESPONSE_INVALID',502,'required_tools','missing_required_tool');return {output:turn.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};}
@@ -277,21 +278,21 @@ export class MonitorAgentRunner {
         // window. Finalize from the complete server-held evidence in a fresh,
         // tool-free structured session. This avoids carrying provider-specific
         // tool protocol state and a duplicated source window into another turn.
-        if(preopenApprovedRoot&&!terminalRepairAttempted&&turnNumber<maxTurns&&
+        if(preopenApprovedRoot&&!session.usedFallback&&!terminalRepairAttempted&&turnNumber<maxTurns&&
           [...requiredTools].every((name)=>usedTools.has(name))&&evidenceDocuments.size>1){
           terminalRepairAttempted=true;const provider=session.provider;session.close();results=[];
           const repairTask={...input.task,input:boundedRepairInput(input.task.input,verifiedEvidenceContext(evidenceDocuments.values()))};
-          session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair');
+          session=await this.ai.createTaskSession(input.householdId,repairTask,input.policy,[],controller.signal,'format_repair',input.executionContext);
           if(session.provider!==provider||(input.expectedProvider&&session.provider!==input.expectedProvider)){session.close();throw new DomainError('AI_PROVIDER_UNAVAILABLE',422);}
-          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();let repaired:AiProviderTurn;
-          try{repaired=await session.next([],'auto');}finally{input.observer?.providerTurn(Date.now()-repairStarted);}
+          await input.observer?.progress('analyzing');aiCalls++;const repairStarted=Date.now();const repairDispatchedBefore=session.physicalAttempts??0;let repaired:AiProviderTurn;
+          try{repaired=await session.next([],'auto');}finally{aiCalls+=session.physicalAttempts===undefined?0:Math.max(0,session.physicalAttempts-repairDispatchedBefore)-1;input.observer?.providerTurn(Date.now()-repairStarted);}
           if(!repaired.output||repaired.toolCalls.length)throw validationError('AI_RESPONSE_INVALID',502,'provider_response','invalid_turn_shape');
           return{output:repaired.output,provider:session.provider,model:session.model,aiCalls,attemptedToolCount,documents:[...documents.values()],evidenceDocuments:[...evidenceDocuments.values()],provenance,attempts,dependencies:[...dependencies.values()]};
         }
       }
       fail('MONITOR_TOOL_LIMIT');
     }catch(error){
-      const providerReasons=['invalid_json_body','missing_choices','missing_message','invalid_tool_calls','empty_content','invalid_turn_shape','response_too_large','upstream_http_4xx','upstream_http_5xx','upstream_http_other','upstream_invalid_json','upstream_response_too_large','upstream_context_limit','upstream_rate_limited','upstream_format_unsupported','upstream_tool_unsupported','network_error'] as const;
+      const providerReasons=['invalid_json_body','missing_choices','missing_message','invalid_tool_calls','empty_content','invalid_turn_shape','response_too_large','output_limit_reached','upstream_http_4xx','upstream_http_5xx','upstream_http_other','upstream_invalid_json','upstream_response_too_large','upstream_context_limit','upstream_rate_limited','upstream_format_unsupported','upstream_tool_unsupported','network_error'] as const;
       const providerReason=error instanceof DomainError&&typeof error.details?.providerResponseReason==='string'&&providerReasons.includes(error.details.providerResponseReason as typeof providerReasons[number])?error.details.providerResponseReason as typeof providerReasons[number]:undefined;
       const diagnosed=error instanceof DomainError&&((error.code==='AI_RESPONSE_INVALID')||(error.code==='AI_UPSTREAM_ERROR'&&providerReason))&&!sanitizedValidationDetails(error.details)
         ?validationError(error.code,error.status,'provider_response',providerReason??'invalid_provider_response')

@@ -1,0 +1,2118 @@
+{
+  "source": "isolated synthetic display proof",
+  "sourceHeadSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+  "sourceDirty": false,
+  "fixture": {
+    "id": "r17-rich-capture-synthetic-household",
+    "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+  },
+  "aclNegativeFixture": {
+    "unselectedChildAddedAfterCaptures": true,
+    "targetedMessageAddedAfterCaptures": true
+  },
+  "background": {
+    "assetId": "573c9ef6-cd92-4221-a1dd-de268b8c5958",
+    "albumId": "433eceeb-2fe6-426e-8a44-d61bcb57656f",
+    "selectedForSetup": true,
+    "householdReadGranted": true,
+    "pairedDisplayReadGranted": true,
+    "deniedDisplayReadGranted": false
+  },
+  "messageAudit": {
+    "previewLiveProjectionParity": true,
+    "householdNoteMemberHome": true,
+    "pairedDisplay": [
+      {
+        "visible": true,
+        "context": "hub-message normal hub-message-preview"
+      }
+    ],
+    "adminPreview": [
+      {
+        "visible": true,
+        "context": "hub-message normal hub-message-preview"
+      }
+    ]
+  },
+  "capturedAt": "2026-11-06T21:44:20.774Z",
+  "timezone": "Europe/Oslo",
+  "locale": "nb-NO",
+  "screenshots": [
+    {
+      "id": "member-home-light-desktop",
+      "file": "member-home-light-desktop.png",
+      "surface": "member-home",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "pngDimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "captureMode": "viewport",
+      "sha256": "864bdad858c9f1fabe05f995df4ee8bfb8c462f686d06747fb71d2c1bcfe7882",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-light-desktop",
+      "file": "paired-display-light-desktop.png",
+      "surface": "paired-display",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "pngDimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "captureMode": "viewport",
+      "sha256": "56ebece2b9f1b98aadaa5018399585a511203b5fa763355077a9f1878bd692b3",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-light-desktop",
+      "file": "admin-preview-light-desktop.png",
+      "surface": "admin-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "pngDimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "captureMode": "viewport",
+      "sha256": "f02fb226d7f3d620e291d6da8b004c50c4235d6145b58ac1fbb1254389aa818b",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-light-mobile",
+      "file": "member-home-light-mobile.png",
+      "surface": "member-home",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "bc26b56d916441a7722974f217b99a67751e39324c6d70d415937ff1ab4633c4",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-light-mobile",
+      "file": "paired-display-light-mobile.png",
+      "surface": "paired-display",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "f823b54f093733e71a8223d6f1f1a934b887739e28c2a26a86de54abdc5ff0d7",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "paired display hub",
+        "mobile viewport"
+      ]
+    },
+    {
+      "id": "admin-preview-light-mobile",
+      "file": "admin-preview-light-mobile.png",
+      "surface": "admin-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "23a443cb67621e172a3ac7f81f3006cafb2344c7f33912d3fbbc24c12eb1e467",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "manager preview hub",
+        "mobile viewport"
+      ]
+    },
+    {
+      "id": "member-home-light-tablet-portrait",
+      "file": "member-home-light-tablet-portrait.png",
+      "surface": "member-home",
+      "theme": "light",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "pngDimensions": {
+        "width": 820,
+        "height": 1180
+      },
+      "captureMode": "viewport",
+      "sha256": "52d8f3eac53d300db166ab717a34cb32084fdaeb24aa4ad0c5b202348532ed26",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-light-tablet-portrait",
+      "file": "paired-display-light-tablet-portrait.png",
+      "surface": "paired-display",
+      "theme": "light",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "pngDimensions": {
+        "width": 820,
+        "height": 1180
+      },
+      "captureMode": "viewport",
+      "sha256": "e774013c94da3bc0a2cf52e0b1dfb6383c94d5bfaae41c9f3bd0c9eb78699dae",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-light-tablet-portrait",
+      "file": "admin-preview-light-tablet-portrait.png",
+      "surface": "admin-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "pngDimensions": {
+        "width": 820,
+        "height": 1180
+      },
+      "captureMode": "viewport",
+      "sha256": "aa12ca05b70b143688d9bcaa17e98cc05345e3c298a87808eacd75869bab9db8",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-light-wall-landscape",
+      "file": "member-home-light-wall-landscape.png",
+      "surface": "member-home",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "6ccff954807cbaf0bc3554264ab0f7e7b2e92274a27d966a4785e4ab3d88ca04",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-light-wall-landscape",
+      "file": "paired-display-light-wall-landscape.png",
+      "surface": "paired-display",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "7138f5a192e8efc3b7a5c578233ddc5f7c4f368c75dac07aef9111f89636780e",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-light-wall-landscape",
+      "file": "admin-preview-light-wall-landscape.png",
+      "surface": "admin-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "27c030cec1e5b8a0e6ff65af245f8c2b09bc3e0985cf0f52b5b26205211cc19a",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-light-wall-landscape-full",
+      "file": "member-home-light-wall-landscape-full.png",
+      "surface": "member-home",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 1523
+      },
+      "captureMode": "full-page-supplement",
+      "sha256": "2166a393e0afe3147861813362dda41c3636bdb8daca6e64965f147d682df12b",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "full Home layout",
+        "synthetic household note"
+      ]
+    },
+    {
+      "id": "paired-display-light-wall-landscape-full",
+      "file": "paired-display-light-wall-landscape-full.png",
+      "surface": "paired-display",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 1390
+      },
+      "captureMode": "full-page-supplement",
+      "sha256": "56edb3e9a70d65c885b717b1fea3226c5a9dc747ed6a6d12f98a585d335c93e7",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "full paired display layout",
+        "person-targeted school notice",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-light-wall-landscape-full",
+      "file": "admin-preview-light-wall-landscape-full.png",
+      "surface": "admin-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 4126
+      },
+      "captureMode": "full-page-supplement",
+      "sha256": "2eb2fd2cefd2fae32657d9919307d4a541957be32c05bcd367117aeb153702f3",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "full manager preview layout",
+        "household note and person school summary",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-light-wall-portrait",
+      "file": "member-home-light-wall-portrait.png",
+      "surface": "member-home",
+      "theme": "light",
+      "viewport": {
+        "width": 752,
+        "height": 1280
+      },
+      "pngDimensions": {
+        "width": 752,
+        "height": 1280
+      },
+      "captureMode": "viewport",
+      "sha256": "f6999d2bfad37da431b74aee5164e259a0a7b3d64d1c1d69757c03254479b0c3",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-light-wall-portrait",
+      "file": "paired-display-light-wall-portrait.png",
+      "surface": "paired-display",
+      "theme": "light",
+      "viewport": {
+        "width": 752,
+        "height": 1280
+      },
+      "pngDimensions": {
+        "width": 752,
+        "height": 1280
+      },
+      "captureMode": "viewport",
+      "sha256": "97d55ecd0e38a66e31482873ffdaf8c47534099eb50413e804a4116a69e3493f",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-light-wall-portrait",
+      "file": "admin-preview-light-wall-portrait.png",
+      "surface": "admin-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 752,
+        "height": 1280
+      },
+      "pngDimensions": {
+        "width": 752,
+        "height": 1280
+      },
+      "captureMode": "viewport",
+      "sha256": "a42a25fdbaf5d88ac2917a24d1e9d9c3ab9e2b5723cf2ddf5b0b5af7c8a88681",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-dark-desktop",
+      "file": "member-home-dark-desktop.png",
+      "surface": "member-home",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "pngDimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "captureMode": "viewport",
+      "sha256": "2d348f42726e230c181ab2586254d87d2ef38d444427a1c05c31e73faffd5202",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-dark-desktop",
+      "file": "paired-display-dark-desktop.png",
+      "surface": "paired-display",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "pngDimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "captureMode": "viewport",
+      "sha256": "f18a2750fa0c71ecd274fd2fc389b121439647f6e906b3bb7f47b6f4d18fbbdd",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-dark-desktop",
+      "file": "admin-preview-dark-desktop.png",
+      "surface": "admin-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1920,
+        "height": 1080
+      },
+      "pngDimensions": {
+        "width": 1920,
+        "height": 1080
+      },
+      "captureMode": "viewport",
+      "sha256": "9a87b929b0fa55b9cb30a207e80f61fb99a1bd9f1a15a1eb308728cb70bdc833",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-dark-mobile",
+      "file": "member-home-dark-mobile.png",
+      "surface": "member-home",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "cc55566a2662edd2f056975e30d7b5d1d04f029618afd777af530c8ebb4b9a7a",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-dark-mobile",
+      "file": "paired-display-dark-mobile.png",
+      "surface": "paired-display",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "1847902cf9c0ccdf20761c37e775960498510c13391632a88c1a86a37faef3cc",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "paired display hub",
+        "mobile viewport"
+      ]
+    },
+    {
+      "id": "admin-preview-dark-mobile",
+      "file": "admin-preview-dark-mobile.png",
+      "surface": "admin-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "da3192683f54887bc082ec14276ec9d95e360988cc031c8ecd9ba3806a47e32b",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "manager preview hub",
+        "mobile viewport"
+      ]
+    },
+    {
+      "id": "member-home-dark-tablet-portrait",
+      "file": "member-home-dark-tablet-portrait.png",
+      "surface": "member-home",
+      "theme": "dark",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "pngDimensions": {
+        "width": 820,
+        "height": 1180
+      },
+      "captureMode": "viewport",
+      "sha256": "06220094fef9f350e8ae029677bdbbf23f84f02c6ce9e9d8268df571513566c4",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-dark-tablet-portrait",
+      "file": "paired-display-dark-tablet-portrait.png",
+      "surface": "paired-display",
+      "theme": "dark",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "pngDimensions": {
+        "width": 820,
+        "height": 1180
+      },
+      "captureMode": "viewport",
+      "sha256": "60d026729dad102180e08633af9201d6d7f2e2876c766fa714d0785ecf483eb6",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-dark-tablet-portrait",
+      "file": "admin-preview-dark-tablet-portrait.png",
+      "surface": "admin-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 820,
+        "height": 1180
+      },
+      "pngDimensions": {
+        "width": 820,
+        "height": 1180
+      },
+      "captureMode": "viewport",
+      "sha256": "7b1618c394f2fb09fd357b171b0220e65d846ef811be61d3c8ab79196cc4117a",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-dark-wall-landscape",
+      "file": "member-home-dark-wall-landscape.png",
+      "surface": "member-home",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "f675e530f522bf5ba5e70e32cbabf02a139c1b2f5250eb46c813531b33ee140d",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-dark-wall-landscape",
+      "file": "paired-display-dark-wall-landscape.png",
+      "surface": "paired-display",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "1bbf884a3c493c8993352d4a6414551d7d76eea113a78eeb5435f23a22744a30",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-dark-wall-landscape",
+      "file": "admin-preview-dark-wall-landscape.png",
+      "surface": "admin-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "13101b7848e7afe04db95a6a008e721e65c6d750100d1fc742f57f8e7132571d",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "member-home-dark-wall-portrait",
+      "file": "member-home-dark-wall-portrait.png",
+      "surface": "member-home",
+      "theme": "dark",
+      "viewport": {
+        "width": 752,
+        "height": 1280
+      },
+      "pngDimensions": {
+        "width": 752,
+        "height": 1280
+      },
+      "captureMode": "viewport",
+      "sha256": "e75e783ba650d7b18911a38b3318ba48b65a37f7772fbc38dd6ae3536e4dbb40",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "Synthetic school activity",
+        "Synthetic household note",
+        "local author avatar"
+      ]
+    },
+    {
+      "id": "paired-display-dark-wall-portrait",
+      "file": "paired-display-dark-wall-portrait.png",
+      "surface": "paired-display",
+      "theme": "dark",
+      "viewport": {
+        "width": 752,
+        "height": 1280
+      },
+      "pngDimensions": {
+        "width": 752,
+        "height": 1280
+      },
+      "captureMode": "viewport",
+      "sha256": "feab78958a37cef1f3840b29a5b05add8715657ec12931e8a8f9104e19f79a83",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "person-targeted school notice and author avatar",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "admin-preview-dark-wall-portrait",
+      "file": "admin-preview-dark-wall-portrait.png",
+      "surface": "admin-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 752,
+        "height": 1280
+      },
+      "pngDimensions": {
+        "width": 752,
+        "height": 1280
+      },
+      "captureMode": "viewport",
+      "sha256": "70292812d6f0a462283388f8101c011e0c707ad6400d98cc5fa1e4e5c5b43acf",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "six synthetic people",
+        "household note and person school summary",
+        "read-only synthetic grocery and dinner boards",
+        "synthetic evening landscape"
+      ]
+    },
+    {
+      "id": "paired-display-custom-background-light-wall-landscape",
+      "file": "paired-display-custom-background-light-wall-landscape.png",
+      "surface": "paired-display",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "62f236bda0b1fe0b2bc4c898865456179ee5e03c563cc973b86fdbc9fb5949da",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "background": {
+        "assetId": "573c9ef6-cd92-4221-a1dd-de268b8c5958",
+        "albumId": "433eceeb-2fe6-426e-8a44-d61bcb57656f",
+        "householdReadGranted": true,
+        "displayReadGranted": true
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "synthetic selected custom background",
+        "six selected synthetic people",
+        "Today and Tomorrow activities settled"
+      ]
+    },
+    {
+      "id": "admin-preview-custom-background-light-wall-landscape",
+      "file": "admin-preview-custom-background-light-wall-landscape.png",
+      "surface": "admin-preview",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "369af2f582b532b606bf26a49f69191a70feb494efdeffcb8563dcb34dcd307f",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "background": {
+        "assetId": "573c9ef6-cd92-4221-a1dd-de268b8c5958",
+        "albumId": "433eceeb-2fe6-426e-8a44-d61bcb57656f",
+        "householdReadGranted": true,
+        "displayReadGranted": true
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "synthetic selected custom background",
+        "same selected background as paired display",
+        "Today and Tomorrow activities settled"
+      ]
+    },
+    {
+      "id": "paired-display-custom-background-dark-wall-landscape",
+      "file": "paired-display-custom-background-dark-wall-landscape.png",
+      "surface": "paired-display",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "56d8ccaf910031d38eb3071bdb80c6930ba3894ea36bb63e6a6485595d6fbc8c",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "background": {
+        "assetId": "573c9ef6-cd92-4221-a1dd-de268b8c5958",
+        "albumId": "433eceeb-2fe6-426e-8a44-d61bcb57656f",
+        "householdReadGranted": true,
+        "displayReadGranted": true
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "synthetic selected custom background",
+        "six selected synthetic people",
+        "Today and Tomorrow activities settled"
+      ]
+    },
+    {
+      "id": "admin-preview-custom-background-dark-wall-landscape",
+      "file": "admin-preview-custom-background-dark-wall-landscape.png",
+      "surface": "admin-preview",
+      "theme": "dark",
+      "viewport": {
+        "width": 1280,
+        "height": 752
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 752
+      },
+      "captureMode": "viewport",
+      "sha256": "bf836671d16c191ad841304a2623490026dfb828870de8b20a91ca7ac0af02fe",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "background": {
+        "assetId": "573c9ef6-cd92-4221-a1dd-de268b8c5958",
+        "albumId": "433eceeb-2fe6-426e-8a44-d61bcb57656f",
+        "householdReadGranted": true,
+        "displayReadGranted": true
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "synthetic selected custom background",
+        "same selected background as paired display",
+        "Today and Tomorrow activities settled"
+      ]
+    },
+    {
+      "id": "calendar-integrations-light-closed",
+      "file": "calendar-integrations-light-closed.png",
+      "surface": "calendar-integrations",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 900
+      },
+      "captureMode": "viewport",
+      "sha256": "b4647cbe09ff1b4e3cd27e25e50c26e7db7ab1e0a7a4229db9c279c77ff975d9",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "three disconnected synthetic providers collapsed",
+        "setup ICS preserved"
+      ]
+    },
+    {
+      "id": "calendar-integrations-light-open",
+      "file": "calendar-integrations-light-open.png",
+      "surface": "calendar-integrations",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 900
+      },
+      "captureMode": "viewport",
+      "sha256": "eb376744f3cd989aee5a34afc5b075cc73a59bd6f90f20d0d6e259e614bdcc6b",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "three synthetic source names visible",
+        "Google Microsoft ICS removable"
+      ]
+    },
+    {
+      "id": "calendar-remove-single-light",
+      "file": "calendar-remove-single-light.png",
+      "surface": "calendar-integrations",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 900
+      },
+      "captureMode": "viewport",
+      "sha256": "ca05038a0c9d565d8cf31082298a02b3b632b81e65561c103f665bec3cae8a04",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "single confirmation names synthetic Google source"
+      ]
+    },
+    {
+      "id": "calendar-remove-batch-dark-mobile",
+      "file": "calendar-remove-batch-dark-mobile.png",
+      "surface": "calendar-integrations",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "5edbbaea09850ea1c6c8fe6510ad065b90a852f65b75e52ef1d657df566f0c5c",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "batch confirmation snapshots Microsoft and ICS source names"
+      ]
+    },
+    {
+      "id": "calendar-window-dark-mobile",
+      "file": "calendar-window-dark-mobile.png",
+      "surface": "calendar-integrations",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "51b026ef74b1ff2b36fe1a9b7f2fa22daf6614350f92382728facc40aa3ee613",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "real setup source editor",
+        "28 day past and 364 day future selected",
+        "ICS full download explanation"
+      ]
+    },
+    {
+      "id": "calendar-window-light-desktop",
+      "file": "calendar-window-light-desktop.png",
+      "surface": "calendar-integrations",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 900
+      },
+      "captureMode": "viewport",
+      "sha256": "c180c7f1a40f4a8c14fbd70a21b053aa8f61bea2bc731ac552b1d67b31cc2a97",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "real setup source editor",
+        "28 day past and 364 day future selected",
+        "ICS full download explanation"
+      ]
+    },
+    {
+      "id": "calendar-ics-size-observed-dark-mobile",
+      "file": "calendar-ics-size-observed-dark-mobile.png",
+      "surface": "calendar-integrations",
+      "theme": "dark",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pngDimensions": {
+        "width": 390,
+        "height": 844
+      },
+      "captureMode": "viewport",
+      "sha256": "da1fd89c6b7784d52771cc2667f1bd692bff63d52163a8f1fe03e2bd4573ab47",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "simulation": {
+        "type": "ui-only-intercepted-preview-error",
+        "httpStatus": 413,
+        "code": "CALENDAR_ICS_TOO_LARGE",
+        "details": {
+          "observedBytes": 11010048,
+          "maxBytes": 8388608
+        },
+        "providerFetchPerformed": false,
+        "sourceEnabled": false
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "actual localized error renderer",
+        "synthetic intercepted HTTP 413",
+        "MiB values interpolated without raw placeholders"
+      ]
+    },
+    {
+      "id": "calendar-ics-size-declared-light-desktop",
+      "file": "calendar-ics-size-declared-light-desktop.png",
+      "surface": "calendar-integrations",
+      "theme": "light",
+      "viewport": {
+        "width": 1280,
+        "height": 900
+      },
+      "pngDimensions": {
+        "width": 1280,
+        "height": 900
+      },
+      "captureMode": "viewport",
+      "sha256": "0759ecb5320c7752994f0c2a183cb1a813d0b5ab313bb938a719e1287bdac1d1",
+      "source": {
+        "headSha": "eccb1554081c9600a6f3e63b9fc855854aaa9596",
+        "dirty": false
+      },
+      "fixture": {
+        "id": "r17-rich-capture-synthetic-household",
+        "type": "six-selected-synthetic-people; unselected-child-acl-fixture-added-after-base-captures"
+      },
+      "simulation": {
+        "type": "ui-only-intercepted-preview-error",
+        "httpStatus": 413,
+        "code": "CALENDAR_ICS_TOO_LARGE",
+        "details": {
+          "declaredBytes": 12582912,
+          "maxBytes": 8388608
+        },
+        "providerFetchPerformed": false,
+        "sourceEnabled": false
+      },
+      "messageAudit": {
+        "previewLiveProjectionParity": true,
+        "householdNoteMemberHome": true,
+        "pairedDisplay": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ],
+        "adminPreview": [
+          {
+            "visible": true,
+            "context": "hub-message normal hub-message-preview"
+          }
+        ]
+      },
+      "verified": [
+        "actual localized error renderer",
+        "synthetic intercepted HTTP 413",
+        "MiB values interpolated without raw placeholders"
+      ]
+    }
+  ]
+}

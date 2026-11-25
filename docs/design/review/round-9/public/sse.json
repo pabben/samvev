@@ -1,0 +1,8 @@
+{
+  "status": 200,
+  "contentType": "text/event-stream",
+  "buffering": "no",
+  "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'",
+  "readyAt": 93.70000004768372,
+  "heartbeatAt": 15095.5
+}

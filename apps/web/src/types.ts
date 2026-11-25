@@ -1,7 +1,10 @@
-import type { MonitorTaskLifecycle } from "@samvev/contracts";
+import { personColorTokens, type MonitorTaskLifecycle } from "@samvev/contracts";
+export type PersonColorToken = typeof personColorTokens[number];
 export type Locale = "en" | "nb";
 export type Theme = "light" | "dark" | "system";
 export interface Membership {
+  age_group?: string;
+  calendar_access?: boolean;
   id: string;
   household_id: string;
   person_id: string;
@@ -15,11 +18,15 @@ export interface Membership {
   display_ids: string[];
 }
 export interface Me {
-  account: { id: string; email: string; locale: Locale; theme: Theme };
+  account: { installation_id: string; id: string; email: string; locale: Locale; theme: Theme };
   csrfToken: string;
   memberships: Membership[];
 }
+export interface PersonPhoto { revision:number; url96:string; url512:string }
 export interface Person {
+  photoRevision?:number; photo?:PersonPhoto|null;
+  avatarKey?: string | null;
+  colorToken?: PersonColorToken;
   id: string;
   display_name: string;
   age_group: string;
@@ -48,6 +55,19 @@ export interface UpcomingBirthday {
 export interface HouseholdDashboard { upcomingBirthday: UpcomingBirthday | null }
 export interface HouseholdSettings { show_upcoming_birthday: boolean; revision: number }
 export interface Display {
+  setup_id?:string;
+  profile_person_ids?:string[];
+  birthday_person_ids?:string[];
+  external_items_enabled?: boolean;
+  credentialGeneration?: number;
+  birthdayMode?: 'off'|'all'|'legacy_selected';
+  personIdsOverride?: string[]|null;
+  localeOverride?: Locale|null;
+  themeOverride?: Theme|null;
+  setupName?: string;
+  setupDefaults?: { locale: Locale; theme: Theme; personIds: string[] };
+  effective?: { locale: Locale; theme: Theme; personIds: string[] };
+  contentReadiness?: DisplayContentReadiness;
   id: string;
   name: string;
   locale: Locale;
@@ -56,6 +76,7 @@ export interface Display {
   revoked_at: string | null;
   last_seen_at: string | null;
 }
+export interface DisplayContentReadiness { calendar: 'privacy'|'none_selected'|'external_disabled'|'not_shared'|'ready' }
 export interface Message {
   id: string;
   body: string;
@@ -94,6 +115,8 @@ export interface MonitorExecution {
   errorDetails?: Record<string, unknown> | null;
 }
 export interface MonitorTask {
+  subjects:{personIds:string[];revision:number};
+  presentation:{kind:'school'|null;schoolEndLocalTime:string|null;revision:number};
   lifecycle: MonitorTaskLifecycle;
   id:string;name:string;instruction:string;sourceUrl:string|null;state:'draft'|'active'|'paused';
   checkIntervalMinutes:number;noticeDaysBefore:number;noticeLocalTime:string;sourceKinds?:Array<'web'|'weather'>;usesSmarterAi:boolean;
@@ -112,11 +135,15 @@ export interface MonitorSource {
 }
 export interface MonitorRunResult {
   outcome:'changed'|'unchanged';resultKind:'events'|'answer'|null;
-  result:{answer?:string;events?:MonitorTask['events'];evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
+  result:{answer?:string;events?:MonitorTask['events'];status?:'none';evidence?:{quote:string;sourceUrl:string};confidence?:number;uncertainty?:string|null}|null;
   sourceUrl:string|null;checkedAt:string;
   sources?:MonitorSource[];
 }
 export interface Card {
+  authorColorToken?: PersonColorToken | null;
+  authorPhoto?:PersonPhoto|null;
+  authorAvatarKey?: string | null;
+  authorPersonId?: string | null;
   id: string;
   kind: string;
   body: string;
@@ -127,6 +154,18 @@ export interface Card {
   revision: number;
 }
 export interface Projection {
+  setup?: { id?:string; name?:string; cards:string[]; cardOrder:string[]; familyLayoutEnabled:boolean; personIds:string[]; sourceIds:string[]; calendarSourceIds:string[]; sensorIds:string[]; albumIds:string[]; backgroundId:string|null };
+  householdBoards?: { groceries?:Array<{id:string;label:string;checked:boolean;revision?:number}>; dinners?:Array<{id:string;localDate:string;title:string|null;emoji?:string|null;revision?:number;cleared?:boolean}>; from?:string; to?:string; readable?: { groceries?: boolean; dinners?: boolean }; writable?: { groceries?: boolean; dinners?: boolean } };
+  actionAvailability?: { newMessage?:boolean; homeAssistantControl?:boolean };
+  weekActivities?: unknown;
+  schoolActivities?: import("./home-types").SchoolTimelineActivity[];
+  nextActivity?: unknown;
+  media?: import("./media-adapters").DisplayMediaProjection;
+  preview?: boolean;
+  familyLayout?: { people?: import("./home-types").HubPerson[]; upcomingBirthdays?: import("./home-types").HomeBirthday[] };
+  hub?: {people: import("./home-types").HubPerson[];items:import("./home-types").HubItem[]};
+  birthdays?: { mode:'off'|'all'|'legacy_selected'; localDate:string; entries:Array<{personId:string;displayName:string;due:'today'|'tomorrow'}> };
+  contentReadiness?: DisplayContentReadiness;
   display: {
     id: string;
     name: string;
@@ -135,6 +174,8 @@ export interface Projection {
     locale: Locale;
     theme: Theme;
     privacyMode: boolean;
+    setupId?: string|null;
+    setupName?: string;
   };
   cards: Card[];
   serverNow: string;

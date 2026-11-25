@@ -1,0 +1,53 @@
+{
+  "accounts": {
+    "count": 3,
+    "legacyFieldsUnchanged": true
+  },
+  "households": {
+    "count": 1,
+    "legacyFieldsUnchanged": true
+  },
+  "persons": {
+    "count": 5,
+    "legacyFieldsUnchanged": true
+  },
+  "memberships": {
+    "count": 5,
+    "legacyFieldsUnchanged": true
+  },
+  "displays": {
+    "count": 22,
+    "legacyFieldsUnchanged": true
+  },
+  "ai_settings": {
+    "count": 0,
+    "legacyFieldsUnchanged": true
+  },
+  "installations": {
+    "count": 1,
+    "legacyFieldsUnchanged": true
+  },
+  "messages": {
+    "messageCount": 18,
+    "identitiesContentAudiencePublicationAndExpiryPreserved": true,
+    "stateChanges": [
+      {
+        "fields": [
+          "state",
+          "ended_at",
+          "updated_at"
+        ],
+        "priorState": "published",
+        "currentState": "expired",
+        "revisionDelta": 0,
+        "expirySet": true,
+        "endedAtOrAfterExpiry": true
+      }
+    ]
+  },
+  "protectedGit": {
+    "unchanged": true,
+    "fileCount": 229
+  },
+  "allPass": true
+}

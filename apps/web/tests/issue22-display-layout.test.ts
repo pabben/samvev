@@ -1,0 +1,62 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { closureTitle, displayFixture } from './issue22-display-fixture';
+import { displaySecondaryCardVisible } from '../src/display-admin-presentation';
+
+test('paired display and preview share a policy that preserves explicit extras without duplicating the default board',()=>{
+  for(const card of ['family_layout','household_messages','people','today','tomorrow','week','next','external_items','photos','dinners'])assert.equal(displaySecondaryCardVisible(card,true),false,card);
+  for(const card of ['groceries','home_assistant','new_message','worth_remembering'])assert.equal(displaySecondaryCardVisible(card,true),true,card);
+  for(const card of ['today','tomorrow','week','groceries','dinners','photos'])assert.equal(displaySecondaryCardVisible(card,false),true,card);
+  assert.equal(displaySecondaryCardVisible('external_items',true,false),true,'empty scaffold keeps the calendar sharing reason');
+});
+
+test('short landscape reserves a note/photo row and keeps every event reachable',()=>{
+  for(const theme of ['light','dark'] as const){
+    const markup=displayFixture({theme});
+    const today=markup.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)![0];
+    assert.equal((today.match(/data-item-id=/g)??[]).length,3);
+    assert.match(today,/data-hub-detail="today"/);
+    assert.match(today,/<span class="hub-count">7<\/span>/,'meal footer does not inflate the agenda badge');
+    assert.match(today,/Se I dag · 7 totalt/,'collection and agenda badge count the same seven events');
+    assert.ok(today.includes(closureTitle));
+    assert.equal((markup.match(/data-review-private="person-card"/g)??[]).length,6);
+    assert.match(markup,/hub-display-photo/);
+    assert.match(markup,/synthetic-message/);
+  }
+});
+test('portrait keeps four agenda entries and empty boards retain all six people',()=>{
+  const portrait=displayFixture({orientation:'portrait'});
+  const today=portrait.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)![0];
+  assert.equal((today.match(/data-item-id=/g)??[]).length,4);
+  const empty=displayFixture({empty:true});
+  assert.equal((empty.match(/data-review-private="person-card"/g)??[]).length,6);
+  assert.doesNotMatch(empty,/data-review-private="day-event"/);
+});
+
+test('overflow-day badge and collection count agree when a birthday is shown separately',()=>{
+  for(const theme of ['light','dark'] as const){
+    const markup=displayFixture({theme,birthday:true});
+    const today=markup.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)![0];
+    assert.match(today,/hub-birthday-row/,'birthday context remains present');
+    assert.equal((today.match(/data-item-id=/g)??[]).length,3,'day still has overflow beyond its preview');
+    assert.match(today,/<span class="hub-count">7<\/span>/);
+    assert.match(today,/Se I dag · 7 totalt/);
+  }
+});
+
+test('member contextual days keep school, birthday and meals while omitting a misleading zero event badge',()=>{
+  for(const theme of ['light','dark'] as const)for(const mobile of [false,true]){
+    const markup=displayFixture({theme,member:true,mobile,empty:true,birthday:true});
+    const today=markup.match(/<section[^>]*data-hub-scope="today"[\s\S]*?<\/section>/)![0];
+    assert.match(today,/data-context-only="true"/);
+    assert.match(today,/Syntetisk skolepåminnelse/);
+    assert.match(today,/Taco/);
+    assert.match(today,/hub-birthday-row/);
+    assert.doesNotMatch(today,/class="hub-count"/);
+    const tomorrow=markup.match(/<section[^>]*data-hub-scope="tomorrow"[\s\S]*?<\/section>/)![0];
+    assert.match(tomorrow,/Synthetic class trip tomorrow/);
+    assert.match(tomorrow,/hub-school-freshness/,'actual unknown-freshness markup remains in the regression fixture');
+    assert.match(tomorrow,/Bring synthetic lunch/,'actual school action markup remains before the meal');
+    assert.equal((markup.match(mobile?/data-hub-detail-kind="person"/g:/data-review-private="person-card"/g)??[]).length,6);
+  }
+});

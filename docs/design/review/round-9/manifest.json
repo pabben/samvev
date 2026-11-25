@@ -1,0 +1,33 @@
+{
+  "roundId": "20261014052355-6f9f5c50-3f5e1278",
+  "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e",
+  "runtimeImage": "sha256:3ad404184a793cf73a8436fc8498441d2f9cf6937ca2f10ab7087326be846453",
+  "latestManifest": "../latest/manifest.json",
+  "ordinaryScreenshotCount": 14,
+  "isolatedScreenshotCount": 57,
+  "submanifests": [
+    "six-home/manifest.json",
+    "count-stress/manifest.json",
+    "new-flow-manifest.json",
+    "public/manifest.json",
+    "comparison/manifest.json",
+    "checks/ai-diagnosis.json",
+    "checks/post-cutover-recovery.json",
+    "checks/historical-a99-recovery.json"
+  ],
+  "fixtureBoundary": {
+    "sixHome": "actual isolated application/database using six fictional people",
+    "newFlows": "actual isolated application UI; providers use isolated synthetic transport",
+    "countStress": "explicit injected response DTO presentation test; no persistence or provider"
+  },
+  "privacy": {
+    "ordinaryLatest": "dynamic private LAN content is geometrically masked for publication",
+    "isolatedEvidence": "fictional test data only",
+    "excluded": ["credentials", "calendar URLs", "private IDs", "private task content"]
+  },
+  "historicalA99": {"sourceSha": "a99fbce575a11498fc7d1206bb998ef94eb83010", "runtimeImage": "sha256:1f24e8023dd8d0d449ba0ac5e273ceef5bbb0548a88ac445e7330258e12d3d5f", "publicHttpsChecks": 63, "postCutoverRecovery": true},
+  "publicHttps": {"completed": true, "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e", "checks": 63, "publishedScreenshots": 50, "privateScreenshots": 12, "checkedAt": "2026-10-14T05:32:27.924Z"},
+  "postCutoverRecovery": {"completed": true, "sourceSha": "6f9f5c50478b680c0c435d782f2a5d99e8a1ed9e", "nativeWrapperCheck": true},
+  "visualReview": {"completed": true, "reviewOutputs": 75, "uiCaptures": 71, "derivedComparisons": 4, "privacyClean": true, "designApprovalClaimed": false},
+  "status": "6f source-bound evidence, public cutover, public HTTPS, post-cutover recovery, UX and security review are complete; release gate is the final independent check."
+}

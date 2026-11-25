@@ -1,0 +1,87 @@
+{
+  "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+  "comparisons": [
+    {
+      "filename": "comparison-light.png",
+      "theme": "light",
+      "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "kind": "derived review comparison, not an additional UI capture",
+      "normalizedAppWidth": 960,
+      "reference": {
+        "path": "docs/design/ChatGPT Image 24. sep. 2026, 23_51_09.png",
+        "sha256": "4dc87f25a02c2dded6d03ba487f10fbe810d55d9cd0378fbfe160661dcd01462",
+        "approximateAppCorners": [
+          [
+            68,
+            157
+          ],
+          [
+            856,
+            130
+          ],
+          [
+            853,
+            633
+          ],
+          [
+            68,
+            615
+          ]
+        ],
+        "method": "same-width app-plane strip mapping; approximate perspective correction; no pixel-parity claim"
+      },
+      "baseline": {
+        "sourceSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+        "path": "docs/design/review/round-6/desktop-1920-light.png",
+        "sha256": "f11b460418172508ef39cae1b1578be3af858de9791a2565c15fa7307070eef1"
+      },
+      "candidate": {
+        "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+        "path": ".local/m3/design-round7/browser-final/desktop-1920-light.png",
+        "sha256": "295ce24203672d13c4d22ccc6449f4b4b26dff06abd6f29144330c1843bac3fd"
+      },
+      "sha256": "797756446f2266ef3cd5a216f72c38af159d3ea66eb4e7f1790f783a026803de"
+    },
+    {
+      "filename": "comparison-dark.png",
+      "theme": "dark",
+      "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+      "kind": "derived review comparison, not an additional UI capture",
+      "normalizedAppWidth": 960,
+      "reference": {
+        "path": "docs/design/ChatGPT Image 24. sep. 2026, 23_52_06 (4).png",
+        "sha256": "092a4ad005c214a3f0dc25a2446a6818e507936e3e99f3bb7b99e92b9fd10e98",
+        "approximateAppCorners": [
+          [
+            60,
+            104
+          ],
+          [
+            1024,
+            104
+          ],
+          [
+            1024,
+            663
+          ],
+          [
+            60,
+            659
+          ]
+        ],
+        "method": "same-width app-plane strip mapping; approximate perspective correction; no pixel-parity claim"
+      },
+      "baseline": {
+        "sourceSha": "158d9e33949715403998b914d2180d95b66e9ae3",
+        "path": "docs/design/review/round-6/desktop-1920-dark.png",
+        "sha256": "c11401e8f09f1e72d1b8ed121f2dc93bd25db5f62886ee2be0acbaa4a5b0f406"
+      },
+      "candidate": {
+        "sourceSha": "f65d75f55cdf3ed0a7fd2915e97d045923c6e35c",
+        "path": ".local/m3/design-round7/browser-final/desktop-1920-dark.png",
+        "sha256": "5213c139cd90ee5541f742da3770ec87f7055c2105ff42c50a35fca177efc436"
+      },
+      "sha256": "cb001cfd05e7ac74a4daf7364f9c3c292ee7f207db854e0ed1feb72f93863876"
+    }
+  ]
+}
