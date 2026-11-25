@@ -1,0 +1,24 @@
+.mcp-clients{display:grid;gap:1rem;margin-block:1.5rem 2rem}
+.mcp-clients-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem}
+.mcp-clients-heading h2,.mcp-endpoint h3,.mcp-authorization-card h3{margin:0}
+.mcp-clients-heading p:last-child,.mcp-endpoint p{margin:.35rem 0 0;color:var(--muted)}
+.mcp-endpoint{display:grid;grid-template-columns:minmax(0,1fr);gap:.8rem;padding:1rem}
+.mcp-endpoint-copy{display:flex;align-items:center;gap:.65rem;min-width:0}
+.mcp-endpoint-copy code{min-width:0;overflow-wrap:anywhere;padding:.7rem .8rem;border-radius:.7rem;background:var(--soft-teal);color:var(--text);flex:1}
+.mcp-copy-status{min-height:1.2em;font-size:.875rem}
+.mcp-consent-note{display:flex;gap:.7rem;align-items:flex-start;padding:.9rem 1rem;border-radius:1rem;background:var(--soft-teal);color:var(--text)}
+.mcp-consent-note>svg{flex:0 0 auto;margin-top:.15rem;color:var(--teal)}
+.mcp-consent-note p{margin:0}
+.mcp-authorization-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,19rem),1fr));gap:1rem}
+.mcp-authorization-card{display:grid;align-content:start;gap:.8rem;padding:1rem;min-width:0}
+.mcp-authorization-title{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}
+.mcp-authorization-title .field-hint{margin:.25rem 0 0}
+.mcp-status{flex:0 0 auto;padding:.25rem .55rem;border-radius:999px;background:var(--soft-teal);color:var(--teal);font-size:.82rem;font-weight:650}
+.mcp-status.is-revoked{background:var(--card);color:var(--muted)}
+.mcp-scopes h4{margin:0 0 .4rem;font-size:.95rem}
+.mcp-scopes ul{display:flex;flex-wrap:wrap;gap:.4rem;margin:0;padding:0;list-style:none}
+.mcp-scopes li{padding:.3rem .55rem;border:1px solid var(--line);border-radius:999px;font-size:.82rem}
+.mcp-last-used{margin:0}
+.mcp-revoke-button{justify-self:start}
+.mcp-endpoint-copy .button{flex:0 0 auto}
+@media(max-width:520px){.mcp-endpoint-copy{align-items:stretch;flex-direction:column}.mcp-endpoint-copy .button{justify-content:center}.mcp-authorization-title{flex-wrap:wrap}}
