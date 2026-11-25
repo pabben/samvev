@@ -3,8 +3,9 @@ export type SchoolWeekActivity = {
   startsAt?: string | null;
   endsAt?: string | null;
   description?: string | null;
-  practicalRequirements: string[];
+  practicalRequirements: SchoolWeekRequirement[];
 };
+export type SchoolWeekRequirement = { kind: 'bring' | 'clothing' | 'prepare' | 'other'; text: string };
 export type SchoolWeekTextItem = { text: string; dueOn?: string | null };
 export type SchoolWeekDeadline = { text: string; time?: string | null };
 export type SchoolWeekReminder = { kind: 'after_school_standard' | 'after_school_exception' | 'general'; text: string; time?: string | null };
@@ -12,7 +13,7 @@ export type SchoolWeekDay = {
   date: string;
   kind: string;
   activities: SchoolWeekActivity[];
-  practicalRequirements: string[];
+  practicalRequirements: SchoolWeekRequirement[];
   homework: SchoolWeekTextItem[];
   deadlines: SchoolWeekDeadline[];
   reminders: SchoolWeekReminder[];
@@ -31,8 +32,9 @@ export type SchoolWeekPlan = {
   contentRevision: number;
   sourceStatus: 'current' | 'stale';
   sourceError: string | null;
-  uncertainty: string | null;
-  pdf: { status: string; url?: string | null };
+  uncertainty: 'low' | 'medium' | 'high' | 'unknown' | null;
+  pdfLinkAvailable: boolean;
+  pdfStatus: 'server_verified' | 'unverified_link' | null;
 };
 
 export function schoolWeekDay(plan: Pick<SchoolWeekPlan, 'days'>, date: string) {
@@ -65,6 +67,22 @@ export function schoolWeekHomework(plan: Pick<SchoolWeekPlan, 'days'>) {
     .sort((left, right) => (left.dueOn ?? '').localeCompare(right.dueOn ?? ''));
 }
 
-export function schoolWeekPdfAvailable(status: string) {
-  return status === 'server_verified';
+export function schoolWeekPdfAvailable(linkAvailable: boolean, status: SchoolWeekPlan['pdfStatus']) {
+  return linkAvailable && status === 'server_verified';
+}
+
+export function schoolWeekRequirementKey(kind: SchoolWeekRequirement['kind']) {
+  return ({ bring: 'schoolWeekRequirementBring', clothing: 'schoolWeekRequirementClothing', prepare: 'schoolWeekRequirementPrepare', other: 'schoolWeekRequirementOther' } as const)[kind];
+}
+
+export function schoolWeekUncertaintyKey(value: NonNullable<SchoolWeekPlan['uncertainty']>) {
+  return ({ low: 'schoolWeekUncertaintyLow', medium: 'schoolWeekUncertaintyMedium', high: 'schoolWeekUncertaintyHigh', unknown: 'schoolWeekUncertaintyUnknown' } as const)[value];
+}
+
+export function schoolWeekTimeLabel(value?: string | null) {
+  return value && /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value) ? value : null;
+}
+
+export function requestSchoolWeekPdf(planId: string, onOpenPdf: (planId: string) => void) {
+  onOpenPdf(planId);
 }

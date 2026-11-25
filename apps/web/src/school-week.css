@@ -20,6 +20,7 @@
 .school-week-labeled-items h4,.school-week-homework h3{display:flex;align-items:center;gap:.4rem;margin:.25rem 0;font-size:.93rem}
 .school-week-labeled-items ul,.school-week-homework ul{display:grid;gap:.3rem;margin:.15rem 0 0;padding-left:1.2rem}
 .school-week-labeled-items li,.school-week-homework li{padding-left:.1rem;overflow-wrap:anywhere;line-height:1.4}
+.school-week-requirement-kind{color:var(--muted);font-size:.88em;font-weight:650}
 .school-week-homework{min-width:0;padding:.85rem;border-radius:1rem;background:var(--soft-teal)}
 .school-week-homework h3{font-size:1rem}
 .school-week-homework li{display:list-item}
