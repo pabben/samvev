@@ -2,6 +2,12 @@
 
 Public app and worker run source `8391041ca17ffea124870118b7312f0c50e3da5c` on schema 48. The focused Home composition follow-up passed 274/274 web tests, typecheck, a clean 60-image isolated browser proof, scoped reviews, public backup/isolated restore/cutover/postrestore and authenticated HTTPS smoke 11/11. See [Round 19B report](../design/review/ROUND_19B_REPORT.md) and [synthetic manifest](../design/review/round-19b/after/manifest.json). The earlier Round 19 source `c3ad869e207820d4edadd9b478c212ac6bb3d121` is the immediate rollback image. The original Round 19 feature review and open owner checks remain applicable.
 
+## Issue #33 MCP local candidate — 2026-11-25 (not deployed)
+
+Publisher branch `feat/mcp-integration-33` at `8378560` contains an MCP candidate with 11 registered tools (including limited school-plan writes) and a wired school source/weekly-plan UI. Security/disclosure fixes from `4b9103a` are included. MCP API/integration evidence uses synthetic local data only. Main's merge `f79271c` does not contain this candidate, and the public app/worker remain on source `8391041ca17ffea124870118b7312f0c50e3da5c`, schema 48, with no MCP endpoint. No public MCP deployment or external-client test is claimed.
+
+Issue #33 remains open. Outstanding work includes UI/API/MCP parity review, a family-facing PDF viewer, the Home Assistant dashboard, and ChatGPT/Codex/Claude/Gemini/generic client interoperability tests. A verified PDF byte snapshot does not verify the meaning of its contents. See [MCP tool matrix](../MCP_TOOL_MATRIX.md), [MCP client guide](../MCP_CLIENTS.md), and [MCP operations](../MCP_OPERATIONS.md).
+
 ---
 
 # Historical Round 19 public status — 2026-11-19
