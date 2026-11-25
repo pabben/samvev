@@ -255,6 +255,6 @@ docs
 - object storage abstraction
 - local bridge protocol and update model
 - iOS licensing before distribution
-- exact Shelly Wall Display XL rendering path after hardware testing
+- Shelly Wall Display XL: verify the Home Assistant frame path (A) on hardware, then design native Home Assistant cards (B); see [Displays](DISPLAYS.md#shelly-wall-display-xl)
 - MCP deployment and authentication model
 - encrypted backup and restore format
