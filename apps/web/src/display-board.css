@@ -1182,4 +1182,25 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
   grid-template-rows: auto var(--board-low-row);
 }
 #root .family-hub.hub-display.hub-board:not(.hub-board-portrait) > .hub-grid:not(:has(.hub-day [data-item-id], .hub-day-school, .hub-birthday-row, .hub-person:not(.hub-person-idle))) .hub-day { min-height: 190px; }
+
+/* A shared school week is part of the same first-screen overview. Let the
+   board's empty day row use its content height instead of reserving a whole
+   viewport before the verified plan. Dense boards still grow and scroll. */
+#root .family-hub.hub-display.hub-board:has(> .school-week-plans > .school-week-card) {
+  height: auto;
+  min-height: 0;
+}
+#root .family-hub.hub-display.hub-board:has(> .school-week-plans > .school-week-card) > .hub-grid {
+  flex: 0 0 auto;
+  grid-template-rows: auto auto;
+}
+#root .family-hub.hub-display.hub-board:has(> .school-week-plans > .school-week-card) > .hub-grid:not(:has(> .hub-messages, > .hub-display-photo)) {
+  grid-template-rows: auto;
+}
+#root .family-hub.hub-display.hub-board:has(> .school-week-plans > .school-week-card) .hub-hero {
+  margin-top: 0;
+}
+#root .family-hub.hub-display.hub-board:has(> .school-week-plans > .school-week-card) > .hub-grid .hub-day {
+  min-height: 160px;
+}
 .family-display-page .display-dinner-editor > summary { min-height: 44px; padding: 10px 16px; cursor: pointer; }
