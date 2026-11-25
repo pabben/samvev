@@ -1311,7 +1311,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.put('/api/v1/households/:householdId/mcp/authorizations/:grantId/policy',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=(request.body??{}) as Record<string,unknown>;
-    const policy=await mcp.updateAuthorizationPolicy(auth,params(request).grantId!,{expectedRevision:Number(body.expectedRevision),personIds:body.personIds as string[],displayIds:body.displayIds as string[],resources:body.resources as Array<{kind:'school_source';id:string}>});
+    const policy=await mcp.updateAuthorizationPolicy(auth,params(request).grantId!,{expectedRevision:Number(body.expectedRevision),scopes:body.scopes as string[]|undefined,personIds:body.personIds as string[],displayIds:body.displayIds as string[],resources:body.resources as Array<{kind:'school_source';id:string}>});
     return reply.header('Cache-Control','private, no-store').send(policy);
   });
   app.post('/api/v1/households/:householdId/mcp/authorizations/:grantId/revoke',async(request,reply)=>{

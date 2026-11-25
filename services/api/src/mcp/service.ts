@@ -42,6 +42,7 @@ export interface McpBrowserActor {
 
 export interface McpResourcePolicyInput {
   expectedRevision:number;
+  scopes?:string[];
   personIds:string[];
   displayIds:string[];
   resources:Array<{kind:'school_source';id:string}>;
@@ -144,6 +145,14 @@ function asScopes(value: unknown): McpScope[] {
 function uniqueUuids(value:unknown,max:number):string[]{
   if(!Array.isArray(value)||value.length>max||value.some(item=>typeof item!=='string'||!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(item)))throw new DomainError('VALIDATION_FAILED',400);
   const result=[...new Set(value as string[])];if(result.length!==value.length)throw new DomainError('VALIDATION_FAILED',400);return result;
+}
+
+function policyScopes(value:unknown):string[]|undefined{
+  if(value===undefined)return;
+  if(!Array.isArray(value)||value.length<1||value.length>16||value.some(scope=>typeof scope!=='string'||scope.length<1||scope.length>96))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_scope_selection'});
+  const result=[...new Set(value as string[])];
+  if(result.length!==value.length||!result.some(scope=>scope!=='offline_access'))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_scope_selection'});
+  return result;
 }
 
 function audit(client: DbClient, principal: Pick<McpPrincipal,'installationId'|'householdId'|'grantId'|'clientDatabaseId'>, action:string, subjectType:string, subjectId:string, metadata:Record<string,unknown>={}):Promise<unknown>{
@@ -470,7 +479,7 @@ export class McpOAuthService {
   }
 
   async updateAuthorizationPolicy(actor:{installationId:string;householdId:string;accountId:string;membershipId:string},grantId:string,input:McpResourcePolicyInput):Promise<Record<string,unknown>>{
-    const personIds=uniqueUuids(input.personIds,100),displayIds=uniqueUuids(input.displayIds,100);
+    const personIds=uniqueUuids(input.personIds,100),displayIds=uniqueUuids(input.displayIds,100),requestedScopes=policyScopes(input.scopes);
     if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1||!Array.isArray(input.resources)||input.resources.length>100)throw new DomainError('VALIDATION_FAILED',400);
     const resources=input.resources.map(resource=>{if(!resource||resource.kind!=='school_source')throw new DomainError('VALIDATION_FAILED',400);return{kind:resource.kind,id:uniqueUuids([resource.id],1)[0]!};});
     if(new Set(resources.map(resource=>`${resource.kind}:${resource.id}`)).size!==resources.length)throw new DomainError('VALIDATION_FAILED',400);
@@ -481,7 +490,11 @@ export class McpOAuthService {
       const grant=(await client.query<{id:string;scopes:unknown;revision:number;client_id:string}>(`SELECT id,scopes,revision,client_id FROM mcp_oauth_grants WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[grantId,actor.householdId])).rows[0];
       if(!grant)throw new DomainError('NOT_FOUND',404);
       if(grant.revision!==input.expectedRevision)throw new DomainError('REVISION_CONFLICT',409);
-      const scopes=asScopes(grant.scopes),hasSchoolScope=scopes.includes('mcp:school-plans:read')||scopes.includes('mcp:school-plans:write');
+      const currentScopes=asScopes(grant.scopes),scopeSelection=requestedScopes??currentScopes;
+      const catalog=await client.query<{scope:string}>('SELECT scope FROM mcp_oauth_scope_catalog WHERE scope=ANY($1::text[])',[scopeSelection]);
+      if(catalog.rowCount!==scopeSelection.length||!scopeSelection.some(scope=>scope!=='offline_access'))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_scope_selection'});
+      if(scopeSelection.some(scope=>!currentScopes.includes(scope as McpScope)))throw new DomainError('VALIDATION_FAILED',400,{reason:'scope_broadening_requires_consent'});
+      const scopes=scopeSelection as McpScope[],hasSchoolScope=scopes.includes('mcp:school-plans:read')||scopes.includes('mcp:school-plans:write');
       const hasPeopleScope=hasSchoolScope||scopes.includes('mcp:people:read');
       if((personIds.length&&!hasPeopleScope)||((displayIds.length||resources.length)&&!hasSchoolScope))throw new DomainError('VALIDATION_FAILED',400,{reason:'resource_scope_required'});
       const [people,displays,schoolSourceTable]=await Promise.all([
@@ -493,8 +506,10 @@ export class McpOAuthService {
       if(resources.length){
         if(!schoolSourceTable.rows[0]?.name)throw new DomainError('CONFLICT',409,{reason:'school_source_registry_unavailable'});
         const sourceIds=resources.map(resource=>resource.id);
-        const sources=await client.query(`SELECT id FROM school_plan_sources WHERE household_id=$1 AND id=ANY($2::uuid[]) AND person_id=ANY($3::uuid[]) AND revoked_at IS NULL`,[actor.householdId,sourceIds,personIds]);
+        const sources=await client.query<{id:string;revoked_at:Date|null}>(`SELECT id,revoked_at FROM school_plan_sources
+          WHERE household_id=$1 AND id=ANY($2::uuid[]) AND person_id=ANY($3::uuid[])`,[actor.householdId,sourceIds,personIds]);
         if((sources.rowCount??0)!==sourceIds.length)throw new DomainError('VALIDATION_FAILED',400,{reason:'resource_outside_household'});
+        if(sources.rows.some(source=>source.revoked_at))throw new DomainError('VALIDATION_FAILED',400,{reason:'revoked_source_remove_first'});
       }
       await client.query('DELETE FROM mcp_oauth_grant_people WHERE grant_id=$1',[grant.id]);
       await client.query('DELETE FROM mcp_oauth_grant_displays WHERE grant_id=$1',[grant.id]);
@@ -502,11 +517,12 @@ export class McpOAuthService {
       if(personIds.length)await client.query(`INSERT INTO mcp_oauth_grant_people(household_id,grant_id,person_id) SELECT $1,$2,unnest($3::uuid[])`,[actor.householdId,grant.id,personIds]);
       if(displayIds.length)await client.query(`INSERT INTO mcp_oauth_grant_displays(household_id,grant_id,display_id) SELECT $1,$2,unnest($3::uuid[])`,[actor.householdId,grant.id,displayIds]);
       for(const resource of resources)await client.query(`INSERT INTO mcp_oauth_grant_resources(household_id,grant_id,resource_kind,resource_id) VALUES($1,$2,$3,$4)`,[actor.householdId,grant.id,resource.kind,resource.id]);
-      const updated=(await client.query<{revision:number}>(`UPDATE mcp_oauth_grants SET revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING revision`,[grant.id])).rows[0]!;
+      const updated=(await client.query<{revision:number}>(`UPDATE mcp_oauth_grants SET scopes=$2::jsonb,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 RETURNING revision`,[grant.id,JSON.stringify(scopes)])).rows[0]!;
       await client.query(`UPDATE mcp_oauth_token_sets SET revoked_at=COALESCE(revoked_at,clock_timestamp()) WHERE grant_id=$1 AND revoked_at IS NULL`,[grant.id]);
+      await client.query(`UPDATE mcp_oauth_authorization_codes SET consumed_at=COALESCE(consumed_at,clock_timestamp()) WHERE grant_id=$1 AND consumed_at IS NULL`,[grant.id]);
       await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata)
-        VALUES($1,$2,'account',$3,'mcp.authorization_policy_changed','mcp_oauth_grant',$4,$5)`,[actor.installationId,actor.householdId,actor.accountId,grant.id,JSON.stringify({clientId:grant.client_id,personCount:personIds.length,displayCount:displayIds.length,resourceCount:resources.length,revision:updated.revision})]);
-      return{id:grant.id,revision:updated.revision,personIds,displayIds,resources,tokensRevoked:true};
+        VALUES($1,$2,'account',$3,'mcp.authorization_policy_changed','mcp_oauth_grant',$4,$5)`,[actor.installationId,actor.householdId,actor.accountId,grant.id,JSON.stringify({clientId:grant.client_id,scopes,personCount:personIds.length,displayCount:displayIds.length,resourceCount:resources.length,revision:updated.revision})]);
+      return{id:grant.id,revision:updated.revision,scopes,personIds,displayIds,resources,tokensRevoked:true};
     });
   }
 
