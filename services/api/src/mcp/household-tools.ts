@@ -73,6 +73,23 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
   return row.person_id;
 }
 
+/** Live grant and member-visible source projection shared by both calendar tools. */
+async function listLiveCalendarSources(client: DbClient, principal: HouseholdMcpPrincipal): Promise<Array<{ id: string; name: string; provider: string }>> {
+  const result = await client.query<{ id: string; name: string; provider: string }>(`SELECT source.id,COALESCE(source.display_name,source.name) AS name,connection.provider
+    FROM mcp_oauth_grant_resources grant_resource
+    JOIN calendar_sources source ON source.id=grant_resource.resource_id AND source.household_id=grant_resource.household_id
+    JOIN calendar_connections connection ON connection.id=source.connection_id AND connection.household_id=source.household_id
+    JOIN integration_connections integration ON integration.id=connection.integration_connection_id AND integration.household_id=source.household_id AND integration.revoked_at IS NULL
+    JOIN memberships viewer ON viewer.id=$3 AND viewer.account_id=$4 AND viewer.household_id=source.household_id
+    WHERE grant_resource.grant_id=$1 AND grant_resource.household_id=$2 AND grant_resource.resource_kind='calendar_source'
+      AND source.enabled AND connection.disconnected_at IS NULL AND (viewer.capabilities ? 'household.manage' OR source.target_household OR EXISTS(
+        SELECT 1 FROM calendar_source_person_readers reader WHERE reader.household_id=source.household_id
+          AND reader.source_id=source.id AND reader.person_id=viewer.person_id))
+    ORDER BY source.id LIMIT 100 FOR SHARE OF grant_resource,source,connection,integration,viewer`,
+    [principal.grantId, principal.householdId, principal.membershipId, principal.accountId]);
+  return result.rows;
+}
+
 function withinDateWindow(from: string, to: string): boolean {
   const start = Date.parse(`${from}T00:00:00Z`), end = Date.parse(`${to}T00:00:00Z`);
   const days = (end - start) / 86_400_000 + 1;
@@ -92,6 +109,18 @@ export function registerHouseholdTools(
       !uuid.safeParse(principal.accountId).success || !uuid.safeParse(principal.membershipId).success ||
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
 
+  registrar.registerTool('calendar.sources.list', {
+    description: 'List only calendar sources currently granted to this client and readable by the delegated household member.',
+    inputSchema: emptyInput, requiredScopes: ['mcp:calendar:read'], readOnlyHint: true, destructiveHint: false
+  }, async (raw) => {
+    emptyInput.parse(raw);
+    return dependencies.transaction(async (client) => {
+      await assertLiveAuthority(client, principal, ['mcp:calendar:read'], 'household.view');
+      const sources = await listLiveCalendarSources(client, principal);
+      return { sources };
+    });
+  });
+
   registrar.registerTool('calendar.events.list', {
     description: 'List upcoming events only from calendar sources and for people explicitly approved for this OAuth authorization.',
     inputSchema: calendarInput, requiredScopes: ['mcp:calendar:read'], readOnlyHint: true, destructiveHint: false
@@ -104,30 +133,19 @@ export function registerHouseholdTools(
           JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
           WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2
           ORDER BY person.id LIMIT 100 FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId]),
-        client.query<{ id: string; name: string }>(`SELECT source.id,COALESCE(source.display_name,source.name) AS name
-          FROM mcp_oauth_grant_resources grant_resource
-          JOIN calendar_sources source ON source.id=grant_resource.resource_id AND source.household_id=grant_resource.household_id
-          JOIN calendar_connections connection ON connection.id=source.connection_id AND connection.household_id=source.household_id
-          JOIN integration_connections integration ON integration.id=connection.integration_connection_id AND integration.household_id=source.household_id AND integration.revoked_at IS NULL
-          JOIN memberships viewer ON viewer.id=$3 AND viewer.account_id=$4 AND viewer.household_id=source.household_id
-          WHERE grant_resource.grant_id=$1 AND grant_resource.household_id=$2 AND grant_resource.resource_kind='calendar_source'
-            AND source.enabled AND connection.disconnected_at IS NULL AND (viewer.capabilities ? 'household.manage' OR source.target_household OR EXISTS(
-              SELECT 1 FROM calendar_source_person_readers reader WHERE reader.household_id=source.household_id
-                AND reader.source_id=source.id AND reader.person_id=viewer.person_id))
-          ORDER BY source.id LIMIT 100 FOR SHARE OF grant_resource,source,connection,integration,viewer`,
-          [principal.grantId, principal.householdId, principal.membershipId, principal.accountId])
+        listLiveCalendarSources(client, principal)
       ]);
-      if (!people.rows.length || !sources.rows.length) return { events: [] };
+      if (!people.rows.length || !sources.length) return { events: [] };
       const household = await client.query<{ timezone: string }>('SELECT timezone FROM households WHERE id=$1 AND installation_id=$2 FOR SHARE', [principal.householdId, principal.installationId]);
       if (!household.rows[0]) throw new DomainError('FORBIDDEN', 403);
       const from = localDateInTimezone(new Date(), household.rows[0].timezone);
       const rows = await readCalendarActivityRows({
         householdId: principal.householdId, personIds: people.rows.map((row) => row.id),
         viewer: { personId: viewerPersonId, membershipId: principal.membershipId }, canViewAll: true,
-        from, to: dateOffset(from, input.days - 1), limit: input.limit, sourceIds: sources.rows.map((row) => row.id), upcomingOnly: true, requirePersonAudience: true
+        from, to: dateOffset(from, input.days - 1), limit: input.limit, sourceIds: sources.map((row) => row.id), upcomingOnly: true, requirePersonAudience: true
       }, client);
-      const sourceNames = new Map(sources.rows.map((source) => [source.id, source.name]));
-      return { events: rows.map((row) => ({
+      const sourceNames = new Map(sources.map((source) => [source.id, source.name]));
+      return { events: rows.slice(0, input.limit).map((row) => ({
         id: row.id, title: row.title, description: row.body, startsAt: row.starts_at?.toISOString() ?? null,
         endsAt: row.ends_at?.toISOString() ?? null, allDay: row.metadata.allDay === true,
         sourceId: row.activity_source_id, sourceName: row.activity_source_id ? sourceNames.get(row.activity_source_id) ?? null : null

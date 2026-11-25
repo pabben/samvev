@@ -38,17 +38,18 @@ test('calendar tool is source and person bounded and returns a curated event pro
   const tools = new Tools(), calls: Array<{ sql: string; values?: unknown[] }> = [];
   const event = { id: 'event-1', title: 'Synthetic appointment', body: 'Synthetic details', starts_at: new Date('2027-03-30T08:00:00Z'), ends_at: null,
     metadata: { allDay: true, calendar: { url: 'https://private.invalid' } }, activity_source_id: 'source-1' };
+  const extraEvent = { ...event, id: 'event-2', title: 'Synthetic beyond limit' };
   const client = { async query(sql: string, values?: unknown[]) {
     calls.push({ sql, values });
     if (sql.includes('FROM mcp_oauth_grants')) return { rows: [{ allowed: true, person_id: '77777777-7777-4777-8777-777777777777' }] };
     if (sql.includes('FROM mcp_oauth_grant_people')) return { rows: [{ id: 'person-granted' }] };
     if (sql.includes('FROM mcp_oauth_grant_resources')) return { rows: [{ id: 'source-1', name: 'Synthetic calendar' }] };
     if (sql.includes('SELECT timezone FROM households')) return { rows: [{ timezone: 'Europe/Oslo' }] };
-    if (sql.includes('explicit_person')) return { rows: [event] };
+    if (sql.includes('explicit_person')) return { rows: [event, extraEvent] };
     throw new Error('Unexpected calendar query');
   } } as unknown as DbClient;
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run(client) });
-  const result = await tools.get('calendar.events.list')({ days: 2, limit: 5 }) as { events: Array<Record<string, unknown>> };
+  const result = await tools.get('calendar.events.list')({ days: 2, limit: 1 }) as { events: Array<Record<string, unknown>> };
   assert.deepEqual(result.events, [{ id: 'event-1', title: 'Synthetic appointment', description: 'Synthetic details', startsAt: '2027-03-30T08:00:00.000Z', endsAt: null, allDay: true, sourceId: 'source-1', sourceName: 'Synthetic calendar' }]);
   assert.deepEqual(tools.options.get('calendar.events.list')?.requiredScopes, ['mcp:calendar:read']);
   assert.equal(tools.options.get('calendar.events.list')?.readOnlyHint, true);
@@ -59,9 +60,31 @@ test('calendar tool is source and person bounded and returns a curated event pro
   assert.match(calls[4]!.sql, /i\.household_id=\$1/);
   assert.match(calls[4]!.sql, /explicit_person\.person_id=ANY\(\$2::uuid\[\]\)/);
   assert.match(calls[4]!.sql, /explicit_target\.person_id=ANY\(\$2::uuid\[\]\)/);
+  assert.equal(calls[4]!.values?.[6], 2, 'query fetches one extra row for pagination, while the MCP response stays at the requested limit');
   assert.equal(calls[4]!.values?.[7] instanceof Array, true, 'the event query receives only source ids from the grant');
   assert.equal(calls[4]!.values?.[19], true, 'household-wide source events still require an explicitly granted person audience');
   assert.doesNotMatch(JSON.stringify(result), /private\.invalid|url|credentials|metadata/i);
+});
+
+test('calendar source discovery returns only live granted readable sources without connection secrets', async () => {
+  const tools = new Tools(), calls: Array<{ sql: string; values?: unknown[] }> = [];
+  const client = { async query(sql: string, values?: unknown[]) {
+    calls.push({ sql, values });
+    if (sql.includes('FROM mcp_oauth_grants')) return { rows: [{ allowed: true, person_id: '77777777-7777-4777-8777-777777777777' }] };
+    if (sql.includes('FROM mcp_oauth_grant_resources')) return { rows: [{ id: 'source-1', name: 'Synthetic calendar', provider: 'ics' }] };
+    throw new Error('Unexpected calendar source query');
+  } } as unknown as DbClient;
+  registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run(client) });
+  const result = await tools.get('calendar.sources.list')({}) as { sources: Array<Record<string, unknown>> };
+  assert.deepEqual(result.sources, [{ id: 'source-1', name: 'Synthetic calendar', provider: 'ics' }]);
+  assert.deepEqual(tools.options.get('calendar.sources.list')?.requiredScopes, ['mcp:calendar:read']);
+  assert.equal(tools.options.get('calendar.sources.list')?.readOnlyHint, true);
+  assert.match(calls[1]!.sql, /grant_resource\.grant_id=\$1 AND grant_resource\.household_id=\$2 AND grant_resource\.resource_kind='calendar_source'/);
+  assert.match(calls[1]!.sql, /source\.enabled AND connection\.disconnected_at IS NULL/);
+  assert.match(calls[1]!.sql, /calendar_source_person_readers/);
+  assert.match(calls[1]!.sql, /integration\.revoked_at IS NULL/);
+  assert.doesNotMatch(calls[1]!.sql, /credential_ciphertext|subscription_url|raw_url/i);
+  assert.doesNotMatch(JSON.stringify(result), /private\.invalid|credential|url/i);
 });
 
 test('calendar tool returns no events when the grant has no live visible source', async () => {
