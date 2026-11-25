@@ -127,4 +127,3 @@ function LabeledItems({ label, items, compact = false }: { label: string; items:
   const { t } = useI18n();
   return <div className="school-week-labeled-items"><h4>{label}</h4><ul>{(compact ? items.slice(0, 2) : items).map((item,index)=><li key={`${label}:${index}`}>{typeof item==='string'?item:<><span className="school-week-requirement-kind">{t(schoolWeekRequirementKey(item.kind))}:</span> {item.text}</>}</li>)}</ul></div>;
 }
-
