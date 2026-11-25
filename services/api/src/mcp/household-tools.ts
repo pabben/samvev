@@ -4,6 +4,8 @@ import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
 import { listMessages } from '../messages/read.ts';
+import { readCalendarActivityRows } from '../calendar/activity-reader.ts';
+import { localDateInTimezone } from '../people/domain.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
  * still authoritative: every invocation rechecks the grant and membership. */
@@ -35,11 +37,13 @@ const uuid = z.uuid();
 const date = z.iso.date();
 const emptyInput = z.object({}).strict();
 const dinnersInput = z.object({ from: date, to: date }).strict();
+const calendarInput = z.object({ days: z.number().int().min(1).max(31).default(14), limit: z.number().int().min(1).max(50).default(25) }).strict();
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
 const MAX_DINNER_DAYS = 31;
+function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:messages:read' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write';
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:messages:read' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read';
 type Capability = 'household.view' | 'household.manage';
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<string> {
@@ -87,6 +91,49 @@ export function registerHouseholdTools(
   if (!uuid.safeParse(principal.tokenSetId).success || !uuid.safeParse(principal.grantId).success || !uuid.safeParse(principal.householdId).success ||
       !uuid.safeParse(principal.accountId).success || !uuid.safeParse(principal.membershipId).success ||
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
+
+  registrar.registerTool('calendar.events.list', {
+    description: 'List upcoming events only from calendar sources and for people explicitly approved for this OAuth authorization.',
+    inputSchema: calendarInput, requiredScopes: ['mcp:calendar:read'], readOnlyHint: true, destructiveHint: false
+  }, async (raw) => {
+    const input = calendarInput.parse(raw);
+    return dependencies.transaction(async (client) => {
+      const viewerPersonId = await assertLiveAuthority(client, principal, ['mcp:calendar:read'], 'household.view');
+      const [people, sources] = await Promise.all([
+        client.query<{ id: string }>(`SELECT person.id FROM mcp_oauth_grant_people grant_person
+          JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
+          WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2
+          ORDER BY person.id LIMIT 100 FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId]),
+        client.query<{ id: string; name: string }>(`SELECT source.id,COALESCE(source.display_name,source.name) AS name
+          FROM mcp_oauth_grant_resources grant_resource
+          JOIN calendar_sources source ON source.id=grant_resource.resource_id AND source.household_id=grant_resource.household_id
+          JOIN calendar_connections connection ON connection.id=source.connection_id AND connection.household_id=source.household_id
+          JOIN integration_connections integration ON integration.id=connection.integration_connection_id AND integration.household_id=source.household_id AND integration.revoked_at IS NULL
+          JOIN memberships viewer ON viewer.id=$3 AND viewer.account_id=$4 AND viewer.household_id=source.household_id
+          WHERE grant_resource.grant_id=$1 AND grant_resource.household_id=$2 AND grant_resource.resource_kind='calendar_source'
+            AND source.enabled AND connection.disconnected_at IS NULL AND (viewer.capabilities ? 'household.manage' OR source.target_household OR EXISTS(
+              SELECT 1 FROM calendar_source_person_readers reader WHERE reader.household_id=source.household_id
+                AND reader.source_id=source.id AND reader.person_id=viewer.person_id))
+          ORDER BY source.id LIMIT 100 FOR SHARE OF grant_resource,source,connection,integration,viewer`,
+          [principal.grantId, principal.householdId, principal.membershipId, principal.accountId])
+      ]);
+      if (!people.rows.length || !sources.rows.length) return { events: [] };
+      const household = await client.query<{ timezone: string }>('SELECT timezone FROM households WHERE id=$1 AND installation_id=$2 FOR SHARE', [principal.householdId, principal.installationId]);
+      if (!household.rows[0]) throw new DomainError('FORBIDDEN', 403);
+      const from = localDateInTimezone(new Date(), household.rows[0].timezone);
+      const rows = await readCalendarActivityRows({
+        householdId: principal.householdId, personIds: people.rows.map((row) => row.id),
+        viewer: { personId: viewerPersonId, membershipId: principal.membershipId }, canViewAll: true,
+        from, to: dateOffset(from, input.days - 1), limit: input.limit, sourceIds: sources.rows.map((row) => row.id), upcomingOnly: true, requirePersonAudience: true
+      }, client);
+      const sourceNames = new Map(sources.rows.map((source) => [source.id, source.name]));
+      return { events: rows.map((row) => ({
+        id: row.id, title: row.title, description: row.body, startsAt: row.starts_at?.toISOString() ?? null,
+        endsAt: row.ends_at?.toISOString() ?? null, allDay: row.metadata.allDay === true,
+        sourceId: row.activity_source_id, sourceName: row.activity_source_id ? sourceNames.get(row.activity_source_id) ?? null : null
+      })) };
+    });
+  });
 
   const boardActor: IntegrationBoardActor = {
     kind: 'integration', id: principal.grantId, householdId: principal.householdId, installationId: principal.installationId,

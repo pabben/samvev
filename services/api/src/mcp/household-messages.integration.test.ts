@@ -65,7 +65,7 @@ test('MCP message reads preserve household visibility and require explicit grant
   let token=await authorize(1);
   const grant=(await pool.query<{id:string;revision:number}>('SELECT id,revision FROM mcp_oauth_grants WHERE household_id=$1',[householdId])).rows[0]!;
   const grantPerson=await inject({method:'PUT',url:`/api/v1/households/${householdId}/mcp/authorizations/${grant.id}/policy`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:{expectedRevision:grant.revision,scopes:['mcp:messages:read','mcp:context'],personIds:[grantedPersonId],displayIds:[],resources:[]}});
-  assert.equal(grantPerson.statusCode,200,grantPerson.body,'message read scope permits explicit person resource selection');
+  assert.equal(grantPerson.statusCode,200,`${grantPerson.body} message read scope permits explicit person resource selection`);
   token=await authorize(2);
   const listed=await call(token,1);assert.equal(listed.statusCode,200,listed.body);
   const result=rpc(listed).result.structuredContent.messages as Array<{id:string;body:string;person_ids:string[];can_edit:boolean}>;
