@@ -51,5 +51,5 @@
 .school-week-card.is-compact .school-week-actions{gap:.45rem}
 @media(max-width:540px){.school-week-header{align-items:flex-start;flex-direction:column;gap:.55rem}.school-week-highlights{grid-template-columns:minmax(0,1fr)}.school-week-dialog-heading{align-items:flex-start;flex-direction:column}.school-week-actions{display:grid;grid-template-columns:1fr}.school-week-actions .button{justify-content:center}}
 @media(min-width:1000px) and (orientation:landscape){.school-week-dialog .school-week-full-days{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media(min-width:800px){.school-week-plans{grid-template-columns:repeat(2,minmax(0,1fr))}.school-week-more-plans{grid-column:1/-1}}
+@media(min-width:800px){.school-week-plans:has(> .school-week-card:nth-of-type(2)){grid-template-columns:repeat(2,minmax(0,1fr))}.school-week-more-plans{grid-column:1/-1}}
 @media(min-width:700px) and (max-width:1100px) and (orientation:portrait){.school-week-dialog .school-week-full-days{grid-template-columns:repeat(2,minmax(0,1fr))}}

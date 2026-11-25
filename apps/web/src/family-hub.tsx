@@ -201,7 +201,6 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
               <div className="hub-home-column hub-home-today">{sections.today}</div>
               <div className="hub-home-column hub-home-tomorrow">{sections.tomorrow}</div>
             </div>
-            <SchoolWeekPlans householdId={householdId} people={people} today={today} zone={zone} schoolActivities={schoolActivities} enabled={displaySections?.today!==false||displaySections?.tomorrow!==false} initialPlans={schoolWeekPreviewPlans(Boolean(displaySnapshot),displaySnapshot?.schoolPlans)} readOnly={Boolean(displaySnapshot)} refreshKey={schoolPlansRefreshKey}/>
             {sections.messages}
           </div>
           {(sections.people||homePhoto)&&<div className="hub-home-right-column">
@@ -211,6 +210,7 @@ export function FamilyHub({people,items,messages,zone,householdName,householdId,
           <div className="hub-home-column hub-home-services"><div className="hub-home-smart">{displaySections?.environment!==false&&<HomeEnvironment now={now} waste={[]} temperatures={temperatureItems(active)} zone={zone} onWaste={trigger=>detailAccess.open({kind:"collection",id:"waste"},trigger)}/ >}{homeSmartHome}</div>{sections.support}</div>
           <div className="hub-home-modules">{homeModules}</div>
         </div>
+        <SchoolWeekPlans householdId={householdId} people={people} today={today} zone={zone} schoolActivities={schoolActivities} enabled={displaySections?.today!==false||displaySections?.tomorrow!==false} initialPlans={schoolWeekPreviewPlans(Boolean(displaySnapshot),displaySnapshot?.schoolPlans)} readOnly={Boolean(displaySnapshot)} refreshKey={schoolPlansRefreshKey}/>
         {important.length>0&&sections.important}
       </>}
       {mobile&&<div className="hub-home-modules">{homeModules}</div>}
