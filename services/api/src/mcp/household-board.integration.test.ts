@@ -68,4 +68,8 @@ test('MCP board writes use live delegated authority, revisions and durable reque
   const actor=(await pool.query<{created_by_actor_type:string;created_by_actor_id:string}>(`SELECT created_by_actor_type,created_by_actor_id FROM household_grocery_items WHERE id=$1`,[item.id])).rows[0]!;assert.deepEqual(actor,{created_by_actor_type:'integration',created_by_actor_id:grant.id});
   assert.equal((await pool.query('SELECT 1 FROM integration_credentials WHERE id=$1',[grant.id])).rowCount,0,'MCP writes never create or reuse a legacy integration credential');
   const dinnerActor=(await pool.query<{updated_by_actor_type:string;updated_by_actor_id:string}>(`SELECT updated_by_actor_type,updated_by_actor_id FROM household_dinner_assignments WHERE household_id=$1 AND local_date='2027-03-20'`,[householdId])).rows[0]!;assert.deepEqual(dinnerActor,{updated_by_actor_type:'integration',updated_by_actor_id:grant.id});
+  await pool.query(`UPDATE persons SET age_group='child' WHERE id=(SELECT person_id FROM memberships WHERE id=$1)`,[membershipId]);
+  const demoted=await call(token,'household.dinners.list',{from:'2027-03-20',to:'2027-03-20'},14);
+  assert.ok(demoted.statusCode===401 || (demoted.statusCode===200 && rpc(demoted).result.isError===true), 'a demoted child account cannot keep MCP board access');
+  assert.doesNotMatch(demoted.body,/Synthetic soup/);
 });
