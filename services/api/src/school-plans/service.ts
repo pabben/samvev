@@ -42,7 +42,7 @@ export type SchoolPlanDisplay = {
 type Membership = { person_id: string; capabilities: string[]; installation_id: string };
 type SourceRow = {
   id: string; household_id: string; connection_id: string; person_id: string; class_key: string;
-  source_page_url: string; display_pdf_links_allowed: boolean;
+  source_page_url: string; display_pdf_links_allowed: boolean; connection_name?: string;
 };
 type PlanRow = {
   id: string; source_id: string; person_id: string; iso_year: number; iso_week: number;
@@ -86,6 +86,8 @@ const planFrom = `FROM school_plans p JOIN school_plan_sources s
 function sourceResponse(source: SourceRow) {
   return {
     id: source.id,
+    connectionId: source.connection_id,
+    ...(source.connection_name ? { connectionName: source.connection_name } : {}),
     personId: source.person_id,
     classKey: source.class_key,
     sourcePageUrl: source.source_page_url,
@@ -221,6 +223,20 @@ export async function revokeSchoolPlanSource(manager: SchoolPlanMember, sourceId
     const result = await client.query(`UPDATE school_plan_sources SET revoked_at=clock_timestamp()
       WHERE household_id=$1 AND id=$2 AND revoked_at IS NULL`, [manager.householdId, id]);
     if (result.rowCount === 1) await audit(client, manager, member, 'school_plan_source.revoked', 'school_plan_source', id);
+  });
+}
+
+export async function listSchoolPlanSourcesForManager(manager: SchoolPlanMember, limit = 50) {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new DomainError('VALIDATION_FAILED', 400);
+  return transaction(async (client) => {
+    const member = await requireMember(client, manager);
+    if (!member.capabilities.includes('household.manage')) throw forbidden();
+    const result = await client.query<SourceRow>(`SELECT source.id,source.household_id,source.connection_id,source.person_id,source.class_key,
+      source.source_page_url,source.display_pdf_links_allowed,connection.name connection_name
+      FROM school_plan_sources source JOIN integration_connections connection
+        ON connection.id=source.connection_id AND connection.household_id=source.household_id AND connection.revoked_at IS NULL
+      WHERE source.household_id=$1 AND source.revoked_at IS NULL ORDER BY source.person_id,source.class_key,source.id LIMIT $2`, [manager.householdId, limit]);
+    return result.rows.map(sourceResponse);
   });
 }
 
@@ -504,9 +520,82 @@ export async function listDisplaySchoolPlans(display: SchoolPlanDisplay, raw: un
     sourceStatus: row.source_error ? 'stale' as const : 'current' as const,
     lastSourceObservedAt: row.last_source_observed_at.toISOString(),
     uncertainty: row.uncertainty,
-    pdfLinkAvailable: row.pdf_status !== null,
+    pdfLinkAvailable: row.pdf_status === 'server_verified',
     pdfStatus: row.pdf_status,
   }));
+}
+
+function memberPlan(row: PresentationRow & { pdf_status: 'server_verified' | 'unverified_link' | null }) {
+  return {
+    ...planDetails(row),
+    sourceStatus: row.source_error ? 'stale' as const : 'current' as const,
+    lastSourceObservedAt: row.last_source_observed_at.toISOString(),
+    uncertainty: row.uncertainty,
+    pdfLinkAvailable: row.pdf_status === 'server_verified',
+    pdfStatus: row.pdf_status,
+  };
+}
+
+/** Browser-member projection spans all live connections in the household. It
+ * deliberately omits source URLs, raw PDF URLs, connection IDs and targets. */
+export async function listMemberSchoolPlans(member: SchoolPlanMember, raw: unknown = {}) {
+  const filter = parseSchoolPlan(schoolPlanDisplayListSchema, raw);
+  validateFilterWeek(filter);
+  return transaction(async (client) => {
+    const membership = await requireMember(client, member);
+    const people = membership.capabilities.includes('household.manage') ? undefined : [membership.person_id];
+    if (filter.personId && people && !people.includes(filter.personId)) return [];
+    const result = await client.query<PresentationRow & { pdf_status: 'server_verified' | 'unverified_link' | null }>(`
+      SELECT ${presentationColumns},CASE WHEN p.pdf_url IS NULL THEN NULL
+        WHEN snapshot.plan_id IS NOT NULL THEN 'server_verified' ELSE 'unverified_link' END AS pdf_status ${planFrom}
+      WHERE p.household_id=$1 AND ($2::uuid[] IS NULL OR p.person_id=ANY($2::uuid[]))
+        AND ($3::uuid IS NULL OR p.person_id=$3) AND ($4::int IS NULL OR p.iso_year=$4)
+        AND ($5::int IS NULL OR p.iso_week=$5)
+      ORDER BY p.week_starts_on DESC,p.id LIMIT $6`,
+    [member.householdId, people ?? null, filter.personId ?? null, filter.isoYear ?? null, filter.isoWeek ?? null, filter.limit]);
+    return result.rows.map(memberPlan);
+  });
+}
+
+export async function getMemberSchoolPlan(member: SchoolPlanMember, planId: string) {
+  const id = parseSchoolPlan(uuidSchema, planId);
+  return transaction(async (client) => {
+    const membership = await requireMember(client, member);
+    const people = membership.capabilities.includes('household.manage') ? undefined : [membership.person_id];
+    const row = (await client.query<PresentationRow & { pdf_status: 'server_verified' | 'unverified_link' | null }>(`
+      SELECT ${presentationColumns},CASE WHEN p.pdf_url IS NULL THEN NULL
+        WHEN snapshot.plan_id IS NOT NULL THEN 'server_verified' ELSE 'unverified_link' END AS pdf_status ${planFrom}
+      WHERE p.household_id=$1 AND p.id=$2 AND ($3::uuid[] IS NULL OR p.person_id=ANY($3::uuid[]))`,
+    [member.householdId, id, people ?? null])).rows[0];
+    if (!row) throw notFound();
+    return memberPlan(row);
+  });
+}
+
+export async function getMemberSchoolPlanPdfSnapshot(member: SchoolPlanMember, planId: string) {
+  const id = parseSchoolPlan(uuidSchema, planId);
+  return transaction(async (client) => {
+    const membership = await requireMember(client, member);
+    const people = membership.capabilities.includes('household.manage') ? undefined : [membership.person_id];
+    const row = (await client.query<{ bytes: Buffer; sha256: string; verified_at: Date }>(`
+      SELECT snapshot.bytes,snapshot.sha256,snapshot.verified_at ${planFrom}
+      WHERE p.household_id=$1 AND p.id=$2 AND snapshot.plan_id IS NOT NULL
+        AND ($3::uuid[] IS NULL OR p.person_id=ANY($3::uuid[]))`, [member.householdId, id, people ?? null])).rows[0];
+    if (!row) throw notFound();
+    return {
+      bytes: row.bytes,
+      sha256: row.sha256,
+      verifiedAt: row.verified_at.toISOString(),
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': 'attachment; filename="school-plan.pdf"',
+        'Cache-Control': 'private, no-store',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Referrer-Policy': 'no-referrer',
+        'X-Content-Type-Options': 'nosniff',
+      },
+    };
+  });
 }
 
 /** Call from an authenticated display route using same-origin referrer/redirect protections. */

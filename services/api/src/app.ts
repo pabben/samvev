@@ -59,6 +59,12 @@ import {HomeAssistantControlClient,type HomeAssistantControlTransport} from './h
 import {readAnonymousPublicContact,readPublicContact,updatePublicContact} from './public-contact.ts';
 import {HaBridgeService} from './ha-bridge/service.ts';
 import {authorizationConsentHtml,authorizationLoginHtml,McpOAuthService,OAuthProtocolError,oauthErrorBody} from './mcp/service.ts';
+import {
+  approveSchoolPlanSource, getDisplaySchoolPlanPdfSnapshot, getMemberSchoolPlan, getMemberSchoolPlanPdfSnapshot,
+  listDisplaySchoolPlans, listMemberSchoolPlans, listSchoolPlanSourcesForManager, revokeSchoolPlanSource,
+  type SchoolPlanDisplay, type SchoolPlanMember,
+} from './school-plans/service.ts';
+import type {SchoolPdfFetcher} from './school-plans/pdf-fetcher.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
@@ -645,6 +651,17 @@ function dateOnly(value:unknown):string|undefined{
   const parsed=new Date(`${value}T00:00:00Z`);
   return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===value?value:undefined;
 }
+function schoolPlanQuery(value:unknown):Record<string,unknown>{
+  const query=(value??{}) as Record<string,unknown>,result:Record<string,unknown>={};
+  for(const field of ['personId'] as const){if(query[field]!==undefined){if(typeof query[field]!=='string')throw new DomainError('VALIDATION_FAILED',400);result[field]=query[field];}}
+  for(const field of ['isoYear','isoWeek','limit'] as const){if(query[field]!==undefined){if(typeof query[field]!=='string'||!/^\d+$/.test(query[field]))throw new DomainError('VALIDATION_FAILED',400);result[field]=Number(query[field]);}}
+  for(const field of Object.keys(query))if(!['personId','isoYear','isoWeek','limit'].includes(field))throw new DomainError('VALIDATION_FAILED',400);
+  return result;
+}
+function schoolSourceLimit(value:unknown):number{
+  const query=(value??{}) as Record<string,unknown>;if(Object.keys(query).some(key=>key!=='limit'))throw new DomainError('VALIDATION_FAILED',400);
+  if(query.limit===undefined)return 50;if(typeof query.limit!=='string'||!/^\d+$/.test(query.limit))throw new DomainError('VALIDATION_FAILED',400);return Number(query.limit);
+}
 function dateOffset(value:string,offset:number):string{
   const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);
 }
@@ -1096,7 +1113,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; homeAssistantControlTransport?:HomeAssistantControlTransport; photoNormalizer?:typeof normalizeProfilePhoto; mediaImageNormalizer?:typeof normalizeMediaImage; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; homeAssistantControlTransport?:HomeAssistantControlTransport; photoNormalizer?:typeof normalizeProfilePhoto; mediaImageNormalizer?:typeof normalizeMediaImage; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; schoolPdfFetcher?:Pick<SchoolPdfFetcher,'fetch'>; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const logger=process.env.NODE_ENV==='test'&&!options.logStream?false:{
     level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
@@ -1137,7 +1154,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   await projectionEvents.start();
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
   app.addHook('preClose',async()=>projectionEvents.close());
-  const mcp=new McpOAuthService(runtime.publicOrigin);
+  const mcp=new McpOAuthService(runtime.publicOrigin,options.schoolPdfFetcher,
+    (grantId,sourceId)=>durableRateLimit('mcp_school_pdf_verify',`${grantId}:${sourceId}`,6,3600));
   app.addHook('preClose',async()=>mcp.close());
   const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth,rateLimit:durableRateLimit});
   const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{
@@ -1277,6 +1295,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       if(!(error instanceof OAuthProtocolError))throw error;
       return reply.status(401).header('Cache-Control','no-store').header('WWW-Authenticate',`Bearer resource_metadata="${mcp.resourceMetadataUrl}", error="invalid_token"`).send({error:'invalid_token',error_description:'The MCP access token is invalid or expired'});
     }
+    await durableRateLimit('mcp_request_grant',principal.grantId,120,60);await durableRateLimit('mcp_request_ip',request.ip,240,60);
     const headers=new Headers();
     for(const [name,value] of Object.entries(request.headers)){if(Array.isArray(value))for(const item of value)headers.append(name,item);else if(value!==undefined)headers.set(name,String(value));}
     const webRequest=new Request(new URL(request.url,runtime.publicOrigin),{method:request.method,headers});
@@ -1298,6 +1317,43 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.post('/api/v1/households/:householdId/mcp/authorizations/:grantId/revoke',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     await mcp.revokeAuthorization(auth,params(request).grantId!);return reply.header('Cache-Control','no-store').status(204).send();
+  });
+  app.get('/api/v1/households/:householdId/mcp/authorizations/:grantId/activity',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const limit=schoolSourceLimit(request.query),activity=await mcp.listAuthorizationActivity(auth.householdId,params(request).grantId!,limit);
+    return reply.header('Cache-Control','private, no-store').send({activity});
+  });
+  const schoolMember=(auth:AuthContext):SchoolPlanMember=>({householdId:auth.householdId,accountId:auth.accountId,membershipId:auth.membershipId});
+  const schoolDisplay=(display:DisplayContext):SchoolPlanDisplay=>({householdId:display.householdId,id:display.id,credentialHash:display.credentialHash,credentialGeneration:display.credentialGeneration});
+  app.post('/api/v1/households/:householdId/school-plan-sources',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const source=await approveSchoolPlanSource(schoolMember(auth),request.body);return reply.header('Cache-Control','private, no-store').status(201).send({source});
+  });
+  app.get('/api/v1/households/:householdId/school-plan-sources',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const sources=await listSchoolPlanSourcesForManager(schoolMember(auth),schoolSourceLimit(request.query));return reply.header('Cache-Control','private, no-store').send({sources});
+  });
+  app.delete('/api/v1/households/:householdId/school-plan-sources/:sourceId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    await revokeSchoolPlanSource(schoolMember(auth),params(request).sourceId!);return reply.header('Cache-Control','no-store').status(204).send();
+  });
+  app.get('/api/v1/households/:householdId/school-plans',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const plans=await listMemberSchoolPlans(schoolMember(auth),schoolPlanQuery(request.query));return reply.header('Cache-Control','private, no-store').send({plans});
+  });
+  app.get('/api/v1/households/:householdId/school-plans/:planId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const plan=await getMemberSchoolPlan(schoolMember(auth),params(request).planId!);return reply.header('Cache-Control','private, no-store').send({plan});
+  });
+  app.get('/api/v1/households/:householdId/school-plans/:planId/pdf',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const snapshot=await getMemberSchoolPlanPdfSnapshot(schoolMember(auth),params(request).planId!);for(const [name,value] of Object.entries(snapshot.headers))reply.header(name,value);return reply.send(snapshot.bytes);
+  });
+  app.get('/api/v1/display/school-plans',async(request,reply)=>{
+    const display=await displayAuth(request),plans=await listDisplaySchoolPlans(schoolDisplay(display),schoolPlanQuery(request.query));return reply.header('Cache-Control','private, no-store').send({plans});
+  });
+  app.get('/api/v1/display/school-plans/:planId/pdf',async(request,reply)=>{
+    const display=await displayAuth(request),snapshot=await getDisplaySchoolPlanPdfSnapshot(schoolDisplay(display),params(request).planId!);for(const [name,value] of Object.entries(snapshot.headers))reply.header(name,value);return reply.send(snapshot.bytes);
   });
 
   const liveE2eEnabled=options.liveE2eEnabled??process.env.SAMVEV_LIVE_E2E_ENABLED==='true';

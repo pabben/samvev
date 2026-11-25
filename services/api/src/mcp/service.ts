@@ -3,8 +3,18 @@ import { McpServer, createMcpHandler, requireScopes, type AuthInfo, type McpHttp
 import { DomainError, opaqueToken, tokenHash } from '@samvev/core';
 import { z } from 'zod';
 import { pool, transaction, type DbClient } from '../db.ts';
+import { registerHouseholdTools } from './household-tools.ts';
+import {
+  getSchoolPlan, listSchoolPlans, listSchoolPlanSources, recordSchoolPlanSourceFailure,
+  upsertSchoolPlan, verifySchoolPlanPdf, type SchoolPlanActor,
+} from '../school-plans/service.ts';
+import {
+  schoolPlanKeySchema, schoolPlanListSchema, schoolPlanSourceFailureSchema,
+  schoolPlanUpsertSchema, schoolPlanVerifyPdfSchema,
+} from '../school-plans/contracts.ts';
+import { schoolPdfFetcher, type SchoolPdfFetcher } from '../school-plans/pdf-fetcher.ts';
 
-export const MCP_SCOPES = ['mcp:context', 'mcp:monitors:read', 'mcp:school-plans:read', 'mcp:school-plans:write', 'offline_access'] as const;
+export const MCP_SCOPES = ['mcp:context', 'mcp:monitors:read', 'mcp:people:read', 'mcp:groceries:read', 'mcp:dinners:read', 'mcp:school-plans:read', 'mcp:school-plans:write', 'offline_access'] as const;
 export type McpScope = (typeof MCP_SCOPES)[number];
 const MCP_SCOPE_SET = new Set<string>(MCP_SCOPES);
 const ACCESS_SECONDS = 15 * 60;
@@ -89,11 +99,12 @@ const oauthPageStyle=`body{font:16px system-ui;max-width:42rem;margin:3rem auto;
 export function authorizationConsentHtml(input:{request:AuthorizeRequest;clientName:string;households:Array<{id:string;name:string;locale:'en'|'nb'}>;csrf:string;requestHandle?:string}):string{
   const locale=input.households[0]?.locale==='en'?'en':'nb';
   const copy=locale==='nb'?{
-    title:'Koble til Samvev',intro:`${input.clientName} ber om tilgang til Samvev.`,client:'Klient',resource:'Ressurs',household:'Husholdning',approve:'Godkjenn',deny:'Avslå',context:'Se autorisasjonskontekst',monitors:'Se overvåkingsoppdrag',schoolRead:'Se skoleplaner (bare eksplisitt tillatte personer og kilder)',schoolWrite:'Opprette og endre skoleplaner (bare eksplisitt tillatte personer, skjermer og kilder)',offline:'Beholde tilgangen med roterende oppfriskningstoken'
-  }:{title:'Connect to Samvev',intro:`${input.clientName} requests access to Samvev.`,client:'Client',resource:'Resource',household:'Household',approve:'Approve',deny:'Deny',context:'View authorization context',monitors:'View monitoring tasks',schoolRead:'View school plans (only explicitly allowed people and sources)',schoolWrite:'Create and update school plans (only explicitly allowed people, displays, and sources)',offline:'Keep access with a rotating refresh token'};
-  const labels:Record<McpScope,string>={'mcp:context':copy.context,'mcp:monitors:read':copy.monitors,'mcp:school-plans:read':copy.schoolRead,'mcp:school-plans:write':copy.schoolWrite,offline_access:copy.offline};
+    title:'Koble til Samvev',intro:`${input.clientName} ber om tilgang til Samvev.`,client:'Klient',destination:'Tilbakeadresse',unverified:'Klientnavnet er oppgitt av klienten og er ikke bekreftet av Samvev. Kontroller domenet før du godkjenner.',resource:'Ressurs',household:'Husholdning',approve:'Godkjenn',deny:'Avslå',context:'Se autorisasjonskontekst',monitors:'Se overvåkingsoppdrag',people:'Se eksplisitt tillatte personer',groceries:'Se handlelisten',dinners:'Se middagsplanen',schoolRead:'Se skoleplaner (bare eksplisitt tillatte personer og kilder)',schoolWrite:'Opprette og endre skoleplaner (bare eksplisitt tillatte personer, skjermer og kilder)',offline:'Beholde tilgangen med roterende oppfriskningstoken'
+  }:{title:'Connect to Samvev',intro:`${input.clientName} requests access to Samvev.`,client:'Client',destination:'Return destination',unverified:'The client name is supplied by the client and is not verified by Samvev. Check the domain before approving.',resource:'Resource',household:'Household',approve:'Approve',deny:'Deny',context:'View authorization context',monitors:'View monitoring tasks',people:'View explicitly allowed people',groceries:'View the grocery list',dinners:'View the dinner plan',schoolRead:'View school plans (only explicitly allowed people and sources)',schoolWrite:'Create and update school plans (only explicitly allowed people, displays, and sources)',offline:'Keep access with a rotating refresh token'};
+  const labels:Record<McpScope,string>={'mcp:context':copy.context,'mcp:monitors:read':copy.monitors,'mcp:people:read':copy.people,'mcp:groceries:read':copy.groceries,'mcp:dinners:read':copy.dinners,'mcp:school-plans:read':copy.schoolRead,'mcp:school-plans:write':copy.schoolWrite,offline_access:copy.offline};
   const hidden:Record<string,string>=input.requestHandle?{request:input.requestHandle,_csrf:input.csrf}:{response_type:'code',client_id:input.request.clientId,redirect_uri:input.request.redirectUri,code_challenge:input.request.codeChallenge,code_challenge_method:'S256',resource:input.request.resource,scope:input.request.scopes.join(' '),state:input.request.state,_csrf:input.csrf};
-  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${html(copy.title)}</title><style>${oauthPageStyle}</style></head><body><main><h1>${html(copy.title)}</h1><p>${html(copy.intro)}</p><div class="summary"><strong>${html(copy.client)}:</strong> ${html(input.clientName)}<br><strong>${html(copy.resource)}:</strong> ${html(input.request.resource)}</div><ul>${input.request.scopes.map(scope=>`<li>${html(labels[scope])}</li>`).join('')}</ul><form method="post" action="/oauth/authorize">${Object.entries(hidden).map(([name,value])=>`<input type="hidden" name="${html(name)}" value="${html(value)}">`).join('')}<label for="household_id">${html(copy.household)}</label><select id="household_id" name="household_id">${input.households.map(household=>`<option value="${html(household.id)}">${html(household.name)}</option>`).join('')}</select><div class="actions"><button type="submit" name="decision" value="approve">${html(copy.approve)}</button><button type="submit" name="decision" value="deny">${html(copy.deny)}</button></div></form></main></body></html>`;
+  const destination=new URL(input.request.redirectUri).origin;
+  return `<!doctype html><html lang="${locale}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${html(copy.title)}</title><style>${oauthPageStyle}</style></head><body><main><h1>${html(copy.title)}</h1><p>${html(copy.intro)}</p><div class="summary"><strong>${html(copy.client)}:</strong> ${html(input.clientName)}<br><strong>${html(copy.destination)}:</strong> ${html(destination)}<br><strong>${html(copy.resource)}:</strong> ${html(input.request.resource)}</div><p>${html(copy.unverified)}</p><ul>${input.request.scopes.map(scope=>`<li>${html(labels[scope])}</li>`).join('')}</ul><form method="post" action="/oauth/authorize">${Object.entries(hidden).map(([name,value])=>`<input type="hidden" name="${html(name)}" value="${html(value)}">`).join('')}<label for="household_id">${html(copy.household)}</label><select id="household_id" name="household_id">${input.households.map(household=>`<option value="${html(household.id)}">${html(household.name)}</option>`).join('')}</select><div class="actions"><button type="submit" name="decision" value="approve">${html(copy.approve)}</button><button type="submit" name="decision" value="deny">${html(copy.deny)}</button></div></form></main></body></html>`;
 }
 
 export function authorizationLoginHtml(input:{handle:string;loginCsrf:string;locale:'en'|'nb'}):string{
@@ -146,7 +157,7 @@ function audit(client: DbClient, principal: Pick<McpPrincipal,'installationId'|'
 export async function assertMcpSchoolAuthority(client:DbClient,principal:McpPrincipal,input:McpSchoolAuthorityRequest):Promise<void>{
   const required=input.write?'mcp:school-plans:write':'mcp:school-plans:read';
   if(!principal.scopes.includes(required))throw new DomainError('FORBIDDEN',403,{reason:'mcp_scope_required',scope:required});
-  const personIds=uniqueUuids(input.personIds,50),displayIds=uniqueUuids(input.displayIds,50),sourceIds=uniqueUuids(input.sourceIds,50);
+  const personIds=uniqueUuids(input.personIds,100),displayIds=uniqueUuids(input.displayIds,100),sourceIds=uniqueUuids(input.sourceIds,100);
   if(!personIds.length||!sourceIds.length)throw new DomainError('FORBIDDEN',403,{reason:'mcp_resource_grant_required'});
   const row=(await client.query<{person_count:number;display_count:number;source_count:number}>(`SELECT
       (SELECT count(*)::int FROM mcp_oauth_grant_people allowed WHERE allowed.grant_id=oauth_grant.id AND allowed.person_id=ANY($4::uuid[])) person_count,
@@ -161,12 +172,27 @@ export async function assertMcpSchoolAuthority(client:DbClient,principal:McpPrin
   if(!row||row.person_count!==personIds.length||row.display_count!==displayIds.length||row.source_count!==sourceIds.length)throw new DomainError('FORBIDDEN',403,{reason:'mcp_resource_not_granted'});
 }
 
+const schoolSourceListSchema=z.strictObject({limit:z.number().int().min(1).max(50).default(50)});
+function toolResult(value:Record<string,unknown>){return{content:[{type:'text' as const,text:JSON.stringify(value)}],structuredContent:value};}
+async function mapSequential<T,R>(items:readonly T[],run:(item:T)=>Promise<R>):Promise<R[]>{const results:R[]=[];for(const item of items)results.push(await run(item));return results;}
+
+function principalFromAuthInfo(authInfo:AuthInfo|undefined):McpPrincipal|undefined{
+  const extra=authInfo?.extra;
+  if(!authInfo||!extra)return;
+  const fields=['tokenSetId','grantId','clientDatabaseId','accountId','membershipId','householdId','installationId'] as const;
+  if(fields.some(field=>typeof extra[field]!=='string'))return;
+  return{token:authInfo.token,tokenSetId:String(extra.tokenSetId),grantId:String(extra.grantId),clientDatabaseId:String(extra.clientDatabaseId),clientId:authInfo.clientId,
+    accountId:String(extra.accountId),membershipId:String(extra.membershipId),householdId:String(extra.householdId),installationId:String(extra.installationId),
+    scopes:(authInfo.scopes??[]).filter((scope):scope is McpScope=>MCP_SCOPE_SET.has(scope)),expiresAt:new Date((authInfo.expiresAt??0)*1000)};
+}
+
 export class McpOAuthService {
   readonly resource: string;
   readonly resourceMetadataUrl: string;
   readonly handler: McpHttpHandler;
 
-  constructor(readonly origin: string) {
+  constructor(readonly origin: string,private readonly schoolPdf:Pick<SchoolPdfFetcher,'fetch'>=schoolPdfFetcher,
+    private readonly schoolPdfRateLimit:(grantId:string,sourceId:string)=>Promise<void>=async()=>{}) {
     this.resource = exactResource(origin);
     this.resourceMetadataUrl = protectedResourceMetadataUrl(origin);
     this.handler = createMcpHandler(({authInfo}) => this.createServer(authInfo), { responseMode: 'json' });
@@ -194,8 +220,7 @@ export class McpOAuthService {
       token_endpoint_auth_methods_supported: ['none'],
       code_challenge_methods_supported: ['S256'],
       authorization_response_iss_parameter_supported: true,
-      scopes_supported: MCP_SCOPES,
-      service_documentation: `${this.origin}/docs/AI_TASKS_AND_NOTIFICATIONS.md`
+      scopes_supported: MCP_SCOPES
     };
   }
 
@@ -434,6 +459,16 @@ export class McpOAuthService {
     return rows.rows;
   }
 
+  async listAuthorizationActivity(householdId:string,grantId:string,limit=50):Promise<Array<Record<string,unknown>>>{
+    const [id]=uniqueUuids([grantId],1);if(!Number.isInteger(limit)||limit<1||limit>100)throw new DomainError('VALIDATION_FAILED',400);
+    const grant=await pool.query('SELECT 1 FROM mcp_oauth_grants WHERE id=$1 AND household_id=$2',[id,householdId]);
+    if(!grant.rowCount)throw new DomainError('NOT_FOUND',404);
+    const rows=await pool.query(`SELECT occurred_at AS "occurredAt",action,subject_type AS "subjectType",subject_id AS "subjectId"
+      FROM audit_events WHERE household_id=$1 AND actor_type='mcp' AND actor_id=$2
+      ORDER BY occurred_at DESC,id DESC LIMIT $3`,[householdId,id,limit]);
+    return rows.rows;
+  }
+
   async updateAuthorizationPolicy(actor:{installationId:string;householdId:string;accountId:string;membershipId:string},grantId:string,input:McpResourcePolicyInput):Promise<Record<string,unknown>>{
     const personIds=uniqueUuids(input.personIds,100),displayIds=uniqueUuids(input.displayIds,100);
     if(!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<1||!Array.isArray(input.resources)||input.resources.length>100)throw new DomainError('VALIDATION_FAILED',400);
@@ -447,7 +482,8 @@ export class McpOAuthService {
       if(!grant)throw new DomainError('NOT_FOUND',404);
       if(grant.revision!==input.expectedRevision)throw new DomainError('REVISION_CONFLICT',409);
       const scopes=asScopes(grant.scopes),hasSchoolScope=scopes.includes('mcp:school-plans:read')||scopes.includes('mcp:school-plans:write');
-      if(!hasSchoolScope&&(personIds.length||displayIds.length||resources.length))throw new DomainError('VALIDATION_FAILED',400,{reason:'school_scope_required'});
+      const hasPeopleScope=hasSchoolScope||scopes.includes('mcp:people:read');
+      if((personIds.length&&!hasPeopleScope)||((displayIds.length||resources.length)&&!hasSchoolScope))throw new DomainError('VALIDATION_FAILED',400,{reason:'resource_scope_required'});
       const [people,displays,schoolSourceTable]=await Promise.all([
         personIds.length?client.query(`SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])`,[actor.householdId,personIds]):Promise.resolve({rowCount:0}),
         displayIds.length?client.query(`SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL`,[actor.householdId,displayIds]):Promise.resolve({rowCount:0}),
@@ -490,8 +526,35 @@ export class McpOAuthService {
 
   async close():Promise<void>{await this.handler.close();}
 
+  private async schoolActors(principal:McpPrincipal,requestedSourceId?:string):Promise<SchoolPlanActor[]>{
+    const rows=(await pool.query<{person_ids:string[];display_ids:string[];source_id:string;connection_id:string}>(`SELECT
+      ARRAY(SELECT person_id FROM mcp_oauth_grant_people allowed WHERE allowed.grant_id=oauth_grant.id ORDER BY person_id) person_ids,
+      ARRAY(SELECT display_id FROM mcp_oauth_grant_displays allowed WHERE allowed.grant_id=oauth_grant.id ORDER BY display_id) display_ids,
+      source.id source_id,source.connection_id
+      FROM mcp_oauth_grants oauth_grant
+      JOIN memberships membership ON membership.id=oauth_grant.membership_id AND membership.household_id=oauth_grant.household_id AND membership.account_id=oauth_grant.account_id
+      JOIN accounts account ON account.id=oauth_grant.account_id AND account.disabled_at IS NULL
+      JOIN mcp_oauth_grant_resources resource ON resource.grant_id=oauth_grant.id AND resource.household_id=oauth_grant.household_id AND resource.resource_kind='school_source'
+      JOIN school_plan_sources source ON source.id=resource.resource_id AND source.household_id=resource.household_id AND source.revoked_at IS NULL
+      JOIN integration_connections connection ON connection.id=source.connection_id AND connection.household_id=source.household_id AND connection.revoked_at IS NULL
+      WHERE oauth_grant.id=$1 AND oauth_grant.household_id=$2 AND oauth_grant.account_id=$3 AND oauth_grant.membership_id=$4
+        AND oauth_grant.revoked_at IS NULL AND membership.capabilities ? 'household.manage'
+        AND ($5::uuid IS NULL OR source.id=$5) ORDER BY source.connection_id,source.id`,
+    [principal.grantId,principal.householdId,principal.accountId,principal.membershipId,requestedSourceId??null])).rows;
+    if(!rows.length){
+      if(requestedSourceId)throw new DomainError('NOT_FOUND',404);
+      throw new DomainError('FORBIDDEN',403,{reason:'mcp_school_policy_required'});
+    }
+    if(!rows[0]!.person_ids.length)throw new DomainError('FORBIDDEN',403,{reason:'mcp_school_policy_required'});
+    const byConnection=new Map<string,string[]>();for(const row of rows)byConnection.set(row.connection_id,[...(byConnection.get(row.connection_id)??[]),row.source_id]);
+    return[...byConnection].map(([connectionId,sourceIds])=>({householdId:principal.householdId,accountId:principal.accountId,membershipId:principal.membershipId,connectionId,
+      scopes:principal.scopes,personIds:rows[0]!.person_ids,sourceIds,displayIds:rows[0]!.display_ids,
+      authorizeInTransaction:(client,request)=>assertMcpSchoolAuthority(client,principal,{write:request.write,personIds:[...request.personIds],displayIds:[...request.displayIds],sourceIds:[...request.sourceIds]})}));
+  }
+
   private createServer(authInfo:AuthInfo|undefined):McpServer{
     const server=new McpServer({name:'samvev',version:'0.1.0'});
+    const principal=principalFromAuthInfo(authInfo);
     const householdId=String(authInfo?.extra?.householdId??'');
     const grantId=String(authInfo?.extra?.grantId??'');
     const installationId=String(authInfo?.extra?.installationId??'');
@@ -513,6 +576,33 @@ export class McpOAuthService {
       if(grantId&&installationId&&clientDatabaseId)await audit(pool,{grantId,installationId,householdId,clientDatabaseId},'mcp.monitors_listed','mcp_oauth_grant',grantId,{count:tasks.length});
       return{content:[{type:'text',text:JSON.stringify({tasks})}],structuredContent:{tasks}};
     });
+    if(principal){
+      const householdScopes:Record<string,McpScope>={'household.people.list':'mcp:people:read','household.groceries.list':'mcp:groceries:read','household.dinners.list':'mcp:dinners:read'};
+      const householdAuditActions:Record<string,string>={'household.people.list':'mcp.people_listed','household.groceries.list':'mcp.groceries_listed','household.dinners.list':'mcp.dinners_listed'};
+      registerHouseholdTools({registerTool:(name,options,handler)=>server.registerTool(name,{description:options.description,inputSchema:options.inputSchema,scopeChallenge:requireScopes(householdScopes[name]!),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
+        const result=await handler(input) as Record<string,unknown>;
+        await audit(pool,principal,householdAuditActions[name]!,'mcp_oauth_grant',principal.grantId);
+        return toolResult(result);
+      })},{principal});
+      server.registerTool('school.sources.list',{description:'List the school sources explicitly granted to this client.',inputSchema:schoolSourceListSchema,scopeChallenge:requireScopes('mcp:school-plans:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
+        const actors=await this.schoolActors(principal),sources=(await mapSequential(actors,actor=>listSchoolPlanSources(actor,input.limit))).flat().sort((left,right)=>left.id.localeCompare(right.id)).slice(0,input.limit);await audit(pool,principal,'mcp.school_sources_listed','mcp_oauth_grant',principal.grantId,{count:sources.length});return toolResult({sources});
+      });
+      server.registerTool('school.plans.list',{description:'List school plans only for granted people and sources.',inputSchema:schoolPlanListSchema,scopeChallenge:requireScopes('mcp:school-plans:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
+        const actors=await this.schoolActors(principal,input.sourceId),plans=(await mapSequential(actors,actor=>listSchoolPlans(actor,input))).flat().sort((left,right)=>right.startsOn.localeCompare(left.startsOn)||left.id.localeCompare(right.id)).slice(0,input.limit);await audit(pool,principal,'mcp.school_plans_listed','mcp_oauth_grant',principal.grantId,{count:plans.length});return toolResult({plans});
+      });
+      server.registerTool('school.plans.get',{description:'Read one school plan by granted source and ISO week.',inputSchema:schoolPlanKeySchema,scopeChallenge:requireScopes('mcp:school-plans:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
+        const actor=(await this.schoolActors(principal,input.sourceId))[0]!,plan=await getSchoolPlan(actor,input);await audit(pool,principal,'mcp.school_plan_read','school_plan',plan.id);return toolResult({plan});
+      });
+      server.registerTool('school.plans.upsert',{description:'Create or update a school plan from one exact approved source.',inputSchema:schoolPlanUpsertSchema,scopeChallenge:requireScopes('mcp:school-plans:write'),annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
+        const actor=(await this.schoolActors(principal,input.sourceId))[0]!,result=await upsertSchoolPlan(actor,input);await audit(pool,principal,'mcp.school_plan_upserted','school_plan',result.id);return toolResult({result});
+      });
+      server.registerTool('school.plans.source_failure',{description:'Record a failed source check without deleting the last valid school plan.',inputSchema:schoolPlanSourceFailureSchema,scopeChallenge:requireScopes('mcp:school-plans:write'),annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
+        const actor=(await this.schoolActors(principal,input.sourceId))[0]!,result=await recordSchoolPlanSourceFailure(actor,input);await audit(pool,principal,'mcp.school_source_failure_recorded','school_plan',result.id);return toolResult({result});
+      });
+      server.registerTool('school.plans.verify_pdf',{description:'Fetch and store a bounded PDF only after verifying its exact link on the approved class page.',inputSchema:schoolPlanVerifyPdfSchema,scopeChallenge:requireScopes('mcp:school-plans:write'),annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:true}},async(input)=>{
+        await this.schoolPdfRateLimit(principal.grantId,input.sourceId);const actor=(await this.schoolActors(principal,input.sourceId))[0]!,result=await verifySchoolPlanPdf(actor,input,this.schoolPdf);await audit(pool,principal,'mcp.school_pdf_verified','school_plan_source',input.sourceId);return toolResult({result});
+      });
+    }
     return server;
   }
 }

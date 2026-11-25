@@ -231,7 +231,7 @@ test('display scope checks pairing, privacy, person/source selection, explicit t
   assert.deepEqual(await listDisplaySchoolPlans({ ...display, credentialGeneration: display.credentialGeneration + 1 }), []);
   await assert.rejects(getDisplaySchoolPlanPdfLink(display, planId), isError(404));
   assert.equal((await approveSchoolPlanSource(actor, sourceApproval({ displayPdfLinksAllowed: true }))).id, sourceId);
-  assert.equal((await listDisplaySchoolPlans(display, week))[0]!.pdfLinkAvailable, true);
+  assert.equal((await listDisplaySchoolPlans(display, week))[0]!.pdfLinkAvailable, false,'an unverified remote URL is never advertised as an available browser link');
   assert.deepEqual(await getDisplaySchoolPlanPdfLink(display, planId), (await getSchoolPlan(actor, key())).pdf);
   await pool.query('UPDATE displays SET privacy_mode=true WHERE id=$1', [display.id]);
   await assert.rejects(getDisplaySchoolPlanPdfLink(display, planId), isError(404));
