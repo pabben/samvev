@@ -1,6 +1,6 @@
 # MCP operations and school-plan workflow
 
-Status: local candidate at `f9df57f`; the public service remains on source `8391041...` with no MCP endpoint. Migrations 049–053 and `/mcp` are not deployed publicly. Do not use the placeholder `https://samvev.pabben.org/mcp` as if it were live. Client compatibility and scheduled runs are unverified; see [MCP clients](MCP_CLIENTS.md) and the [MCP tool matrix](MCP_TOOL_MATRIX.md).
+Status: local candidate at `43253e3`, with 19 tools; the public service remains on source `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. Migrations 049–055 and `/mcp` are not deployed publicly. Do not use the placeholder `https://samvev.pabben.org/mcp` as if it were live. Draft PR #35 is not a deployment. Client compatibility and scheduled runs are unverified; see [MCP clients](MCP_CLIENTS.md) and the [MCP tool matrix](MCP_TOOL_MATRIX.md).
 
 ## OAuth and resource policy
 
@@ -13,6 +13,12 @@ Authorization codes, access tokens and refresh tokens are stored as hashes. Refr
 Migration 050 keys a plan to an approved household/person/source/year/week. CAS revisions protect updates. A failed check to an existing plan retains its last-good content and marks the plan stale; never call stale data current. Display access requires explicit display/resource grants.
 
 Migration 051 stores one bounded original PDF snapshot per plan and content revision. `school.plans.verify_pdf` fetches only the exact PDF link found on the approved same-origin class page, validates the bounded PDF bytes, records SHA-256 and verification time, and rechecks the plan revision and live authorization after the fetch. This establishes byte identity and provenance only; it does not determine whether the PDF means the right class, dates, or week. The MCP tool returns verification metadata, not PDF bytes or extracted text.
+
+## Calendar and message reads
+
+`household.messages.list` requires `mcp:messages:read` and follows the signed-in member's existing message visibility. Person-recipient messages additionally require that person to be explicitly included in the OAuth grant. It is read-only; no MCP tool creates, edits, withdraws, schedules, or publishes notices.
+
+`calendar.events.list` requires `mcp:calendar:read` and is bounded to upcoming events, at most 31 days and 50 results per request. It reads only explicitly granted people and calendar-source resources that remain enabled, connected, and visible to the member. It does not expose connection credentials or administer calendars. Migration 054 adds the message-read scope; migration 055 permits calendar-source OAuth resources and adds the calendar-read scope. Both are candidate-only.
 
 The member and paired-display school-week UI uses a protected same-origin API route to retrieve a verified snapshot. It shows the open-PDF action only when snapshot and sharing policy allow it. The browser opens an object URL in a new tab and provides a download fallback if opening is blocked. The paired display requires both the plan's display target and the source/connection display grant. The viewer is for a person to inspect the source; it does not make the PDF's contents available to an MCP model.
 
@@ -28,7 +34,7 @@ Use only after the approved source, class and the client's household/person/reso
 >
 > For a verified page-derived plan, call `school.plans.get` or `school.plans.list` to obtain the current revision, then call `school.plans.upsert` with that CAS revision and the observed time, source revision, verified class/year/week, and uncertainty. For a revision conflict, reload and re-evaluate; never invent a revision. If an existing plan's source is unavailable or unreadable, call `school.plans.source_failure` with the correct existing revision, check time, and failure reason. This operation cannot record a failure for a week with no plan yet; in that case, report the problem and make no upsert.
 >
-> Preserve all existing Samvev notifications exactly, including audience, delivery state and expiry. No MCP message or notification read/write tool is currently registered, so do not claim to have compared notifications and do not send, publish, update, withdraw, delete or broaden any notice. If a verified change may merit a notice, prepare a text-only draft for adult review and state that notification comparison/publication was unavailable. Do not invent dates, events, or packing instructions.
+> Preserve all existing Samvev notifications exactly, including audience, delivery state and expiry. If authorized, use `household.messages.list` to inspect only messages visible to this member and the people explicitly granted to this client; state that scope when comparing. Do not claim a complete comparison beyond those visible messages. There is no MCP message-write tool: do not send, publish, update, withdraw, delete or broaden a notice. If a verified change may merit a notice, prepare a text-only draft for adult review. Do not invent dates, events, or packing instructions.
 
 ## Migration and rollback
 
@@ -39,8 +45,10 @@ Use only after the approved source, class and the client's household/person/reso
 | 051 | Bounded PDF snapshots linked to exact plan content revision and URL. | Keep snapshots with additive schema. Viewer access still rechecks current authorization; no public behavior is established. |
 | 052 | Separate people, grocery-read and dinner-read scopes. | Keep the expanded scope catalog; missing scope consent remains default-deny. |
 | 053 | Grocery/dinner write scopes and dinner-assignment actor check expanded to include integration actors. | Keep the widened check. After delegated board writes, do not roll back to code that has not been validated to read/replay integration-authored assignment metadata. Prefer forward recovery. |
+| 054 | Adds the household-message read scope. | Keep the additive scope catalog entry; the tool remains read-only and grant-bounded. |
+| 055 | Allows `calendar_source` OAuth resource grants and adds calendar-read scope. | Keep the expanded resource-kind constraint and scope catalog. Do not assume an older build can interpret calendar resource grants; revoke MCP grants before code rollback. |
 
-For code rollback, first revoke relevant grants and stop/restart MCP clients so cached access tokens cannot continue. Preserve schema/data. Do not apply destructive down migrations or restore an old database over newer writes as routine rollback. A database restore requires a verified backup and the repository's scoped recovery procedure. Public rollback from schema 53 to source `8391041...` is not validated; in particular, board writes can leave actor records that older code may not understand.
+For code rollback, first revoke relevant grants and stop/restart MCP clients so cached access tokens cannot continue. Preserve schema/data. Do not apply destructive down migrations or restore an old database over newer writes as routine rollback. A database restore requires a verified backup and the repository's scoped recovery procedure. Public rollback from schema 55 to source `8391041...` is not validated; board writes can leave actor records older code may not understand, and older code may not understand calendar-source resource grants.
 
 ## MCP versus internal AI
 
@@ -48,4 +56,4 @@ MCP is a user-delegated external client surface: the household administrator con
 
 ## Release checks still required
 
-The local candidate does not complete issue #33. Before public use, verify migrations 049–053 on a clean/restored database, exact OAuth metadata/redirect/resource/audience behavior, grant revocation and refresh replay, all 17 tool scopes and resource filters, board-write idempotency/CAS, PDF fetch bounds/revision fencing and browser fallback, UI/API/MCP parity, Home Assistant dashboard integration, and real-client interoperability. Test scheduled invocation separately; MCP transport support alone does not establish it. No production deployment or live client test is claimed here.
+The local candidate does not complete issue #33. Before public use, verify migrations 049–055 on a clean/restored database, exact OAuth metadata/redirect/resource/audience behavior, grant revocation and refresh replay, all 19 tool scopes and resource filters, board-write idempotency/CAS, calendar/message audience filtering, PDF fetch bounds/revision fencing and browser fallback, UI/API/MCP parity, Home Assistant dashboard integration, and real-client interoperability. Test scheduled invocation separately; MCP transport support alone does not establish it. No production deployment or live client test is claimed here.
