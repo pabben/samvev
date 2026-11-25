@@ -7,6 +7,7 @@ import { opaqueToken, tokenHash } from '@samvev/core';
 import { buildApp } from './app.ts';
 import { pool } from './db.ts';
 import { migrate } from './db/migrate.ts';
+import { assertMcpSchoolAuthority } from './mcp/service.ts';
 
 const origin='https://samvev.test.invalid',callback='https://school-client.test.invalid/oauth/callback';
 const page1='https://school.example.invalid/classes/synthetic-1a/',pdf1='https://school.example.invalid/files/week-53.pdf';
@@ -58,7 +59,7 @@ test('school MCP, browser member and display routes enforce live multi-connectio
   const throttled=await call(token,'school.plans.verify_pdf',{sourceId:source1,isoYear:2020,isoWeek:53,expectedRevision:2},22);assert.equal(throttled.statusCode,200,throttled.body);assert.equal(rpc(throttled).result.isError,true,throttled.body);assert.match(rpc(throttled).result.content[0].text,/RATE_LIMITED/);assert.equal(pdfFetches,1,'the per-grant/source limiter rejects before another external fetch');
   source2=(await approveSource(connection2,'synthetic-2b',page2)).id;await grantPolicy([personId],[displayId],[source1,source2]);token=await authorize('mcp:school-plans:read mcp:school-plans:write',3);
   const second=await call(token,'school.plans.upsert',planInput(source2,page2,pdf2,personId,displayId,true),5);assert.equal(second.statusCode,200,second.body);
-  const listed=await call(token,'school.plans.list',{limit:20},6);assert.equal(listed.statusCode,200,listed.body);assert.equal(rpc(listed).result.structuredContent.plans.length,2,'one grant can safely aggregate two source connections');
+  const listed=await call(token,'school.plans.list',{limit:10},6);assert.equal(listed.statusCode,200,listed.body);assert.equal(rpc(listed).result.structuredContent.plans.length,2,'one grant can safely aggregate two source connections');
   const member=await inject({method:'GET',url:`/api/v1/households/${householdId}/school-plans`,headers:{cookie:adminCookie}});assert.equal(member.statusCode,200,member.body);assert.equal(member.json().plans.length,2);assert.doesNotMatch(member.body,/sourcePageUrl|pdfUrl|school\.example/);assert.deepEqual(new Set(member.json().plans.map((plan:any)=>plan.pdfStatus)),new Set(['server_verified','unverified_link']));assert.ok(member.json().plans.every((plan:any)=>plan.pdfLinkAvailable=== (plan.pdfStatus==='server_verified')));
   const one=await inject({method:'GET',url:`/api/v1/households/${householdId}/school-plans/${plan1}`,headers:{cookie:adminCookie}});assert.equal(one.statusCode,200,one.body);assert.equal(one.json().plan.id,plan1);assert.doesNotMatch(one.body,/sourcePageUrl|pdfUrl/);
   const memberPdf=await inject({method:'GET',url:`/api/v1/households/${householdId}/school-plans/${plan1}/pdf`,headers:{cookie:adminCookie}});assert.equal(memberPdf.statusCode,200,memberPdf.body);assert.equal(memberPdf.headers['content-type'],'application/pdf');assert.deepEqual(memberPdf.rawPayload,pdfBytes);
@@ -66,7 +67,34 @@ test('school MCP, browser member and display routes enforce live multi-connectio
   const displayPdf=await inject({method:'GET',url:`/api/v1/display/school-plans/${plan1}/pdf`,headers:{cookie:`samvev_display=${displayToken}`}});assert.equal(displayPdf.statusCode,200,displayPdf.body);assert.deepEqual(displayPdf.rawPayload,pdfBytes);
   const activity=await inject({method:'GET',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/activity`,headers:{cookie:adminCookie}});assert.equal(activity.statusCode,200,activity.body);assert.ok(activity.json().activity.some((entry:any)=>entry.action==='mcp.school_plan_upserted'));assert.ok(activity.json().activity.some((entry:any)=>entry.action==='mcp.people_listed'));assert.doesNotMatch(activity.body,/sourcePageUrl|pdfUrl|metadata|school\.example/);
   assert.equal((await inject({method:'GET',url:`/api/v1/households/${foreignHouseholdId}/mcp/authorizations/${grantId}/activity`,headers:{cookie:adminCookie}})).statusCode,404);
-  const revoked=await inject({method:'DELETE',url:`/api/v1/households/${householdId}/school-plan-sources/${source1}`,headers:adminHeaders()});assert.equal(revoked.statusCode,204,revoked.body);
+  let release!:()=>void,entered!:()=>void;
+  const hold=new Promise<void>((resolve)=>{release=resolve;}),selected=new Promise<void>((resolve)=>{entered=resolve;});
+  const query=pool.query;
+  (pool as any).query=async(...args:any[])=>{
+    const result=await (query as any).apply(pool,args);
+    if(typeof args[0]==='string'&&args[0].includes('SELECT snapshot.bytes')){entered();await hold;}
+    return result;
+  };
+  let revoked;
+  try{
+    const inFlight=inject({method:'GET',url:`/api/v1/display/school-plans/${plan1}/pdf`,headers:{cookie:`samvev_display=${displayToken}`}});
+    await Promise.race([selected,new Promise((_,reject)=>setTimeout(()=>reject(new Error('PDF SELECT barrier not reached')),4_000))]);
+    revoked=await inject({method:'DELETE',url:`/api/v1/households/${householdId}/school-plan-sources/${source1}`,headers:adminHeaders()});
+    release();
+    const fenced=await inFlight;assert.equal(fenced.statusCode,409,'a source revoked after SELECT must not send child PDF bytes');assert.doesNotMatch(fenced.body,/^%PDF/);
+  }finally{release();(pool as any).query=query;}
+  assert.equal(revoked?.statusCode,204,revoked?.body);
+  assert.equal((await pool.query(`SELECT 1 FROM school_plan_pdf_snapshots WHERE plan_id=$1`,[plan1])).rowCount,0,'revocation purges the retained child PDF bytes');
   const staleGrant=(await inject({method:'GET',url:`/api/v1/households/${householdId}/mcp/authorizations`,headers:{cookie:adminCookie}})).json().authorizations[0];const preserveRevoked=await inject({method:'PUT',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/policy`,headers:adminHeaders(),payload:{expectedRevision:staleGrant.revision,scopes:staleGrant.scopes,personIds:[personId],displayIds:[displayId],resources:[{kind:'school_source',id:source1},{kind:'school_source',id:source2}]}});assert.equal(preserveRevoked.statusCode,400,preserveRevoked.body);assert.equal(preserveRevoked.json().error.details.reason,'revoked_source_remove_first');
   assert.equal((await inject({method:'GET',url:`/api/v1/display/school-plans/${plan1}/pdf`,headers:{cookie:`samvev_display=${displayToken}`}})).statusCode,404);const after=await inject({method:'GET',url:'/api/v1/display/school-plans',headers:{cookie:`samvev_display=${displayToken}`}});assert.equal(after.statusCode,200,after.body);assert.equal(after.json().plans.length,1);
+  const active=(await pool.query<{id:string;account_id:string;membership_id:string;installation_id:string;client_id:string;token_set_id:string}>(`
+    SELECT grant_row.id,grant_row.account_id,grant_row.membership_id,grant_row.installation_id,grant_row.client_id,token_set.id token_set_id
+    FROM mcp_oauth_token_sets token_set JOIN mcp_oauth_grants grant_row ON grant_row.id=token_set.grant_id
+    WHERE token_set.access_token_hash=$1`,[tokenHash(token)])).rows[0]!;
+  const current=(await inject({method:'GET',url:`/api/v1/households/${householdId}/mcp/authorizations`,headers:{cookie:adminCookie}})).json().authorizations[0];
+  const narrowed=await inject({method:'PUT',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/policy`,headers:adminHeaders(),payload:{expectedRevision:current.revision,scopes:['mcp:school-plans:read'],personIds:[personId],displayIds:[displayId],resources:[{kind:'school_source',id:source2}]}});assert.equal(narrowed.statusCode,200,narrowed.body);
+  const stalePrincipal={token,tokenSetId:active.token_set_id,grantId,clientDatabaseId:active.client_id,clientId,accountId:active.account_id,membershipId:active.membership_id,householdId,installationId:active.installation_id,scopes:['mcp:school-plans:read','mcp:school-plans:write'] as any,expiresAt:new Date(Date.now()+60_000)};
+  const client=await pool.connect();try{
+    await assert.rejects(assertMcpSchoolAuthority(client,stalePrincipal,{write:true,personIds:[personId],sourceIds:[source2],displayIds:[displayId]}),{code:'FORBIDDEN'});
+  }finally{client.release();}
 });

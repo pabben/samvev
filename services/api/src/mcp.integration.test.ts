@@ -49,6 +49,8 @@ test('OAuth discovery, staged login, PKCE, protocol and refresh replay are enfor
   const wrong=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:form({grant_type:'authorization_code',client_id:clientId,code,redirect_uri:callback,code_verifier:'wrong-verifier-value-abcdefghijklmnopqrstuvwxyz-012345',resource:`${origin}/mcp`})});assert.equal(wrong.statusCode,400);assert.equal(wrong.json().error,'invalid_grant');const issued=await exchange(code,verifier);assert.match(issued.access_token,/^smcp_at_/);assert.match(issued.refresh_token,/^smcp_rt_/);
   const duplicate=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:`grant_type=refresh_token&client_id=${encodeURIComponent(clientId)}&client_id=duplicate&refresh_token=${encodeURIComponent(issued.refresh_token)}&resource=${encodeURIComponent(`${origin}/mcp`)}`});assert.equal(duplicate.statusCode,400);
   const invalid=await mcp('smcp_at_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG',{jsonrpc:'2.0',id:1,method:'ping'});assert.equal(invalid.statusCode,401);assert.match(String(invalid.headers['www-authenticate']),/oauth-protected-resource\/mcp/);
+  const invalidBudget=await pool.query<{attempts:number}>(`SELECT attempts FROM rate_limits WHERE bucket='mcp_request_ip' AND key_hash=$1`,[tokenHash('127.0.0.1')]);
+  assert.ok((invalidBudget.rows[0]?.attempts??0)>0,'invalid bearer requests are charged to the IP budget before token lookup');
   const legacy='legacy-integration-token-abcdefghijklmnopqrstuvwxyz012345';const connection=(await pool.query(`INSERT INTO integration_connections(household_id,name) VALUES($1,'Legacy token fixture') RETURNING id`,[householdId])).rows[0].id;await pool.query(`INSERT INTO integration_credentials(connection_id,name,token_hash,capabilities) VALUES($1,'Legacy token',$2,'["integration.items.read"]')`,[connection,tokenHash(legacy)]);assert.equal((await mcp(legacy,{jsonrpc:'2.0',id:2,method:'ping'})).statusCode,401);
   assert.equal((await mcp(issued.access_token,{jsonrpc:'2.0',id:3,method:'ping'},{origin:'https://attacker.invalid'})).statusCode,403);
   const initialized=await mcp(issued.access_token,{jsonrpc:'2.0',id:4,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'synthetic-client',version:'1.0.0'}}});assert.equal(initialized.statusCode,200,initialized.body);assert.equal(rpc(initialized).result.protocolVersion,'2025-11-25');
@@ -85,4 +87,16 @@ test('scope policy supports only CAS narrowing and requires fresh consent to wid
   const fresh=await exchange(await consent(adminCookie,adminCsrf,scopes,'fresh-consent-state-01234567',freshVerifier),freshVerifier);assert.equal((await mcp(fresh.access_token,{jsonrpc:'2.0',id:13,method:'ping'})).statusCode,200,'only a fresh consent can widen and mint a new token');
   const consented=(await inject({method:'GET',url:`/api/v1/households/${householdId}/mcp/authorizations`,headers:{cookie:adminCookie}})).json().authorizations[0];assert.deepEqual(consented.scopes,['mcp:context','mcp:school-plans:read','offline_access']);
   const revoked=await inject({method:'POST',url:`/api/v1/households/${householdId}/mcp/authorizations/${consented.id}/revoke`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin}});assert.equal(revoked.statusCode,204);assert.equal((await mcp(fresh.access_token,{jsonrpc:'2.0',id:14,method:'ping'})).statusCode,401);
+});
+
+test('a pending narrow authorization code cannot inherit a later broader consent',async()=>{
+  const narrowVerifier='narrow-consent-pkce-verifier-abcdefghijklmnopqrstuvwxyz-01';
+  const narrow=await consent(adminCookie,adminCsrf,'mcp:context','narrow-consent-state-012345',narrowVerifier);
+  const broadVerifier='broad-consent-pkce-verifier-abcdefghijklmnopqrstuvwxyz-012';
+  const broad=await consent(adminCookie,adminCsrf,'mcp:context mcp:school-plans:read','broad-consent-state-0123456',broadVerifier);
+  const superseded=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:form({grant_type:'authorization_code',client_id:clientId,code:narrow,redirect_uri:callback,code_verifier:narrowVerifier,resource:`${origin}/mcp`})});
+  assert.equal(superseded.statusCode,400,superseded.body);
+  assert.equal(superseded.json().error,'invalid_grant');
+  const issued=await exchange(broad,broadVerifier);
+  assert.deepEqual(new Set(issued.scope.split(' ')),new Set(['mcp:context','mcp:school-plans:read']));
 });

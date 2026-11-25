@@ -173,15 +173,21 @@ export async function assertMcpSchoolAuthority(client:DbClient,principal:McpPrin
       (SELECT count(*)::int FROM mcp_oauth_grant_displays allowed WHERE allowed.grant_id=oauth_grant.id AND allowed.display_id=ANY($5::uuid[])) display_count,
       (SELECT count(*)::int FROM mcp_oauth_grant_resources allowed WHERE allowed.grant_id=oauth_grant.id AND allowed.resource_kind='school_source' AND allowed.resource_id=ANY($6::uuid[])) source_count
     FROM mcp_oauth_grants oauth_grant
+    JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=oauth_grant.id AND token_set.id=$7
     JOIN memberships membership ON membership.id=oauth_grant.membership_id AND membership.household_id=oauth_grant.household_id AND membership.account_id=oauth_grant.account_id
     JOIN accounts account ON account.id=oauth_grant.account_id AND account.disabled_at IS NULL
     JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult'
     WHERE oauth_grant.id=$1 AND oauth_grant.household_id=$2 AND oauth_grant.account_id=$3 AND oauth_grant.revoked_at IS NULL
-      AND membership.capabilities ? 'household.manage' FOR SHARE OF oauth_grant,membership,account`,[principal.grantId,principal.householdId,principal.accountId,personIds,displayIds,sourceIds])).rows[0];
+      AND oauth_grant.scopes ? $8 AND token_set.revoked_at IS NULL AND token_set.access_expires_at>clock_timestamp()
+      AND membership.capabilities ? 'household.manage' FOR SHARE OF oauth_grant,token_set,membership,account`,[principal.grantId,principal.householdId,principal.accountId,personIds,displayIds,sourceIds,principal.tokenSetId,required])).rows[0];
   if(!row||row.person_count!==personIds.length||row.display_count!==displayIds.length||row.source_count!==sourceIds.length)throw new DomainError('FORBIDDEN',403,{reason:'mcp_resource_not_granted'});
 }
 
 const schoolSourceListSchema=z.strictObject({limit:z.number().int().min(1).max(50).default(50)});
+// Aggregation currently reads one bounded source connection at a time. Keep
+// one remote call from multiplying a large result across many connections.
+const schoolPlanMcpListSchema=schoolPlanListSchema.extend({limit:z.number().int().min(1).max(10).default(10)});
+const MAX_MCP_SCHOOL_CONNECTIONS_PER_CALL=4;
 function toolResult(value:Record<string,unknown>){return{content:[{type:'text' as const,text:JSON.stringify(value)}],structuredContent:value};}
 async function mapSequential<T,R>(items:readonly T[],run:(item:T)=>Promise<R>):Promise<R[]>{const results:R[]=[];for(const item of items)results.push(await run(item));return results;}
 
@@ -338,6 +344,11 @@ export class McpOAuthService {
         ON CONFLICT(client_id,membership_id) DO UPDATE SET scopes=EXCLUDED.scopes,revoked_at=NULL,revision=mcp_oauth_grants.revision+1,updated_at=clock_timestamp()
         RETURNING id,revision`,[actor.installationId,context.clientDatabaseId,householdId,authority.membership_id,actor.accountId,JSON.stringify(request.scopes)])).rows[0]!;
       await client.query(`UPDATE mcp_oauth_token_sets SET revoked_at=clock_timestamp() WHERE grant_id=$1 AND revoked_at IS NULL`,[grant.id]);
+      // A code belongs to one consent decision. A later consent for the same
+      // client/membership may replace grant scopes; older codes must never mint
+      // tokens using that newer decision's scopes.
+      await client.query(`UPDATE mcp_oauth_authorization_codes SET consumed_at=clock_timestamp()
+        WHERE grant_id=$1 AND consumed_at IS NULL`,[grant.id]);
       const code=prefixedToken('smcp_ac_');
       await client.query(`INSERT INTO mcp_oauth_authorization_codes(grant_id,code_hash,redirect_uri,code_challenge,resource,expires_at)
         VALUES($1,$2,$3,$4,$5,clock_timestamp()+($6||' seconds')::interval)`,[grant.id,tokenHash(code),request.redirectUri,request.codeChallenge,this.resource,CODE_SECONDS]);
@@ -563,6 +574,7 @@ export class McpOAuthService {
     }
     if(!rows[0]!.person_ids.length)throw new DomainError('FORBIDDEN',403,{reason:'mcp_school_policy_required'});
     const byConnection=new Map<string,string[]>();for(const row of rows)byConnection.set(row.connection_id,[...(byConnection.get(row.connection_id)??[]),row.source_id]);
+    if(byConnection.size>MAX_MCP_SCHOOL_CONNECTIONS_PER_CALL)throw new DomainError('VALIDATION_FAILED',400,{reason:'mcp_school_source_batch_limit',maxConnections:MAX_MCP_SCHOOL_CONNECTIONS_PER_CALL});
     return[...byConnection].map(([connectionId,sourceIds])=>({householdId:principal.householdId,accountId:principal.accountId,membershipId:principal.membershipId,connectionId,
       scopes:principal.scopes,personIds:rows[0]!.person_ids,sourceIds,displayIds:rows[0]!.display_ids,
       authorizeInTransaction:(client,request)=>assertMcpSchoolAuthority(client,principal,{write:request.write,personIds:[...request.personIds],displayIds:[...request.displayIds],sourceIds:[...request.sourceIds]})}));
@@ -603,7 +615,7 @@ export class McpOAuthService {
       server.registerTool('school.sources.list',{description:'List the school sources explicitly granted to this client.',inputSchema:schoolSourceListSchema,scopeChallenge:requireScopes('mcp:school-plans:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
         const actors=await this.schoolActors(principal),sources=(await mapSequential(actors,actor=>listSchoolPlanSources(actor,input.limit))).flat().sort((left,right)=>left.id.localeCompare(right.id)).slice(0,input.limit);await audit(pool,principal,'mcp.school_sources_listed','mcp_oauth_grant',principal.grantId,{count:sources.length});return toolResult({sources});
       });
-      server.registerTool('school.plans.list',{description:'List school plans only for granted people and sources.',inputSchema:schoolPlanListSchema,scopeChallenge:requireScopes('mcp:school-plans:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
+      server.registerTool('school.plans.list',{description:'List up to ten school plans for granted people and sources; filter by source or ISO week for focused queries.',inputSchema:schoolPlanMcpListSchema,scopeChallenge:requireScopes('mcp:school-plans:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{
         const actors=await this.schoolActors(principal,input.sourceId),plans=(await mapSequential(actors,actor=>listSchoolPlans(actor,input))).flat().sort((left,right)=>right.startsOn.localeCompare(left.startsOn)||left.id.localeCompare(right.id)).slice(0,input.limit);await audit(pool,principal,'mcp.school_plans_listed','mcp_oauth_grant',principal.grantId,{count:plans.length});return toolResult({plans});
       });
       server.registerTool('school.plans.get',{description:'Read one school plan by granted source and ISO week.',inputSchema:schoolPlanKeySchema,scopeChallenge:requireScopes('mcp:school-plans:read'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}},async(input)=>{

@@ -222,7 +222,14 @@ export async function revokeSchoolPlanSource(manager: SchoolPlanMember, sourceId
     if (!member.capabilities.includes('household.manage')) throw forbidden();
     const result = await client.query(`UPDATE school_plan_sources SET revoked_at=clock_timestamp()
       WHERE household_id=$1 AND id=$2 AND revoked_at IS NULL`, [manager.householdId, id]);
-    if (result.rowCount === 1) await audit(client, manager, member, 'school_plan_source.revoked', 'school_plan_source', id);
+    if (result.rowCount === 1) {
+      // The last verified text plan remains as history, but the original PDF
+      // can contain more child data and is no longer needed after revocation.
+      await client.query(`DELETE FROM school_plan_pdf_snapshots snapshot USING school_plans plan
+        WHERE snapshot.plan_id=plan.id AND snapshot.household_id=$1 AND plan.household_id=$1 AND plan.source_id=$2`,
+      [manager.householdId, id]);
+      await audit(client, manager, member, 'school_plan_source.revoked', 'school_plan_source', id);
+    }
   });
 }
 

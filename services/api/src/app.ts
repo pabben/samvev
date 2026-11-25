@@ -318,6 +318,13 @@ const displayPolicySql=`jsonb_build_object(
   'actionPolicy',${policyRows('display_action_policies','to_jsonb(policy)','policy.display_id=d.id','policy.display_id')},
   'actionPeople',${policyRows('display_action_people','to_jsonb(policy)','policy.display_id=d.id','policy.person_id')},
   'actionDisplays',${policyRows('display_action_displays',`jsonb_build_array(policy.recipient_display_id,(SELECT jsonb_build_array(recipient.revoked_at,recipient.credential_expires_at) FROM displays recipient WHERE recipient.id=policy.recipient_display_id AND recipient.household_id=d.household_id))`,'policy.display_id=d.id','policy.recipient_display_id')},
+  'schoolPlanTargets',${policyRows('school_plan_display_targets','to_jsonb(policy)','policy.display_id=d.id','policy.plan_id')},
+  'schoolPlans',${policyRows('school_plans',`jsonb_build_array(policy.id,policy.source_id,policy.person_id,policy.connection_id,policy.revision,policy.content_hash,policy.pdf_url)`,
+    'EXISTS(SELECT 1 FROM school_plan_display_targets target WHERE target.household_id=d.household_id AND target.display_id=d.id AND target.plan_id=policy.id)','policy.id')},
+  'schoolSources',${policyRows('school_plan_sources',`jsonb_build_array(policy.id,policy.revoked_at,policy.display_pdf_links_allowed)`,
+    'EXISTS(SELECT 1 FROM school_plans plan JOIN school_plan_display_targets target ON target.plan_id=plan.id AND target.household_id=plan.household_id WHERE target.household_id=d.household_id AND target.display_id=d.id AND plan.source_id=policy.id)','policy.id')},
+  'schoolPdfSnapshots',${policyRows('school_plan_pdf_snapshots',`jsonb_build_array(policy.plan_id,policy.sha256,policy.plan_content_revision,policy.pdf_url)`,
+    'EXISTS(SELECT 1 FROM school_plan_display_targets target WHERE target.household_id=d.household_id AND target.display_id=d.id AND target.plan_id=policy.plan_id)','policy.plan_id')},
   'mediaGrants',${policyRows('media_album_display_grants','to_jsonb(policy)','policy.display_id=d.id','policy.album_id')},
   'mediaSettings',${policyRows('media_household_settings','to_jsonb(policy)','true','policy.household_id')},
   'controlGrants',${policyRows('home_assistant_control_display_grants','to_jsonb(policy)','policy.display_id=d.id','policy.entity_id')},
@@ -1289,13 +1296,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     catch(error){return oauthFailure(reply,error);}
   });
   app.route({method:['GET','POST','DELETE'],url:'/mcp',handler:async(request,reply)=>{
+    // An invalid bearer token still causes a database lookup. Bound that
+    // unauthenticated path before verifying it, including on GET and DELETE.
+    await durableRateLimit('mcp_request_ip',request.ip,240,60);
     let principal;
     try{principal=await mcp.verifyAccessToken(request.headers.authorization);}
     catch(error){
       if(!(error instanceof OAuthProtocolError))throw error;
       return reply.status(401).header('Cache-Control','no-store').header('WWW-Authenticate',`Bearer resource_metadata="${mcp.resourceMetadataUrl}", error="invalid_token"`).send({error:'invalid_token',error_description:'The MCP access token is invalid or expired'});
     }
-    await durableRateLimit('mcp_request_grant',principal.grantId,120,60);await durableRateLimit('mcp_request_ip',request.ip,240,60);
+    await durableRateLimit('mcp_request_grant',principal.grantId,120,60);
     const headers=new Headers();
     for(const [name,value] of Object.entries(request.headers)){if(Array.isArray(value))for(const item of value)headers.append(name,item);else if(value!==undefined)headers.set(name,String(value));}
     const webRequest=new Request(new URL(request.url,runtime.publicOrigin),{method:request.method,headers});
