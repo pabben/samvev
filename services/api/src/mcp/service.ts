@@ -605,14 +605,32 @@ export class McpOAuthService {
   private createServer(authInfo:AuthInfo|undefined):McpServer{
     const server=new McpServer({name:'samvev',version:'0.1.0'});
     const principal=principalFromAuthInfo(authInfo);
-    const householdId=String(authInfo?.extra?.householdId??'');
     server.registerTool('samvev_context',{
       title:'Samvev authorization context',description:'Show the household and scopes authorized for this MCP connection.',inputSchema:{householdId:z.string().uuid().optional()},scopeChallenge:requireScopes('mcp:context'),annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false}
     },async(input)=>{
-      if(input.householdId&&input.householdId!==householdId)return{isError:true,content:[{type:'text',text:'Household is not available to this authorization.'}]};
-      const household=(await pool.query<{id:string;name:string;timezone:string;default_locale:string}>(`SELECT id,name,timezone,default_locale FROM households WHERE id=$1`,[householdId])).rows[0];
-      if(!household)return{isError:true,content:[{type:'text',text:'Authorization is no longer available.'}]};
-      return{content:[{type:'text',text:JSON.stringify({household,scopes:authInfo?.scopes??[]})}],structuredContent:{household,scopes:authInfo?.scopes??[]}};
+      if(!principal||input.householdId&&input.householdId!==principal.householdId)return{isError:true,content:[{type:'text',text:'Household is not available to this authorization.'}]};
+      return transaction(async(client)=>{
+        const row=(await client.query<{id:string;name:string;timezone:string;default_locale:string;grant_scopes:string[];token_scopes:string[]}>(`
+          SELECT household.id,household.name,household.timezone,household.default_locale,
+            oauth_grant.scopes AS grant_scopes,token_set.scopes AS token_scopes
+          FROM mcp_oauth_grants oauth_grant
+          JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=oauth_grant.id AND token_set.id=$5
+          JOIN mcp_oauth_clients oauth_client ON oauth_client.id=oauth_grant.client_id AND oauth_client.revoked_at IS NULL
+          JOIN memberships membership ON membership.id=oauth_grant.membership_id AND membership.household_id=oauth_grant.household_id AND membership.account_id=oauth_grant.account_id
+          JOIN accounts account ON account.id=oauth_grant.account_id AND account.disabled_at IS NULL
+          JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult'
+          JOIN households household ON household.id=oauth_grant.household_id AND household.installation_id=$6
+          WHERE oauth_grant.id=$1 AND oauth_grant.household_id=$2 AND oauth_grant.account_id=$3 AND oauth_grant.membership_id=$4
+            AND oauth_grant.revoked_at IS NULL AND oauth_grant.scopes ? 'mcp:context'
+            AND token_set.revoked_at IS NULL AND token_set.access_expires_at>clock_timestamp() AND token_set.scopes ? 'mcp:context'
+            AND membership.capabilities ? 'household.manage'
+          FOR SHARE OF oauth_grant,token_set,oauth_client,membership,account,person,household`,
+        [principal.grantId,principal.householdId,principal.accountId,principal.membershipId,principal.tokenSetId,principal.installationId])).rows[0];
+        if(!row)return{isError:true,content:[{type:'text',text:'Authorization is no longer available.'}]};
+        const {grant_scopes,token_scopes,...household}=row;
+        const scopes=principal.scopes.filter(scope=>grant_scopes.includes(scope)&&token_scopes.includes(scope));
+        return toolResult({household,scopes});
+      });
     });
     if(principal){
       server.registerTool('samvev_monitors_list',{
