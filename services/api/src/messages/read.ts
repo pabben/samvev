@@ -39,9 +39,7 @@ export async function listMessages(client: Pick<DbClient, 'query'>, actor: Messa
           OR ($5::uuid IS NOT NULL AND EXISTS(SELECT 1 FROM mcp_oauth_grant_people allowed
             WHERE allowed.grant_id=$5 AND allowed.household_id=m.household_id AND allowed.person_id=pa.person_id))
         )
-      )) AND ($5::uuid IS NULL OR m.audience_household OR NOT EXISTS(
-        SELECT 1 FROM message_person_audiences any_audience WHERE any_audience.message_id=m.id AND any_audience.household_id=m.household_id
-      ) OR EXISTS(
+      )) AND ($5::uuid IS NULL OR m.audience_household OR EXISTS(
         SELECT 1 FROM message_person_audiences granted_audience JOIN mcp_oauth_grant_people allowed
           ON allowed.grant_id=$5 AND allowed.household_id=m.household_id AND allowed.person_id=granted_audience.person_id
         WHERE granted_audience.message_id=m.id AND granted_audience.household_id=m.household_id

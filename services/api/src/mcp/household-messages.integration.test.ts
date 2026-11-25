@@ -54,9 +54,13 @@ test('MCP message reads preserve household visibility and require explicit grant
   const householdMessage=await createMessage('Synthetic household audience message',{household:true,personIds:[]},'household-message-001');
   const grantedMessage=await createMessage('Synthetic granted recipient message',{household:false,personIds:[grantedPersonId]},'granted-message-001');
   const deniedMessage=await createMessage('Synthetic denied recipient message',{household:false,personIds:[deniedPersonId]},'denied-message-001');
+  const displayId=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme) VALUES($1,'Synthetic private display','en','system') RETURNING id`,[householdId])).rows[0]!.id;
+  const displayOnlyMessage=(await pool.query<{id:string}>(`INSERT INTO messages(household_id,author_membership_id,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at)
+    VALUES($1,$2,'Synthetic display-only private message','normal',false,clock_timestamp(),clock_timestamp()+interval '1 day','published','display-only-message-001',clock_timestamp()) RETURNING id`,[householdId,membershipId])).rows[0]!.id;
+  await pool.query(`INSERT INTO message_display_targets(household_id,message_id,display_id) VALUES($1,$2,$3)`,[householdId,displayOnlyMessage,displayId]);
   const memberList=await inject({method:'GET',url:`/api/v1/households/${householdId}/messages`,headers:{cookie:adminCookie}});assert.equal(memberList.statusCode,200,memberList.body);
   const routeIds=memberList.json().messages.map((message:{id:string})=>message.id);
-  assert.ok(routeIds.includes(householdMessage)&&routeIds.includes(grantedMessage)&&routeIds.includes(deniedMessage),'the existing household member route retains its visibility policy');
+  assert.ok(routeIds.includes(householdMessage)&&routeIds.includes(grantedMessage)&&routeIds.includes(deniedMessage)&&routeIds.includes(displayOnlyMessage),'the existing household member route retains its visibility policy');
 
   let token=await authorize(1);
   const grant=(await pool.query<{id:string;revision:number}>('SELECT id,revision FROM mcp_oauth_grants WHERE household_id=$1',[householdId])).rows[0]!;
@@ -68,6 +72,7 @@ test('MCP message reads preserve household visibility and require explicit grant
   assert.ok(result.some(message=>message.id===householdMessage),'household audience remains visible');
   assert.ok(result.some(message=>message.id===grantedMessage),'an explicitly granted person audience is visible');
   assert.ok(!result.some(message=>message.id===deniedMessage),'an ungranted person recipient stays hidden even from the message author');
+  assert.ok(!result.some(message=>message.id===displayOnlyMessage),'a display-only message stays hidden without an explicit display grant');
   assert.ok(result.every(message=>!message.person_ids?.includes(deniedPersonId)),'ungranted recipient identifiers are redacted');
   assert.equal(listed.body.includes(foreignBody),false,'a different household is isolated');
   assert.equal(result.find(message=>message.id===grantedMessage)?.can_edit,false,'read-only MCP results never advertise edit authority');
