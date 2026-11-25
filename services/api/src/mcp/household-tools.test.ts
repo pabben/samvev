@@ -24,7 +24,8 @@ function dependencies(options: { allowed?: boolean; people?: unknown[] } = {}) {
   const calls: Array<{ sql: string; values?: unknown[] }> = [];
   const client = { async query(sql: string, values?: unknown[]) {
     calls.push({ sql, values });
-    if (sql.includes('FROM mcp_oauth_grants')) return { rows: [{ allowed: options.allowed ?? true }] };
+    if (sql.includes('FROM mcp_oauth_grants')) return { rows: [{ allowed: options.allowed ?? true, person_id: '77777777-7777-4777-8777-777777777777' }] };
+    if (sql.includes('FROM messages m')) return { rows: [{ id: 'synthetic-message', body: 'Synthetic household message' }] };
     if (sql.includes('FROM mcp_oauth_grant_people')) return { rows: options.people ?? [{ id: 'person-granted', displayName: 'Granted member', ageGroup: 'adult' }] };
     if (sql.includes('household_grocery_items')) return { rows: [{ id: 'grocery-1', label: 'Synthetic apples', checked: false }] };
     if (sql.includes('household_dinner_assignments')) return { rows: [{ localDate: '2027-03-20', title: 'Synthetic soup' }] };
@@ -50,6 +51,28 @@ test('a revoked, cross-household, or insufficient-scope grant returns no private
   registerHouseholdTools(tools, context, fake.deps);
   await assert.rejects(tools.get('household.groceries.list')({}), (error: unknown) => error instanceof DomainError && error.status === 403);
   assert.equal(fake.calls.length, 1, 'no household data query follows failed live authorization');
+});
+
+test('message list uses the current member identity and exact granted-person resource boundary', async () => {
+  const tools = new Tools(), fake = dependencies();
+  registerHouseholdTools(tools, context, fake.deps);
+  const result = await tools.get('household.messages.list')({}) as { messages: Array<Record<string, unknown>> };
+  assert.deepEqual(result.messages, [{ id: 'synthetic-message', body: 'Synthetic household message' }]);
+  assert.deepEqual(tools.options.get('household.messages.list')?.requiredScopes, ['mcp:messages:read']);
+  assert.equal(tools.options.get('household.messages.list')?.readOnlyHint, true);
+  assert.equal(fake.calls.length, 2);
+  assert.match(fake.calls[0]!.sql, /token_set\.revoked_at IS NULL/);
+  assert.match(fake.calls[0]!.sql, /grant_row\.scopes \?& \$5::text\[\]/);
+  assert.match(fake.calls[1]!.sql, /mcp_oauth_grant_people allowed/);
+  assert.match(fake.calls[1]!.sql, /allowed\.grant_id=\$5 AND allowed\.household_id=m\.household_id/);
+  assert.deepEqual(fake.calls[1]!.values, [principal.householdId, false, principal.membershipId, '77777777-7777-4777-8777-777777777777', principal.grantId, principal.grantId]);
+});
+
+test('message list stops before reading when scope, token, account, membership, or household authority is stale', async () => {
+  const tools = new Tools(), fake = dependencies({ allowed: false });
+  registerHouseholdTools(tools, context, fake.deps);
+  await assert.rejects(tools.get('household.messages.list')({}), (error: unknown) => error instanceof DomainError && error.status === 403);
+  assert.equal(fake.calls.length, 1, 'no message query follows failed live authorization');
 });
 
 test('board reads require live household.manage plus their distinct MCP consent scopes', async () => {

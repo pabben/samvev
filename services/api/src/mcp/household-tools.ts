@@ -3,6 +3,7 @@ import { dinnerAssignmentSchema, groceryCreateSchema, groceryUpdateSchema } from
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
+import { listMessages } from '../messages/read.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
  * still authoritative: every invocation rechecks the grant and membership. */
@@ -38,11 +39,11 @@ const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
 const MAX_DINNER_DAYS = 31;
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write';
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:messages:read' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write';
 type Capability = 'household.view' | 'household.manage';
 
-async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<void> {
-  const result = await client.query<{ allowed: boolean }>(`SELECT (
+async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<string> {
+  const result = await client.query<{ allowed: boolean; person_id: string }>(`SELECT (
       grant_row.id IS NOT NULL
       AND grant_row.revoked_at IS NULL
       AND grant_row.scopes ?& $5::text[]
@@ -53,7 +54,7 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
       AND person.age_group = 'adult'
       AND account.disabled_at IS NULL
       AND household.installation_id = $4
-    ) AS allowed
+    ) AS allowed,membership.person_id
     FROM mcp_oauth_grants grant_row
     JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=grant_row.id AND token_set.id=$8
     JOIN memberships membership ON membership.id=grant_row.membership_id AND membership.household_id=grant_row.household_id AND membership.account_id=grant_row.account_id
@@ -63,7 +64,9 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
     WHERE grant_row.id=$1 AND grant_row.household_id=$2 AND grant_row.account_id=$3 AND grant_row.membership_id=$7
     FOR SHARE OF grant_row,token_set,membership,person,account,household`,
     [principal.grantId, principal.householdId, principal.accountId, principal.installationId, scopes, capability, principal.membershipId, principal.tokenSetId]);
-  if (!result.rows[0]?.allowed) throw new DomainError('FORBIDDEN', 403);
+  const row = result.rows[0];
+  if (!row?.allowed || !uuid.safeParse(row.person_id).success) throw new DomainError('FORBIDDEN', 403);
+  return row.person_id;
 }
 
 function withinDateWindow(from: string, to: string): boolean {
@@ -72,9 +75,9 @@ function withinDateWindow(from: string, to: string): boolean {
   return Number.isInteger(days) && days >= 1 && days <= MAX_DINNER_DAYS;
 }
 
-/** Register the safe, read-only household subset. Private calendar and message
- * tools intentionally wait for resource grants and the existing audience
- * reader policy to be exposed as reusable domain services. */
+/** Register the safe household subset. Calendar access remains separately
+ * scoped to explicit source resources; message reads share the member audience
+ * policy and narrow person recipients to explicit OAuth grants. */
 export function registerHouseholdTools(
   registrar: HouseholdMcpToolRegistrar,
   context: HouseholdMcpToolContext,
@@ -114,6 +117,21 @@ export function registerHouseholdTools(
         WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2
         ORDER BY person.display_name,person.id LIMIT 100 FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId]);
       return { people: result.rows };
+    });
+  });
+
+  registrar.registerTool('household.messages.list', {
+    description: 'List messages visible to this household member, including household messages and messages for people explicitly granted to this OAuth authorization.',
+    inputSchema: emptyInput, requiredScopes: ['mcp:messages:read'], readOnlyHint: true, destructiveHint: false
+  }, async (raw) => {
+    emptyInput.parse(raw);
+    return dependencies.transaction(async (client) => {
+      const personId = await assertLiveAuthority(client, principal, ['mcp:messages:read'], 'household.view');
+      const messages = await listMessages(client, {
+        householdId: principal.householdId, membershipId: principal.membershipId, personId,
+        manageHousehold: false, mcpGrantId: principal.grantId
+      });
+      return { messages };
     });
   });
 

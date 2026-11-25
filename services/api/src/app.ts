@@ -31,6 +31,7 @@ import {
   tokenHash, validateIanaTimezone, verifyLoginPassword
 } from '@samvev/core';
 import { pool, transaction, type DbClient } from './db.ts';
+import { listMessages } from './messages/read.ts';
 import { ProjectionEventFanout } from './projection-events.ts';
 import { AiAdminService } from './ai/admin-service.ts';
 import type { AiHttpTransport } from './ai/openai-provider.ts';
@@ -2867,19 +2868,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/households/:householdId/messages', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.view');
-    const all = auth.capabilities.includes('message.manage.household');
-    const result = await pool.query(`SELECT m.id,m.body,m.importance,m.audience_household,m.publish_at,m.expires_at,m.state,m.revision,m.created_at,m.updated_at,
-      COALESCE(p.display_name,m.author_display_name,m.author_integration_name) AS author_name,CASE WHEN m.author_integration_id IS NOT NULL THEN 'integration' WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,COALESCE((m.author_membership_id=$3 OR $2),false) AS can_edit,
-      COALESCE((SELECT json_agg(person_id) FROM message_person_audiences WHERE message_id=m.id),'[]') AS person_ids,
-      COALESCE((SELECT json_agg(display_id) FROM message_display_targets WHERE message_id=m.id AND delivery_state<>'cancelled'),'[]') AS display_ids,
-      COALESCE((SELECT json_agg(json_build_object('displayId',display_id,'state',delivery_state,'deliveredAt',delivered_at,'displayedAt',displayed_at,'revision',delivered_revision)) FROM message_display_targets WHERE message_id=m.id),'[]') AS deliveries,
-      COALESCE((SELECT json_agg(json_build_object('action',CASE WHEN e.from_state=e.to_state THEN 'edited' ELSE 'withdrawn' END,'actorName',ep.display_name,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id)
-        FROM message_lifecycle_events e JOIN memberships em ON em.account_id=e.actor_id AND em.household_id=m.household_id JOIN persons ep ON ep.id=em.person_id AND ep.household_id=em.household_id
-        WHERE e.message_id=m.id AND e.actor_type='account' AND (e.from_state=e.to_state OR e.to_state IN ('cancelled','withdrawn'))),'[]') AS activity
-      FROM messages m LEFT JOIN memberships am ON am.id=m.author_membership_id LEFT JOIN persons p ON p.id=am.person_id AND p.household_id=m.household_id
-      WHERE m.household_id=$1 AND ($2 OR m.author_membership_id=$3 OR m.audience_household OR EXISTS(SELECT 1 FROM message_person_audiences pa WHERE pa.message_id=m.id AND pa.person_id=$4))
-      ORDER BY m.created_at DESC LIMIT 200`, [auth.householdId,all,auth.membershipId,auth.personId]);
-    return { messages: result.rows };
+    const messages = await listMessages(pool, {
+      householdId: auth.householdId, membershipId: auth.membershipId, personId: auth.personId,
+      manageHousehold: auth.capabilities.includes('message.manage.household')
+    });
+    return { messages };
   });
 
   app.post('/api/v1/households/:householdId/messages', async (request, reply) => {
