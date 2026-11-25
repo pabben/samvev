@@ -673,6 +673,11 @@ function dateOffset(value:string,offset:number):string{
   const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);
 }
 function weekStart(value:string):string{const day=new Date(`${value}T00:00:00Z`).getUTCDay();return dateOffset(value,-((day+6)%7));}
+function isoWeekIdentity(value:string):{isoYear:number;isoWeek:number}{
+  const monday=weekStart(value),thursday=dateOffset(monday,3),isoYear=Number(thursday.slice(0,4));
+  const firstMonday=weekStart(`${isoYear}-01-04`);
+  return{isoYear,isoWeek:1+Math.round((Date.parse(`${monday}T00:00:00Z`)-Date.parse(`${firstMonday}T00:00:00Z`))/604_800_000)};
+}
 function activityIdFilter(value:unknown,field:string,maximum:number):string[]|undefined{
   if(value===undefined)return undefined;
   const values=typeof value==='string'?value.split(','):Array.isArray(value)?value.flatMap((part)=>typeof part==='string'?part.split(','):[]):[];
@@ -2604,14 +2609,25 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const tag=previewContextTag(preview);const mediaActorDevice={id:preview.id,householdId,setupId:preview.setupId,privacyMode:preview.privacyMode,credentialHash:preview.credentialHash};
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone),weekTo=dateOffset(weekStart(today),6);
-    const [projection,previewMedia,week,next,day,homeAssistantPreview]=await Promise.all([
+    const {isoYear,isoWeek}=isoWeekIdentity(today);
+    const [projection,previewMedia,week,next,day,homeAssistantPreview,previewSchoolPlans]=await Promise.all([
       projectionFor(preview,{markDelivered:false,preview:true,previewTag:tag}),
       media.previewProjection(mediaActor(auth),mediaActorDevice,{cards:preview.cards,albumIds:preview.albumIds,backgroundId:preview.backgroundId},tag),
       !preview.privacyMode&&preview.cards.includes('week')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:weekTo,limit:50,maxDays:7,display:preview}):Promise.resolve(null),
       !preview.privacyMode&&preview.cards.includes('next')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,365),limit:1,maxDays:366,upcomingOnly:true,display:preview}):Promise.resolve(null),
       !preview.privacyMode&&preview.cards.some((card)=>card==='today'||card==='tomorrow')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,1),limit:100,maxDays:2,display:preview}):Promise.resolve(null),
-      !preview.privacyMode&&preview.cards.includes('home_assistant')?homeAssistantControls.previewSnapshot({kind:'display',id:preview.id,credentialHash:preview.credentialHash,householdId:preview.householdId,privacyMode:preview.privacyMode,cards:preview.cards}):Promise.resolve({items:[]})
+      !preview.privacyMode&&preview.cards.includes('home_assistant')?homeAssistantControls.previewSnapshot({kind:'display',id:preview.id,credentialHash:preview.credentialHash,householdId:preview.householdId,privacyMode:preview.privacyMode,cards:preview.cards}):Promise.resolve({items:[]}),
+      !preview.privacyMode&&preview.externalItemsEnabled&&preview.cards.includes('external_items')&&preview.selectedPersonIds.length&&
+        (preview.allSources||preview.sourceIds.length)
+        ?listDisplaySchoolPlans(schoolDisplay(device),{isoYear,isoWeek,limit:20})
+        :Promise.resolve([])
     ]);
+    const allowedPreviewPeople=new Set(preview.selectedPersonIds);
+    const sourceConnections=previewSchoolPlans.length&&!preview.allSources
+      ?(await pool.query<{id:string;connection_id:string}>(`SELECT id,connection_id FROM school_plans WHERE household_id=$1 AND id=ANY($2::uuid[])`,
+        [householdId,previewSchoolPlans.map(plan=>plan.id)])).rows:null;
+    const allowedPreviewPlans=previewSchoolPlans.filter(plan=>allowedPreviewPeople.has(plan.personId)&&
+      (preview.allSources||sourceConnections?.some(row=>row.id===plan.id&&preview.sourceIds.includes(row.connection_id))));
     await transaction(async(client)=>{
       await recheckHouseholdAuth(client,request,auth,'display.manage');
       const live=(await client.query<{privacy_mode:boolean;external_items_enabled:boolean;birthday_mode:string;person_ids_override:string[]|null;credential_generation:number}>(`SELECT privacy_mode,external_items_enabled,birthday_mode,person_ids_override,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId,device.credentialHash])).rows[0];
@@ -2623,7 +2639,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
           AND device.privacy_mode=$7 AND device.external_items_enabled=$8`,[auth.sessionId,householdId,displayId,auth.accountId,auth.membershipId,device.credentialHash,device.privacyMode,device.externalItemsEnabled])).rows[0];
       if(!final)throw new DomainError('NOT_FOUND',404);
     });
-    const safeProjection={...projection,preview:true,media:previewMedia,homeAssistantPreview,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})} as Record<string,any>;
+    const safeProjection={...projection,preview:true,media:previewMedia,homeAssistantPreview,schoolPlans:allowedPreviewPlans,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})} as Record<string,any>;
     safeProjection.actionAvailability={...safeProjection.actionAvailability,newMessage:false,homeAssistantControl:false};
     safeProjection.householdBoards={...safeProjection.householdBoards,writable:{groceries:false,dinners:false}};
     return safeProjection;
