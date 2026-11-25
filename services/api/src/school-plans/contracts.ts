@@ -37,6 +37,7 @@ const week = {
   isoWeek: z.number().int().min(1).max(53),
 };
 export const schoolPlanKeySchema = z.strictObject({ sourceId: uuidSchema, ...week });
+export const schoolPlanVerifyPdfSchema = schoolPlanKeySchema.extend({ expectedRevision: revision.min(1) });
 export const schoolPlanListSchema = z.strictObject({
   personId: uuidSchema.optional(),
   sourceId: uuidSchema.optional(),

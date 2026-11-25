@@ -5,12 +5,21 @@ import type { PoolClient } from 'pg';
 import { pool, transaction } from '../db.ts';
 import {
   isoWeekRange, parseSchoolPlan, schoolPlanDisplayListSchema, schoolPlanKeySchema, schoolPlanListSchema,
-  schoolPlanSourceApprovalSchema, schoolPlanSourceFailureSchema, schoolPlanUpsertSchema,
+  schoolPlanSourceApprovalSchema, schoolPlanSourceFailureSchema, schoolPlanUpsertSchema, schoolPlanVerifyPdfSchema,
   validateCheckTime, validateSchoolPlanContent,
 } from './contracts.ts';
 import type { SchoolPlanDay, SchoolPlanList, SchoolPlanSourceFailure, SchoolPlanUpsert } from './contracts.ts';
+import { MAX_SCHOOL_PDF_BYTES, schoolPdfFetcher, validatePdfBytes } from './pdf-fetcher.ts';
+import type { SchoolPdfFetcher } from './pdf-fetcher.ts';
 
 export type SchoolPlanMember = { householdId: string; accountId: string; membershipId: string };
+
+export type SchoolPlanAuthorityRequest = {
+  write: boolean;
+  personIds: readonly string[];
+  displayIds: readonly string[];
+  sourceIds: readonly string[];
+};
 
 /** Constructed from the authenticated grant by the transport, never from tool input. */
 export type SchoolPlanActor = SchoolPlanMember & {
@@ -19,6 +28,7 @@ export type SchoolPlanActor = SchoolPlanMember & {
   personIds: readonly string[];
   sourceIds: readonly string[];
   displayIds: readonly string[];
+  authorizeInTransaction?: (client: PoolClient, request: SchoolPlanAuthorityRequest) => Promise<void>;
 };
 
 /** Constructed by the paired-display authentication path. */
@@ -39,6 +49,7 @@ type PlanRow = {
   starts_on: string; ends_on: string; content_locale: SchoolPlanUpsert['contentLocale']; days: SchoolPlanDay[];
   source_page_url: string; class_key: string; pdf_url: string | null;
   pdf_status: 'missing' | 'unverified_link';
+  pdf_sha256: string | null; pdf_verified_at: Date | null;
   uncertainty: SchoolPlanUpsert['uncertainty']; source_revision: string;
   observed_at: Date; interpreted_at: Date; last_source_observed_at: Date; last_checked_at: Date;
   source_error: SchoolPlanSourceFailure['reason'] | null;
@@ -47,9 +58,10 @@ type PlanRow = {
 
 const readScope = 'mcp:school-plans:read';
 const writeScope = 'mcp:school-plans:write';
+const maxHouseholdPdfBytes = 100 * 1024 * 1024;
 const notFound = () => new DomainError('NOT_FOUND', 404);
 const forbidden = () => new DomainError('FORBIDDEN', 403);
-const conflict = (reason: 'revision_conflict' | 'source_observation_outdated' | 'source_already_bound', revision?: number) =>
+const conflict = (reason: 'revision_conflict' | 'source_observation_outdated' | 'source_already_bound' | 'pdf_snapshot_conflict', revision?: number) =>
   new DomainError('CONFLICT', 409, revision === undefined ? { reason } : { reason, revision });
 
 const sourceColumns = 'id,household_id,connection_id,person_id,class_key,source_page_url,display_pdf_links_allowed';
@@ -57,15 +69,19 @@ const presentationColumns = `p.id,p.person_id,p.iso_year,p.iso_week,
   to_char(p.week_starts_on,'YYYY-MM-DD') AS starts_on,to_char(p.week_ends_on,'YYYY-MM-DD') AS ends_on,
   p.content_locale,p.days,p.uncertainty,p.last_source_observed_at,p.source_error,p.revision,p.content_revision`;
 const planColumns = `${presentationColumns},p.source_id,p.pdf_url,p.pdf_status,s.source_page_url,s.class_key,
+  snapshot.sha256 AS pdf_sha256,snapshot.verified_at AS pdf_verified_at,
   p.source_revision,p.observed_at,p.interpreted_at,p.last_checked_at,p.content_hash,
   ARRAY(SELECT t.display_id FROM school_plan_display_targets t WHERE t.plan_id=p.id ORDER BY t.display_id) AS display_ids,
   ARRAY(SELECT t.display_id FROM school_plan_display_targets t
     JOIN integration_connection_display_grants g ON g.household_id=t.household_id AND g.display_id=t.display_id AND g.connection_id=p.connection_id
     JOIN displays d ON d.household_id=t.household_id AND d.id=t.display_id AND d.revoked_at IS NULL
     WHERE t.plan_id=p.id ORDER BY t.display_id) AS active_display_ids`;
+const snapshotMatch = `snapshot.household_id=p.household_id AND snapshot.plan_id=p.id
+  AND snapshot.plan_content_revision=p.content_revision AND snapshot.pdf_url=p.pdf_url`;
 const planFrom = `FROM school_plans p JOIN school_plan_sources s
   ON s.id=p.source_id AND s.household_id=p.household_id AND s.revoked_at IS NULL
-  JOIN integration_connections c ON c.household_id=p.household_id AND c.id=p.connection_id AND c.revoked_at IS NULL`;
+  JOIN integration_connections c ON c.household_id=p.household_id AND c.id=p.connection_id AND c.revoked_at IS NULL
+  LEFT JOIN school_plan_pdf_snapshots snapshot ON ${snapshotMatch}`;
 
 function sourceResponse(source: SourceRow) {
   return {
@@ -109,7 +125,9 @@ function actorPlan(row: PlanRow, actor: SchoolPlanActor) {
     sourceStatus: row.source_error ? 'stale' as const : 'current' as const,
     sourceError: row.source_error,
     uncertainty: row.uncertainty,
-    pdf: { status: row.pdf_status, url: row.pdf_url },
+    pdf: row.pdf_verified_at ? {
+      status: 'server_verified' as const, url: row.pdf_url, sha256: row.pdf_sha256, verifiedAt: row.pdf_verified_at.toISOString(),
+    } : { status: row.pdf_status, url: row.pdf_url },
     displayIds: row.active_display_ids.filter((displayId) => actor.displayIds.includes(displayId)),
   };
 }
@@ -154,6 +172,11 @@ async function requireActor(client: PoolClient, actor: SchoolPlanActor, scope: s
 function permittedPeople(actor: SchoolPlanActor, member: Membership): readonly string[] {
   if (member.capabilities.includes('household.manage')) return actor.personIds;
   return actor.personIds.filter((id) => id === member.person_id);
+}
+
+function constrainId(ids: readonly string[], requestedId?: string): readonly string[] {
+  if (!requestedId) return ids;
+  return ids.includes(requestedId) ? [requestedId] : [];
 }
 
 async function audit(client: PoolClient, actor: SchoolPlanMember, member: Membership, action: string,
@@ -205,15 +228,19 @@ export async function listSchoolPlanSources(actor: SchoolPlanActor, limit = 50) 
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new DomainError('VALIDATION_FAILED', 400);
   return transaction(async (client) => {
     const member = await requireActor(client, actor, readScope);
+    const people = permittedPeople(actor, member);
+    await actor.authorizeInTransaction?.(client, {
+      write: false, personIds: people, sourceIds: actor.sourceIds, displayIds: [],
+    });
     const result = await client.query<SourceRow>(`SELECT ${sourceColumns} FROM school_plan_sources
       WHERE household_id=$1 AND connection_id=$2 AND person_id=ANY($3::uuid[]) AND id=ANY($4::uuid[]) AND revoked_at IS NULL
-      ORDER BY id LIMIT $5`, [actor.householdId, actor.connectionId, permittedPeople(actor, member), actor.sourceIds, limit]);
+      ORDER BY id LIMIT $5`, [actor.householdId, actor.connectionId, people, actor.sourceIds, limit]);
     return result.rows.map(sourceResponse);
   });
 }
 
 async function lockApprovedSource(client: PoolClient, actor: SchoolPlanActor, member: Membership,
-  input: SchoolPlanUpsert | SchoolPlanSourceFailure): Promise<void> {
+  input: Pick<SchoolPlanUpsert, 'personId' | 'sourceId' | 'classKey' | 'sourcePageUrl'>): Promise<void> {
   if (!permittedPeople(actor, member).includes(input.personId) || !actor.sourceIds.includes(input.sourceId)) throw notFound();
   // Source-level serialization also covers concurrent initial writes when no week row exists yet.
   const result = await client.query(`
@@ -266,6 +293,9 @@ export async function upsertSchoolPlan(actor: SchoolPlanActor, raw: unknown) {
   const interpreted = new Date(input.interpretedAt);
   return transaction(async (client) => {
     const member = await requireActor(client, actor, writeScope);
+    await actor.authorizeInTransaction?.(client, {
+      write: true, personIds: [input.personId], sourceIds: [input.sourceId], displayIds,
+    });
     await lockApprovedSource(client, actor, member, input);
     await requireDisplayTargets(client, actor, member, input);
     const existing = await findPlan(client, actor, [input.personId], input);
@@ -325,6 +355,9 @@ export async function recordSchoolPlanSourceFailure(actor: SchoolPlanActor, raw:
   const checked = new Date(input.checkedAt);
   return transaction(async (client) => {
     const member = await requireActor(client, actor, writeScope);
+    await actor.authorizeInTransaction?.(client, {
+      write: true, personIds: [input.personId], sourceIds: [input.sourceId], displayIds: [],
+    });
     await lockApprovedSource(client, actor, member, input);
     const row = await findPlan(client, actor, [input.personId], input);
     // A caller can report against the latest verified week during rollover.
@@ -349,7 +382,11 @@ export async function getSchoolPlan(actor: SchoolPlanActor, raw: unknown) {
   isoWeekRange(key.isoYear, key.isoWeek);
   return transaction(async (client) => {
     const member = await requireActor(client, actor, readScope);
-    const row = await findPlan(client, actor, permittedPeople(actor, member), key);
+    const people = permittedPeople(actor, member);
+    await actor.authorizeInTransaction?.(client, {
+      write: false, personIds: people, sourceIds: [key.sourceId], displayIds: actor.displayIds,
+    });
+    const row = await findPlan(client, actor, people, key);
     if (!row) throw notFound();
     return actorPlan(row, actor);
   });
@@ -364,14 +401,74 @@ export async function listSchoolPlans(actor: SchoolPlanActor, raw: unknown = {})
   validateFilterWeek(filter);
   return transaction(async (client) => {
     const member = await requireActor(client, actor, readScope);
+    const people = constrainId(permittedPeople(actor, member), filter.personId);
+    const sources = constrainId(actor.sourceIds, filter.sourceId);
+    await actor.authorizeInTransaction?.(client, {
+      write: false, personIds: people, sourceIds: sources, displayIds: actor.displayIds,
+    });
     const result = await client.query<PlanRow>(`SELECT ${planColumns} ${planFrom}
       WHERE p.household_id=$1 AND p.connection_id=$2 AND p.person_id=ANY($3::uuid[])
-        AND ($4::uuid IS NULL OR p.person_id=$4) AND ($5::uuid IS NULL OR p.source_id=$5)
-        AND ($6::int IS NULL OR p.iso_year=$6) AND ($7::int IS NULL OR p.iso_week=$7) AND p.source_id=ANY($8::uuid[])
-      ORDER BY p.week_starts_on DESC,p.id LIMIT $9`,
-    [actor.householdId, actor.connectionId, permittedPeople(actor, member), filter.personId ?? null,
-      filter.sourceId ?? null, filter.isoYear ?? null, filter.isoWeek ?? null, actor.sourceIds, filter.limit]);
+        AND ($4::int IS NULL OR p.iso_year=$4) AND ($5::int IS NULL OR p.iso_week=$5) AND p.source_id=ANY($6::uuid[])
+      ORDER BY p.week_starts_on DESC,p.id LIMIT $7`,
+    [actor.householdId, actor.connectionId, people, filter.isoYear ?? null, filter.isoWeek ?? null, sources, filter.limit]);
     return result.rows.map((row) => actorPlan(row, actor));
+  });
+}
+
+/** Recheck live grants and the plan revision both before and after the network call. */
+export async function verifySchoolPlanPdf(actor: SchoolPlanActor, raw: unknown,
+  fetcher: Pick<SchoolPdfFetcher, 'fetch'> = schoolPdfFetcher) {
+  const key = parseSchoolPlan(schoolPlanVerifyPdfSchema, raw);
+  isoWeekRange(key.isoYear, key.isoWeek);
+  const candidate = await transaction(async (client) => {
+    const member = await requireActor(client, actor, writeScope);
+    const people = permittedPeople(actor, member);
+    await actor.authorizeInTransaction?.(client, {
+      write: true, personIds: people, sourceIds: [key.sourceId], displayIds: [],
+    });
+    const row = await findPlan(client, actor, people, key);
+    if (!row?.pdf_url) throw notFound();
+    if (row.revision !== key.expectedRevision) throw conflict('revision_conflict', row.revision);
+    return { sourcePageUrl: row.source_page_url, pdfUrl: row.pdf_url, classKey: row.class_key,
+      personId: row.person_id, priorSha: row.pdf_sha256 };
+  });
+  const bytes = await fetcher.fetch(candidate.sourcePageUrl, candidate.pdfUrl);
+  if (bytes.length > MAX_SCHOOL_PDF_BYTES) throw new DomainError('SCHOOL_PDF_VERIFICATION_FAILED', 413, { reason: 'too_large' });
+  validatePdfBytes(bytes);
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+
+  return transaction(async (client) => {
+    const member = await requireActor(client, actor, writeScope);
+    await actor.authorizeInTransaction?.(client, {
+      write: true, personIds: [candidate.personId], sourceIds: [key.sourceId], displayIds: [],
+    });
+    await lockApprovedSource(client, actor, member, { ...candidate, sourceId: key.sourceId });
+    const row = await findPlan(client, actor, [candidate.personId], key);
+    if (!row?.pdf_url) throw notFound();
+    if (row.revision !== key.expectedRevision || row.pdf_url !== candidate.pdfUrl) {
+      throw conflict('revision_conflict', row.revision);
+    }
+    if (row.pdf_sha256 === sha256 && row.pdf_verified_at) {
+      return { result: 'unchanged' as const, sha256, verifiedAt: row.pdf_verified_at.toISOString() };
+    }
+    if (row.pdf_sha256 !== candidate.priorSha) throw conflict('pdf_snapshot_conflict', row.revision);
+
+    // Different sources in the same household share the quota. No I/O is held under this lock.
+    await client.query(`SELECT pg_advisory_xact_lock(hashtextextended('school-plan-pdf:'||$1::text,0))`, [actor.householdId]);
+    const quota = await client.query<{ used: string }>(`SELECT COALESCE(sum(byte_size),0) AS used
+      FROM school_plan_pdf_snapshots WHERE household_id=$1 AND plan_id<>$2`, [actor.householdId, row.id]);
+    if (Number(quota.rows[0]!.used) + bytes.length > maxHouseholdPdfBytes) {
+      throw new DomainError('SCHOOL_PDF_VERIFICATION_FAILED', 413, { reason: 'household_storage_quota' });
+    }
+    const stored = await client.query<{ verified_at: Date }>(`
+      INSERT INTO school_plan_pdf_snapshots(household_id,plan_id,plan_content_revision,pdf_url,bytes,sha256)
+      VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(plan_id) DO UPDATE
+      SET plan_content_revision=EXCLUDED.plan_content_revision,pdf_url=EXCLUDED.pdf_url,
+        bytes=EXCLUDED.bytes,sha256=EXCLUDED.sha256,verified_at=clock_timestamp()
+      RETURNING verified_at`, [actor.householdId, row.id, row.content_revision, row.pdf_url, bytes, sha256]);
+    await audit(client, actor, member, 'school_plan.pdf_verified', 'school_plan', row.id,
+      { connectionId: actor.connectionId, revision: row.revision });
+    return { result: 'verified' as const, sha256, verifiedAt: stored.rows[0]!.verified_at.toISOString() };
   });
 }
 
@@ -394,8 +491,9 @@ const displayWhere = `d.household_id=$1 AND d.id=$2 AND d.credential_hash=$3 AND
 export async function listDisplaySchoolPlans(display: SchoolPlanDisplay, raw: unknown = {}) {
   const filter = parseSchoolPlan(schoolPlanDisplayListSchema, raw);
   validateFilterWeek(filter);
-  const result = await pool.query<PresentationRow & { pdf_link_available: boolean }>(`
-    SELECT ${presentationColumns},(s.display_pdf_links_allowed AND p.pdf_url IS NOT NULL) AS pdf_link_available ${displayPlanFrom}
+  const result = await pool.query<PresentationRow & { pdf_status: 'server_verified' | 'unverified_link' | null }>(`
+    SELECT ${presentationColumns},CASE WHEN NOT s.display_pdf_links_allowed OR p.pdf_url IS NULL THEN NULL
+      WHEN snapshot.plan_id IS NOT NULL THEN 'server_verified' ELSE 'unverified_link' END AS pdf_status ${displayPlanFrom}
     WHERE ${displayWhere} AND ($5::uuid IS NULL OR p.person_id=$5)
       AND ($6::int IS NULL OR p.iso_year=$6) AND ($7::int IS NULL OR p.iso_week=$7)
     ORDER BY p.week_starts_on DESC,p.id LIMIT $8`,
@@ -406,7 +504,8 @@ export async function listDisplaySchoolPlans(display: SchoolPlanDisplay, raw: un
     sourceStatus: row.source_error ? 'stale' as const : 'current' as const,
     lastSourceObservedAt: row.last_source_observed_at.toISOString(),
     uncertainty: row.uncertainty,
-    pdfLinkAvailable: row.pdf_link_available,
+    pdfLinkAvailable: row.pdf_status !== null,
+    pdfStatus: row.pdf_status,
   }));
 }
 
@@ -418,4 +517,27 @@ export async function getDisplaySchoolPlanPdfLink(display: SchoolPlanDisplay, pl
   [display.householdId, display.id, display.credentialHash, display.credentialGeneration, id])).rows[0];
   if (!row) throw notFound();
   return { status: 'unverified_link' as const, url: row.pdf_url };
+}
+
+/** Authorization and bytes are selected together. Apply these headers to a protected download response. */
+export async function getDisplaySchoolPlanPdfSnapshot(display: SchoolPlanDisplay, planId: string) {
+  const id = parseSchoolPlan(uuidSchema, planId);
+  const row = (await pool.query<{ bytes: Buffer; sha256: string; verified_at: Date }>(`
+    SELECT snapshot.bytes,snapshot.sha256,snapshot.verified_at ${displayPlanFrom}
+    WHERE ${displayWhere} AND p.id=$5 AND s.display_pdf_links_allowed AND snapshot.plan_id IS NOT NULL`,
+  [display.householdId, display.id, display.credentialHash, display.credentialGeneration, id])).rows[0];
+  if (!row) throw notFound();
+  return {
+    bytes: row.bytes,
+    sha256: row.sha256,
+    verifiedAt: row.verified_at.toISOString(),
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': 'attachment; filename="school-plan.pdf"',
+      'Cache-Control': 'private, no-store',
+      'Content-Security-Policy': "default-src 'none'; sandbox",
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  };
 }

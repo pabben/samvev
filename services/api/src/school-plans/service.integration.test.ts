@@ -7,8 +7,8 @@ import { pool } from '../db.ts';
 import { migrate } from '../db/migrate.ts';
 import { isoWeekRange, parseSchoolPlan, schoolPlanUpsertSchema, validateSchoolPlanContent } from './contracts.ts';
 import {
-  approveSchoolPlanSource, getDisplaySchoolPlanPdfLink, getSchoolPlan, listDisplaySchoolPlans, listSchoolPlans,
-  listSchoolPlanSources, recordSchoolPlanSourceFailure, revokeSchoolPlanSource, upsertSchoolPlan,
+  approveSchoolPlanSource, getDisplaySchoolPlanPdfLink, getDisplaySchoolPlanPdfSnapshot, getSchoolPlan, listDisplaySchoolPlans, listSchoolPlans,
+  listSchoolPlanSources, recordSchoolPlanSourceFailure, revokeSchoolPlanSource, upsertSchoolPlan, verifySchoolPlanPdf,
 } from './service.ts';
 import type { SchoolPlanActor, SchoolPlanDisplay, SchoolPlanMember } from './service.ts';
 
@@ -148,6 +148,12 @@ test('approval requires a manager and writes require scoped person, source, exac
   await assert.rejects(upsertSchoolPlan(actor, input({ classKey: 'synthetic-1b' })), isError(404));
   await assert.rejects(upsertSchoolPlan(actor, input({ sourcePageUrl: sourcePageUrl.replace('1a', '1b') })), isError(404));
   await assert.rejects(upsertSchoolPlan(actor, input({ displayIds: [secondDisplay.id] })), isError(403));
+  await assert.rejects(upsertSchoolPlan({ ...actor, authorizeInTransaction: async (client, request) => {
+    assert.deepEqual(request, { write: true, personIds: [personId], sourceIds: [sourceId], displayIds: [display.id] });
+    assert.equal((await client.query('SELECT 1')).rowCount, 1);
+    throw new DomainError('FORBIDDEN', 403);
+  } }, input()), isError(403));
+  assert.equal((await pool.query('SELECT id FROM school_plans WHERE source_id=$1', [sourceId])).rowCount, 0);
   const sources = await listSchoolPlanSources(actor);
   assert.deepEqual(sources.map(({ id }) => id), [sourceId]);
   assert.deepEqual(await listSchoolPlanSources({ ...actor, sourceIds: [] }), []);
@@ -160,6 +166,10 @@ test('stable week identity supports concurrent creation, unchanged checks, corre
   assert.ok(first.every((item) => item.id === planId && item.revision === 1 && item.contentRevision === 1));
   assert.equal((await pool.query('SELECT id FROM school_plans WHERE source_id=$1', [sourceId])).rowCount, 1);
   const created = await getSchoolPlan(actor, key());
+  await assert.rejects(listSchoolPlans({ ...actor, authorizeInTransaction: async (_client, request) => {
+    assert.deepEqual(request, { write: false, personIds: [personId], sourceIds: [sourceId], displayIds: actor.displayIds });
+    throw new DomainError('FORBIDDEN', 403);
+  } }, { personId, sourceId, ...week }), isError(403));
   assert.deepEqual(created.days.map(({ date }) => date), ['2020-12-28', '2021-01-01']);
   assert.deepEqual(created.pdf, { status: 'unverified_link', url: pdfUrl });
   const unchanged = await upsertSchoolPlan(actor, input({ expectedRevision: 1, observedAt: checkTime(2), interpretedAt: checkTime(3) }));
@@ -242,6 +252,71 @@ test('display scope checks pairing, privacy, person/source selection, explicit t
     VALUES($1,$2,$3)`, [householdId, connectionId, display.id]);
 });
 
+test('a verified snapshot is exact, idempotent, protected and tied to one content revision', async () => {
+  const oldPlan = await getSchoolPlan(actor, key());
+  const syntheticPdf = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n');
+  const verificationKey = { ...key(), expectedRevision: oldPlan.revision };
+  let downloads = 0;
+  const remote = { fetch: async (approvedPage: string, pdf: string) => {
+    downloads++;
+    assert.equal(approvedPage, sourcePageUrl);
+    assert.equal(pdf, oldPlan.pdf.url);
+    return syntheticPdf;
+  } };
+  await assert.rejects(getDisplaySchoolPlanPdfSnapshot(display, planId), isError(404));
+  await assert.rejects(verifySchoolPlanPdf({ ...actor, sourceIds: [] }, verificationKey, remote), isError(404));
+  await assert.rejects(verifySchoolPlanPdf(actor, { ...verificationKey, expectedRevision: 1 }, remote),
+    isError(409, 'revision_conflict'));
+  assert.equal(downloads, 0);
+  let liveGrant = true;
+  await assert.rejects(verifySchoolPlanPdf({ ...actor, authorizeInTransaction: async (_client, request) => {
+    assert.deepEqual(request, { write: true, personIds: [personId], sourceIds: [sourceId], displayIds: [] });
+    if (!liveGrant) throw new DomainError('FORBIDDEN', 403);
+  } }, verificationKey, { fetch: async () => {
+    liveGrant = false;
+    return syntheticPdf;
+  } }), isError(403));
+  assert.equal((await getSchoolPlan(actor, key())).pdf.status, 'unverified_link');
+  const verified = await verifySchoolPlanPdf(actor, verificationKey, remote);
+  assert.equal(verified.result, 'verified');
+  assert.match(verified.sha256, /^[0-9a-f]{64}$/);
+  assert.deepEqual(await verifySchoolPlanPdf(actor, verificationKey, remote), { ...verified, result: 'unchanged' });
+  assert.deepEqual((await getSchoolPlan(actor, key())).pdf, {
+    status: 'server_verified', url: oldPlan.pdf.url, sha256: verified.sha256, verifiedAt: verified.verifiedAt,
+  });
+  assert.equal((await listDisplaySchoolPlans(display, week))[0]!.pdfStatus, 'server_verified');
+  const snapshot = await getDisplaySchoolPlanPdfSnapshot(display, planId);
+  assert.deepEqual(snapshot.bytes, syntheticPdf);
+  assert.equal(snapshot.sha256, verified.sha256);
+  assert.equal(snapshot.headers['Cache-Control'], 'private, no-store');
+  assert.equal(snapshot.headers['Content-Type'], 'application/pdf');
+  assert.match(snapshot.headers['Content-Disposition'], /^attachment;/);
+  await assert.rejects(getDisplaySchoolPlanPdfSnapshot(secondDisplay, planId), isError(404));
+  await pool.query('UPDATE displays SET privacy_mode=true WHERE id=$1', [display.id]);
+  await assert.rejects(getDisplaySchoolPlanPdfSnapshot(display, planId), isError(404));
+  await pool.query('UPDATE displays SET privacy_mode=false WHERE id=$1', [display.id]);
+
+  const corrected = input({ expectedRevision: oldPlan.revision, pdfUrl: pdfUrl.replace('.pdf', '-new.pdf'),
+    sourceRevision: 'synthetic-v3', observedAt: checkTime(9), interpretedAt: checkTime(10) });
+  await assert.rejects(verifySchoolPlanPdf(actor, verificationKey, { fetch: async () => {
+    await upsertSchoolPlan(actor, corrected);
+    return syntheticPdf;
+  } }), isError(409, 'revision_conflict'));
+  assert.equal((await getSchoolPlan(actor, key())).pdf.status, 'unverified_link');
+  assert.equal((await listDisplaySchoolPlans(display, week))[0]!.pdfStatus, 'unverified_link');
+  await assert.rejects(getDisplaySchoolPlanPdfSnapshot(display, planId), isError(404));
+  const newPlan = await getSchoolPlan(actor, key());
+  const replacement = Buffer.from('%PDF-1.7\n2 0 obj\n<<>>\nendobj\n%%EOF\n');
+  await verifySchoolPlanPdf(actor, { ...key(), expectedRevision: newPlan.revision }, {
+    fetch: async (_page, url) => {
+      assert.equal(url, newPlan.pdf.url);
+      return replacement;
+    },
+  });
+  assert.deepEqual((await getDisplaySchoolPlanPdfSnapshot(display, planId)).bytes, replacement);
+  assert.equal((await pool.query('SELECT plan_id FROM school_plan_pdf_snapshots WHERE plan_id=$1', [planId])).rowCount, 1);
+});
+
 test('database constraints reject a duplicate week, invalid ISO dates and a cross-household target; revocation hides history', async () => {
   const duplicate = `INSERT INTO school_plans(household_id,connection_id,person_id,source_id,iso_year,iso_week,week_starts_on,
     week_ends_on,content_locale,days,source_revision,uncertainty,observed_at,interpreted_at,last_source_observed_at,last_checked_at,content_hash)
@@ -253,11 +328,13 @@ test('database constraints reject a duplicate week, invalid ISO dates and a cros
   const foreignDisplay = await createDisplay(otherHouseholdId);
   await assert.rejects(pool.query('INSERT INTO school_plan_display_targets(household_id,plan_id,display_id) VALUES($1,$2,$3)',
     [householdId, planId, foreignDisplay.id]), { code: '23503' });
+  assert.ok((await getDisplaySchoolPlanPdfSnapshot(display, planId)).bytes.length);
   await revokeSchoolPlanSource(actor, sourceId);
   assert.deepEqual(await listSchoolPlanSources(actor), []);
   assert.deepEqual(await listSchoolPlans(actor), []);
   assert.deepEqual(await listDisplaySchoolPlans(display), []);
   await assert.rejects(getDisplaySchoolPlanPdfLink(display, planId), isError(404));
+  await assert.rejects(getDisplaySchoolPlanPdfSnapshot(display, planId), isError(404));
   await assert.rejects(getSchoolPlan(actor, key()), isError(404));
   await assert.rejects(upsertSchoolPlan(actor, input({ displayIds: [] })), isError(404));
   assert.equal((await pool.query('SELECT id FROM school_plans WHERE id=$1', [planId])).rowCount, 1);
