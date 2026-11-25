@@ -57,15 +57,21 @@ test('MCP message create uses member policy, exact recipients, and the web lifec
   const grant=(await pool.query<{id:string;revision:number}>('SELECT id,revision FROM mcp_oauth_grants WHERE household_id=$1',[householdId])).rows[0]!;
   const configured=await policy(grant.id,grant.revision,[...scopes.split(' ')],[grantedPersonId],[grantedDisplayId]);assert.equal(configured.statusCode,200,configured.body);
   token=await authorize(scopes,2);
+  const capabilities=(await pool.query<{capabilities:string[]}>('SELECT capabilities FROM memberships WHERE id=$1',[membershipId])).rows[0]!.capabilities;
+  await pool.query('UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1',[membershipId,JSON.stringify(capabilities.filter((capability)=>capability!=='display.manage'))]);
+  await pool.query('DELETE FROM membership_display_grants WHERE membership_id=$1 AND display_id=$2',[membershipId,grantedDisplayId]);
 
   const emptyAudience=await createThroughMcp(token,{body:'No recipient defaults to nobody',expiresAt:'2099-01-01T00:00:00.000Z',idempotencyKey:'empty-audience-001'},1);
   assert.equal(rpc(emptyAudience).result.isError,true,'an omitted audience cannot silently broaden delivery');
 
-  const householdInput=input('Synthetic household message created through web then retried by MCP','web-message-replay-001',{household:true,personIds:[],displayIds:[]});
+  const householdInput=input('Synthetic person message created through web then retried by MCP','web-message-replay-001',{household:false,personIds:[grantedPersonId],displayIds:[]});
   const webCreated=await inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:householdInput});assert.equal(webCreated.statusCode,201,webCreated.body);
   const webId=webCreated.json().id as string;
   const replay=await createThroughMcp(token,householdInput,2);assert.equal(rpc(replay).result.structuredContent.message.id,webId,'the MCP writer uses the same idempotency record as the web route');
   const mismatch=await createThroughMcp(token,{...householdInput,body:'Different payload for same key'},3);assert.equal(rpc(mismatch).result.isError,true);assert.match(rpc(mismatch).result.content[0].text,/CONFLICT/);
+
+  const broadAudience=await createThroughMcp(token,input('Synthetic message must not widen to the household','mcp-household-broadcast-001',{household:true,personIds:[grantedPersonId],displayIds:[]}),4);
+  assert.equal(rpc(broadAudience).result.isError,true);assert.match(rpc(broadAudience).result.content[0].text,/FORBIDDEN/);
 
   const personInput=input('Synthetic private message for explicitly granted person','mcp-person-message-001',{household:false,personIds:[grantedPersonId],displayIds:[]});
   const personCreated=await createThroughMcp(token,personInput,4);const personMessage=rpc(personCreated).result.structuredContent.message;
@@ -75,7 +81,10 @@ test('MCP message create uses member policy, exact recipients, and the web lifec
   assert.deepEqual(provenance,{author_membership_id:membershipId,actor_id:accountId,actor_type:'account'},'MCP keeps the actual OAuth member as author and lifecycle actor');
 
   const displayInput=input('Synthetic message for granted display','mcp-display-message-001',{household:false,personIds:[],displayIds:[grantedDisplayId]});
-  const displayCreated=await createThroughMcp(token,displayInput,5);const displayMessage=rpc(displayCreated).result.structuredContent.message;
+  const missingMemberDisplayGrant=await createThroughMcp(token,displayInput,5);
+  assert.equal(rpc(missingMemberDisplayGrant).result.isError,true,'OAuth display grant alone cannot bypass member display authorization');assert.match(rpc(missingMemberDisplayGrant).result.content[0].text,/FORBIDDEN/);
+  await pool.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES($1,$2,$3)',[householdId,membershipId,grantedDisplayId]);
+  const displayCreated=await createThroughMcp(token,displayInput,15);const displayMessage=rpc(displayCreated).result.structuredContent.message;
   assert.equal((await pool.query('SELECT 1 FROM message_display_targets WHERE household_id=$1 AND message_id=$2 AND display_id=$3',[householdId,displayMessage.id,grantedDisplayId])).rowCount,1);
 
   const deniedPerson=await createThroughMcp(token,input('Synthetic denied person message','mcp-denied-person-001',{household:false,personIds:[deniedPersonId],displayIds:[]}),6);
@@ -87,17 +96,16 @@ test('MCP message create uses member policy, exact recipients, and the web lifec
   const foreignDisplay=await createThroughMcp(token,input('Synthetic cross-household display message','mcp-foreign-display-001',{household:false,personIds:[],displayIds:[foreignDisplayId]}),9);
   assert.equal(rpc(foreignDisplay).result.isError,true);assert.match(rpc(foreignDisplay).result.content[0].text,/NOT_FOUND/);
 
-  const capabilities=(await pool.query<{capabilities:string[]}>('SELECT capabilities FROM memberships WHERE id=$1',[membershipId])).rows[0]!.capabilities;
   await pool.query(`UPDATE memberships SET capabilities=capabilities-'message.publish.display' WHERE id=$1`,[membershipId]);
   const noDisplayCapability=await createThroughMcp(token,input('Synthetic denied by current display capability','mcp-no-display-cap-001',{household:false,personIds:[],displayIds:[grantedDisplayId]}),10);
   assert.equal(rpc(noDisplayCapability).result.isError,true);assert.match(rpc(noDisplayCapability).result.content[0].text,/FORBIDDEN/);
   await pool.query('UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1',[membershipId,JSON.stringify(capabilities)]);
   await pool.query(`UPDATE memberships SET capabilities=capabilities-'message.schedule' WHERE id=$1`,[membershipId]);
   const future='2098-12-31T08:00:00.000Z';
-  const noScheduleCapability=await createThroughMcp(token,input('Synthetic denied schedule','mcp-no-schedule-cap-001',{household:true,personIds:[],displayIds:[]},future),11);
+  const noScheduleCapability=await createThroughMcp(token,input('Synthetic denied schedule','mcp-no-schedule-cap-001',{household:false,personIds:[grantedPersonId],displayIds:[]},future),11);
   assert.equal(rpc(noScheduleCapability).result.isError,true);assert.match(rpc(noScheduleCapability).result.content[0].text,/FORBIDDEN/);
   await pool.query('UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1',[membershipId,JSON.stringify(capabilities)]);
-  const scheduled=await createThroughMcp(token,input('Synthetic authorized schedule','mcp-scheduled-message-001',{household:true,personIds:[],displayIds:[]},future),12);
+  const scheduled=await createThroughMcp(token,input('Synthetic authorized schedule','mcp-scheduled-message-001',{household:false,personIds:[grantedPersonId],displayIds:[]},future),12);
   assert.equal(rpc(scheduled).result.structuredContent.message.state,'scheduled');
 
   const readOnlyToken=await authorize('mcp:context mcp:messages:read',3);

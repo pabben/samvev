@@ -203,7 +203,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.messages.create', {
-    description: 'Create and publish or schedule one household message. Choose household, people, and displays explicitly; recipients must be granted to this OAuth authorization.',
+    description: 'Create and publish or schedule one message for explicitly granted people or displays. Household-wide broadcasts are not supported; each recipient must also be permitted for the delegated member.',
     inputSchema: messageCreateSchema, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: false
   }, async (raw) => {
     const actor: MessageCreateActor = {

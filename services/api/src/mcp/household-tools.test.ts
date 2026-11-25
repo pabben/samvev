@@ -152,10 +152,11 @@ test('message create requires both scopes and delegates the real OAuth member to
     }
   };
   registerHouseholdTools(tools, context, { ...fake.deps, messageService });
-  const input = { body: 'Synthetic MCP message', audience: { household: true, personIds: [], displayIds: [] }, expiresAt: '2027-03-21T12:00:00.000Z', idempotencyKey: 'mcp-message-0001' };
+  const input = { body: 'Synthetic MCP message', audience: { household: false, personIds: [principal.accountId], displayIds: [] }, expiresAt: '2027-03-21T12:00:00.000Z', idempotencyKey: 'mcp-message-0001' };
   const result = await tools.get('household.messages.create')(input) as { message: { id: string } };
   assert.deepEqual(result, { message: { id: 'synthetic-message-created' } });
   assert.deepEqual(tools.options.get('household.messages.create')?.requiredScopes, ['mcp:messages:read', 'mcp:messages:write']);
+  assert.match(tools.options.get('household.messages.create')?.description ?? '', /Household-wide broadcasts are not supported/);
   assert.equal(tools.options.get('household.messages.create')?.readOnlyHint, false);
   assert.equal(calls[0]!.actor.accountId, principal.accountId);
   assert.equal(calls[0]!.actor.membershipId, principal.membershipId);

@@ -48,7 +48,8 @@ export async function validateMessageAudience(
     const granted = await client.query(`SELECT display_id FROM mcp_oauth_grant_displays
       WHERE grant_id=$1 AND household_id=$2 AND display_id=ANY($3::uuid[]) FOR SHARE`, [actor.mcpGrantId, actor.householdId, displayIds]);
     if (granted.rowCount !== new Set(displayIds).size) throw new DomainError('FORBIDDEN', 403, { reason: 'mcp_message_display_not_granted' });
-  } else if (!capabilities.includes('display.manage')) {
+  }
+  if (!capabilities.includes('display.manage')) {
     const permitted = await client.query(`SELECT display_id FROM membership_display_grants
       WHERE household_id=$1 AND membership_id=$2 AND display_id=ANY($3::uuid[]) FOR SHARE`, [actor.householdId, actor.membershipId, displayIds]);
     if (permitted.rowCount !== new Set(displayIds).size) throw new DomainError('FORBIDDEN', 403);
@@ -67,6 +68,9 @@ export class MessageService {
       const capabilities = await authorize(client, actor);
       requireCapability(capabilities, 'message.create.household');
       const body = parseCreateInput(input);
+      if (actor.mcpGrantId && body.audience.household) {
+        throw new DomainError('FORBIDDEN', 403, { reason: 'mcp_message_household_audience_not_granted' });
+      }
       const now = new Date();
       const publishAt = body.publishAt ? new Date(body.publishAt) : now;
       const expiresAt = new Date(body.expiresAt);
