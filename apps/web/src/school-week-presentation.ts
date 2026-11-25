@@ -37,6 +37,13 @@ export type SchoolWeekPlan = {
   pdfStatus: 'server_verified' | 'unverified_link' | null;
 };
 
+const EMPTY_PREVIEW_PLANS: SchoolWeekPlan[] = [];
+
+/** Preview mode may use only server-filtered data and must never fall back to a live endpoint fetch. */
+export function schoolWeekPreviewPlans(isPreview: boolean, plans?: SchoolWeekPlan[]) {
+  return isPreview ? plans ?? EMPTY_PREVIEW_PLANS : undefined;
+}
+
 export function schoolWeekDay(plan: Pick<SchoolWeekPlan, 'days'>, date: string) {
   return plan.days.find(day => day.date === date);
 }
