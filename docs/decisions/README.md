@@ -32,3 +32,5 @@ Architectural decision records (ADRs) capture decisions that should remain under
 - [0025: Explicit AI reserve and UTC dispatch limit](0025-opt-in-ai-fallback-and-dispatch-limits.md)
 
 - [0026: Native HA entities and explicit export sharing](0026-native-home-assistant-bridge.md)
+
+- [0027: Provider-independent MCP OAuth and internal AI boundaries](0027-mcp-oauth-and-internal-ai-boundaries.md)

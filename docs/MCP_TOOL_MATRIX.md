@@ -1,43 +1,46 @@
 # MCP tool and domain-operation matrix
 
-Status: local candidate on `feat/mcp-integration-33` at publisher HEAD `8378560` (2026-11-25). The 11 tools below are registered in this local candidate. They have not been deployed to the public service or tested against a public client. Public app/worker source remains `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48), which has no MCP endpoint. Main's merge `f79271c` does not include this candidate.
+Status: local candidate on `feat/mcp-integration-33` at `f9df57f` (2026-11-25). This snapshot registers 17 tools. Later candidate commits may change the count, so refresh this list from `services/api/src/mcp/service.ts` before release. Public app/worker source remains `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. Main's merge `f79271c` does not contain the MCP candidate. No public client compatibility or issue completion is claimed.
 
-The local school source and weekly-plan UI is wired. Security/disclosure fixes from `4b9103a` are included in this candidate. Synthetic API/integration tests are not evidence of public deployment or client compatibility. A later board-write branch is not part of this candidate.
+The local candidate includes the wired school source/week UI, monitor status reads, grocery/dinner board writes, protected PDF browser/download fallback, and the security/disclosure fixes in `4b9103a`. Automated API tests use synthetic local households; they do not show public deployment or live ChatGPT/Codex/Claude/Gemini compatibility. Migrations 049–053 are present in the candidate only.
 
-## Registered local MCP tools
+## Registered tools in `f9df57f`
 
-| Tool | Operation | Required MCP scope | Server-side boundary / status |
+| Tool | Operation | Required MCP scope | Safety boundary |
 |---|---|---|---|
-| `samvev_context` | Read authorized household context and granted scopes | `mcp:context` | Local candidate; household is bound to OAuth authorization. Read-only. |
-| `samvev_monitors_list` | List monitors without instructions, source URLs, people, or display audiences | `mcp:monitors:read` | Local candidate; household is authorization-bound. Read-only. |
-| `household.people.list` | List people explicitly included in the OAuth grant | `mcp:people:read` and `household.view` | Local candidate; only granted people and minimal identity fields. Read-only. |
-| `household.groceries.list` | Read household grocery items | `mcp:groceries:read` and `household.manage` | Local candidate; requires explicit household consent/scope. Read-only. |
-| `household.dinners.list` | Read dinner assignments in a date range of at most 31 days | `mcp:dinners:read` and `household.manage` | Local candidate; explicit grant and bounded window. Read-only. |
-| `school.sources.list` | List school sources explicitly granted to this client | `mcp:school-plans:read` | Local candidate; source/person resources must be granted. Read-only. |
-| `school.plans.list` | List up to ten authorized plans, optionally filtered | `mcp:school-plans:read` | Local candidate; only granted people and sources. Read-only. |
-| `school.plans.get` | Read one plan by source and ISO week | `mcp:school-plans:read` | Local candidate; source/person authorization is rechecked. Read-only. |
-| `school.plans.upsert` | Create or update a weekly plan | `mcp:school-plans:write` | Local candidate; authorized source/person plus compare-and-swap revision, observation time, source revision, and uncertainty. Writes plan data only; does not write notifications. |
-| `school.plans.source_failure` | Record a failed source check | `mcp:school-plans:write` | Local candidate; keeps last-good plan and marks source/plan stale. Does not write notifications. |
-| `school.plans.verify_pdf` | Fetch and store a bounded PDF after checking the exact link on the approved class page | `mcp:school-plans:write` | Local candidate; external fetch is bounded/rate-limited and tied to approved source. PDF snapshot confirms byte provenance, not semantic correctness of class/week/content. |
+| `samvev_context` | Read authorized household context and granted scopes | `mcp:context` | OAuth resource and household bound; read-only. |
+| `samvev_monitors_list` | List bounded monitor schedule/health status | `mcp:monitors:read` | Omits names, instructions, source URLs, people, audiences, and result content. |
+| `samvev_monitor_get` | Read one monitor status and latest execution status | `mcp:monitors:read` | Omits monitor name, instructions, sources, audiences, and result content. |
+| `samvev_monitor_runs_list` | List recent run status for one monitor | `mcp:monitors:read` | Bounded history; omits raw results, source, traces, and model output. |
+| `household.people.list` | List explicitly granted household people | `mcp:people:read` | Requires `household.view`; minimal person fields and grant-scoped results only. |
+| `household.groceries.list` | Read household grocery items | `mcp:groceries:read` | Requires `household.manage` and explicit whole-household consent. |
+| `household.groceries.add` | Add one grocery item | `mcp:groceries:read`, `mcp:groceries:write` | Requires durable request key; board service enforces live authorization and idempotency. |
+| `household.groceries.update` | Update/check/uncheck an item | `mcp:groceries:read`, `mcp:groceries:write` | Requires current revision and durable request key; actor/household checks apply. |
+| `household.dinners.list` | Read assignments for at most 31 days | `mcp:dinners:read` | Requires `household.manage`, explicit consent, bounded date window. |
+| `household.dinners.options.list` | List assignable dinner options | `mcp:dinners:read` | Requires `household.manage`; only active household options. |
+| `household.dinners.assign` | Assign or clear one date's dinner | `mcp:dinners:read`, `mcp:dinners:write` | Requires current revision and durable request key; clear is a write and should be confirmed by the client. |
+| `school.sources.list` | List explicitly granted school sources | `mcp:school-plans:read` | Source and person grants are checked server-side. |
+| `school.plans.list` | List up to ten authorized plans | `mcp:school-plans:read` | Only granted people and sources; optional source/week filters. |
+| `school.plans.get` | Read one authorized source/week plan | `mcp:school-plans:read` | Resource authorization is rechecked on each call. |
+| `school.plans.upsert` | Create/update a source/week plan | `mcp:school-plans:write` | Requires an approved source/person, CAS revision, observation/source revision and uncertainty; does not publish notifications. |
+| `school.plans.source_failure` | Record an unavailable/invalid source check | `mcp:school-plans:write` | Preserves last-good content and records stale/error state; does not publish notifications. |
+| `school.plans.verify_pdf` | Fetch/store a bounded PDF snapshot from an exact link on the approved class page | `mcp:school-plans:write` | Requires authorized source and plan revision; network fetch is bounded/rate-limited. Confirms byte provenance, not semantic correctness. |
 
-Public status for every tool: **not deployed, not publicly verified, and not tested with a live ChatGPT, Codex, Claude, Gemini, or generic MCP client.** No automatic MCP notification/message write tool is registered.
+No MCP message/notification write tool is registered. An OAuth scope does not grant access to arbitrary people, displays, or school sources: the grant's person/display/resource rows and current server capabilities further constrain each call.
 
-## Existing UI/API domains not exposed by these tools
+## UI/API operations not exposed by MCP
 
-| UI/API operation | Current route/service | MCP availability |
+| Operation | Existing route/service | MCP boundary |
 |---|---|---|
-| Household Home/dashboard read | `GET /api/v1/households/:householdId/home`, `/dashboard`; `services/api/src/app.ts`; requires `household.view` | No dedicated MCP Home tool beyond minimal `samvev_context`. |
-| Monitors: create/update/delete, approve, pause/resume, run/interpret, result review | `/api/v1/households/:householdId/monitors...`; monitor services; API requires `household.manage` | Only the bounded monitor list tool is exposed. No monitor mutation/run tool. |
-| People, memberships, accounts, invitations: create/update/administer | `/api/v1/households/:householdId/people...`, memberships/accounts; `services/api/src/app.ts`; route-specific `people.manage`, `account.manage`, and administrator checks | Only explicit-grant `household.people.list` read is exposed. |
-| Messages: list/create/edit/withdraw and publish/schedule | `/api/v1/households/:householdId/messages...`; `services/api/src/app.ts`; e.g. `message.create.household`, `message.schedule`, `message.manage.household`, `message.publish.display` | No message read or write MCP tool. Preserve existing notifications; do not imply MCP can publish them. |
-| Grocery list: add/edit/delete | `/api/v1/households/:householdId/groceries...`; `householdBoards`; `household.view` plus actor/resource checks | MCP only exposes read tool `household.groceries.list`; no MCP board-write tools in this candidate. |
-| Dinner options/assignments: create/edit/delete | `/api/v1/households/:householdId/dinner-options...`, `/dinners...`; `householdBoards`; `household.view` plus actor/resource checks | MCP only exposes read tool `household.dinners.list`; no MCP board-write tools in this candidate. |
-| Calendars: connect/configure/sync/disconnect; event views | `/api/v1/households/:householdId/calendar-connections...`; calendar services; route-specific household capability and owner checks | Not exposed. Calendar data and source credentials remain outside MCP. |
-| Integrations and credentials: create/update/revoke | `/api/v1/households/:householdId/integrations...`; `services/api/src/app.ts`; `household.manage` plus credential-grant checks | Not exposed. Never return credential material. |
-| Displays, pairing and grants | `/api/v1/households/:householdId/displays...`, `/display-setups...`; display service; `display.manage` and explicit privacy checks | Not exposed. MCP never impersonates a display account. |
-| Home Assistant control actions | `/api/v1/households/:householdId/home-assistant/controls...`; HA control services; explicit entity/action grants | Not exposed. No physical/automation action through MCP. |
-| School source administration and family school-week view | `/api/v1/households/:householdId/school-plan-sources...`, school-plan APIs; `apps/web/src/school-plan-sources.tsx`, `apps/web/src/school-week.tsx` | UI is wired in the local candidate. MCP source/plan tools above use separately granted household/person/source scopes. |
+| Household Home/dashboard read | `GET /api/v1/households/:householdId/home`, `/dashboard`; `services/api/src/app.ts`; `household.view` | No equivalent full Home projection; `samvev_context` is minimal. |
+| Monitor create/edit/delete, approve/pause/resume, run/interpret, result content | `/api/v1/households/:householdId/monitors...`; monitor services; `household.manage` | Status reads only; no monitor mutation or result-content tool. |
+| People, memberships, accounts, invitations: create/administer | `/api/v1/households/:householdId/people...`, membership/account routes; `people.manage`, `account.manage`, administrator checks | Only grant-scoped `household.people.list`. |
+| Messages: read/create/edit/withdraw/schedule/publish | `/api/v1/households/:householdId/messages...`; `message.create.household`, `message.schedule`, `message.manage.household`, `message.publish.display` as applicable | No message/notification tool. Preserve existing notification state and audience. |
+| Grocery list and dinner boards | `/api/v1/households/:householdId/groceries...`, `/dinner-options...`, `/dinners...`; `householdBoards` | MCP exposes scoped grocery add/update and dinner assignment in addition to reads; no dinner-option mutation tool. |
+| School source approval and school-week display | `/api/v1/households/:householdId/school-plan-sources...`, school-plan routes; `apps/web/src/school-plan-sources.tsx`, `apps/web/src/school-week.tsx` | UI is wired locally. MCP client grants are a separate consent layer and cannot administer the source list. |
+| Calendar connections/events | `/api/v1/households/:householdId/calendar-connections...`, calendar services | Not exposed; private calendar data and credentials stay outside MCP. |
+| Integration credentials, displays/pairing/grants, Home Assistant controls, AI provider settings | Existing household API/service routes | Not exposed. No credential retrieval, display impersonation, physical action, or internal AI-provider administration through MCP. |
 
-## Candidate scope and outstanding work
+## Deployment and remaining work
 
-This local candidate is not issue #33 completion. Before release, outstanding items include UI/API/MCP parity review, a family-facing PDF viewer, the Home Assistant dashboard, and real client interoperability tests. The PDF snapshot is not proof that document content has the correct class, week, or instructions; that must be independently verified. The public endpoint remains absent at public source `8391041...` until deployment and live verification.
+All 17 tools are **local-candidate only**. Public source `8391041...` has no `/mcp` endpoint, and main merge `f79271c` does not include the candidate. Remaining work includes cross-surface UI/API/MCP parity review, Home Assistant dashboard integration, client interoperability and scheduled-run testing, and release/deployment validation. The school-week browser fallback is implemented locally, but public display/viewer behavior is unverified. Do not treat the PDF snapshot hash as proof that the PDF describes the correct class, week, or instructions.

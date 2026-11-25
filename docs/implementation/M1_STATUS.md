@@ -4,9 +4,9 @@ Public app and worker run source `8391041ca17ffea124870118b7312f0c50e3da5c` on s
 
 ## Issue #33 MCP local candidate — 2026-11-25 (not deployed)
 
-Publisher branch `feat/mcp-integration-33` at `8378560` contains an MCP candidate with 11 registered tools (including limited school-plan writes) and a wired school source/weekly-plan UI. Security/disclosure fixes from `4b9103a` are included. MCP API/integration evidence uses synthetic local data only. Main's merge `f79271c` does not contain this candidate, and the public app/worker remain on source `8391041ca17ffea124870118b7312f0c50e3da5c`, schema 48, with no MCP endpoint. No public MCP deployment or external-client test is claimed.
+Publisher branch `feat/mcp-integration-33` at `f9df57f` contains 17 registered MCP tools, including bounded monitor-status reads, grocery/dinner board writes, school-plan writes, and the PDF snapshot operation. School source/week UI is wired, including a protected browser open/download fallback for verified PDF snapshots. Security/disclosure fixes from `4b9103a` are included. Automated MCP API/integration evidence uses synthetic local data only; it is not evidence of a public service or live client compatibility.
 
-Issue #33 remains open. Outstanding work includes UI/API/MCP parity review, a family-facing PDF viewer, the Home Assistant dashboard, and ChatGPT/Codex/Claude/Gemini/generic client interoperability tests. A verified PDF byte snapshot does not verify the meaning of its contents. See [MCP tool matrix](../MCP_TOOL_MATRIX.md), [MCP client guide](../MCP_CLIENTS.md), and [MCP operations](../MCP_OPERATIONS.md).
+Main merge `f79271c` does not contain this candidate. Public app/worker remain on source `8391041ca17ffea124870118b7312f0c50e3da5c`, schema 48, with no MCP endpoint. Issue #33 remains open: cross-surface parity review, Home Assistant dashboard integration, real client interoperability/scheduled-run testing, and public deployment/validation remain outstanding. PDF byte verification is not semantic verification and does not expose PDF contents to an MCP client. See [MCP tool matrix](../MCP_TOOL_MATRIX.md), [MCP client guide](../MCP_CLIENTS.md), [MCP operations](../MCP_OPERATIONS.md), and [ADR 0027](../decisions/0027-mcp-oauth-and-internal-ai-boundaries.md).
 
 ---
 
