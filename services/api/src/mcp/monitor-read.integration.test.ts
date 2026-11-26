@@ -20,13 +20,13 @@ const meta={[PROTOCOL_VERSION_META_KEY]:'2026-07-28',[CLIENT_INFO_META_KEY]:{nam
 function modernHeaders(name:string){return{'mcp-protocol-version':'2026-07-28','mcp-method':'tools/call','mcp-name':name};}
 function rpc(response:LightMyRequestResponse):any{return response.json();}
 async function call(token:string,name:string,args:Record<string,unknown>,id:number){return inject({method:'POST',url:'/mcp',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json',...modernHeaders(name)},payload:{jsonrpc:'2.0',id,method:'tools/call',params:{name,arguments:args,_meta:meta}}});}
-async function authorize(scope='mcp:monitors:read mcp:monitors:content'){
+async function authorize(scope='mcp:monitors:read mcp:monitors:content',authorizationClientId=clientId){
   const verifier='synthetic-monitor-verifier-abcdefghijklmnopqrstuvwxyz0123456789',state='monitor-state-0123456789';
-  const query=new URLSearchParams({response_type:'code',client_id:clientId,redirect_uri:callback,code_challenge:challenge(verifier),code_challenge_method:'S256',resource:`${origin}/mcp`,scope,state});
+  const query=new URLSearchParams({response_type:'code',client_id:authorizationClientId,redirect_uri:callback,code_challenge:challenge(verifier),code_challenge_method:'S256',resource:`${origin}/mcp`,scope,state});
   const page=await inject({method:'GET',url:`/oauth/authorize?${query}`,headers:{cookie:adminCookie}});assert.equal(page.statusCode,200,page.body);
   const approved=await inject({method:'POST',url:'/oauth/authorize',headers:{cookie:adminCookie,origin,'content-type':'application/x-www-form-urlencoded'},payload:form({...Object.fromEntries(query),_csrf:adminCsrf,household_id:householdId,decision:'approve'})});assert.equal(approved.statusCode,303,approved.body);
   const code=new URL(String(approved.headers.location)).searchParams.get('code')!;
-  const exchanged=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:form({grant_type:'authorization_code',client_id:clientId,code,redirect_uri:callback,code_verifier:verifier,resource:`${origin}/mcp`})});assert.equal(exchanged.statusCode,200,exchanged.body);return exchanged.json().access_token as string;
+  const exchanged=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:form({grant_type:'authorization_code',client_id:authorizationClientId,code,redirect_uri:callback,code_verifier:verifier,resource:`${origin}/mcp`})});assert.equal(exchanged.statusCode,200,exchanged.body);return exchanged.json().access_token as string;
 }
 
 async function insertTask(household:string,membership:string,name:string){return(await pool.query<{id:string}>(`INSERT INTO monitor_tasks(household_id,owner_membership_id,name,instruction,source_url,state,check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier,last_checked_at,next_check_at,error_code,check_count,ai_call_count,unchanged_count)
@@ -53,6 +53,105 @@ before(async()=>{
   const registered=await inject({method:'POST',url:'/oauth/register',payload:{client_name:'Synthetic monitor MCP',redirect_uris:[callback],token_endpoint_auth_method:'none'}});assert.equal(registered.statusCode,201,registered.body);clientId=registered.json().client_id;
 });
 after(async()=>{await app.close();await pool.end();});
+
+test('monitor MCP reviews share the browser revision, stay private, and recheck concurrent revocation',async()=>{
+  const tool='samvev_monitor_result_review';
+  const register=await inject({method:'POST',url:'/oauth/register',payload:{client_name:'Synthetic monitor review client',redirect_uris:[callback],token_endpoint_auth_method:'none'}});
+  assert.equal(register.statusCode,201,register.body);
+  const reviewClient=register.json().client_id as string;
+  const runId=(await pool.query<{id:string}>(`SELECT id FROM monitor_runs WHERE task_id=$1 AND outcome='changed'`,[taskId])).rows[0]!.id;
+  const failedRunId=(await pool.query<{id:string}>(`SELECT id FROM monitor_runs WHERE task_id=$1 AND outcome='failed'`,[taskId])).rows[0]!.id;
+  const foreignRunId=(await pool.query<{id:string}>(`INSERT INTO monitor_runs(task_id,task_revision,outcome,run_kind,result_kind,result)
+    VALUES($1,1,'changed','manual','answer',jsonb_build_object('answer',$2::text)) RETURNING id`,[foreignTaskId,privateText])).rows[0]!.id;
+  const args={taskId,runId,disposition:'handled',expectedRevision:0};
+  const otherAccount=(await pool.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,locale,theme)
+    SELECT id,'unrelated-reviewer@test.invalid','en','system' FROM installations WHERE singleton RETURNING id`)).rows[0]!.id;
+  await pool.query(`INSERT INTO monitor_result_reviews(task_id,run_id,account_id,disposition,revision) VALUES($1,$2,$3,'dismissed',4)`,[taskId,runId,otherAccount]);
+  for(const scope of ['mcp:monitors:read mcp:monitors:content','mcp:monitors:review']){
+    const insufficient=await call(await authorize(scope,reviewClient),tool,args,60);
+    assert.equal(insufficient.statusCode,403,insufficient.body);
+    assert.match(String(insufficient.headers['www-authenticate']),/insufficient_scope/);
+  }
+
+  const token=await authorize('mcp:monitors:read mcp:monitors:review',reviewClient);
+  const contentDenied=await call(token,'samvev_monitor_result_get',{taskId},61);
+  assert.equal(contentDenied.statusCode,403,contentDenied.body);
+  const domainState=async()=>(await pool.query(`SELECT to_jsonb(task) AS task,
+    (SELECT jsonb_agg(to_jsonb(run) ORDER BY run.id) FROM monitor_runs run WHERE run.task_id=task.id) AS runs,
+    (SELECT jsonb_agg(to_jsonb(execution) ORDER BY execution.id) FROM monitor_executions execution WHERE execution.task_id=task.id) AS executions,
+    (SELECT count(*) FROM messages WHERE household_id=task.household_id) AS messages
+    FROM monitor_tasks task WHERE task.id=$1`,[taskId])).rows[0];
+  const initialDomainState=await domainState();
+  const successful=await call(token,tool,args,62);
+  assert.equal(successful.statusCode,200,successful.body);
+  const result=rpc(successful).result;
+  assert.equal(result.isError,undefined,successful.body);
+  assert.deepEqual(result.structuredContent,{taskId,runId,disposition:'handled',revision:1});
+  assert.deepEqual(JSON.parse(result.content[0].text),result.structuredContent);
+  assert.doesNotMatch(successful.body,new RegExp(privateText+'|private\\.invalid|synthetic-secret|sourceUrl|personId|recipient'));
+  assert.deepEqual(await domainState(),initialDomainState);
+
+  const stale=await call(token,tool,args,63);
+  assert.equal(rpc(stale).result.isError,true,stale.body);
+  assert.match(rpc(stale).result.content[0].text,/REVISION_CONFLICT/);
+  for(const [requestedTaskId,requestedRunId] of [[taskId,failedRunId],[taskId,foreignRunId],[foreignTaskId,foreignRunId]]){
+    const denied=await call(token,tool,{...args,taskId:requestedTaskId,runId:requestedRunId},64);
+    assert.equal(rpc(denied).result.isError,true,denied.body);
+    assert.match(rpc(denied).result.content[0].text,/NOT_FOUND/);
+    assert.doesNotMatch(denied.body,new RegExp(privateText));
+  }
+
+  // Browser reviews may use a historical result after a task edit, and both channels share the account's CAS revision.
+  await pool.query('UPDATE monitor_tasks SET revision=revision+1 WHERE id=$1',[taskId]);
+  try{
+    const browser=await inject({method:'PUT',url:`/api/v1/households/${householdId}/monitors/${taskId}/results/${runId}/review`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{disposition:'saved',expectedRevision:1}});
+    assert.equal(browser.statusCode,200,browser.body);
+    assert.deepEqual(browser.json(),{taskId,runId,disposition:'saved',revision:2});
+    const historical=await call(token,tool,{...args,expectedRevision:2},65);
+    assert.deepEqual(rpc(historical).result.structuredContent,{taskId,runId,disposition:'handled',revision:3});
+  }finally{
+    await pool.query('UPDATE monitor_tasks SET revision=revision-1 WHERE id=$1',[taskId]);
+  }
+
+  const grant=(await pool.query<{id:string}>(`SELECT g.id FROM mcp_oauth_grants g JOIN mcp_oauth_clients c ON c.id=g.client_id WHERE c.client_id=$1`,[reviewClient])).rows[0]!;
+  const revoke=await pool.connect();
+  let pending:ReturnType<typeof call>|undefined;
+  let revocationOpen=false;
+  try{
+    await revoke.query('BEGIN');
+    revocationOpen=true;
+    await revoke.query('UPDATE mcp_oauth_grants SET revoked_at=clock_timestamp() WHERE id=$1',[grant.id]);
+    pending=call(token,tool,{...args,expectedRevision:3},66);
+    let waitingForAuthority=false;
+    for(let attempt=0;attempt<500;attempt++){
+      const activity=await pool.query<{blocked:boolean}>(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
+        AND wait_event_type='Lock' AND query LIKE 'SELECT 1 FROM mcp_oauth_grants oauth_grant%') AS blocked`);
+      if(activity.rows[0]!.blocked){waitingForAuthority=true;break;}
+      await new Promise(resolve=>setTimeout(resolve,10));
+    }
+    assert.equal(waitingForAuthority,true,'review reached the transactional authority check while revocation held the grant lock');
+    await revoke.query('COMMIT');
+    revocationOpen=false;
+    const concurrent=await pending;
+    assert.equal(rpc(concurrent).result.isError,true,concurrent.body);
+    assert.match(rpc(concurrent).result.content[0].text,/FORBIDDEN/);
+  }finally{
+    if(revocationOpen)await revoke.query('ROLLBACK');
+    revoke.release();
+    await pending;
+  }
+  const revoked=await call(token,tool,{...args,expectedRevision:3},67);
+  assert.equal(revoked.statusCode,401,revoked.body);
+
+  const reviews=await pool.query(`SELECT account_id,disposition,revision FROM monitor_result_reviews WHERE task_id=$1 AND run_id=$2`,[taskId,runId]);
+  assert.deepEqual(reviews.rows.find(row=>row.account_id===accountId),{account_id:accountId,disposition:'handled',revision:3});
+  assert.deepEqual(reviews.rows.find(row=>row.account_id===otherAccount),{account_id:otherAccount,disposition:'dismissed',revision:4});
+  const audits=await pool.query(`SELECT actor_type,actor_id,action,metadata FROM audit_events WHERE subject_id=$1
+    AND action IN ('mcp.monitor_result_reviewed','monitor.result_reviewed')`,[taskId]);
+  assert.deepEqual(audits.rows.filter(row=>row.actor_type==='account').map(row=>[row.actor_id,row.metadata.revision]).sort(),[[accountId,1],[accountId,2],[accountId,3]]);
+  assert.deepEqual(audits.rows.filter(row=>row.actor_type==='mcp').map(row=>[row.actor_id,row.metadata.revision]).sort(),[[grant.id,1],[grant.id,3]]);
+  assert.doesNotMatch(JSON.stringify(audits.rows),new RegExp(privateText));
+});
 
 test('monitor MCP reads expose only bounded status metadata and recheck live authority',async()=>{
   const readOnlyToken=await authorize('mcp:monitors:read');const readOnlyStatus=await call(readOnlyToken,'samvev_monitors_list',{householdId,limit:10},40);assert.equal(readOnlyStatus.statusCode,200,readOnlyStatus.body);const contentDenied=await call(readOnlyToken,'samvev_monitor_result_get',{taskId},41);assert.equal(contentDenied.statusCode,403,contentDenied.body);assert.match(String(contentDenied.headers['www-authenticate']),/insufficient_scope/);
@@ -83,7 +182,7 @@ test('monitor MCP reads expose only bounded status metadata and recheck live aut
   await pool.query(`UPDATE monitor_tasks SET revision=revision+1,instruction='Edited synthetic instruction with adequate length',source_url='https://changed.test.invalid/new',state='draft',last_changed_at=NULL,last_result=NULL,updated_at=clock_timestamp() WHERE id=$1`,[taskId]);const edited=await call(token,'samvev_monitor_result_get',{taskId},37);const editedResult=rpc(edited).result.structuredContent.result;assert.equal(editedResult.content,null);assert.equal(editedResult.taskRevision,2);assert.equal(editedResult.resultRevision,1);assert.equal(editedResult.hasCurrentResult,false);assert.equal(editedResult.resultStale,true);assert.doesNotMatch(edited.body,new RegExp(privateText));
   const cross=await call(token,'samvev_monitor_get',{taskId:foreignTaskId},4);assert.equal(cross.statusCode,200,cross.body);assert.equal(rpc(cross).result.isError,true);assert.match(rpc(cross).result.content[0].text,/NOT_FOUND/);assert.doesNotMatch(cross.body,new RegExp(privateText));
   const crossResult=await call(token,'samvev_monitor_result_get',{taskId:foreignTaskId},34);assert.equal(rpc(crossResult).result.isError,true);assert.match(rpc(crossResult).result.content[0].text,/NOT_FOUND/);
-  const grant=(await pool.query<{id:string}>('SELECT id FROM mcp_oauth_grants WHERE household_id=$1',[householdId])).rows[0]!;
+  const grant=(await pool.query<{id:string}>('SELECT g.id FROM mcp_oauth_grants g JOIN mcp_oauth_clients c ON c.id=g.client_id WHERE g.household_id=$1 AND c.client_id=$2',[householdId,clientId])).rows[0]!;
   const audits=await pool.query<{action:string;metadata:Record<string,unknown>}>(`SELECT action,metadata FROM audit_events WHERE actor_type='mcp' AND actor_id=$1 ORDER BY occurred_at`,[grant.id]);assert.deepEqual(audits.rows.map(row=>row.action),['mcp.monitors_listed','mcp.monitors_listed','mcp.monitor_read','mcp.monitor_runs_listed','mcp.monitor_result_read','mcp.monitor_result_read','mcp.monitor_result_read','mcp.monitor_result_read','mcp.monitor_result_read','mcp.monitor_result_read']);assert.equal(audits.rows[0]!.metadata.count,1);assert.equal(audits.rows[3]!.metadata.limit,1);assert.doesNotMatch(JSON.stringify(audits.rows),new RegExp(privateText));
   await pool.query(`UPDATE mcp_oauth_grants SET scopes='["mcp:context","mcp:monitors:read"]'::jsonb WHERE id=$1`,[grant.id]);
   const removed=await call(token,'samvev_monitor_result_get',{taskId},5);assert.equal(rpc(removed).result.isError,true);assert.match(rpc(removed).result.content[0].text,/FORBIDDEN/);const statusStillAllowed=await call(token,'samvev_monitor_get',{taskId},6);assert.equal(rpc(statusStillAllowed).result.isError,undefined);

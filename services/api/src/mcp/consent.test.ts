@@ -63,3 +63,13 @@ test('display appearance consent covers prior and future display selections in b
   assert.match(render('en'), /Change the name, language and theme of displays already selected or later selected for this client\. Also requires display read access/);
   assert.match(render('nb'), /Endre navn, språk og tema for skjermer som allerede er valgt eller senere velges for denne klienten\. Krever også lesetilgang/);
 });
+
+test('monitor review consent describes personal review and monitor read access in both locales', () => {
+  const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
+    request: { ...request, scopes: ['mcp:monitors:read', 'mcp:monitors:review'] },
+    clientName: 'Synthetic monitor review client',
+    households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
+  });
+  assert.match(render('en'), /Save, mark as handled, or dismiss an existing monitor result on your behalf. Also requires monitor read access/);
+  assert.match(render('nb'), /Lagre, merke som håndtert eller avvise et eksisterende oppdragsresultat på dine vegne. Krever også lesetilgang/);
+});
