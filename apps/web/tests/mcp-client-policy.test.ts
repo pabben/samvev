@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { hasMcpDisplayPolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
+import { calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, hasMcpDisplayPolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
 
 const authorization: McpAuthorization = {
   id: 'synthetic-grant-id',
@@ -25,8 +25,11 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:people:read'), 'mcpScopePeopleRead');
   assert.equal(mcpScopeTranslationKey('mcp:groceries:read'), 'mcpScopeGroceriesRead');
   assert.equal(mcpScopeTranslationKey('mcp:dinners:read'), 'mcpScopeDinnersRead');
+  assert.equal(mcpScopeTranslationKey('mcp:calendar:read'), 'mcpScopeCalendarRead');
+  assert.equal(mcpScopeTranslationKey('mcp:messages:write'), 'mcpScopeMessagesWrite');
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
+  assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });
 
@@ -35,6 +38,8 @@ test('school and display policy controls require a matching current consent scop
   assert.equal(hasMcpSchoolScope(['mcp:school-plans:write']), true);
   assert.equal(hasMcpSchoolScope(['mcp:people:read']), false);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:monitors:read']), true);
+  assert.equal(hasMcpDisplayPolicyScope(['mcp:calendar:read']), true);
+  assert.equal(hasMcpDisplayPolicyScope(['mcp:messages:write']), true);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:groceries:read']), false);
 });
 
@@ -69,6 +74,37 @@ test('school-source resource cannot be added unless its linked person is include
   assert.throws(()=>schoolResourcesForPolicy([], ['synthetic-source'], [source], []), /mcp_school_source_person_required/);
 });
 
+const calendarConnection = (overrides:Record<string,unknown>={})=>({
+  id:'synthetic-calendar-connection',provider:'google',name:'Family calendar',accountLabel:'family@example.test',state:'connected',
+  sources:[{id:'synthetic-calendar-source',purpose:'calendar',enabled:true,name:'Primary',displayName:'School dates'}],
+  ...overrides,
+} as any);
+
+test('calendar policy catalog is connected, enabled, calendar-only, and distinguishes repeated source names without exposing URLs',()=>{
+  const sources=calendarSourcesForPolicy([
+    calendarConnection(),
+    calendarConnection({id:'synthetic-second-connection',name:'Work calendar',accountLabel:'work@example.test',sources:[{id:'synthetic-second-source',purpose:'calendar',enabled:true,name:'Primary',displayName:'School dates'}]}),
+    calendarConnection({id:'synthetic-disconnected',state:'disconnected',sources:[{id:'synthetic-disconnected-source',purpose:'calendar',enabled:true,name:'School dates'}]}),
+    calendarConnection({id:'synthetic-disabled',sources:[{id:'synthetic-disabled-source',purpose:'calendar',enabled:false,name:'Disabled source',displayName:null}]}),
+    calendarConnection({id:'synthetic-waste',sources:[{id:'synthetic-waste-source',purpose:'waste',enabled:true,name:'Waste calendar',displayName:null}]}),
+  ]);
+  assert.equal(sources.length,2);
+  assert.deepEqual(sources.map(source=>source.id),['synthetic-calendar-source','synthetic-second-source']);
+  assert.match(calendarSourcePolicyLabel(sources[0]!),/Family calendar.*family@example\.test.*School dates/);
+  assert.match(calendarSourcePolicyLabel(sources[1]!),/Work calendar.*work@example\.test.*School dates/);
+  assert.ok(sources.every(source=>!JSON.stringify(source).includes('https://')));
+});
+
+test('calendar resource selection preserves existing school grants byte-for-byte and surfaces stale calendar grants',()=>{
+  const school={kind:'school_source' as const,id:'synthetic-school',extension:'keep-me'};
+  const calendar={kind:'calendar_source' as const,id:'synthetic-old-calendar',extension:'also-keep-until-explicit-removal'};
+  const next=calendarResourcesForPolicy([school,calendar],['synthetic-old-calendar','synthetic-calendar-source'],[{id:'synthetic-calendar-source',connectionId:'synthetic-connection',connectionName:'Family',accountLabel:'family@example.test',provider:'google',connectionState:'connected',enabled:true,purpose:'calendar',name:'Primary',displayName:'School dates'}]);
+  assert.deepEqual(next,[school,calendar,{kind:'calendar_source',id:'synthetic-calendar-source'}]);
+  assert.deepEqual(unlistedCalendarResources([school,calendar],[]),[calendar]);
+  assert.deepEqual(calendarResourcesForPolicy([school,calendar],[],[]),[school]);
+  assert.deepEqual(schoolResourcesForPolicy([school],['synthetic-school'],[],['synthetic-person-id']),[school]);
+});
+
 test('policy update uses backend snake_case authorization fields and preserves approved resources in the mocked API request', async () => {
   const originalFetch = globalThis.fetch;
   let request: { url: string; init?: RequestInit } | undefined;
@@ -89,6 +125,14 @@ test('policy update uses backend snake_case authorization fields and preserves a
     displayIds: ['synthetic-display-id'],
     resources: [{ kind: 'school_source', id: 'synthetic-approved-source-id' }],
   });
+});
+
+test('policy update keeps mixed school and calendar resource grants when another policy field changes',async()=>{
+  const mixed={...authorization,resources:[{kind:'school_source' as const,id:'synthetic-approved-source-id'},{kind:'calendar_source' as const,id:'synthetic-calendar-source-id'}]};
+  const originalFetch=globalThis.fetch;let request:RequestInit|undefined;
+  globalThis.fetch=(async(_input:URL|RequestInfo,init?:RequestInit)=>{request=init;return new Response(null,{status:204})}) as typeof fetch;
+  try{await saveMcpPolicy('/households/synthetic-household-id/mcp/authorizations',mixed,['synthetic-person-id'],[])}finally{globalThis.fetch=originalFetch}
+  assert.deepEqual(JSON.parse(String(request?.body)).resources,mixed.resources);
 });
 
 test('scope narrowing is sent as a subset to the CAS policy endpoint', async () => {

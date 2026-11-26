@@ -1,4 +1,6 @@
 import { api } from './api';
+import type { CalendarConnection } from './calendar-connection-types';
+import { calendarProviderKey } from './calendar-provider-config';
 
 export type McpAuthorization = {
   id: string;
@@ -11,8 +13,9 @@ export type McpAuthorization = {
   last_used_at: string | null;
   person_ids?: string[];
   display_ids?: string[];
-  resources?: { kind: 'school_source'; id: string }[];
+  resources?: McpPolicyResource[];
 };
+export type McpPolicyResource={kind:'school_source'|'calendar_source';id:string};
 export type SchoolPlanSource = {
   id: string;
   personId: string;
@@ -22,8 +25,9 @@ export type SchoolPlanSource = {
   sourcePageUrl: string;
   displayPdfLinksAllowed: boolean;
 };
+export type McpCalendarSource = {id:string;connectionId:string;connectionName:string;accountLabel:string|null;provider:CalendarConnection['provider'];connectionState:string;enabled:boolean;purpose:'calendar'|'waste';name:string;displayName:string|null};
 
-const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopeMessagesRead' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite'> = {
+const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead'> = {
   context: 'mcpScopeContext', 'mcp:context': 'mcpScopeContext',
   'monitors:read': 'mcpScopeMonitorsRead', 'mcp:monitors:read': 'mcpScopeMonitorsRead',
   'school-plans:read': 'mcpScopeSchoolRead', 'mcp:school-plans:read': 'mcpScopeSchoolRead',
@@ -31,12 +35,14 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   offline_access: 'mcpScopeOffline',
   'mcp:people:read': 'mcpScopePeopleRead',
   'mcp:messages:read': 'mcpScopeMessagesRead',
+  'mcp:messages:write': 'mcpScopeMessagesWrite',
   'mcp:groceries:read': 'mcpScopeGroceriesRead',
   'mcp:groceries:write': 'mcpScopeGroceriesWrite',
   'mcp:dinners:read': 'mcpScopeDinnersRead',
   'mcp:dinners:write': 'mcpScopeDinnersWrite',
+  'mcp:calendar:read': 'mcpScopeCalendarRead',
 };
-const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'>={
+const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'>={
   'mcp.school_sources_listed':'mcpActivitySchoolSourcesListed',
   'mcp.school_plans_listed':'mcpActivitySchoolPlansListed',
   'mcp.school_plan_read':'mcpActivitySchoolPlanRead',
@@ -51,6 +57,7 @@ const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpAc
   'mcp.grocery_added':'mcpActivityGroceryAdded',
   'mcp.grocery_updated':'mcpActivityGroceryUpdated',
   'mcp.dinners_listed':'mcpActivityDinnersListed',
+  'mcp.calendar_sources_listed':'mcpActivityCalendarSourcesListed',
   'mcp.dinner_options_listed':'mcpActivityDinnerOptionsListed',
   'mcp.dinner_assigned':'mcpActivityDinnerAssigned',
 };
@@ -68,7 +75,23 @@ export function hasMcpSchoolScope(scopes: string[]) {
 }
 
 export function hasMcpDisplayPolicyScope(scopes: string[]) {
-  return hasMcpSchoolScope(scopes) || scopes.includes('mcp:monitors:read') || scopes.includes('monitors:read');
+  return hasMcpSchoolScope(scopes) || scopes.includes('mcp:calendar:read') || scopes.includes('mcp:messages:write') || scopes.includes('mcp:monitors:read') || scopes.includes('monitors:read');
+}
+
+export function calendarSourcesForPolicy(connections:CalendarConnection[]):McpCalendarSource[]{
+  return calendarSourceRecords(connections).filter(source=>source.connectionState==='connected'&&source.enabled&&source.purpose==='calendar');
+}
+
+export function calendarSourceRecords(connections:CalendarConnection[]):McpCalendarSource[]{
+  return connections.flatMap(connection=>connection.sources.filter(source=>source.purpose==='calendar').map(source=>({id:source.id,connectionId:connection.id,connectionName:connection.name,accountLabel:connection.accountLabel,provider:connection.provider,connectionState:connection.state,enabled:source.enabled,purpose:source.purpose,name:source.name,displayName:source.displayName}))).sort((a,b)=>`${a.connectionName} ${a.accountLabel??''} ${a.displayName??a.name}`.localeCompare(`${b.connectionName} ${b.accountLabel??''} ${b.displayName??b.name}`));
+}
+
+export function calendarProviderTranslationKey(provider:CalendarConnection['provider']){
+  return calendarProviderKey(provider);
+}
+
+export function calendarSourcePolicyLabel(source:McpCalendarSource){
+  return [source.connectionName,source.accountLabel,source.displayName??source.name].filter(Boolean).join(' · ');
 }
 
 export function isValidMcpScopeNarrowing(originalScopes: string[], selectedScopes: string[]) {
@@ -78,15 +101,28 @@ export function isValidMcpScopeNarrowing(originalScopes: string[], selectedScope
 export function schoolResourcesForPolicy(existing: NonNullable<McpAuthorization['resources']>, selectedResourceIds: string[], sources: SchoolPlanSource[], selectedPersonIds: string[]) {
   if (sources.some(source => selectedResourceIds.includes(source.id) && !selectedPersonIds.includes(source.personId))) throw new Error('mcp_school_source_person_required');
   const selected = new Set(selectedResourceIds);
-  const kept = existing.filter(resource => selected.has(resource.id));
-  const existingIds = new Set(existing.map(resource => resource.id));
+  const kept = existing.filter(resource => resource.kind!=='school_source'||selected.has(resource.id));
+  const existingIds = new Set(existing.filter(resource=>resource.kind==='school_source').map(resource => resource.id));
   const additions = sources.filter(source => selected.has(source.id) && !existingIds.has(source.id)).map(source => ({ kind: 'school_source' as const, id: source.id }));
   return [...kept, ...additions];
 }
 
 export function unlistedSchoolResources(existing: NonNullable<McpAuthorization['resources']>, sources: SchoolPlanSource[]) {
   const available = new Set(sources.map(source => source.id));
-  return existing.filter(resource => !available.has(resource.id));
+  return existing.filter(resource => resource.kind==='school_source'&&!available.has(resource.id));
+}
+
+export function calendarResourcesForPolicy(existing:NonNullable<McpAuthorization['resources']>,selectedResourceIds:string[],sources:McpCalendarSource[]){
+  const selected=new Set(selectedResourceIds);
+  const kept=existing.filter(resource=>resource.kind!=='calendar_source'||selected.has(resource.id));
+  const existingIds=new Set(existing.filter(resource=>resource.kind==='calendar_source').map(resource=>resource.id));
+  const additions=sources.filter(source=>selected.has(source.id)&&!existingIds.has(source.id)).map(source=>({kind:'calendar_source' as const,id:source.id}));
+  return [...kept,...additions];
+}
+
+export function unlistedCalendarResources(existing:NonNullable<McpAuthorization['resources']>,sources:McpCalendarSource[]){
+  const available=new Set(sources.map(source=>source.id));
+  return existing.filter(resource=>resource.kind==='calendar_source'&&!available.has(resource.id));
 }
 
 export async function saveMcpPolicy(base: string, authorization: McpAuthorization, personIds: string[], displayIds: string[], resources = authorization.resources, scopes?: string[]) {
