@@ -17,7 +17,8 @@ function challenge(verifier:string){return createHash('sha256').update(verifier)
 const modernMeta={[PROTOCOL_VERSION_META_KEY]:'2026-07-28',[CLIENT_INFO_META_KEY]:{name:'synthetic-remote-client',version:'1.0.0'},[CLIENT_CAPABILITIES_META_KEY]:{}};
 function modernHeaders(method:string,name?:string){return{'mcp-protocol-version':'2026-07-28','mcp-method':method,...(name?{'mcp-name':name}:{})};}
 async function remoteMcp(token:string,body:Record<string,unknown>,headers:Record<string,string>={}){
-  return fetch(`${baseUrl}/mcp`,{method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json, text/event-stream',...headers},body:JSON.stringify(body)});
+  // The test listener is loopback-only, while production validates the canonical public Host supplied by its reverse proxy.
+  return fetch(`${baseUrl}/mcp`,{method:'POST',headers:{host:new URL(origin).host,authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json, text/event-stream',...headers},body:JSON.stringify(body)});
 }
 
 before(async()=>{
