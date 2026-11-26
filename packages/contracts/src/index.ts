@@ -607,6 +607,13 @@ export const monitorTaskCreateSchema = z.object({
   modelTier: z.enum(aiModelTiers).default('routine')
 }).strict();
 
+/**
+ * A monitor draft that deliberately has no delivery targets yet. This is only
+ * useful for delegated proposal flows: the browser must add recipients before
+ * setup, approval, scheduling, or publication can become available.
+ */
+export const monitorRecipientFreeDraftCreateSchema = monitorTaskCreateSchema.omit({ targets: true });
+
 export const monitorTaskUpdateSchema = monitorTaskCreateSchema.partial().extend({
   expectedRevision: z.number().int().positive()
 }).strict().refine((value) => Object.keys(value).some((key) => key !== 'expectedRevision'));

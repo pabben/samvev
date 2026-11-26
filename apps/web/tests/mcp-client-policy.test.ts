@@ -30,6 +30,7 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:monitors:read'), 'mcpScopeMonitorsRead');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:content'), 'mcpScopeMonitorsContent');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:review'), 'mcpScopeMonitorsReview');
+  assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:write'), 'mcpScopeMonitorsDraftWrite');
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:read'), 'mcpScopeSchoolRead');
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:write'), 'mcpScopeSchoolWrite');
   assert.equal(mcpScopeTranslationKey('offline_access'), 'mcpScopeOffline');
@@ -45,6 +46,10 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.match(nb.mcpScopeDisplaysSetupRead, /Krever også lesetilgang til skjermer\./);
   assert.equal(mcpScopeTranslationKey('mcp:displays:appearance:write'), 'mcpScopeDisplaysAppearanceWrite');
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
+  assert.match(en.mcpScopeMonitorsDraftWrite, /without recipients/);
+  assert.match(en.mcpScopeMonitorsDraftWrite, /do not fetch, use AI, run, schedule, or send anything/);
+  assert.match(nb.mcpScopeMonitorsDraftWrite, /uten mottakere/);
+  assert.match(nb.mcpScopeMonitorsDraftWrite, /henter ikke kilder, bruker ikke KI, kjøres ikke, planlegges ikke og sender ingenting/);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
   assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
   assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');
@@ -53,6 +58,9 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_read'), 'mcpActivityMonitorResultRead');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_reviewed'), 'mcpActivityMonitorResultReviewed');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_review_read'), 'mcpActivityMonitorResultReviewRead');
+  assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_created'), 'mcpActivityMonitorDraftCreated');
+  assert.equal(en.mcpActivityMonitorDraftCreated, 'Created an inactive monitor draft');
+  assert.equal(nb.mcpActivityMonitorDraftCreated, 'Opprettet et inaktivt oppdragsutkast');
   assert.equal(mcpActivityTranslationKey('mcp.grocery_deleted'), 'mcpActivityGroceryDeleted');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });

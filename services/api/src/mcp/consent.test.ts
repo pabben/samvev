@@ -84,3 +84,17 @@ test('monitor review consent describes personal review and monitor read access i
   assert.match(render('nb'), /Se din vurdering av et oppdragsresultat/);
   assert.match(render('nb'), /Lagre, merke som håndtert eller avvise et eksisterende oppdragsresultat på dine vegne. Krever også lesetilgang/);
 });
+
+test('monitor draft write consent discloses its inert recipient-free boundary in both locales', () => {
+  const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
+    request: { ...request, scopes: ['mcp:monitors:read', 'mcp:monitors:draft:write'] },
+    clientName: 'Synthetic monitor draft client',
+    households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
+  });
+  assert.match(render('en'), /Create an inactive monitor draft without recipients/);
+  assert.match(render('en'), /does not fetch sources, use AI, run, or send anything/);
+  assert.match(render('en'), /household administrator must finish recipients and approval in Samvev/);
+  assert.match(render('nb'), /Opprette et inaktivt oppdragsutkast uten mottakere/);
+  assert.match(render('nb'), /henter ikke kilder, bruker ikke KI, kjøres ikke og sender ingenting/);
+  assert.match(render('nb'), /husstandsadministrator må fullføre mottakere og godkjenning i Samvev/);
+});

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   monitorAnswerSchema, monitorExtractionSchema, monitorInterpretationSchema,
-  monitorTaskActions, monitorTaskCreateSchema, monitorTaskUpdateSchema, type AiModelTier, type Capability,
+  monitorRecipientFreeDraftCreateSchema, monitorTaskActions, monitorTaskCreateSchema, monitorTaskUpdateSchema, type AiModelTier, type Capability,
   type Locale, type MonitorActionBlockReason, type MonitorProviderPolicy, type MonitorTaskAction, type MonitorTaskLifecycle, type MonitorToolName
 } from '@samvev/contracts';
 import { DomainError, requireCapability } from '@samvev/core';
@@ -282,6 +282,25 @@ export function monitorTaskDto(row:Record<string,unknown>,targetAuthorized=true)
     latestResult:row.latest_result??null,activeExecution:publicStoredExecution(row.active_execution),latestExecution:publicStoredExecution(row.latest_execution),events:row.events,stats:{checks:row.check_count,aiCalls:row.ai_call_count,unchanged:row.unchanged_count},lifecycle:monitorTaskLifecycle(row,targetAuthorized),createdAt:(row.created_at as Date).toISOString(),updatedAt:(row.updated_at as Date).toISOString()};
 }
 function derivedName(instruction:string,sourceUrl:string|null):string {const fallback=sourceUrl?`Følg med på ${new URL(sourceUrl).hostname.replace(/^www\./,'')}`:'Følg med på været';const first=instruction.split(/[.!?\n]/)[0]?.trim();return (first&&first.length<=80?first:fallback).slice(0,80);}
+
+/** Insert an inert monitor proposal inside the caller's transaction. */
+export async function createRecipientFreeMonitorDraft(client:DbClient,actor:MonitorActor,input:unknown):Promise<{id:string;state:'draft';revision:number}>{
+  const body=monitorRecipientFreeDraftCreateSchema.parse(input);
+  requireCapability(actor.capabilities,'household.manage');
+  requireCapability(actor.capabilities,'message.create.household');
+  requireCapability(actor.capabilities,'message.schedule');
+  const plan=monitorSourcePlan(body.instruction,body.sourceUrl);
+  const name=body.name??derivedName(body.instruction,plan.sourceUrl);
+  const row=(await client.query<{id:string;state:'draft';revision:number}>(`INSERT INTO monitor_tasks(
+    household_id,owner_membership_id,name,instruction,source_url,tool_plan,state,
+    check_interval_minutes,notice_days_before,notice_local_time,provider_policy,model_tier)
+    VALUES($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9,$10,$11)
+    RETURNING id,state,revision`,[
+    actor.householdId,actor.membershipId,name,body.instruction,plan.sourceUrl,JSON.stringify(plan.tools),
+    body.checkIntervalMinutes,body.noticeDaysBefore,body.noticeLocalTime,body.providerPolicy,body.modelTier
+  ])).rows[0]!;
+  return row;
+}
 
 export class MonitorService{
   private readonly agent:MonitorAgentRunner;
