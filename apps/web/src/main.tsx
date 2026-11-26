@@ -35,6 +35,9 @@ import "./home-assistant-controls.css";
 import "./member-shell.css";
 import "./round9.css";
 import "./display-board.css";
+import "./mcp-clients.css";
+import "./school-week.css";
+import "./school-plan-sources.css";
 function App() {
   const [prefs, setPrefs, hadStoredPreferences] = usePreferences();
   const [me, setMe] = useState<Me | null>(null);

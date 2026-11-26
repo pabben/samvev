@@ -29,6 +29,30 @@ Isolerte, syntetiske ende-til-ende-tester beskrives i adapterrepoet. Faktisk She
 Wall Display XL og brukerens aktive HA-installasjon er ikke testet som del av
 denne utviklingen. PR #25 for innbygging av `/display` er en separat løsning.
 
+## Skoleuke på Home Assistant-dashbordet
+
+Skoleukevisning er en egen delingskategori og følger ikke automatisk av at
+kalender, personer eller meldinger er delt. En husstandsadministrator velger
+skolepersoner og godkjente skolekilder separat i HA-delingspolicyen. Kilden må
+tilhøre en av de valgte personene. Tomme valg gir ingen tilgang. Policyen bruker
+revisjonskontroll, og endring eller tilbakekalling slår gjennom i neste snapshot.
+Integrasjonen må ha `ha.calendar.read`.
+
+HA-snapshotet inneholder høyst 20 skoleplaner som overlapper det lokale
+husstandsvinduet fra sju dager tilbake til 21 dager fram. Det returnerer
+planinnhold, ISO-uke, kilde-/innholdstilstand, usikkerhet og revisjoner for
+valgte personer og kilder. Snapshotet inneholder ikke kilde-URL, PDF-URL eller
+PDF-bytes. Skolegrantene utvider ikke kalender- eller meldingsmottakere.
+Tilbakekalt kilde/person eller endret policy fjerner planene fra neste snapshot.
+
+Migrasjon 057 legger til separate `schoolPersonIds` og `schoolSourceIds` i
+integrasjonens delingspolicy. Dette er en lokal kandidat; migrasjonen er ikke
+offentlig utrullet. En fokusert, isolert DB-test (1/1) verifiserte
+standard-avslag, eksplisitte grants, tilbakekalling og at snapshotet ikke
+inneholder kilde- eller PDF-materiale. Dette verifiserer ikke et HA-dashbord:
+ingen faktisk HA-installasjon eller Shelly-skjerm er testet. Preview/live- og
+1280×752 CSS-kontroller gjelder den separate Samvev-visningen, ikke HA.
+
 ## Spond via Home Assistant
 
 

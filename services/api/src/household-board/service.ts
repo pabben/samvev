@@ -30,7 +30,7 @@ export class HouseholdBoardService {
     await this.authorizeDisplayBoard(client,actor,board,write);
   }
 
-  private async mutate<T>(actor:BoardActor,key:string,payload:unknown,board:BoardKind,run:(client:DbClient)=>Promise<T>):Promise<T>{
+  private async mutate<T>(actor:BoardActor,key:string,payload:unknown,board:BoardKind,run:(client:DbClient)=>Promise<T>,audit?: (client:DbClient,result:T)=>Promise<void>):Promise<T>{
     return transaction(async(client)=>{
       await this.authorizeActor(client,actor,board,true);
       // The operation payload excludes expectedRevision, so a retry after a committed write replays even with its original stale revision.
@@ -41,6 +41,7 @@ export class HouseholdBoardService {
         WHERE household_id=$1 AND actor_type=$2 AND actor_id=$3 AND request_key=$4 FOR UPDATE`,[actor.householdId,actor.kind,actor.id,key])).rows[0];
       if(existing){await this.authorizeActor(client,actor,board,true);if(existing.request_hash!==requestHash)throw new DomainError('CONFLICT',409,{reason:'idempotency_payload_mismatch'});return existing.response;}
       const response=await run(client);
+      if(audit)await audit(client,response);
       await client.query(`INSERT INTO household_board_requests(household_id,actor_type,actor_id,request_key,request_hash,response)
         VALUES($1,$2,$3,$4,$5,$6::jsonb)`,[actor.householdId,actor.kind,actor.id,key,requestHash,JSON.stringify(response)]);
       // Authority can expire while waiting on a household/item lock; the final check rolls back both the mutation and receipt.
@@ -68,28 +69,28 @@ export class HouseholdBoardService {
     const row=(await client.query(`UPDATE household_grocery_items SET label=COALESCE($3,label),checked=COALESCE($4,checked),revision=revision+1,updated_at=clock_timestamp()
       WHERE id=$1 AND household_id=$2 AND deleted_at IS NULL AND revision=$5 RETURNING id,label,checked,revision,created_at AS "createdAt",updated_at AS "updatedAt"`,[id,actor.householdId,input.label??null,input.checked??null,input.expectedRevision])).rows[0];if(!row)conflict();return{item:row};
   });}
-  deleteGrocery(actor:BoardActor,id:string,input:{expectedRevision:number;requestKey:string}){return this.mutate(actor,input.requestKey,{kind:'grocery.delete',id},'groceries',async(client)=>{
+  deleteGrocery(actor:BoardActor,id:string,input:{expectedRevision:number;requestKey:string},audit?:(client:DbClient,result:{item:{id:string;revision:number}})=>Promise<void>){return this.mutate(actor,input.requestKey,{kind:'grocery.delete',id},'groceries',async(client)=>{
     const row=(await client.query(`UPDATE household_grocery_items SET deleted_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp()
       WHERE id=$1 AND household_id=$2 AND deleted_at IS NULL AND revision=$3 RETURNING id,revision`,[id,actor.householdId,input.expectedRevision])).rows[0];if(!row)conflict();return{item:row};
-  });}
+  },audit);}
 
   async listDinnerOptions(householdId:string){const rows=await pool.query(`SELECT id,title,emoji,revision FROM household_dinner_options WHERE household_id=$1 AND deleted_at IS NULL ORDER BY title,id LIMIT 100`,[householdId]);return{options:rows.rows};}
   async listDisplayDinnerOptions(actor:Extract<BoardActor,{kind:'display'}>){return transaction(async(client)=>{await this.authorizeActor(client,actor,'dinners',false);const rows=await client.query(`SELECT id,title,emoji,revision FROM household_dinner_options WHERE household_id=$1 AND deleted_at IS NULL ORDER BY title,id LIMIT 100`,[actor.householdId]);await this.authorizeActor(client,actor,'dinners',false);return{options:rows.rows};});}
-  createDinnerOption(actor:BoardActor,input:{title:string;emoji:string;requestKey:string}){return this.mutate(actor,input.requestKey,{kind:'dinner-option.create',title:input.title,emoji:input.emoji},'dinners',async(client)=>{
+  createDinnerOption(actor:BoardActor,input:{title:string;emoji:string;requestKey:string},audit?:(client:DbClient,result:{option:{id:string}})=>Promise<void>){return this.mutate(actor,input.requestKey,{kind:'dinner-option.create',title:input.title,emoji:input.emoji},'dinners',async(client)=>{
     await client.query('SELECT id FROM households WHERE id=$1 FOR UPDATE',[actor.householdId]);
     const count=(await client.query<{count:number}>(`SELECT count(*)::int AS count FROM household_dinner_options WHERE household_id=$1 AND deleted_at IS NULL`,[actor.householdId])).rows[0]!.count;
     if(count>=100)throw new DomainError('CONFLICT',409,{reason:'dinner_option_limit'});
     const row=(await client.query(`INSERT INTO household_dinner_options(household_id,title,emoji,created_by_actor_type,created_by_actor_id)
       VALUES($1,$2,$3,$4,$5) RETURNING id,title,emoji,revision`,[actor.householdId,input.title,input.emoji,actor.kind,actor.id])).rows[0];return{option:row};
-  });}
-  updateDinnerOption(actor:BoardActor,id:string,input:{title?:string;emoji?:string;expectedRevision:number;requestKey:string}){return this.mutate(actor,input.requestKey,{kind:'dinner-option.update',id,title:input.title??null,emoji:input.emoji??null},'dinners',async(client)=>{
+  },audit);}
+  updateDinnerOption(actor:BoardActor,id:string,input:{title?:string;emoji?:string;expectedRevision:number;requestKey:string},audit?:(client:DbClient,result:{option:{id:string}})=>Promise<void>){return this.mutate(actor,input.requestKey,{kind:'dinner-option.update',id,title:input.title??null,emoji:input.emoji??null},'dinners',async(client)=>{
     const row=(await client.query(`UPDATE household_dinner_options SET title=COALESCE($3,title),emoji=COALESCE($4,emoji),revision=revision+1,updated_at=clock_timestamp()
       WHERE id=$1 AND household_id=$2 AND deleted_at IS NULL AND revision=$5 RETURNING id,title,emoji,revision`,[id,actor.householdId,input.title??null,input.emoji??null,input.expectedRevision])).rows[0];if(!row)conflict();return{option:row};
-  });}
-  deleteDinnerOption(actor:BoardActor,id:string,input:{expectedRevision:number;requestKey:string}){return this.mutate(actor,input.requestKey,{kind:'dinner-option.delete',id},'dinners',async(client)=>{
+  },audit);}
+  deleteDinnerOption(actor:BoardActor,id:string,input:{expectedRevision:number;requestKey:string},audit?:(client:DbClient,result:{option:{id:string}})=>Promise<void>){return this.mutate(actor,input.requestKey,{kind:'dinner-option.delete',id},'dinners',async(client)=>{
     const row=(await client.query(`UPDATE household_dinner_options SET deleted_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp()
       WHERE id=$1 AND household_id=$2 AND deleted_at IS NULL AND revision=$3 RETURNING id,revision`,[id,actor.householdId,input.expectedRevision])).rows[0];if(!row)conflict();return{option:row};
-  });}
+  },audit);}
 
   async listDinners(householdId:string,from:string,to:string){
     const rows=await pool.query(`SELECT id,local_date::text AS "localDate",CASE WHEN deleted_at IS NULL THEN title_snapshot ELSE NULL END AS title,

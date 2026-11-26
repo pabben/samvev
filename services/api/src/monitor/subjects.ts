@@ -86,16 +86,43 @@ export async function personMonitorSummaries(client:DbClient,householdId:string,
   }));
 }
 
-export async function reviewMonitorResult(actor:SubjectActor,taskId:string,runId:string,input:{disposition:'saved'|'handled'|'dismissed';expectedRevision:number}):Promise<{taskId:string;runId:string;disposition:string;revision:number}>{
+type MonitorReviewInput={disposition:'saved'|'handled'|'dismissed';expectedRevision:number};
+type MonitorReview={taskId:string;runId:string;disposition:MonitorReviewInput['disposition'];revision:number};
+
+async function requireReviewableMonitorRun(client:DbClient,taskId:string,runId:string):Promise<void>{
+  const run=await client.query(`SELECT 1 FROM monitor_runs r WHERE r.id=$1 AND r.task_id=$2 AND r.run_kind IN ('scheduled','manual') AND r.outcome='changed' AND r.result IS NOT NULL FOR SHARE`,[runId,taskId]);
+  if(!run.rowCount)throw new DomainError('NOT_FOUND',404);
+}
+
+export async function getMonitorResultReview(client:DbClient,actor:Pick<SubjectActor,'accountId'|'householdId'>,taskId:string,runId:string):Promise<{
+  disposition:MonitorReview['disposition']|'unreviewed';
+  reviewRevision:number;
+}>{
+  const task=await client.query('SELECT 1 FROM monitor_tasks WHERE id=$1 AND household_id=$2 FOR SHARE',[taskId,actor.householdId]);
+  if(!task.rowCount)throw new DomainError('NOT_FOUND',404);
+  await requireReviewableMonitorRun(client,taskId,runId);
+  const review=(await client.query<{disposition:MonitorReview['disposition'];reviewRevision:number}>(`SELECT disposition,revision AS "reviewRevision"
+    FROM monitor_result_reviews WHERE task_id=$1 AND run_id=$2 AND account_id=$3`,[taskId,runId,actor.accountId])).rows[0];
+  return review??{disposition:'unreviewed',reviewRevision:0};
+}
+
+export async function reviewMonitorResult(actor:SubjectActor,taskId:string,runId:string,input:MonitorReviewInput,delegation?:{
+  assertAuthority:(client:DbClient)=>Promise<void>;
+  audit:(client:DbClient,review:MonitorReview)=>Promise<unknown>;
+}):Promise<MonitorReview>{
   return transaction(async(client)=>{
+    await delegation?.assertAuthority(client);
     const task=await client.query('SELECT 1 FROM monitor_tasks WHERE id=$1 AND household_id=$2 FOR UPDATE',[taskId,actor.householdId]);if(!task.rowCount)throw new DomainError('NOT_FOUND',404);
-    const run=await client.query(`SELECT 1 FROM monitor_runs r WHERE r.id=$1 AND r.task_id=$2 AND r.run_kind IN ('scheduled','manual') AND r.outcome='changed' AND r.result IS NOT NULL FOR SHARE`,[runId,taskId]);
-    if(!run.rowCount)throw new DomainError('NOT_FOUND',404);
+    await requireReviewableMonitorRun(client,taskId,runId);
     const current=(await client.query<{revision:number}>('SELECT revision FROM monitor_result_reviews WHERE task_id=$1 AND run_id=$2 AND account_id=$3 FOR UPDATE',[taskId,runId,actor.accountId])).rows[0];
     if((current?.revision??0)!==input.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revisionKind:'result_review'});
+    // A delegated token can expire while this operation waits for task or run locks.
+    await delegation?.assertAuthority(client);
     const revision=input.expectedRevision+1;
     await client.query(`INSERT INTO monitor_result_reviews(task_id,run_id,account_id,disposition,revision) VALUES($1,$2,$3,$4,$5) ON CONFLICT(task_id,run_id,account_id) DO UPDATE SET disposition=EXCLUDED.disposition,revision=EXCLUDED.revision,updated_at=clock_timestamp()`,[taskId,runId,actor.accountId,input.disposition,revision]);
+    const review={taskId,runId,disposition:input.disposition,revision};
     await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata) VALUES($1,$2,'account',$3,'monitor.result_reviewed','monitor_task',$4,$5)`,[actor.installationId,actor.householdId,actor.accountId,taskId,JSON.stringify({runId,disposition:input.disposition,revision})]);
-    return{taskId,runId,disposition:input.disposition,revision};
+    await delegation?.audit(client,review);
+    return review;
   });
 }

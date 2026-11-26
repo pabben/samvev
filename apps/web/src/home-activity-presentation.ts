@@ -1,11 +1,15 @@
 import type { DinnerAssignment } from "./household-board-adapters";
-import type { HomeSchoolActivity, HouseholdTimelineActivity } from "./home-types";
+import type { HomeSchoolActivity, HouseholdTimelineActivity, HubItem } from "./home-types";
 import { wallInput } from "./time";
 
 export type TimelineEntry =
   | { kind: "calendar"; id: string; date: string; activity: Extract<HouseholdTimelineActivity, { type: "calendar" }> }
   | { kind: "school"; id: string; date: string; activity: Extract<HouseholdTimelineActivity, { type: "school" }> }
   | { kind: "dinner"; id: string; date: string; title: string; emoji: string | null };
+
+export function usesCivilEventDates(metadata: HubItem["metadata"]): boolean {
+  return Boolean(metadata.allDay && (metadata.calendar || metadata.nativeCalendar));
+}
 
 /** Timed activities have an exclusive end. Without an end, their start is a
  * point in time and cannot keep an activity current after that point. */
@@ -66,7 +70,7 @@ export function timelineActivityVisible(activity: HouseholdTimelineActivity, now
   if (activity.type === "school") return !activity.expiresAt || Date.parse(activity.expiresAt) > now;
   if (["cancelled", "canceled", "declined"].includes(activity.metadata.calendar?.status ?? "")) return false;
   if (activity.publishAt && !(Date.parse(activity.publishAt) <= now)) return false;
-  if (activity.metadata.calendar && activity.metadata.allDay) {
+  if (usesCivilEventDates(activity.metadata)) {
     const start = activity.startsAt?.slice(0, 10) ?? "";
     const candidateEnd = activity.endsAt?.slice(0, 10);
     if (activity.endsAt && (!candidateEnd || candidateEnd <= start)) return false;
@@ -89,7 +93,7 @@ export function homeWeekEnd(localDate: string): string {
 export function homeWeekTitleKey(weekStart:string,currentWeek:string){return weekStart===currentWeek?"hubWeekTitle":"hubFutureWeekTitle";}
 export function isTimelineActivityOngoing(activity:HouseholdTimelineActivity,localDate:string,now:number):boolean{
   if(activity.type!=="calendar"||!activity.startsAt)return false;
-  if(activity.metadata.calendar&&activity.metadata.allDay){
+  if(usesCivilEventDates(activity.metadata)){
     const start=activity.startsAt.slice(0,10);
     const endExclusive=activity.endsAt?.slice(0,10)??shiftHomeDate(start,1);
     return start<=localDate&&localDate<endExclusive;
@@ -114,11 +118,11 @@ export function mergeTimelineEntries(activities: HouseholdTimelineActivity[], di
     if (activity.type === "school") rows.push({ kind: "school", id: activity.id, date: activity.date, activity });
     else {
       if (activity.endsAt && activity.startsAt) {
-        if (activity.metadata.calendar && activity.metadata.allDay) {
+        if (usesCivilEventDates(activity.metadata)) {
           if (activity.endsAt.slice(0, 10) <= activity.startsAt.slice(0, 10)) continue;
         } else if (!Number.isFinite(Date.parse(activity.startsAt)) || !Number.isFinite(Date.parse(activity.endsAt)) || Date.parse(activity.endsAt) < Date.parse(activity.startsAt)) continue;
       }
-      const allDay=Boolean(activity.metadata.calendar&&activity.metadata.allDay);
+      const allDay=usesCivilEventDates(activity.metadata);
       const start = activity.startsAt ? allDay ? activity.startsAt.slice(0, 10) : wallInput(activity.startsAt, zone).slice(0, 10) : "";
       const endExclusive = activity.endsAt ? allDay ? activity.endsAt.slice(0, 10) : Date.parse(activity.endsAt)>Date.parse(activity.startsAt!) ? wallInput(Date.parse(activity.endsAt) - 1, zone).slice(0, 10) : start : start;
       // All-day ends are exclusive civil dates; an item ending on the first
@@ -135,7 +139,7 @@ export function mergeTimelineEntries(activities: HouseholdTimelineActivity[], di
 
 function timeKey(row: TimelineEntry, zone: string): string {
   if (row.kind === "school") return row.activity.time ?? "";
-  if (row.kind === "calendar") return row.activity.metadata.calendar&&row.activity.metadata.allDay || !row.activity.startsAt ? "" : wallInput(row.activity.startsAt, zone).slice(11, 16);
+  if (row.kind === "calendar") return usesCivilEventDates(row.activity.metadata) || !row.activity.startsAt ? "" : wallInput(row.activity.startsAt, zone).slice(11, 16);
   return "99:99";
 }
 function kindRank(kind: TimelineEntry["kind"]): number { return kind === "dinner" ? 0 : kind === "school" ? 1 : 2; }

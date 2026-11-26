@@ -1,5 +1,5 @@
 import type { HomeBirthday, HubItem, HubMessage, HubPerson } from './home-types';
-import { currentCalendarActivityRelevant, timedActivityUnended } from './home-activity-presentation';
+import { currentCalendarActivityRelevant, timedActivityUnended, usesCivilEventDates } from './home-activity-presentation';
 import { wallInput } from './time';
 export function currentItems(items:HubItem[], now:number):HubItem[] {
   return items.filter(item => (!item.publishAt || Date.parse(item.publishAt)<=now) && (!item.expiresAt || Date.parse(item.expiresAt)>now));
@@ -22,29 +22,29 @@ export function advanceHomeBirthdays(birthdays:HomeBirthday[],snapshotDay:string
  return birthdays.flatMap(birthday=>birthday.due==='tomorrow'?[{...birthday,due:'today' as const}]:[]);
 }
 /** Calendar all-day dates are civil; timed events overlap a local day at either end. */
-export function eventDay(item:HubItem,zone:string) {return item.startsAt?(item.metadata.calendar&&item.metadata.allDay?item.startsAt.slice(0,10):wallInput(item.startsAt,zone).slice(0,10)):'';}
+export function eventDay(item:HubItem,zone:string) {return item.startsAt?(usesCivilEventDates(item.metadata)?item.startsAt.slice(0,10):wallInput(item.startsAt,zone).slice(0,10)):'';}
 export function overlapsDay(item:HubItem,day:string,zone:string){
  if(item.kind!=='event'||!item.startsAt||['cancelled','canceled','declined'].includes(item.metadata.calendar?.status??''))return false;
  const start=eventDay(item,zone);
- if(item.metadata.calendar&&item.metadata.allDay){const end=item.endsAt?.slice(0,10);if(item.endsAt&&(!end||end<=start))return false;return start<=day&&(end?day<end:day===start);}
+ if(usesCivilEventDates(item.metadata)){const end=item.endsAt?.slice(0,10);if(item.endsAt&&(!end||end<=start))return false;return start<=day&&(end?day<end:day===start);}
  // Subtract one millisecond before deriving the end day: midnight is exclusive.
  const end=item.endsAt&&Date.parse(item.endsAt)>Date.parse(item.startsAt)?wallInput(Date.parse(item.endsAt)-1,zone).slice(0,10):start;
  return start<=day&&end>=day;
 }
 export function chronologicalEvents(items:HubItem[],zone:string){return [...items].sort((a,b)=>eventDay(a,zone).localeCompare(eventDay(b,zone))||Number(Boolean(b.metadata.allDay))-Number(Boolean(a.metadata.allDay))||Date.parse(a.startsAt!)-Date.parse(b.startsAt!)||a.id.localeCompare(b.id));}
 export function dayEvents(items:HubItem[], now:number, zone:string, offset=0, includeEnded=true) {
- return chronologicalEvents(items.filter(item=>overlapsDay(item,dayKey(now,zone,offset),zone)&&(includeEnded||!item.metadata.calendar||currentCalendarActivityRelevant(item.startsAt,item.endsAt,Boolean(item.metadata.calendar&&item.metadata.allDay),now,zone))),zone);
+ return chronologicalEvents(items.filter(item=>overlapsDay(item,dayKey(now,zone,offset),zone)&&(includeEnded||!(item.metadata.calendar||item.metadata.nativeCalendar)||currentCalendarActivityRelevant(item.startsAt,item.endsAt,usesCivilEventDates(item.metadata),now,zone))),zone);
 }
 export function upcomingEvents(items:HubItem[],now:number,zone:string){
  const today=dayKey(now,zone);
- return chronologicalEvents(items.filter(item=>item.kind==='event'&&item.startsAt&&!['cancelled','canceled','declined'].includes(item.metadata.calendar?.status??'')&&(item.metadata.calendar&&item.metadata.allDay?(eventDay(item,zone)>=today||overlapsDay(item,today,zone)):timedActivityUnended(item.startsAt,item.endsAt,now))),zone);
+ return chronologicalEvents(items.filter(item=>item.kind==='event'&&item.startsAt&&!['cancelled','canceled','declined'].includes(item.metadata.calendar?.status??'')&&(usesCivilEventDates(item.metadata)?(eventDay(item,zone)>=today||overlapsDay(item,today,zone)):timedActivityUnended(item.startsAt,item.endsAt,now))),zone);
 }
 export function eventDateGroups(items:HubItem[],zone:string){
  const groups=new Map<string,HubItem[]>();for(const item of chronologicalEvents(items,zone)){const day=eventDay(item,zone);groups.set(day,[...(groups.get(day)??[]),item]);}return [...groups].map(([day,items])=>({day,items}));
 }
 export function personalWindowItems(active:HubItem[],personId:string,now:number,zone:string){
  const today=dayKey(now,zone),tomorrow=dayKey(now,zone,1);
- return personItems(active,personId).filter(item=>!item.metadata.temperature&&!(item.metadata.calendar&&itemHousehold(item))&&(item.kind!=='event'||(overlapsDay(item,today,zone)||overlapsDay(item,tomorrow,zone))&&(!item.metadata.calendar||currentCalendarActivityRelevant(item.startsAt,item.endsAt,Boolean(item.metadata.calendar&&item.metadata.allDay),now,zone))));
+ return personItems(active,personId).filter(item=>!item.metadata.temperature&&!(item.metadata.calendar&&itemHousehold(item))&&(item.kind!=='event'||(overlapsDay(item,today,zone)||overlapsDay(item,tomorrow,zone))&&(!(item.metadata.calendar||item.metadata.nativeCalendar)||currentCalendarActivityRelevant(item.startsAt,item.endsAt,usesCivilEventDates(item.metadata),now,zone))));
 }
 export function wasteEvents(items:HubItem[],now:number,zone:string){return upcomingEvents(items.filter(item=>item.metadata.calendar?.purpose==='waste'),now,zone);}
 export function temperatureItems(items:HubItem[]){return items.filter(item=>item.metadata.temperature).sort((a,b)=>(a.metadata.temperature?.order??0)-(b.metadata.temperature?.order??0)||a.title.localeCompare(b.title));}

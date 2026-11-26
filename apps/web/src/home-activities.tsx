@@ -4,7 +4,7 @@ import { dateOffset, memberHouseholdBoardAdapter, type DinnerAssignment } from "
 import type { CSSProperties } from "react";
 import type { ReactNode } from "react";
 import type { HomeBirthday, HomeSchoolActivity, HouseholdTimelineActivity, HubPerson } from "./home-types";
-import { calendarActivityEnded, collectActivitySourcePages, dedupeTimelineActivities, homeWeekEnd, homeWeekStart, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, timelineActivityVisible, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
+import { calendarActivityEnded, usesCivilEventDates, collectActivitySourcePages, dedupeTimelineActivities, homeWeekEnd, homeWeekStart, isTimelineActivityOngoing, mergeTimelineEntries, personFutureWindow, timelineActivityVisible, type GroupedSchoolActivity, type TimelineEntry } from "./home-activity-presentation";
 import { CalendarFreshness } from "./calendar-freshness";
 import { calendarParticipationKey } from "./calendar-provider-config";
 import { formatCalendarEventRange, formatDate, wallInput } from "./time";
@@ -248,7 +248,7 @@ function TimelineRow({ row, people, family, zone, locale, now, readOnly=false }:
   const title=row.kind==='dinner'?row.title:row.activity.title;
   const rawStatus=row.kind==='calendar'?row.activity.metadata.calendar?.status:undefined;
   const status=row.kind==='school'?t('calendarRowSchool'):row.kind==='calendar'&&rawStatus&&rawStatus!=='confirmed'&&rawStatus!=='unknown'?t(calendarParticipationKey(rawStatus)):'';
-  const ended=row.kind==='school'?Date.parse(row.activity.expiresAt)<=now:row.kind==='calendar'&&calendarActivityEnded(row.activity.startsAt,row.activity.endsAt,Boolean(row.activity.metadata.calendar&&row.activity.metadata.allDay),now,zone);
+  const ended=row.kind==='school'?Date.parse(row.activity.expiresAt)<=now:row.kind==='calendar'&&calendarActivityEnded(row.activity.startsAt,row.activity.endsAt,usesCivilEventDates(row.activity.metadata),now,zone);
   const accessibleLabel=[time,status,ended?t('hubEnded'):'',title,participants].filter(Boolean).join(', ');
   const tokens=associated.map(person=>personColorToken(person.id,person.colorToken,person.avatarKey)).sort();
   const stripe=tokens.length>1?`linear-gradient(180deg,${tokens.map((token,index)=>`var(--person-${token}) ${index*100/tokens.length}% ${(index+1)*100/tokens.length}%`).join(',')})`:tokens.length?`var(--person-${tokens[0]})`:householdSubject?'var(--person-household)':'var(--person-unassigned)';
@@ -262,7 +262,7 @@ function TimelineRow({ row, people, family, zone, locale, now, readOnly=false }:
     </button>
     {open&&<div id={detailsId} className="hub-week-row-details" role="region" aria-labelledby={buttonId}>
       {row.kind==='school'?<SchoolActivityCard activity={row.activity} people={people} now={now} zone={zone}/>:row.kind==='dinner'?<dl><dt>{t('hubDinnerLabel')}</dt><dd>{dateHeading(row.date,locale)}</dd><dt>{t('hubFamily')}</dt><dd>{participants}</dd></dl>:<>
-        <dl><dt>{t('calendarRowPeople')}</dt><dd>{participants}</dd>{row.activity.startsAt&&<><dt>{t('calendarRowWhen')}</dt><dd>{formatCalendarEventRange(row.activity.startsAt,row.activity.endsAt,locale,zone,row.activity.metadata.allDay)}</dd></>}{row.activity.metadata.calendar?.status&&<><dt>{t('calendarRowStatus')}</dt><dd>{t(calendarParticipationKey(row.activity.metadata.calendar.status))}</dd></>}{row.activity.metadata.calendar&&<><dt>{t('calendarRowSource')}</dt><dd>{row.activity.metadata.calendar.displayName||row.activity.source.label}</dd></>}{row.activity.metadata.location&&<><dt>{t('calendarRowLocation')}</dt><dd>{row.activity.metadata.location}</dd></>}</dl>
+        <dl><dt>{t('calendarRowPeople')}</dt><dd>{participants}</dd>{row.activity.startsAt&&<><dt>{t('calendarRowWhen')}</dt><dd>{formatCalendarEventRange(row.activity.startsAt,row.activity.endsAt,locale,zone,row.activity.metadata.allDay)}</dd></>}{row.activity.metadata.calendar?.status&&<><dt>{t('calendarRowStatus')}</dt><dd>{t(calendarParticipationKey(row.activity.metadata.calendar.status))}</dd></>}{(row.activity.metadata.calendar||row.activity.metadata.nativeCalendar)&&<><dt>{t('calendarRowSource')}</dt><dd>{row.activity.metadata.calendar?.displayName||row.activity.source.label}</dd></>}{row.activity.metadata.location&&<><dt>{t('calendarRowLocation')}</dt><dd>{row.activity.metadata.location}</dd></>}</dl>
         <CalendarFreshness item={row.activity} zone={zone}/>
         {row.activity.body&&<p>{row.activity.body}</p>}
         {!!row.activity.source.links?.length&&<ul>{row.activity.source.links.map((link,index)=><li key={`${link.url}:${index}`}><a href={link.url} target="_blank" rel="noreferrer">{link.label}</a></li>)}</ul>}

@@ -1,0 +1,131 @@
+import { useEffect, useState } from 'react';
+import { api } from './api';
+import { Dialog, ErrorNotice, Icon, Loading, useI18n } from './ui';
+import type { HubPerson } from './home-types';
+import { currentSchoolWeekPlans, requestSchoolWeekPdf, schoolWeekDateAtNoon, schoolWeekDay, schoolWeekHomework, schoolWeekPdfAvailable, schoolWeekPlansPath, schoolWeekRequirementKey, schoolWeekTimeLabel, schoolWeekTomorrow, schoolWeekUncertaintyKey, schoolWeekVisibleActivities, type SchoolWeekDay, type SchoolWeekPlan, type SchoolWeekRequirement } from './school-week-presentation';
+
+function dateHeading(date: string, locale: string, zone: string) {
+  return new Intl.DateTimeFormat(locale, { timeZone: zone, weekday: 'long', day: 'numeric', month: 'long' }).format(schoolWeekDateAtNoon(date, zone));
+}
+function shortDate(date: string, locale: string, zone: string) {
+  return new Intl.DateTimeFormat(locale, { timeZone: zone, day: 'numeric', month: 'short' }).format(schoolWeekDateAtNoon(date, zone));
+}
+
+export function SchoolWeekCard({ plan, personName, today, zone, compact = false, alreadyShownActivities = [], onOpenPdf }: { plan: SchoolWeekPlan; personName: string; today: string; zone: string; compact?: boolean; alreadyShownActivities?: {date:string;title:string}[]; onOpenPdf?: (planId: string) => Promise<Blob> }) {
+  const { t, locale } = useI18n();
+  const [showWeek, setShowWeek] = useState(false);
+  const [showPdf, setShowPdf] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfError, setPdfError] = useState<unknown>();
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const tomorrowDate = schoolWeekTomorrow(today);
+  const todayPlan = schoolWeekDay(plan, today);
+  const tomorrowPlan = schoolWeekDay(plan, tomorrowDate);
+  const homework = schoolWeekHomework(plan);
+  const pdfReady = schoolWeekPdfAvailable(plan.pdfLinkAvailable, plan.pdfStatus);
+  const contentLocale = plan.contentLocale ?? locale;
+  const dateRange = `${shortDate(plan.startsOn, locale, zone)} – ${shortDate(plan.endsOn, locale, zone)}`;
+  useEffect(()=>()=>{if(pdfUrl)URL.revokeObjectURL(pdfUrl)},[pdfUrl]);
+  const openPdfDialog=()=>{setShowWeek(false);setPdfError(undefined);setShowPdf(true)};
+  const closePdfDialog=()=>{if(pdfBusy)return;setShowPdf(false)};
+  const loadPdf=async()=>{
+    if(!onOpenPdf||!pdfReady||pdfBusy)return;
+    setPdfBusy(true);setPdfError(undefined);setPdfUrl(null);
+    try{const blob=await requestSchoolWeekPdf(plan.id,onOpenPdf);if(blob.type&&blob.type!=='application/pdf')throw new Error('school_pdf_unavailable');setPdfUrl(URL.createObjectURL(blob))}
+    catch(error){setPdfError(error)}finally{setPdfBusy(false)}
+  };
+  const actions=<div className="school-week-actions">
+    <button className="button" type="button" onClick={() => setShowWeek(true)}>{t('schoolWeekFullWeek')}<Icon name="arrow" size={16}/></button>
+    {onOpenPdf && <button className="button subtle" type="button" disabled={!pdfReady} onClick={openPdfDialog}>{t(pdfReady ? 'schoolWeekOpenPdf' : 'schoolWeekPdfUnavailable')}</button>}
+  </div>;
+  return <section className={`school-week-card hub-panel${compact ? ' is-compact' : ''}`} aria-labelledby={`school-week-${plan.id}`} data-school-plan-id={plan.id}>
+    <header className="school-week-header">
+      <div><p className="eyebrow">{t('schoolWeekEyebrow')}</p><h2 id={`school-week-${plan.id}`}><Icon name="calendar"/>{t('schoolWeekTitle', { name: personName })}</h2><p className="school-week-range">{dateRange}</p></div>
+      <span className={`school-week-source-state${plan.sourceStatus === 'stale' ? ' is-stale' : ''}`} role="status">{t(plan.sourceStatus === 'stale' ? 'schoolWeekStale' : 'schoolWeekCurrent')}</span>
+    </header>
+    {compact&&actions}
+    {plan.sourceStatus === 'stale' && <p className="school-week-stale-note" role="note">{t('schoolWeekStaleHelp')}</p>}
+    {plan.uncertainty && <p className="school-week-uncertainty"><strong>{t('schoolWeekUncertainty')}</strong> {t(schoolWeekUncertaintyKey(plan.uncertainty))}</p>}
+    <div className="school-week-highlights">
+      <SchoolWeekDayCard day={todayPlan} label={t('hubToday')} empty={t('schoolWeekNoToday')} locale={locale} contentLocale={contentLocale} compact={compact} personId={plan.personId} alreadyShownActivities={alreadyShownActivities}/>
+      <SchoolWeekDayCard day={tomorrowPlan} label={t('hubTomorrow')} empty={t('schoolWeekNoTomorrow')} locale={locale} contentLocale={contentLocale} compact={compact} personId={plan.personId} alreadyShownActivities={alreadyShownActivities}/>
+    </div>
+    <section className="school-week-homework" aria-labelledby={`school-homework-${plan.id}`}>
+      <h3 id={`school-homework-${plan.id}`}><span aria-hidden="true">✏️</span>{t('schoolWeekHomework')}</h3>
+      {homework.length ? <ul>{homework.slice(0, compact ? 3 : 6).map((item, index) => <li key={`${item.dueOn}:${index}`}><span lang={contentLocale}>{item.text}</span>{item.dueOn && <time dateTime={item.dueOn}>{dateHeading(item.dueOn, locale, zone)}</time>}</li>)}</ul> : <p className="school-week-empty">{t('schoolWeekNoHomework')}</p>}
+    </section>
+    {!compact&&actions}
+    {showWeek && <Dialog title={t('schoolWeekFullWeek')} wide className="school-week-dialog" onClose={() => setShowWeek(false)}>
+      <div className="school-week-dialog-heading"><div><p className="eyebrow">{personName}</p><p>{dateRange}</p></div>{onOpenPdf && <button className="button" type="button" disabled={!pdfReady} onClick={openPdfDialog}>{t(pdfReady ? 'schoolWeekOpenPdf' : 'schoolWeekPdfUnavailable')}</button>}</div>
+      {plan.sourceStatus === 'stale' && <p className="school-week-stale-note" role="status">{t('schoolWeekStaleHelp')}</p>}
+      {plan.uncertainty && <p className="school-week-uncertainty"><strong>{t('schoolWeekUncertainty')}</strong> {t(schoolWeekUncertaintyKey(plan.uncertainty))}</p>}
+      <div className="school-week-full-days">{plan.days.map(day => <SchoolWeekDayCard key={day.date} day={day} label={dateHeading(day.date, locale, zone)} empty={t('schoolWeekNoItems')} locale={locale} contentLocale={contentLocale} full personId={plan.personId} alreadyShownActivities={alreadyShownActivities}/>)}</div>
+    </Dialog>}
+    {showPdf&&onOpenPdf&&<Dialog title={t('schoolWeekPdfTitle')} wide className="school-week-pdf-dialog" onClose={closePdfDialog}>
+      <p>{t('schoolWeekPdfOpenHelp')}</p>
+      {!pdfUrl&&<button className="button primary" type="button" disabled={pdfBusy||!pdfReady} onClick={()=>void loadPdf()}>{pdfBusy?t('loading'):t('schoolWeekPreparePdf')}</button>}
+      {pdfUrl&&<div className="school-week-pdf-actions"><a className="button primary" href={pdfUrl} target="_blank" rel="noopener noreferrer">{t('schoolWeekOpenPdfTab')}</a><a className="button subtle school-week-pdf-download" href={pdfUrl} download={`school-plan-${plan.id}.pdf`}>{t('schoolWeekDownloadPdf')}</a></div>}
+      <ErrorNotice error={pdfError}/>
+      {pdfUrl&&<p className="school-week-pdf-ready" role="status">{t('schoolWeekPdfReady')}</p>}
+      <div className="form-actions"><button className="button" type="button" disabled={pdfBusy} onClick={closePdfDialog}>{t('schoolWeekReturnToBoard')}</button></div>
+    </Dialog>}
+  </section>;
+}
+
+export function SchoolWeekPlans({householdId,display=false,people,today,zone,schoolActivities=[],initialPlans,readOnly=false,enabled=true,refreshKey=''}:{householdId?:string;display?:boolean;people:HubPerson[];today:string;zone:string;schoolActivities?:{date:string;title:string;personId?:string}[];initialPlans?:SchoolWeekPlan[];readOnly?:boolean;enabled?:boolean;refreshKey?:string}) {
+  const {t}=useI18n();
+  const [plans,setPlans]=useState<SchoolWeekPlan[]|null>(initialPlans??null);
+  const [error,setError]=useState(false);
+  const [showAllPlans,setShowAllPlans]=useState(false);
+  const path=schoolWeekPlansPath(today,{display,householdId});
+  useEffect(()=>{
+    if(!enabled){setPlans([]);return;}
+    if(initialPlans!==undefined){setPlans(initialPlans);setError(false);return;}
+    if(!display&&!householdId){setPlans([]);return;}
+    let active=true;setPlans(null);setError(false);
+    void api<{plans:SchoolWeekPlan[]}>(path).then(result=>{if(active)setPlans(result.plans)}).catch(()=>{if(active){setPlans([]);setError(true)}});
+    return()=>{active=false};
+  },[path,enabled,display,householdId,refreshKey,initialPlans]);
+  if(!enabled||!display&&!householdId&&initialPlans===undefined)return null;
+  if(error)return <section className="school-week-load-error" role="status">{t('schoolWeekLoadError')}</section>;
+  if(!plans)return <div className="school-week-plans-loading"><Loading/></div>;
+  const visible=currentSchoolWeekPlans(plans,today,people.map(person=>person.id));
+  if(!visible.length)return null;
+  const presented=showAllPlans?visible:visible.slice(0,2);
+  const openPdf=async(planId:string)=>{
+    const route=display?`/display/school-plans/${encodeURIComponent(planId)}/pdf`:`/households/${encodeURIComponent(householdId??'')}/school-plans/${encodeURIComponent(planId)}/pdf`;
+    const response=await fetch(`/api/v1${route}`,{credentials:'same-origin',cache:'no-store'});
+    if(!response.ok)throw new Error('school_pdf_unavailable');
+    return response.blob();
+  };
+  return <section className="school-week-plans" aria-label={t('schoolWeekEyebrow')} data-testid="school-week-plans">{presented.map(plan=>{
+    const person=people.find(item=>item.id===plan.personId)!;
+    return <SchoolWeekCard key={plan.id} plan={plan} personName={person.displayName} today={today} zone={zone} compact={display} alreadyShownActivities={schoolActivities} onOpenPdf={readOnly?undefined:openPdf}/>;
+  })}{visible.length>2&&<button className="text-button school-week-more-plans" type="button" aria-expanded={showAllPlans} onClick={()=>setShowAllPlans(value=>!value)}>{t(showAllPlans?'schoolWeekShowFewerPlans':'schoolWeekShowMorePlans',{count:visible.length-2})}</button>}</section>;
+}
+
+function SchoolWeekDayCard({ day, label, empty, locale, contentLocale, compact = false, full = false, personId = '', alreadyShownActivities = [] }: { day?: SchoolWeekDay; label: string; empty: string; locale: string; contentLocale?:string; compact?: boolean; full?: boolean; personId?:string; alreadyShownActivities?: {date:string;title:string;personId?:string}[] }) {
+  const { t } = useI18n();
+  if (!day) return <section className="school-week-day is-empty"><h3>{label}</h3><p>{empty}</p></section>;
+  const activities = schoolWeekVisibleActivities(day, personId, alreadyShownActivities, full);
+  const hasContent = activities.length || day.practicalRequirements.length || day.homework.length || day.deadlines.length || day.reminders.length || day.weatherAdvice;
+  return <section className={`school-week-day${full ? ' is-full' : ''}${hasContent ? '' : ' is-empty'}`}>
+    <h3><time dateTime={day.date}>{label}</time></h3>
+    {activities.map((activity, index) => <article className="school-week-activity" key={`${day.date}:activity:${index}`}>
+      <strong>{schoolWeekTimeLabel(activity.startsAt) && <time dateTime={activity.startsAt!}>{schoolWeekTimeLabel(activity.startsAt)} </time>}<span lang={contentLocale}>{activity.title}</span></strong>
+      {activity.description && <p lang={contentLocale}>{activity.description}</p>}
+      {activity.practicalRequirements.length > 0 && <LabeledItems label={t('schoolWeekRemember')} items={activity.practicalRequirements} contentLocale={contentLocale} compact={compact&&!full}/>}
+    </article>)}
+    {day.practicalRequirements.length > 0 && <LabeledItems label={t('schoolWeekRemember')} items={day.practicalRequirements} contentLocale={contentLocale} compact={compact&&!full}/>}
+    {day.homework.length > 0 && <LabeledItems label={t('schoolWeekHomework')} items={day.homework.map(item=>item.text)} contentLocale={contentLocale} compact={compact&&!full}/>}
+    {day.deadlines.length > 0 && <LabeledItems label={t('schoolWeekDeadlines')} items={day.deadlines.map(item=>item.time?`${item.time} · ${item.text}`:item.text)} contentLocale={contentLocale} compact={compact&&!full}/>}
+    {day.reminders.length > 0 && <LabeledItems label={t('schoolWeekReminders')} items={day.reminders.map(item=>item.time?`${item.time} · ${item.text}`:item.text)} contentLocale={contentLocale} compact={compact&&!full}/>}
+    {day.weatherAdvice && <p className="school-week-weather"><strong>{t('schoolWeekWeather')}</strong> <span lang={contentLocale}>{day.weatherAdvice}</span></p>}
+    {!hasContent && <p className="school-week-empty">{empty}</p>}
+  </section>;
+}
+
+function LabeledItems({ label, items, contentLocale, compact = false }: { label: string; items: (string | SchoolWeekRequirement)[]; contentLocale?:string; compact?: boolean }) {
+  const { t } = useI18n();
+  return <div className="school-week-labeled-items"><h4>{label}</h4><ul>{(compact ? items.slice(0, 2) : items).map((item,index)=><li key={`${label}:${index}`}>{typeof item==='string'?<span lang={contentLocale}>{item}</span>:<><span className="school-week-requirement-kind">{t(schoolWeekRequirementKey(item.kind))}:</span> <span lang={contentLocale}>{item.text}</span></>}</li>)}</ul></div>;
+}

@@ -381,9 +381,38 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '045_display_item_occurrence_fence.sql',
     '046_calendar_connection_removal_tombstone.sql',
     '047_home_assistant_bridge.sql',
-    '048_ha_shared_native_writes.sql'
+    '048_ha_shared_native_writes.sql',
+    '049_mcp_oauth.sql',
+    '050_mcp_school_plans.sql',
+    '051_school_plan_pdf_snapshots.sql',
+    '052_mcp_household_read_scopes.sql',
+    '053_mcp_household_board_write_scopes.sql',
+    '054_mcp_household_message_read_scope.sql',
+    '055_mcp_calendar_source_resources.sql',
+    '056_mcp_household_message_write_scope.sql',
+    '057_ha_school_dashboard.sql',
+    '058_mcp_people_profile_write_scope.sql',
+    '059_mcp_display_read_scope.sql',
+    '060_mcp_dinner_option_integration_actor.sql',
+    '061_mcp_monitor_content_scope.sql',
+    '062_mcp_native_calendar_write.sql',
+    '063_mcp_display_appearance.sql',
+    '064_mcp_monitor_review_scope.sql',
+    '065_mcp_display_setup_read_scope.sql',
+    '066_mcp_monitor_draft_write.sql',
+    '067_mcp_display_layout_write.sql',
+    '068_mcp_display_layout_ownership.sql',
+    '069_mcp_monitor_draft_manage.sql',
+    '070_mcp_monitor_discovery_scope.sql',
+    '071_mcp_people_create_profiles.sql',
+    '072_mcp_monitor_draft_content_read.sql',
+    '073_mcp_monitor_pause_scope.sql',
+    '074_mcp_home_read_scope.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
+  assert.deepEqual((await pool.query<{scope:string;introduced_version:number;risk:string}>(`SELECT scope,introduced_version,risk FROM mcp_oauth_scope_catalog WHERE scope IN ('mcp:home:read','mcp:monitors:discover','mcp:monitors:pause','mcp:monitors:draft:write','mcp:monitors:draft:manage','mcp:monitors:draft:content','mcp:people:create') ORDER BY scope`)).rows,
+    [{scope:'mcp:home:read',introduced_version:19,risk:'read'},{scope:'mcp:monitors:discover',introduced_version:15,risk:'read'},{scope:'mcp:monitors:draft:content',introduced_version:17,risk:'read'},{scope:'mcp:monitors:draft:manage',introduced_version:14,risk:'write'},{scope:'mcp:monitors:draft:write',introduced_version:12,risk:'write'},{scope:'mcp:monitors:pause',introduced_version:18,risk:'write'},{scope:'mcp:people:create',introduced_version:16,risk:'write'}],
+    'home, monitor and profile capabilities receive fresh scopes without widening existing grants');
 });
 
 test('migration checksum mismatch fails closed without changing the isolated schema or application data', async()=>{

@@ -227,11 +227,14 @@ test('long six-person identities use balanced readable columns while short names
 });
 test('calendar all-day agenda membership follows civil dates and excludes the exclusive final day',()=>{
  const calendar={...item,startsAt:'2026-10-22T00:00:00Z',endsAt:'2026-10-24T00:00:00Z',metadata:{allDay:true,calendar:{provider:'google',sourceId:'synthetic',bridgeKind:'direct',subjectHousehold:false}}};
- for(const zone of ['Europe/Oslo','America/Los_Angeles']){
-  assert.equal(dayEvents([calendar],Date.parse('2026-10-21T12:00:00Z'),zone).length,0);
-  assert.equal(dayEvents([calendar],Date.parse('2026-10-22T12:00:00Z'),zone).length,1);
-  assert.equal(dayEvents([calendar],Date.parse('2026-10-23T12:00:00Z'),zone).length,1);
-  assert.equal(dayEvents([calendar],Date.parse('2026-10-24T12:00:00Z'),zone).length,0);
+ const native={...calendar,metadata:{allDay:true,nativeCalendar:true}};
+ for(const event of [calendar,native]){
+  for(const zone of ['Europe/Oslo','America/Los_Angeles']){
+   assert.equal(dayEvents([event],Date.parse('2026-10-21T12:00:00Z'),zone).length,0);
+   assert.equal(dayEvents([event],Date.parse('2026-10-22T12:00:00Z'),zone).length,1);
+   assert.equal(dayEvents([event],Date.parse('2026-10-23T12:00:00Z'),zone).length,1);
+   assert.equal(dayEvents([event],Date.parse('2026-10-24T12:00:00Z'),zone).length,0);
+  }
  }
 });
 

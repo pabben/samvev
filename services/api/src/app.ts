@@ -10,8 +10,8 @@ import type pg from 'pg';
 import { ZodError, type ZodType } from 'zod';
 import {
   accountStatusUpdateSchema, claimSchema, displayActionPolicyUpdateSchema, displayMessageCreateSchema, displayPreviewSelectionSchema, displaySetupCreateSchema, displaySetupPreviewSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
-  invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema, messageCreateSchema,
-  messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema, displayReconnectApproveSchema, displayDisconnectSchema,
+  invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema,
+  pairingApproveSchema, pairingRedeemSchema, pairingStartSchema, displayReconnectApproveSchema, displayDisconnectSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,aiChatGptImportSchema,aiChatGptDisconnectSchema,aiChatGptSelectSchema,aiUsageQuerySchema,
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
@@ -31,6 +31,9 @@ import {
   tokenHash, validateIanaTimezone, verifyLoginPassword
 } from '@samvev/core';
 import { pool, transaction, type DbClient } from './db.ts';
+import { externalItemProjectionColumns, mapExternalItem, readCalendarActivityRows, type ExternalItemRow } from './calendar/activity-reader.ts';
+import { messageService, validateMessageAudience } from './messages/service.ts';
+import { listMessages } from './messages/read.ts';
 import { ProjectionEventFanout } from './projection-events.ts';
 import { AiAdminService } from './ai/admin-service.ts';
 import type { AiHttpTransport } from './ai/openai-provider.ts';
@@ -42,6 +45,7 @@ import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
 import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, birthdaysDueSoon, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
 import { assignPersonColor } from './people/person-colors.ts';
+import { insertPersonRow, updatePersonProfile } from './people/profile-service.ts';
 import { normalizeProfilePhoto } from './people/photo.ts';
 import { schoolProvenanceJoins, schoolProvenanceColumns, schoolProjectionMetadata, type SchoolProvenanceRow } from './monitor/school-projection.ts';
 import { schoolHasPracticalActionsSql } from './monitor/practical-actions.ts';
@@ -58,10 +62,18 @@ import {HomeAssistantControlService,type HomeAssistantControlActor} from './home
 import {HomeAssistantControlClient,type HomeAssistantControlTransport} from './home-assistant/control-client.ts';
 import {readAnonymousPublicContact,readPublicContact,updatePublicContact} from './public-contact.ts';
 import {HaBridgeService} from './ha-bridge/service.ts';
+import {authorizationConsentHtml,authorizationLoginHtml,McpOAuthService,OAuthProtocolError,oauthErrorBody} from './mcp/service.ts';
+import {
+  approveSchoolPlanSource, getDisplaySchoolPlanPdfSnapshot, getMemberSchoolPlan, getMemberSchoolPlanPdfSnapshot,
+  listDisplaySchoolPlans, listMemberSchoolPlans, listSchoolPlanSourcesForManager, revokeSchoolPlanSource,
+  type SchoolPlanDisplay, type SchoolPlanMember,
+} from './school-plans/service.ts';
+import type {SchoolPdfFetcher} from './school-plans/pdf-fetcher.ts';
 
 const SESSION_COOKIE = 'samvev_session';
 const DISPLAY_COOKIE = 'samvev_display';
 const CSRF_COOKIE = 'samvev_csrf';
+const OAUTH_RESUME_COOKIE = 'samvev_oauth_resume';
 const SESSION_SECONDS = 12 * 60 * 60;
 const DISPLAY_SECONDS = 90 * 24 * 60 * 60;
 const elevatedCapabilities = new Set<Capability>(['installation.manage','household.manage','people.manage','account.manage','capability.manage','message.manage.household','display.manage']);
@@ -164,6 +176,13 @@ function setSessionCookies(reply: FastifyReply, session: {token:string;csrf:stri
   reply.setCookie(CSRF_COOKIE,session.csrf,{sameSite:'strict',secure,path:'/',maxAge:SESSION_SECONDS});
 }
 
+function oauthResumeCookie(value:unknown):{resumeToken:string;consentCsrf:string}|undefined{
+  if(typeof value!=='string')return;
+  const [resumeToken,consentCsrf,extra]=value.split('.');
+  if(extra!==undefined||!resumeToken||!consentCsrf)return;
+  return{resumeToken,consentCsrf};
+}
+
 async function createSession(client: pg.PoolClient, accountId: string): Promise<{ token: string; csrf: string }> {
   const token = opaqueToken();
   const csrf = opaqueToken();
@@ -172,7 +191,7 @@ async function createSession(client: pg.PoolClient, accountId: string): Promise<
   return { token, csrf };
 }
 
-async function sessionAccount(request: FastifyRequest): Promise<{ accountId: string; sessionId:string; installationId: string; csrfHash: string; tokenHash: string }> {
+async function sessionAccount(request: FastifyRequest,csrfOverride?:unknown): Promise<{ accountId: string; sessionId:string; installationId: string; csrfHash: string; tokenHash: string }> {
   const token = request.cookies[SESSION_COOKIE];
   if (!token) throw new DomainError('UNAUTHENTICATED', 401);
   const hash = tokenHash(token);
@@ -182,7 +201,7 @@ async function sessionAccount(request: FastifyRequest): Promise<{ accountId: str
   const row = result.rows[0];
   if (!row) throw new DomainError('UNAUTHENTICATED', 401);
   if (isUnsafe(request.method)) {
-    const csrf = request.headers['x-csrf-token'];
+    const csrf = typeof csrfOverride==='string'?csrfOverride:request.headers['x-csrf-token'];
     if (typeof csrf !== 'string' || tokenHash(csrf) !== row.csrf_hash) throw new DomainError('CSRF_REQUIRED', 403);
   }
   await pool.query('UPDATE sessions SET last_seen_at=clock_timestamp() WHERE token_hash=$1', [hash]);
@@ -199,16 +218,26 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
   return { accountId: account.accountId,sessionId:account.sessionId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
 }
 
-async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability):Promise<void>{
+async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability|null,sessionLock:'UPDATE'|'KEY SHARE'|'NO KEY UPDATE'='UPDATE'):Promise<Capability[]>{
   const row=(await client.query<{capabilities:Capability[];csrf_hash:string}>(`SELECT membership.capabilities,session.csrf_hash
     FROM sessions session JOIN accounts account ON account.id=session.account_id
     JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2
     WHERE session.id=$1 AND session.account_id=$3 AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND account.disabled_at IS NULL
       AND membership.id=$4
-    FOR UPDATE OF session,account,membership`,[auth.sessionId,auth.householdId,auth.accountId,auth.membershipId])).rows[0];
+    FOR ${sessionLock} OF session FOR UPDATE OF account,membership`,[auth.sessionId,auth.householdId,auth.accountId,auth.membershipId])).rows[0];
   if(!row)throw new DomainError('UNAUTHENTICATED',401);
   if(isUnsafe(request.method)){const csrf=request.headers['x-csrf-token'];if(typeof csrf!=='string'||tokenHash(csrf)!==row.csrf_hash)throw new DomainError('CSRF_REQUIRED',403);}
-  requireCapability(row.capabilities,capability);
+  if(capability)requireCapability(row.capabilities,capability);
+  return row.capabilities;
+}
+
+async function lockDisplayAdministration(client:DbClient,request:FastifyRequest,auth:AuthContext):Promise<void>{
+  // Lock installation and actor authority before display and setup rows.
+  // A revocation may update the session while a display write waits for its target.
+  // Recheck with NO KEY UPDATE after that wait to fence revocation through commit
+  // without conflicting with another display write's initial KEY SHARE.
+  await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE',[auth.installationId]);
+  await recheckHouseholdAuth(client,request,auth,'display.manage','KEY SHARE');
 }
 
 async function recheckPersonPhotoAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,personId:string,lock=true):Promise<void>{
@@ -303,6 +332,13 @@ const displayPolicySql=`jsonb_build_object(
   'actionPolicy',${policyRows('display_action_policies','to_jsonb(policy)','policy.display_id=d.id','policy.display_id')},
   'actionPeople',${policyRows('display_action_people','to_jsonb(policy)','policy.display_id=d.id','policy.person_id')},
   'actionDisplays',${policyRows('display_action_displays',`jsonb_build_array(policy.recipient_display_id,(SELECT jsonb_build_array(recipient.revoked_at,recipient.credential_expires_at) FROM displays recipient WHERE recipient.id=policy.recipient_display_id AND recipient.household_id=d.household_id))`,'policy.display_id=d.id','policy.recipient_display_id')},
+  'schoolPlanTargets',${policyRows('school_plan_display_targets','to_jsonb(policy)','policy.display_id=d.id','policy.plan_id')},
+  'schoolPlans',${policyRows('school_plans',`jsonb_build_array(policy.id,policy.source_id,policy.person_id,policy.connection_id,policy.revision,policy.content_hash,policy.pdf_url)`,
+    'EXISTS(SELECT 1 FROM school_plan_display_targets target WHERE target.household_id=d.household_id AND target.display_id=d.id AND target.plan_id=policy.id)','policy.id')},
+  'schoolSources',${policyRows('school_plan_sources',`jsonb_build_array(policy.id,policy.revoked_at,policy.display_pdf_links_allowed)`,
+    'EXISTS(SELECT 1 FROM school_plans plan JOIN school_plan_display_targets target ON target.plan_id=plan.id AND target.household_id=plan.household_id WHERE target.household_id=d.household_id AND target.display_id=d.id AND plan.source_id=policy.id)','policy.id')},
+  'schoolPdfSnapshots',${policyRows('school_plan_pdf_snapshots',`jsonb_build_array(policy.plan_id,policy.sha256,policy.plan_content_revision,policy.pdf_url)`,
+    'EXISTS(SELECT 1 FROM school_plan_display_targets target WHERE target.household_id=d.household_id AND target.display_id=d.id AND target.plan_id=policy.plan_id)','policy.plan_id')},
   'mediaGrants',${policyRows('media_album_display_grants','to_jsonb(policy)','policy.display_id=d.id','policy.album_id')},
   'mediaSettings',${policyRows('media_household_settings','to_jsonb(policy)','true','policy.household_id')},
   'controlGrants',${policyRows('home_assistant_control_display_grants','to_jsonb(policy)','policy.display_id=d.id','policy.entity_id')},
@@ -493,7 +529,7 @@ async function integrationAuth(request: FastifyRequest,profile:'legacy'|'ha'='le
       JOIN integration_connections c ON c.id=cr.connection_id
       JOIN households h ON h.id=c.household_id
       WHERE cr.token_hash=$1 AND cr.revoked_at IS NULL AND (cr.expires_at IS NULL OR cr.expires_at>clock_timestamp())
-        AND c.revoked_at IS NULL`, [tokenHash(match[1]!)]) ;
+        AND c.revoked_at IS NULL AND NOT c.native_calendar`, [tokenHash(match[1]!)]) ;
   const row = result.rows[0];
   if (!row) {
     await durableRateLimit('integration_auth_invalid', request.ip, 20, 60);
@@ -538,69 +574,13 @@ async function auditIntegration(client: DbClient, integration: IntegrationContex
 }
 
 async function lockIntegrationAuthority(client:DbClient,integration:IntegrationContext,capability:IntegrationCapability):Promise<void>{
-  const connection=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[integration.connectionId,integration.householdId]);
+  const connection=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL AND NOT native_calendar FOR UPDATE`,[integration.connectionId,integration.householdId]);
   if(!connection.rowCount)throw new DomainError('UNAUTHENTICATED',401);
   const credential=await client.query<{capabilities:IntegrationCapability[]}>(`SELECT capabilities FROM integration_credentials
     WHERE id=$1 AND connection_id=$2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>clock_timestamp()) FOR UPDATE`,[integration.credentialId,integration.connectionId]);
   if(!credential.rowCount)throw new DomainError('UNAUTHENTICATED',401);
   requireIntegrationCapability(credential.rows[0]!.capabilities,capability);
 }
-
-interface ExternalItemRow {
-  id:string; external_id:string; kind:string; content_locale:'en'|'nb'|null; target_household:boolean; title:string; body:string;
-  entries:Array<{label:string;detail?:string}>; priority:string; publish_at:Date|null; starts_at:Date|null;
-  ends_at:Date|null; expires_at:Date|null; source:Record<string,unknown>; metadata:Record<string,unknown>;
-  status:string; revision:number; updated_at:Date; person_ids:string[]; display_ids:string[];
-  subject_person_ids:string[];
-  calendar_connection_state:string|null; calendar_source_error_code:string|null; calendar_provider_status:string|null; calendar_owner_authorized:boolean;
-  temperature_sensor_available:boolean|null;
-  acl_witness?:string;acl_sensor_id?:string|null;
-}
-
-function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean;selectedPersonIds?:string[]}={}):Record<string,unknown>{
-  const source=options.forDisplay
-    ? Object.fromEntries(Object.entries(row.source).filter(([key])=>!['url','links'].includes(key)))
-    : row.source;
-  const metadata=options.forDisplay
-    ? Object.fromEntries(Object.entries(row.metadata).filter(([key])=>key!=='actionUrl'))
-    : row.metadata;
-  const storedCalendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?metadata.calendar as Record<string,unknown>:undefined;
-  const storedFreshnessReason=['sync_failed','provider_disabled','reauthorization_required','source_missing'].includes(String(storedCalendar?.freshnessReason))?String(storedCalendar?.freshnessReason):undefined;
-  const calendarIsStale=storedCalendar&&row.calendar_connection_state?row.calendar_owner_authorized!==true||storedCalendar.freshness==='stale'||!['connected','syncing','error'].includes(row.calendar_connection_state):false;
-  const calendarFreshness=storedCalendar&&row.calendar_connection_state?{
-    freshness:calendarIsStale?'stale':'current',
-    lastSuccessfulSyncAt:typeof storedCalendar.lastSuccessfulSyncAt==='string'?storedCalendar.lastSuccessfulSyncAt:null,
-    ...(calendarIsStale?{reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':storedFreshnessReason??(row.calendar_source_error_code?'sync_failed':'reauthorization_required')}:{})
-  }:undefined;
-  const calendarMetadata=calendarFreshness&&metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)
-    ?{...Object.fromEntries(Object.entries(metadata.calendar as Record<string,unknown>).filter(([key])=>key!=='freshnessReason')),...calendarFreshness}
-    :calendarFreshness;
-  const storedTemperature=metadata.temperature&&typeof metadata.temperature==='object'&&!Array.isArray(metadata.temperature)?metadata.temperature as Record<string,unknown>:undefined;
-  const temperatureAuthorityStale=Boolean(storedTemperature&&row.calendar_connection_state&&(row.calendar_owner_authorized!==true||row.calendar_provider_status==='disabled'||['expired','awaiting_consent','setup'].includes(row.calendar_connection_state)));
-  const temperatureMetadata=storedTemperature?{...storedTemperature,...(temperatureAuthorityStale?{status:'stale',freshness:'stale',reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':'reauthorization_required'}:row.temperature_sensor_available===false?{status:'unavailable',freshness:'stale',reason:'sensor_missing'}:{})}:undefined;
-  return {
-    id:row.id,
-    ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
-    kind:row.kind,contentLocale:row.content_locale,
-    targets:{household:row.target_household,personIds:options.selectedPersonIds?row.person_ids.filter((id)=>options.selectedPersonIds!.includes(id)):row.person_ids,...(options.includeExternalId?{displayIds:row.display_ids}:{})},
-    subjects:{personIds:options.selectedPersonIds?row.subject_person_ids.filter((id)=>options.selectedPersonIds!.includes(id)):row.subject_person_ids},
-    title:row.title,body:row.body,entries:row.entries,priority:row.priority,
-    publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
-    endsAt:row.ends_at?.toISOString()??null,expiresAt:row.expires_at?.toISOString()??null,
-    source,metadata:{...metadata,...(calendarMetadata?{calendar:calendarMetadata}:{}),...(temperatureMetadata?{temperature:temperatureMetadata}:{})},revision:row.revision,updatedAt:row.updated_at.toISOString()
-  };
-}
-
-const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.content_locale,i.target_household,i.title,i.body,i.entries,i.priority,
-  i.publish_at,i.starts_at,i.ends_at,i.expires_at,i.source,i.metadata,i.status,i.revision,i.updated_at,
-  (SELECT calendar.state FROM calendar_connections calendar WHERE calendar.integration_connection_id=i.connection_id) AS calendar_connection_state,
-  (SELECT source.last_error_code FROM calendar_occurrences occurrence JOIN calendar_sources source ON source.id=occurrence.source_id WHERE occurrence.integration_item_id=i.id LIMIT 1) AS calendar_source_error_code,
-  (SELECT provider.status FROM calendar_connections calendar JOIN households calendar_household ON calendar_household.id=calendar.household_id LEFT JOIN installation_calendar_provider_configs provider ON provider.installation_id=calendar_household.installation_id AND provider.provider=calendar.provider WHERE calendar.integration_connection_id=i.connection_id) AS calendar_provider_status,
-  EXISTS(SELECT 1 FROM calendar_connections calendar JOIN memberships calendar_owner ON calendar_owner.account_id=calendar.owner_account_id AND calendar_owner.household_id=calendar.household_id JOIN persons calendar_person ON calendar_person.id=calendar_owner.person_id AND calendar_person.household_id=calendar_owner.household_id AND calendar_person.age_group='adult' JOIN accounts calendar_account ON calendar_account.id=calendar.owner_account_id AND calendar_account.disabled_at IS NULL WHERE calendar.integration_connection_id=i.connection_id AND calendar_owner.capabilities ? 'household.view') AS calendar_owner_authorized,
-  (SELECT sensor.available FROM home_assistant_temperature_sensors sensor WHERE sensor.integration_item_id=i.id LIMIT 1) AS temperature_sensor_available,
-  COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_targets t WHERE t.item_id=i.id),'[]') AS person_ids,
-  COALESCE((SELECT json_agg(t.person_id ORDER BY t.person_id) FROM integration_item_person_subjects t WHERE t.item_id=i.id),'[]') AS subject_person_ids,
-  COALESCE((SELECT json_agg(t.display_id ORDER BY t.display_id) FROM integration_item_display_targets t WHERE t.item_id=i.id),'[]') AS display_ids`;
 
 async function homeItems(householdId:string,personId:string,canViewAll:boolean):Promise<Record<string,unknown>[]>{
   const rows=await pool.query<ExternalItemRow>(`SELECT ${externalItemProjectionColumns}
@@ -630,16 +610,32 @@ async function homeItems(householdId:string,personId:string,canViewAll:boolean):
 }
 
 interface ActivityCursor {at:string;rank:0|1;id:string;}
-interface ActivityRow extends ExternalItemRow {activity_at:Date;activity_person_id:string|null;activity_person_ids:string[];activity_person_colors:Record<string,string>;}
+
 function dateOnly(value:unknown):string|undefined{
   if(typeof value!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(value))return undefined;
   const parsed=new Date(`${value}T00:00:00Z`);
   return Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===value?value:undefined;
 }
+function schoolPlanQuery(value:unknown):Record<string,unknown>{
+  const query=(value??{}) as Record<string,unknown>,result:Record<string,unknown>={};
+  for(const field of ['personId'] as const){if(query[field]!==undefined){if(typeof query[field]!=='string')throw new DomainError('VALIDATION_FAILED',400);result[field]=query[field];}}
+  for(const field of ['isoYear','isoWeek','limit'] as const){if(query[field]!==undefined){if(typeof query[field]!=='string'||!/^\d+$/.test(query[field]))throw new DomainError('VALIDATION_FAILED',400);result[field]=Number(query[field]);}}
+  for(const field of Object.keys(query))if(!['personId','isoYear','isoWeek','limit'].includes(field))throw new DomainError('VALIDATION_FAILED',400);
+  return result;
+}
+function schoolSourceLimit(value:unknown):number{
+  const query=(value??{}) as Record<string,unknown>;if(Object.keys(query).some(key=>key!=='limit'))throw new DomainError('VALIDATION_FAILED',400);
+  if(query.limit===undefined)return 50;if(typeof query.limit!=='string'||!/^\d+$/.test(query.limit))throw new DomainError('VALIDATION_FAILED',400);return Number(query.limit);
+}
 function dateOffset(value:string,offset:number):string{
   const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);
 }
 function weekStart(value:string):string{const day=new Date(`${value}T00:00:00Z`).getUTCDay();return dateOffset(value,-((day+6)%7));}
+function isoWeekIdentity(value:string):{isoYear:number;isoWeek:number}{
+  const monday=weekStart(value),thursday=dateOffset(monday,3),isoYear=Number(thursday.slice(0,4));
+  const firstMonday=weekStart(`${isoYear}-01-04`);
+  return{isoYear,isoWeek:1+Math.round((Date.parse(`${monday}T00:00:00Z`)-Date.parse(`${firstMonday}T00:00:00Z`))/604_800_000)};
+}
 function activityIdFilter(value:unknown,field:string,maximum:number):string[]|undefined{
   if(value===undefined)return undefined;
   const values=typeof value==='string'?value.split(','):Array.isArray(value)?value.flatMap((part)=>typeof part==='string'?part.split(','):[]):[];
@@ -694,43 +690,8 @@ async function schoolActivitiesForHome(householdId:string,viewer:{personId:strin
 
 async function personActivities(input:{householdId:string;personIds:string[]|null;viewer:{personId:string;membershipId:string};canViewAll:boolean;from:string;to:string;limit:number;sourceIds?:string[];cursor?:ActivityCursor;maxDays:number;upcomingOnly?:boolean;display?:DisplayContext}):Promise<{activities:Record<string,unknown>[];nextCursor:string|null}>{
   const {householdId,personIds,viewer,canViewAll,from,to,limit,sourceIds,cursor}=input;
-  const calendarCursor=`AND ($9::timestamptz IS NULL OR activity.starts_at>$9::timestamptz OR (activity.starts_at=$9::timestamptz AND $10=0 AND i.id::text>$11))`;
   const display=input.display;
-  const displayCalendarSource=`(EXISTS(SELECT 1 FROM calendar_occurrences selected_occurrence WHERE selected_occurrence.integration_item_id=i.id)
-      AND ($15::boolean OR EXISTS(SELECT 1 FROM calendar_occurrences selected_occurrence WHERE selected_occurrence.integration_item_id=i.id AND selected_occurrence.source_id=ANY($17::uuid[]))))`;
-  const displayGenericSource=`(NOT EXISTS(SELECT 1 FROM calendar_occurrences generic_occurrence WHERE generic_occurrence.integration_item_id=i.id)
-      AND ($15::boolean OR connection.id=ANY($16::uuid[])))`;
-  const calendar=await pool.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},${display?displayItemWitnessSql('$12','$19','$17'):'NULLIF($19::uuid[],$19::uuid[])::text'} AS acl_witness,activity.starts_at AS activity_at,
-      (SELECT min(subject.person_id::text)::uuid FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))) AS activity_person_id,
-      COALESCE((SELECT array_agg(subject.person_id ORDER BY subject.person_id) FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),ARRAY[]::uuid[]) AS activity_person_ids,
-      COALESCE((SELECT jsonb_object_agg(subject.person_id::text,person.color_token) FROM integration_item_person_subjects subject JOIN persons person ON person.id=subject.person_id AND person.household_id=i.household_id WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),'{}'::jsonb) AS activity_person_colors
-    FROM integration_items i JOIN integration_connections connection ON connection.id=i.connection_id AND connection.household_id=i.household_id AND connection.revoked_at IS NULL
-    JOIN households household ON household.id=i.household_id
-    -- Calendar all-day timestamps encode civil dates, not UTC instants. Keep
-    -- their stored/returned values, but compare local-midnight boundaries.
-    CROSS JOIN LATERAL (SELECT
-      CASE WHEN (i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
-        THEN (i.starts_at AT TIME ZONE 'UTC')::date::timestamp AT TIME ZONE household.timezone ELSE i.starts_at END AS starts_at,
-      CASE WHEN (i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
-        THEN COALESCE((i.ends_at AT TIME ZONE 'UTC')::date,(i.starts_at AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE household.timezone WHEN i.ends_at=i.starts_at THEN NULL ELSE i.ends_at END AS ends_at) activity
-    WHERE i.household_id=$1 AND i.kind IN ('event','reminder') AND i.status='active'
-      AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
-      AND (activity.ends_at IS NULL AND activity.starts_at >= ($3::date::timestamp AT TIME ZONE household.timezone) OR activity.ends_at > ($3::date::timestamp AT TIME ZONE household.timezone))
-      AND activity.starts_at < (($4::date+1)::timestamp AT TIME ZONE household.timezone)
-      AND (activity.ends_at IS NULL OR activity.ends_at>activity.starts_at)
-      AND ((i.kind='event' AND i.metadata->'calendar' IS NOT NULL AND (COALESCE((i.metadata#>>'{calendar,subjectHousehold}')::boolean,false) OR EXISTS(SELECT 1 FROM integration_item_person_subjects placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2)))))
-        OR (i.kind IN ('event','reminder') AND i.metadata->'calendar' IS NULL AND (i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets placement WHERE placement.item_id=i.id AND ($2::uuid[] IS NULL OR placement.person_id=ANY($2))))))
-      AND (($12::uuid IS NULL AND ($5 OR i.target_household OR EXISTS(SELECT 1 FROM integration_item_person_targets readable WHERE readable.item_id=i.id AND readable.person_id=$6)))
-        OR ($12::uuid IS NOT NULL AND $13::boolean AND $14::boolean
-          AND EXISTS(SELECT 1 FROM integration_connection_display_grants cg WHERE cg.household_id=i.household_id AND cg.connection_id=i.connection_id AND cg.display_id=$12)
-          AND EXISTS(SELECT 1 FROM integration_item_display_targets dt WHERE dt.household_id=i.household_id AND dt.item_id=i.id AND dt.display_id=$12)
-          AND (${displayCalendarSource} OR ${displayGenericSource})))
-      AND ($18::timestamptz IS NULL OR (activity.ends_at IS NULL AND activity.starts_at>=$18::timestamptz OR activity.ends_at>$18::timestamptz))
-      AND ($18::timestamptz IS NULL OR COALESCE(i.metadata#>>'{calendar,status}','') NOT IN ('cancelled','canceled','declined'))
-      AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8)))
-      AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
-      ${calendarCursor}
-    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null,display?.selectedPersonIds??[]]);
+  const calendarRows=await readCalendarActivityRows(input,pool,displayItemWitnessSql);
   const schoolCursor=`AND ($10::timestamptz IS NULL OR ((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)>$10::timestamptz OR (((event.event_date+COALESCE(event.event_time,TIME '00:00')) AT TIME ZONE household.timezone)=$10::timestamptz AND ($11<1 OR ($11=1 AND event.id::text>$12))))`;
   const schoolReader=display
     ?`($5::boolean IS NOT NULL AND $6::uuid IS NOT NULL AND $7::uuid IS NOT NULL)
@@ -752,12 +713,17 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       ${schoolCursor}
     ORDER BY activity_at,event.id LIMIT $9`,[householdId,personIds,from,to,canViewAll,viewer.membershipId,viewer.personId,sourceIds??null,limit+1,cursor?.at??null,cursor?.rank??0,cursor?.id??null,display?.id??null]);
   const merged=[
-    ...calendar.rows.map((row)=>({rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',personId:row.activity_person_id,...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds:row.activity_person_ids,personColors:row.activity_person_colors}})),
+    ...calendarRows.map((row)=>{
+      const personIds=row.native_calendar?row.person_ids.filter(id=>!input.personIds||input.personIds.includes(id)):row.activity_person_ids;
+      return {rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',
+        personId:row.native_calendar?personIds[0]??null:row.activity_person_id,
+        ...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds,personColors:row.activity_person_colors}};
+    }),
     ...school.rows.map((row)=>({rank:1 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'school',personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,id:row.id,taskId:row.task_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,...schoolProjectionMetadata(row),evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,expiresAt:row.school_expires_at.toISOString()}}))
   ].filter((row)=>!cursor||row.at>cursor.at||(row.at===cursor.at&&(row.rank>cursor.rank||(row.rank===cursor.rank&&row.id>cursor.id))))
     .sort((left,right)=>left.at.localeCompare(right.at)||left.rank-right.rank||left.id.localeCompare(right.id));
   const page=merged.slice(0,limit);const more=merged.length>limit;
-  if(display){const emitted=new Set(page.filter(row=>row.rank===0).map(row=>row.id));rememberDisplayItems(display,calendar.rows.filter(row=>emitted.has(row.id)));
+  if(display){const emitted=new Set(page.filter(row=>row.rank===0).map(row=>row.id));rememberDisplayItems(display,calendarRows.filter(row=>emitted.has(row.id)));
     const emittedSchool=new Set(page.filter(row=>row.rank===1).map(row=>row.id));rememberDisplaySchools(display,school.rows.filter(row=>emittedSchool.has(row.id)),personIds??display.selectedPersonIds,personIds??display.selectedPersonIds,Boolean(input.upcomingOnly));}
   return{activities:page.map((row)=>row.value),nextCursor:more&&page.length?encodeActivityCursor({at:page.at(-1)!.at,rank:page.at(-1)!.rank,id:page.at(-1)!.id}):null};
 }
@@ -967,22 +933,6 @@ async function defaultDisplaySetup(client:DbClient,householdId:string):Promise<s
   return existing.id;
 }
 
-async function validateAudience(client: DbClient, auth: AuthContext, personIds: string[], displayIds: string[], needsDisplayPublish = true): Promise<void> {
-  if (personIds.length) {
-    const found = await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[])', [auth.householdId, personIds]);
-    if (found.rowCount !== new Set(personIds).size) throw new DomainError('NOT_FOUND', 404);
-  }
-  if (displayIds.length) {
-    if (needsDisplayPublish) requireCapability(auth.capabilities, 'message.publish.display');
-    const found = await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL', [auth.householdId, displayIds]);
-    if (found.rowCount !== new Set(displayIds).size) throw new DomainError('NOT_FOUND', 404);
-    if (!auth.capabilities.includes('display.manage')) {
-      const permitted = await client.query('SELECT display_id FROM membership_display_grants WHERE household_id=$1 AND membership_id=$2 AND display_id=ANY($3::uuid[])', [auth.householdId, auth.membershipId, displayIds]);
-      if (permitted.rowCount !== new Set(displayIds).size) throw new DomainError('FORBIDDEN', 403);
-    }
-  }
-}
-
 async function audit(client: DbClient, auth: Pick<AuthContext,'installationId'|'householdId'|'accountId'>, action: string, subjectType: string, subjectId?: string, metadata: Record<string, unknown> = {}): Promise<void> {
   await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata)
     VALUES ($1,$2,'account',$3,$4,$5,$6,$7)`, [auth.installationId, auth.householdId, auth.accountId, action, subjectType, subjectId ?? null, JSON.stringify(metadata)]);
@@ -1087,7 +1037,7 @@ async function projectionFor(display: DisplayContext,options:{markDelivered?:boo
   };
 }
 
-export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; homeAssistantControlTransport?:HomeAssistantControlTransport; photoNormalizer?:typeof normalizeProfilePhoto; mediaImageNormalizer?:typeof normalizeMediaImage; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
+export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFile?: string; calendarTransport?:CalendarTransport; homeAssistantControlTransport?:HomeAssistantControlTransport; photoNormalizer?:typeof normalizeProfilePhoto; mediaImageNormalizer?:typeof normalizeMediaImage; monitorFetcher?: MonitorSourceFetcher; monitorWeather?: MetWeatherClient; schoolPdfFetcher?:Pick<SchoolPdfFetcher,'fetch'>; runtimeConfig?: RuntimeConfig; webRoot?: string; synchronousMonitorActionsForLegacyTests?:boolean; liveE2eEnabled?:boolean; logStream?:Writable } = {}): Promise<FastifyInstance> {
   const runtime = options.runtimeConfig ?? loadRuntimeConfig();
   const logger=process.env.NODE_ENV==='test'&&!options.logStream?false:{
     level:'info',...(options.logStream?{stream:options.logStream}:{}),serializers:{req:safeRequestLog}
@@ -1095,14 +1045,25 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const app = Fastify({ logger, trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const responseSecurityHeaders=browserSecurityHeaders(runtime.secureCookies);
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
+  const credentialVault = new AiCredentialVault(options.aiKeyFile);
   const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
   const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
-  const calendars=new CalendarService(options.calendarTransport,new AiCredentialVault(options.aiKeyFile));
+  const calendars=new CalendarService(options.calendarTransport,credentialVault);
   const homeAssistantControls=new HomeAssistantControlService(calendars,options.homeAssistantControlTransport??new HomeAssistantControlClient());
   const normalizePhoto=options.photoNormalizer??normalizeProfilePhoto;
   const media=options.mediaImageNormalizer?new MediaService({normalizer:options.mediaImageNormalizer}):mediaService;
   await app.register(cookie);
+  app.addContentTypeParser('application/x-www-form-urlencoded',{parseAs:'string'},(_request,body,done)=>{
+    try{
+      const parsed:Record<string,string>={};
+      for(const [name,value] of new URLSearchParams(body as string)){
+        if(Object.hasOwn(parsed,name))throw new DomainError('VALIDATION_FAILED',400,{reason:'duplicate_form_field'});
+        parsed[name]=value;
+      }
+      done(null,parsed);
+    }catch(error){done(error as Error,undefined);}
+  });
   app.addHook('onSend',async(request,reply,payload)=>{
     const displayFence=displayResponseFences.get(request);displayResponseFences.delete(request);
     if(displayFence&&['GET','HEAD'].includes(request.method)&&reply.statusCode<400){
@@ -1118,7 +1079,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   await projectionEvents.start();
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
   app.addHook('preClose',async()=>projectionEvents.close());
-  const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth,rateLimit:durableRateLimit});
+  const mcp=new McpOAuthService(runtime.publicOrigin,options.schoolPdfFetcher,
+    (grantId,sourceId)=>durableRateLimit('mcp_school_pdf_verify',`${grantId}:${sourceId}`,6,3600),
+    (purpose,context,value)=>credentialVault.keyedDigest(purpose,context,value));
+  app.addHook('preClose',async()=>mcp.close());
+  const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth:async(client,request,auth,capability)=>{await recheckHouseholdAuth(client,request,auth,capability);},rateLimit:durableRateLimit});
   const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{
     const allowed=board==='groceries'?'grocery_read':'dinner_read';
     const card=board;
@@ -1133,14 +1098,28 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   haBridge.register(app,householdBoards);
 
   app.addHook('onRequest', async (request) => {
+    const pathname=request.url.split('?',1)[0]??request.url;
+    const oauthBoundary=pathname==='/mcp'||pathname.startsWith('/oauth/')||pathname==='/.well-known/oauth-authorization-server'||pathname==='/.well-known/oauth-protected-resource/mcp';
+    if(oauthBoundary){
+      // Fastify resolves request.host through its configured trustProxy
+      // function. Reading X-Forwarded-Host directly here would let an
+      // untrusted immediate peer spoof the OAuth/MCP authority boundary.
+      const authority=request.host;
+      if(!authority||authority.toLowerCase()!==new URL(runtime.publicOrigin).host.toLowerCase())throw new DomainError('FORBIDDEN',403);
+    }
+    if(pathname==='/mcp'&&request.headers.origin&&request.headers.origin!==runtime.publicOrigin)throw new DomainError('CSRF_REQUIRED',403);
     if (!isUnsafe(request.method)) return;
     const origin = request.headers.origin;
     if (!origin) {
-      const pathname=request.url.split('?',1)[0]??request.url;
       const integrationWrite=request.method==='POST'&&pathname==='/api/v1/integrations/items';
       const integrationDelete=request.method==='DELETE'&&/^\/api\/v1\/integrations\/items\/[^/]+$/.test(pathname);
       const haMachineWrite=['POST','PATCH','DELETE'].includes(request.method)&&/^\/api\/v1\/ha\/(?:lists\/groceries\/items(?:\/[^/]+)?|messages(?:\/[^/]+(?:\/withdraw)?)?|calendars\/[^/]+\/events(?:\/[^/]+)?)$/.test(pathname);
-      if(integrationWrite||integrationDelete||haMachineWrite)return;
+      const oauthMachineWrite=request.method==='POST'&&['/oauth/register','/oauth/token','/oauth/revoke'].includes(pathname);
+      const oauthBrowserForm=request.method==='POST'&&['/oauth/login','/oauth/authorize'].includes(pathname);
+      const mcpMachineRequest=pathname==='/mcp'&&['POST','DELETE'].includes(request.method);
+      // These two server-rendered form handlers validate purpose-specific,
+      // one-time hidden CSRF values. Keep the no-Origin allowance route-exact.
+      if(integrationWrite||integrationDelete||haMachineWrite||oauthMachineWrite||oauthBrowserForm||mcpMachineRequest)return;
       if (runtime.secureCookies) throw new DomainError('CSRF_REQUIRED', 403);
       return;
     }
@@ -1162,6 +1141,148 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/health', async () => {
     await pool.query('SELECT 1');
     return { status: 'ok', version: 1 };
+  });
+
+  const oauthFailure=(reply:FastifyReply,error:unknown)=>{
+    if(!(error instanceof OAuthProtocolError))throw error;
+    return reply.status(error.status).header('Cache-Control','no-store').type('application/json').send(oauthErrorBody(error));
+  };
+  const metadataHeaders=(reply:FastifyReply)=>reply.header('Cache-Control','public, max-age=300').header('Access-Control-Allow-Origin','*');
+  app.get('/.well-known/oauth-protected-resource/mcp',async(_request,reply)=>metadataHeaders(reply).send(mcp.protectedResourceMetadata()));
+  app.get('/.well-known/oauth-authorization-server',async(_request,reply)=>metadataHeaders(reply).send(mcp.authorizationServerMetadata()));
+  app.post('/oauth/register',async(request,reply)=>{
+    try{await durableRateLimit('mcp_oauth_register_ip',request.ip,20,3600);return reply.status(201).header('Cache-Control','no-store').send(await mcp.registerClient(request.body));}
+    catch(error){return oauthFailure(reply,error);}
+  });
+  app.get('/oauth/authorize',async(request,reply)=>{
+    try{
+      await durableRateLimit('mcp_oauth_authorize_ip',request.ip,60,900);
+      const query=(request.query??{}) as Record<string,unknown>;
+      if(typeof query.request==='string'){
+        const resume=oauthResumeCookie(request.cookies[OAUTH_RESUME_COOKIE]);if(!resume)throw new OAuthProtocolError('invalid_request',400,'The authorization request is invalid or expired');
+        const resumed=await mcp.resumeAuthorization(query.request,resume.resumeToken,resume.consentCsrf);
+        return reply.header('Cache-Control','private, no-store').type('text/html; charset=utf-8').send(authorizationConsentHtml({request:resumed.request,clientName:resumed.context.clientName,households:resumed.context.households,csrf:resume.consentCsrf,requestHandle:query.request}));
+      }
+      const authorization=mcp.parseAuthorizeRequest(query);
+      let account;
+      try{account=await sessionAccount(request);}catch(error){
+        if(!(error instanceof DomainError)||error.code!=='UNAUTHENTICATED')throw error;
+        const staged=await mcp.stageLoginRequest(authorization);
+        return reply.header('Cache-Control','private, no-store').type('text/html; charset=utf-8').send(authorizationLoginHtml(staged));
+      }
+      const context=await mcp.authorizationContext(account,authorization),csrf=request.cookies[CSRF_COOKIE];if(!csrf)throw new DomainError('CSRF_REQUIRED',403);
+      return reply.header('Cache-Control','private, no-store').type('text/html; charset=utf-8').send(authorizationConsentHtml({request:authorization,clientName:context.clientName,households:context.households,csrf}));
+    }catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/login',async(request,reply)=>{
+    try{
+      await durableRateLimit('mcp_oauth_login_ip',request.ip,30,900);
+      const body=(request.body??{}) as Record<string,unknown>,handle=String(body.request??''),loginCsrf=String(body.login_csrf??'');
+      const credentials=parse(loginSchema,{email:body.email,password:body.password});
+      await durableRateLimit('mcp_oauth_login',`${request.ip}:${credentials.email}`,8,900);
+      const result=await pool.query<{id:string;password_hash:string;disabled_at:Date|null}>(`SELECT id,password_hash,disabled_at FROM accounts WHERE email_normalized=$1`,[credentials.email]);
+      const account=result.rows[0],verified=await verifyLoginPassword(credentials.password,account?.password_hash,Boolean(account&&!account.disabled_at));
+      if(!account||!verified)throw new DomainError('UNAUTHENTICATED',401);
+      const resume=await mcp.bindLoginRequest(handle,loginCsrf,account.id);
+      reply.setCookie(OAUTH_RESUME_COOKIE,`${resume.resumeToken}.${resume.consentCsrf}`,cookieOptions(10*60,runtime.secureCookies,'/oauth/authorize'));
+      return reply.header('Cache-Control','no-store').redirect(`${runtime.publicOrigin}/oauth/authorize?request=${encodeURIComponent(handle)}`,303);
+    }catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/authorize',async(request,reply)=>{
+    try{
+      await durableRateLimit('mcp_oauth_authorize_ip',request.ip,60,900);
+      const body=(request.body??{}) as Record<string,unknown>;
+      let authorization,requestHandle:string|undefined;
+      let account;
+      if(typeof body.request==='string'){
+        requestHandle=body.request;const resume=oauthResumeCookie(request.cookies[OAUTH_RESUME_COOKIE]);if(!resume||body._csrf!==resume.consentCsrf)throw new DomainError('CSRF_REQUIRED',403);
+        const resumed=await mcp.resumeAuthorization(requestHandle,resume.resumeToken,resume.consentCsrf);authorization=resumed.request;account=resumed.actor;
+      }else{account=await sessionAccount(request,body._csrf);authorization=mcp.parseAuthorizeRequest(body);}
+      if(body.decision!=='approve'&&body.decision!=='deny')throw new OAuthProtocolError('invalid_request',400,'decision is invalid');
+      const householdId=typeof body.household_id==='string'?body.household_id:'';
+      if(!/^[0-9a-f-]{36}$/i.test(householdId))throw new OAuthProtocolError('invalid_request',400,'household_id is invalid');
+      const location=await mcp.authorize(account,authorization,householdId,body.decision==='approve',requestHandle);
+      if(requestHandle)reply.clearCookie(OAUTH_RESUME_COOKIE,{path:'/oauth/authorize',sameSite:'strict',secure:runtime.secureCookies});
+      return reply.header('Cache-Control','no-store').redirect(location,303);
+    }catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/token',async(request,reply)=>{
+    try{await durableRateLimit('mcp_oauth_token_ip',request.ip,90,60);return reply.header('Cache-Control','no-store').send(await mcp.exchangeToken((request.body??{}) as Record<string,unknown>));}
+    catch(error){return oauthFailure(reply,error);}
+  });
+  app.post('/oauth/revoke',async(request,reply)=>{
+    try{await durableRateLimit('mcp_oauth_revoke_ip',request.ip,90,60);await mcp.revokeToken((request.body??{}) as Record<string,unknown>);return reply.header('Cache-Control','no-store').status(200).send();}
+    catch(error){return oauthFailure(reply,error);}
+  });
+  app.route({method:['GET','POST','DELETE'],url:'/mcp',handler:async(request,reply)=>{
+    // An invalid bearer token still causes a database lookup. Bound that
+    // unauthenticated path before verifying it, including on GET and DELETE.
+    await durableRateLimit('mcp_request_ip',request.ip,240,60);
+    let principal;
+    try{principal=await mcp.verifyAccessToken(request.headers.authorization);}
+    catch(error){
+      if(!(error instanceof OAuthProtocolError))throw error;
+      return reply.status(401).header('Cache-Control','no-store').header('WWW-Authenticate',`Bearer resource_metadata="${mcp.resourceMetadataUrl}", error="invalid_token"`).send({error:'invalid_token',error_description:'The MCP access token is invalid or expired'});
+    }
+    await durableRateLimit('mcp_request_grant',principal.grantId,120,60);
+    const headers=new Headers();
+    for(const [name,value] of Object.entries(request.headers)){if(Array.isArray(value))for(const item of value)headers.append(name,item);else if(value!==undefined)headers.set(name,String(value));}
+    const webRequest=new Request(new URL(request.url,runtime.publicOrigin),{method:request.method,headers});
+    const response=await mcp.handler.fetch(webRequest,{authInfo:mcp.authInfo(principal),parsedBody:request.body});
+    reply.status(response.status).header('Cache-Control','no-store');
+    response.headers.forEach((value,name)=>{if(!['content-length','transfer-encoding','connection'].includes(name.toLowerCase()))reply.header(name,value);});
+    const bytes=Buffer.from(await response.arrayBuffer());return bytes.length?reply.send(bytes):reply.send();
+  }});
+  app.get('/api/v1/households/:householdId/mcp/authorizations',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    return reply.header('Cache-Control','private, no-store').send({authorizations:await mcp.listAuthorizations(auth.householdId)});
+  });
+  app.put('/api/v1/households/:householdId/mcp/authorizations/:grantId/policy',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const body=(request.body??{}) as Record<string,unknown>;
+    const policy=await mcp.updateAuthorizationPolicy(auth,params(request).grantId!,{expectedRevision:Number(body.expectedRevision),scopes:body.scopes as string[]|undefined,personIds:body.personIds as string[],displayIds:body.displayIds as string[],resources:body.resources as Parameters<McpOAuthService['updateAuthorizationPolicy']>[2]['resources']});
+    return reply.header('Cache-Control','private, no-store').send(policy);
+  });
+  app.post('/api/v1/households/:householdId/mcp/authorizations/:grantId/revoke',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    await mcp.revokeAuthorization(auth,params(request).grantId!);return reply.header('Cache-Control','no-store').status(204).send();
+  });
+  app.get('/api/v1/households/:householdId/mcp/authorizations/:grantId/activity',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const limit=schoolSourceLimit(request.query),activity=await mcp.listAuthorizationActivity(auth.householdId,params(request).grantId!,limit);
+    return reply.header('Cache-Control','private, no-store').send({activity});
+  });
+  const schoolMember=(auth:AuthContext):SchoolPlanMember=>({householdId:auth.householdId,accountId:auth.accountId,membershipId:auth.membershipId});
+  const schoolDisplay=(display:DisplayContext):SchoolPlanDisplay=>({householdId:display.householdId,id:display.id,credentialHash:display.credentialHash,credentialGeneration:display.credentialGeneration});
+  app.post('/api/v1/households/:householdId/school-plan-sources',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const source=await approveSchoolPlanSource(schoolMember(auth),request.body);return reply.header('Cache-Control','private, no-store').status(201).send({source});
+  });
+  app.get('/api/v1/households/:householdId/school-plan-sources',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    const sources=await listSchoolPlanSourcesForManager(schoolMember(auth),schoolSourceLimit(request.query));return reply.header('Cache-Control','private, no-store').send({sources});
+  });
+  app.delete('/api/v1/households/:householdId/school-plan-sources/:sourceId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
+    await revokeSchoolPlanSource(schoolMember(auth),params(request).sourceId!);return reply.header('Cache-Control','no-store').status(204).send();
+  });
+  app.get('/api/v1/households/:householdId/school-plans',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const plans=await listMemberSchoolPlans(schoolMember(auth),schoolPlanQuery(request.query));return reply.header('Cache-Control','private, no-store').send({plans});
+  });
+  app.get('/api/v1/households/:householdId/school-plans/:planId',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const plan=await getMemberSchoolPlan(schoolMember(auth),params(request).planId!);return reply.header('Cache-Control','private, no-store').send({plan});
+  });
+  app.get('/api/v1/households/:householdId/school-plans/:planId/pdf',async(request,reply)=>{
+    const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.view');
+    const snapshot=await getMemberSchoolPlanPdfSnapshot(schoolMember(auth),params(request).planId!);for(const [name,value] of Object.entries(snapshot.headers))reply.header(name,value);return reply.send(snapshot.bytes);
+  });
+  app.get('/api/v1/display/school-plans',async(request,reply)=>{
+    const display=await displayAuth(request),plans=await listDisplaySchoolPlans(schoolDisplay(display),schoolPlanQuery(request.query));return reply.header('Cache-Control','private, no-store').send({plans});
+  });
+  app.get('/api/v1/display/school-plans/:planId/pdf',async(request,reply)=>{
+    const display=await displayAuth(request),snapshot=await getDisplaySchoolPlanPdfSnapshot(schoolDisplay(display),params(request).planId!);for(const [name,value] of Object.entries(snapshot.headers))reply.header(name,value);return reply.send(snapshot.bytes);
   });
 
   const liveE2eEnabled=options.liveE2eEnabled??process.env.SAMVEV_LIVE_E2E_ENABLED==='true';
@@ -1684,18 +1805,17 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const invitationToken=body.login?.loginMethod==='invitation'?opaqueToken():null;
     const passwordHash=body.login?.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result = await transaction(async (client) => {
-      await validateAudience(client, auth, [], body.displayIds, false);
-      const colorToken=await assignPersonColor(client,auth.householdId);
-      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group,birth_date,color_token) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [auth.householdId,body.displayName,body.avatarKey??null,ageGroup,body.birthDate??null,colorToken]);
+      await validateMessageAudience(client,auth,auth.capabilities,[],body.displayIds,false);
+      const person = await insertPersonRow(client,auth.householdId,{displayName:body.displayName,avatarKey:body.avatarKey,ageGroup,birthDate:body.birthDate});
       let accountId: string|null = null;
       if (body.login) {
         accountId = (await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.installationId,body.login.email,passwordHash,body.login.locale,body.login.theme])).rows[0]!.id;
       }
-      const membership = await client.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,accountId,person.rows[0]!.id,body.rolePreset,JSON.stringify(desired)]);
+      const membership = await client.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,accountId,person.id,body.rolePreset,JSON.stringify(desired)]);
       if(accountId && invitationToken)await client.query(`INSERT INTO account_invitations(installation_id,household_id,account_id,token_hash,expires_at,created_by_account_id) VALUES($1,$2,$3,$4,clock_timestamp()+interval '7 days',$5)`,[auth.installationId,auth.householdId,accountId,tokenHash(invitationToken),auth.accountId]);
       for (const displayId of body.displayIds) await client.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES ($1,$2,$3)', [auth.householdId,membership.rows[0]!.id,displayId]);
-      await audit(client,auth,'person.created','person',person.rows[0]!.id,{ rolePreset: body.rolePreset, hasLogin: Boolean(body.login) });
-      return { personId: person.rows[0]!.id, membershipId: membership.rows[0]!.id, hasLogin: Boolean(body.login),invitationToken };
+      await audit(client,auth,'person.created','person',person.id,{ rolePreset: body.rolePreset, hasLogin: Boolean(body.login) });
+      return { personId: person.id, membershipId: membership.rows[0]!.id, hasLogin: Boolean(body.login),invitationToken };
     });
     return reply.status(201).send(result);
   });
@@ -1703,16 +1823,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.patch('/api/v1/households/:householdId/people/:personId',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'people.manage');
     const body=parse(personUpdateSchema,request.body);
-    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
     return transaction(async(client)=>{
-      const current=await client.query<{birth_date:string|null;age_group:'adult'|'teen'|'child'|'unspecified'}>(`SELECT birth_date::text,age_group FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).personId,auth.householdId]);
-      if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
-      const birthDate=body.birthDate===undefined?current.rows[0]!.birth_date:body.birthDate;
-      const ageGroup=body.ageGroup??(body.birthDate===undefined?current.rows[0]!.age_group:deriveAgeGroup(birthDate,localDateInTimezone(new Date(),household.timezone)));
-      const updated=await client.query(`UPDATE persons SET display_name=COALESCE($3,display_name),avatar_key=CASE WHEN $4 THEN $5 ELSE avatar_key END,color_token=COALESCE($6,color_token),birth_date=$7,age_group=$8,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$9 RETURNING id,display_name,avatar_key AS "avatarKey",color_token AS "colorToken",birth_date::text,age_group,revision`,[params(request).personId,auth.householdId,body.displayName??null,body.avatarKey!==undefined,body.avatarKey??null,body.colorToken??null,birthDate,ageGroup,body.expectedRevision]);
-      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
-      await audit(client,auth,'person.updated','person',params(request).personId,{fields:Object.keys(body).filter((key)=>key!=='expectedRevision')});
-      return updated.rows[0];
+      return updatePersonProfile(client,auth.householdId,params(request).personId!,body,
+        (auditClient,personId,fields)=>audit(auditClient,auth,'person.updated','person',personId,{fields}));
     });
   });
 
@@ -1726,7 +1839,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const passwordHash=body.login.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result=await transaction(async(client)=>{
       await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
-      await validateAudience(client,auth,[],body.displayIds,false);
+      await validateMessageAudience(client,auth,auth.capabilities,[],body.displayIds,false);
       const target=await client.query<{id:string;account_id:string|null}>(`SELECT id,account_id FROM memberships WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).membershipId,auth.householdId]);
       if(!target.rowCount)throw new DomainError('NOT_FOUND',404);
       if(target.rows[0]!.account_id)throw new DomainError('CONFLICT',409,{reason:'account_already_exists'});
@@ -1750,7 +1863,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     assertGrantAuthority(auth, body.rolePreset, desired);
     return transaction(async (client) => {
       await client.query('SELECT id FROM installations WHERE id=$1 FOR UPDATE',[auth.installationId]);
-      await validateAudience(client, auth, [], body.displayIds, false);
+      await validateMessageAudience(client,auth,auth.capabilities,[],body.displayIds,false);
       const target = await client.query<{role_preset:string;capabilities:Capability[];account_id:string|null;disabled_at:Date|null;password_hash:string|null}>(`SELECT m.role_preset,m.capabilities,m.account_id,a.disabled_at,a.password_hash FROM memberships m LEFT JOIN accounts a ON a.id=m.account_id WHERE m.id=$1 AND m.household_id=$2 FOR UPDATE OF m`, [params(request).membershipId,auth.householdId]);
       if (!target.rowCount) throw new DomainError('NOT_FOUND', 404);
       if(body.rolePreset==='installation_admin' && target.rows[0]!.role_preset!=='installation_admin' && body.confirmInstallationOwner!==true)throw new DomainError('VALIDATION_FAILED',400,{reason:'installation_owner_confirmation_required'});
@@ -2063,7 +2176,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/households/:householdId/integrations',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     reply.header('Cache-Control','private, no-store');
-    const ids=await pool.query<{id:string}>(`SELECT connection.id FROM integration_connections connection WHERE connection.household_id=$1 AND NOT EXISTS(SELECT 1 FROM calendar_connections calendar WHERE calendar.integration_connection_id=connection.id) ORDER BY connection.created_at,connection.id`,[auth.householdId]);
+    const ids=await pool.query<{id:string}>(`SELECT connection.id FROM integration_connections connection WHERE connection.household_id=$1 AND NOT connection.native_calendar AND NOT EXISTS(SELECT 1 FROM calendar_connections calendar WHERE calendar.integration_connection_id=connection.id) ORDER BY connection.created_at,connection.id`,[auth.householdId]);
     return {connections:await Promise.all(ids.rows.map((row)=>integrationConnectionResponse(row.id,auth.householdId)))};
   });
 
@@ -2092,7 +2205,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationConnectionUpdateSchema,request.body);const connectionId=params(request).connectionId!;
     await transaction(async(client)=>{
-      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
+      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);
       if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
       if(body.displayIds){const displays=await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL',[auth.householdId,body.displayIds]);if(displays.rowCount!==new Set(body.displayIds).size)throw new DomainError('NOT_FOUND',404);}
       const updated=await client.query(`UPDATE integration_connections SET name=COALESCE($3,name),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$4 RETURNING id`,[connectionId,auth.householdId,body.name??null,body.expectedRevision]);
@@ -2108,7 +2221,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationConnectionRevisionSchema,request.body);const connectionId=params(request).connectionId!;
     await transaction(async(client)=>{
-      const current=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
+      const current=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);
       if(!current.rowCount)throw new DomainError('NOT_FOUND',404);if(current.rows[0]!.revoked_at)throw new DomainError('CONFLICT',409,{reason:'connection_already_revoked'});
       const updated=await client.query('UPDATE integration_connections SET revoked_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND revision=$2 RETURNING id',[connectionId,body.expectedRevision]);
       if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
@@ -2124,7 +2237,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationCredentialCreateSchema,request.body);const connectionId=params(request).connectionId!;const credentialToken=`samvev_it_${opaqueToken()}`;
     const credentialId=await transaction(async(client)=>{
-      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
+      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
       if(body.expiresAt&&new Date(body.expiresAt)<=new Date())throw new DomainError('VALIDATION_FAILED',400,{reason:'credential_expiry_must_be_future'});
       const bumped=await client.query('UPDATE integration_connections SET revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND revision=$2 RETURNING id',[connectionId,body.expectedRevision]);if(!bumped.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       const credential=(await client.query<{id:string}>('INSERT INTO integration_credentials(connection_id,name,token_hash,capabilities,expires_at) VALUES($1,$2,$3,$4,$5) RETURNING id',[connectionId,body.name,tokenHash(credentialToken),JSON.stringify(body.capabilities),body.expiresAt])).rows[0]!;
@@ -2138,7 +2251,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationCredentialRevokeSchema,request.body);const connectionId=params(request).connectionId!;const credentialId=params(request).credentialId!;
     await transaction(async(client)=>{
-      const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
+      const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
       const credential=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_credentials WHERE id=$1 AND connection_id=$2 FOR UPDATE',[credentialId,connectionId]);if(!credential.rowCount)throw new DomainError('NOT_FOUND',404);if(credential.rows[0]!.revoked_at)throw new DomainError('CONFLICT',409,{reason:'credential_already_revoked'});
       const updated=await client.query('UPDATE integration_credentials SET revoked_at=clock_timestamp(),revision=revision+1 WHERE id=$1 AND connection_id=$2 AND revision=$3 RETURNING id',[credentialId,connectionId,body.expectedRevision]);if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       await audit(client,auth,'integration.credential_revoked','integration_credential',credentialId,{connectionId});
@@ -2402,14 +2515,25 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const tag=previewContextTag(preview);const mediaActorDevice={id:preview.id,householdId,setupId:preview.setupId,privacyMode:preview.privacyMode,credentialHash:preview.credentialHash};
     const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[householdId])).rows[0]!;
     const today=localDateInTimezone(new Date(),household.timezone),weekTo=dateOffset(weekStart(today),6);
-    const [projection,previewMedia,week,next,day,homeAssistantPreview]=await Promise.all([
+    const {isoYear,isoWeek}=isoWeekIdentity(today);
+    const [projection,previewMedia,week,next,day,homeAssistantPreview,previewSchoolPlans]=await Promise.all([
       projectionFor(preview,{markDelivered:false,preview:true,previewTag:tag}),
       media.previewProjection(mediaActor(auth),mediaActorDevice,{cards:preview.cards,albumIds:preview.albumIds,backgroundId:preview.backgroundId},tag),
       !preview.privacyMode&&preview.cards.includes('week')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:weekTo,limit:50,maxDays:7,display:preview}):Promise.resolve(null),
       !preview.privacyMode&&preview.cards.includes('next')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,365),limit:1,maxDays:366,upcomingOnly:true,display:preview}):Promise.resolve(null),
       !preview.privacyMode&&preview.cards.some((card)=>card==='today'||card==='tomorrow')?personActivities({householdId,personIds:preview.selectedPersonIds,viewer:{personId:preview.id,membershipId:preview.id},canViewAll:false,from:today,to:dateOffset(today,1),limit:100,maxDays:2,display:preview}):Promise.resolve(null),
-      !preview.privacyMode&&preview.cards.includes('home_assistant')?homeAssistantControls.previewSnapshot({kind:'display',id:preview.id,credentialHash:preview.credentialHash,householdId:preview.householdId,privacyMode:preview.privacyMode,cards:preview.cards}):Promise.resolve({items:[]})
+      !preview.privacyMode&&preview.cards.includes('home_assistant')?homeAssistantControls.previewSnapshot({kind:'display',id:preview.id,credentialHash:preview.credentialHash,householdId:preview.householdId,privacyMode:preview.privacyMode,cards:preview.cards}):Promise.resolve({items:[]}),
+      !preview.privacyMode&&preview.externalItemsEnabled&&preview.cards.includes('external_items')&&preview.selectedPersonIds.length&&
+        (preview.allSources||preview.sourceIds.length)
+        ?listDisplaySchoolPlans(schoolDisplay(device),{isoYear,isoWeek,limit:20})
+        :Promise.resolve([])
     ]);
+    const allowedPreviewPeople=new Set(preview.selectedPersonIds);
+    const sourceConnections=previewSchoolPlans.length&&!preview.allSources
+      ?(await pool.query<{id:string;connection_id:string}>(`SELECT id,connection_id FROM school_plans WHERE household_id=$1 AND id=ANY($2::uuid[])`,
+        [householdId,previewSchoolPlans.map(plan=>plan.id)])).rows:null;
+    const allowedPreviewPlans=previewSchoolPlans.filter(plan=>allowedPreviewPeople.has(plan.personId)&&
+      (preview.allSources||sourceConnections?.some(row=>row.id===plan.id&&preview.sourceIds.includes(row.connection_id))));
     await transaction(async(client)=>{
       await recheckHouseholdAuth(client,request,auth,'display.manage');
       const live=(await client.query<{privacy_mode:boolean;external_items_enabled:boolean;birthday_mode:string;person_ids_override:string[]|null;credential_generation:number}>(`SELECT privacy_mode,external_items_enabled,birthday_mode,person_ids_override,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND credential_hash=$3 AND revoked_at IS NULL AND credential_expires_at>clock_timestamp() FOR SHARE`,[displayId,householdId,device.credentialHash])).rows[0];
@@ -2421,7 +2545,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
           AND device.privacy_mode=$7 AND device.external_items_enabled=$8`,[auth.sessionId,householdId,displayId,auth.accountId,auth.membershipId,device.credentialHash,device.privacyMode,device.externalItemsEnabled])).rows[0];
       if(!final)throw new DomainError('NOT_FOUND',404);
     });
-    const safeProjection={...projection,preview:true,media:previewMedia,homeAssistantPreview,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})} as Record<string,any>;
+    const safeProjection={...projection,preview:true,media:previewMedia,homeAssistantPreview,schoolPlans:allowedPreviewPlans,...(week?{weekActivities:week}:{}),...(next?{nextActivity:next.activities[0]??null}:{}),...(day?{dayActivities:day}:{})} as Record<string,any>;
     safeProjection.actionAvailability={...safeProjection.actionAvailability,newMessage:false,homeAssistantControl:false};
     safeProjection.householdBoards={...safeProjection.householdBoards,writable:{groceries:false,dinners:false}};
     return safeProjection;
@@ -2431,10 +2555,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
     const body=parse(displaySetupCreateSchema,request.body) as DisplaySetupInput;
     const setup=await transaction(async(client)=>{
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await lockDisplayAdministration(client,request,auth);
       const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,cards,card_order,family_layout_enabled,album_ids,background_id,locale,theme)
         VALUES($1,$2,$3::jsonb,$4::jsonb,$5,$6::jsonb,$7,$8,$9) RETURNING id`,[auth.householdId,body.name,JSON.stringify(body.cards),JSON.stringify(body.cardOrder),body.familyLayoutEnabled,JSON.stringify(body.albumIds),body.backgroundId,body.locale,body.theme]);
       await writeDisplaySetupSelections(client,auth.householdId,inserted.rows[0]!.id,body,auth.membershipId,false);
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       return displaySetupResponse(client,auth.householdId,inserted.rows[0]!.id);
     });
     return reply.status(201).send(setup);
@@ -2444,9 +2569,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
     const body=parse(displaySetupUpdateSchema,request.body);const input:DisplaySetupInput=body;
     return transaction(async(client)=>{
+      await lockDisplayAdministration(client,request,auth);
       const current=(await client.query<{revision:number}>(`SELECT revision FROM display_setups WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).setupId,auth.householdId])).rows[0];
       if(!current)throw new DomainError('NOT_FOUND',404);
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
       await writeDisplaySetupSelections(client,auth.householdId,params(request).setupId!,input,auth.membershipId);
       return displaySetupResponse(client,auth.householdId,params(request).setupId!);
@@ -2468,15 +2594,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'display.manage');
     const body = parse(displayUpdateSchema, request.body);
     return transaction(async(client)=>{
+      await lockDisplayAdministration(client,request,auth);
       const locked=(await client.query<{id:string}>('SELECT id FROM displays WHERE id=$1 AND household_id=$2 FOR UPDATE',[params(request).displayId,auth.householdId])).rows[0];
       if(!locked)throw new DomainError('NOT_FOUND',404);
       if(body.setupId){const setup=await client.query('SELECT id FROM display_setups WHERE household_id=$1 AND id=$2 FOR SHARE',[auth.householdId,body.setupId]);if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);}
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
       if(body.birthdayPersonIds!==undefined){const current=(await client.query<{birthday_mode:string}>('SELECT birthday_mode FROM displays WHERE id=$1 AND household_id=$2',[params(request).displayId,auth.householdId])).rows[0]!;if(current.birthday_mode!=='legacy_selected')throw new DomainError('VALIDATION_FAILED',400,{reason:'birthday_policy_explicit_required'});}
       if(body.personIdsOverride?.length){
         const people=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.personIdsOverride]);
         if(people.rowCount!==body.personIdsOverride.length)throw new DomainError('NOT_FOUND',404);
       }
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       const result = await client.query(`UPDATE displays SET setup_id=COALESCE($10::uuid,setup_id),locale=CASE WHEN $3::boolean THEN $4::text ELSE locale END,theme=CASE WHEN $5::boolean THEN $6::text ELSE theme END,
         privacy_mode=COALESCE($7,privacy_mode),external_items_enabled=COALESCE($8,external_items_enabled),revoked_at=CASE WHEN $9::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $9::boolean IS TRUE THEN NULL ELSE credential_hash END
         WHERE id=$1 AND household_id=$2 RETURNING id`, [params(request).displayId,auth.householdId,Object.hasOwn(body,'locale'),body.locale??null,Object.hasOwn(body,'theme'),body.theme??null,body.privacyMode ?? null,body.externalItemsEnabled ?? null,body.revoked ?? null,body.setupId??null]);
@@ -2494,6 +2621,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const body=parse(displayActionPolicyUpdateSchema,request.body);const displayId=params(request).displayId!;
     return transaction(async(client)=>{
       if(body.displayIds.includes(displayId))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+      await lockDisplayAdministration(client,request,auth);
       const lockIds=[...new Set([displayId,...body.displayIds])].sort();
       const lockedDisplays=(await client.query<{id:string;revoked_at:Date|null;credential_expires_at:Date|null}>(`SELECT id,revoked_at,credential_expires_at FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE`,[auth.householdId,lockIds])).rows;
       if(lockedDisplays.length!==lockIds.length)throw new DomainError('NOT_FOUND',404);
@@ -2502,7 +2630,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       const people=body.personIds.length?(await client.query<{id:string}>(`SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR SHARE`,[auth.householdId,body.personIds])).rows:[];
       const recipientRows=lockedDisplays.filter((row)=>body.displayIds.includes(row.id));
       if(people.length!==body.personIds.length||recipientRows.some((row)=>row.revoked_at||!row.credential_expires_at||row.credential_expires_at<=new Date()))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
       await client.query(`UPDATE display_action_policies SET message_create=$3,message_schedule=$4,grocery_write=$5,dinner_write=$6,photo_upload=$7,home_assistant_control=$8,revision=revision+1,updated_at=clock_timestamp() WHERE household_id=$1 AND display_id=$2`,[auth.householdId,displayId,body.messageCreate,body.messageSchedule,body.groceryWrite,body.dinnerWrite,body.photoUpload,body.homeAssistantControl]);
       await client.query('DELETE FROM display_action_people WHERE display_id=$1',[displayId]);
@@ -2580,9 +2708,10 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const result=await transaction(async(client)=>{
       const pairing=(await client.query<{id:string}>(`SELECT id FROM pairing_requests WHERE code_hash=$1 AND expires_at>clock_timestamp() AND approved_at IS NULL AND redeemed_at IS NULL FOR UPDATE`,[tokenHash(body.code)])).rows[0];
       if(!pairing)throw new DomainError('PAIRING_INVALID',404);
+      await lockDisplayAdministration(client,request,auth);
       const device=(await client.query<{id:string;credential_generation:number}>(`SELECT id,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[params(request).displayId,auth.householdId])).rows[0];
       if(!device)throw new DomainError('NOT_FOUND',404);
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       if(device.credential_generation!==body.expectedCredentialGeneration)throw new DomainError('REVISION_CONFLICT',409,{credentialGeneration:device.credential_generation});
       const approved=await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2,expected_credential_generation=$3 WHERE id=$1 AND approved_at IS NULL AND redeemed_at IS NULL AND expires_at>clock_timestamp() RETURNING id`,[pairing.id,device.id,device.credential_generation]);
       if(!approved.rowCount)throw new DomainError('PAIRING_EXPIRED',410);
@@ -2609,12 +2738,13 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const result = await transaction(async (client) => {
       const pairing = await client.query<{id:string}>(`SELECT id FROM pairing_requests WHERE code_hash=$1 AND expires_at>clock_timestamp() AND approved_at IS NULL AND redeemed_at IS NULL FOR UPDATE`, [tokenHash(body.code)]);
       if (!pairing.rowCount) throw new DomainError('PAIRING_INVALID', 404);
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await lockDisplayAdministration(client,request,auth);
       let setupId=body.setupId;
       if(setupId){
         const setup=await client.query('SELECT id FROM display_setups WHERE id=$1 AND household_id=$2 FOR SHARE',[setupId,auth.householdId]);
         if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);
       }else setupId=await defaultDisplaySetup(client,auth.householdId);
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       const display = await client.query<{id:string}>(`INSERT INTO displays(household_id,setup_id,name,locale,theme,privacy_mode,allowed_content) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [auth.householdId,setupId,body.name,body.locale??null,body.theme??null,body.privacyMode,body.allowedContent]);
       const approved = await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2,expected_credential_generation=(SELECT credential_generation FROM displays WHERE id=$2) WHERE id=$1 AND approved_at IS NULL RETURNING id`, [pairing.rows[0]!.id,display.rows[0]!.id]);
       if (!approved.rowCount) throw new DomainError('CONFLICT', 409);
@@ -2649,106 +2779,34 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/households/:householdId/messages', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     requireCapability(auth.capabilities, 'household.view');
-    const all = auth.capabilities.includes('message.manage.household');
-    const result = await pool.query(`SELECT m.id,m.body,m.importance,m.audience_household,m.publish_at,m.expires_at,m.state,m.revision,m.created_at,m.updated_at,
-      COALESCE(p.display_name,m.author_display_name,m.author_integration_name) AS author_name,CASE WHEN m.author_integration_id IS NOT NULL THEN 'integration' WHEN m.author_display_id IS NULL THEN 'member' ELSE 'display' END AS author_type,m.author_display_id,p.id AS author_person_id,COALESCE((m.author_membership_id=$3 OR $2),false) AS can_edit,
-      COALESCE((SELECT json_agg(person_id) FROM message_person_audiences WHERE message_id=m.id),'[]') AS person_ids,
-      COALESCE((SELECT json_agg(display_id) FROM message_display_targets WHERE message_id=m.id AND delivery_state<>'cancelled'),'[]') AS display_ids,
-      COALESCE((SELECT json_agg(json_build_object('displayId',display_id,'state',delivery_state,'deliveredAt',delivered_at,'displayedAt',displayed_at,'revision',delivered_revision)) FROM message_display_targets WHERE message_id=m.id),'[]') AS deliveries,
-      COALESCE((SELECT json_agg(json_build_object('action',CASE WHEN e.from_state=e.to_state THEN 'edited' ELSE 'withdrawn' END,'actorName',ep.display_name,'occurredAt',e.occurred_at) ORDER BY e.occurred_at,e.id)
-        FROM message_lifecycle_events e JOIN memberships em ON em.account_id=e.actor_id AND em.household_id=m.household_id JOIN persons ep ON ep.id=em.person_id AND ep.household_id=em.household_id
-        WHERE e.message_id=m.id AND e.actor_type='account' AND (e.from_state=e.to_state OR e.to_state IN ('cancelled','withdrawn'))),'[]') AS activity
-      FROM messages m LEFT JOIN memberships am ON am.id=m.author_membership_id LEFT JOIN persons p ON p.id=am.person_id AND p.household_id=m.household_id
-      WHERE m.household_id=$1 AND ($2 OR m.author_membership_id=$3 OR m.audience_household OR EXISTS(SELECT 1 FROM message_person_audiences pa WHERE pa.message_id=m.id AND pa.person_id=$4))
-      ORDER BY m.created_at DESC LIMIT 200`, [auth.householdId,all,auth.membershipId,auth.personId]);
-    return { messages: result.rows };
+    const messages = await listMessages(pool, {
+      householdId: auth.householdId, membershipId: auth.membershipId, personId: auth.personId,
+      manageHousehold: auth.capabilities.includes('message.manage.household')
+    });
+    return { messages };
   });
 
   app.post('/api/v1/households/:householdId/messages', async (request, reply) => {
     const auth = await authForHousehold(request, params(request).householdId!);
-    requireCapability(auth.capabilities, 'message.create.household');
-    const body = parse(messageCreateSchema, request.body);
-    const now = new Date();
-    const publishAt = body.publishAt ? new Date(body.publishAt) : now;
-    const expiresAt = new Date(body.expiresAt);
-    const state = initialMessageState(publishAt,expiresAt,now);
-    if (publishAt > now) requireCapability(auth.capabilities,'message.schedule');
-    const message = await transaction(async (client) => {
-      await validateAudience(client,auth,body.audience.personIds,body.audience.displayIds);
-      const requestHash=createHash('sha256').update(JSON.stringify(body)).digest('hex');
-      const existing = await client.query<{request_hash:string|null} & Record<string,unknown>>(`SELECT id,body,importance,audience_household,publish_at,expires_at,state,revision,request_hash FROM messages WHERE author_membership_id=$1 AND idempotency_key=$2`, [auth.membershipId,body.idempotencyKey]);
-      if (existing.rowCount) {
-        if(existing.rows[0]!.request_hash!==requestHash) throw new DomainError('CONFLICT',409,{reason:'idempotency_payload_mismatch'});
-        const {request_hash: _requestHash,...response}=existing.rows[0]!;
-        return response;
-      }
-      const inserted = await client.query<{id:string;revision:number}>(`INSERT INTO messages(household_id,author_membership_id,body,importance,audience_household,publish_at,expires_at,state,idempotency_key,published_at)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,CASE WHEN $8='published' THEN clock_timestamp() END) RETURNING id,revision`, [auth.householdId,auth.membershipId,body.body,body.importance,body.audience.household,publishAt,expiresAt,state,body.idempotencyKey]);
-      const id = inserted.rows[0]!.id;
-      await client.query('UPDATE messages SET request_hash=$2 WHERE id=$1',[id,requestHash]);
-      for (const personId of body.audience.personIds) await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES ($1,$2,$3)', [auth.householdId,id,personId]);
-      for (const displayId of body.audience.displayIds) await client.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES ($1,$2,$3,'queued')`, [auth.householdId,id,displayId]);
-      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key) VALUES ($1,NULL,$2,1,'account',$3,$4)`, [id,state,auth.accountId,`create:${id}`]);
-      return (await client.query(`SELECT id,body,importance,audience_household,publish_at,expires_at,state,revision FROM messages WHERE id=$1`, [id])).rows[0];
-    });
+    const message = await messageService.create(auth,request.body,async(client)=>recheckHouseholdAuth(client,request,auth,'message.create.household'));
     return reply.status(201).send(message);
   });
 
   app.patch('/api/v1/households/:householdId/messages/:messageId', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
-    const body = parse(messageUpdateSchema, request.body);
-    return transaction(async (client) => {
-      const existing = await client.query<{author_membership_id:string;state:string;publish_at:Date;expires_at:Date}>(`SELECT author_membership_id,state,publish_at,expires_at FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`, [params(request).messageId,auth.householdId]);
-      const current = existing.rows[0];
-      if (!current) throw new DomainError('NOT_FOUND',404);
-      if (current.author_membership_id !== auth.membershipId) requireCapability(auth.capabilities,'message.manage.household');
-      if (!['scheduled','published'].includes(current.state)) throw new DomainError('CONFLICT',409,{reason:'message_not_editable'});
-      const audience = body.audience;
-      if (audience) {
-        if (!(audience.household || audience.personIds.length || audience.displayIds.length)) throw new DomainError('VALIDATION_FAILED',400,{fields:[{path:'audience',code:'audience_required'}]});
-        await validateAudience(client,auth,audience.personIds,audience.displayIds);
-      } else {
-        const currentDisplays=(await client.query<{display_id:string}>(`SELECT t.display_id FROM message_display_targets t JOIN displays d ON d.id=t.display_id AND d.household_id=t.household_id WHERE t.message_id=$1 AND t.delivery_state IN ('queued','delivered','displayed') AND d.revoked_at IS NULL`,[params(request).messageId])).rows.map((row)=>row.display_id);
-        await validateAudience(client,auth,[],currentDisplays);
-      }
-      const publishAt = body.publishAt ? new Date(body.publishAt) : current.publish_at;
-      const expiresAt = body.expiresAt ? new Date(body.expiresAt) : current.expires_at;
-      if (expiresAt <= publishAt || expiresAt <= new Date()) throw new DomainError('SCHEDULE_INVALID',422);
-      if (publishAt > new Date()) requireCapability(auth.capabilities,'message.schedule');
-      if (current.state === 'published' && publishAt > new Date()) throw new DomainError('CONFLICT',409,{reason:'published_cannot_reschedule'});
-      const updated = await client.query(`UPDATE messages SET body=COALESCE($3,body),importance=COALESCE($4,importance),audience_household=COALESCE($5,audience_household),publish_at=$6,expires_at=$7,revision=revision+1,updated_at=clock_timestamp()
-        WHERE id=$1 AND household_id=$2 AND revision=$8 RETURNING id,body,importance,audience_household,publish_at,expires_at,state,revision`, [params(request).messageId,auth.householdId,body.body ?? null,body.importance ?? null,audience?.household ?? null,publishAt,expiresAt,body.expectedRevision]);
-      if (!updated.rowCount) throw new DomainError('REVISION_CONFLICT',409);
-      if (audience) {
-        await client.query('DELETE FROM message_person_audiences WHERE message_id=$1',[params(request).messageId]);
-        for (const personId of audience.personIds) await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES ($1,$2,$3)',[auth.householdId,params(request).messageId,personId]);
-        await client.query(`UPDATE message_display_targets SET delivery_state='cancelled' WHERE message_id=$1 AND NOT (display_id=ANY($2::uuid[]))`,[params(request).messageId,audience.displayIds]);
-        for (const displayId of audience.displayIds) await client.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES ($1,$2,$3,'queued') ON CONFLICT(message_id,display_id) DO UPDATE SET delivery_state='queued',delivered_revision=NULL,delivered_at=NULL,displayed_at=NULL,failure_code=NULL`,[auth.householdId,params(request).messageId,displayId]);
-      } else if (current.state === 'published') await client.query(`UPDATE message_display_targets t SET delivery_state='queued',delivered_revision=NULL,delivered_at=NULL,displayed_at=NULL,failure_code=NULL FROM displays d WHERE t.message_id=$1 AND d.id=t.display_id AND d.household_id=t.household_id AND d.revoked_at IS NULL AND t.delivery_state IN ('queued','delivered','displayed')`,[params(request).messageId]);
-      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key) VALUES ($1,$2,$2,$3,'account',$4,$5)`,[params(request).messageId,current.state,(updated.rows[0] as {revision:number}).revision,auth.accountId,`edit:${params(request).messageId}:${body.expectedRevision}`]);
-      if (current.author_membership_id !== auth.membershipId) await audit(client,auth,'message.edited_by_admin','message',params(request).messageId);
-      return updated.rows[0];
-    });
+    return messageService.edit(auth, params(request).messageId!, request.body,
+      async (client) => recheckHouseholdAuth(client, request, auth, null),
+      async (client, message, admin) => {
+        if (admin) await audit(client, auth, 'message.edited_by_admin', 'message', message.id);
+      });
   });
 
   app.post('/api/v1/households/:householdId/messages/:messageId/withdraw', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     const expectedRevision = Number((request.body as {expectedRevision?:unknown})?.expectedRevision);
-    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) throw new DomainError('VALIDATION_FAILED',400);
-    return transaction(async (client) => {
-      const existing = await client.query<{author_membership_id:string;state:string}>(`SELECT author_membership_id,state FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).messageId,auth.householdId]);
-      const current=existing.rows[0];
-      if(!current) throw new DomainError('NOT_FOUND',404);
-      if(current.author_membership_id!==auth.membershipId) requireCapability(auth.capabilities,'message.manage.household');
-      if(!['scheduled','published'].includes(current.state)) throw new DomainError('CONFLICT',409);
-      const next=current.state==='scheduled'?'cancelled':'withdrawn';
-      const updated=await client.query(`UPDATE messages SET state=$3,revision=revision+1,ended_at=clock_timestamp(),updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$4 RETURNING id,state,revision`,[params(request).messageId,auth.householdId,next,expectedRevision]);
-      if(!updated.rowCount) throw new DomainError('REVISION_CONFLICT',409);
-      await client.query(`UPDATE message_display_targets SET delivery_state='cancelled' WHERE message_id=$1`,[params(request).messageId]);
-      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key) VALUES ($1,$2,$3,$4,'account',$5,$6)`,[params(request).messageId,current.state,next,(updated.rows[0] as {revision:number}).revision,auth.accountId,`withdraw:${params(request).messageId}:${expectedRevision}`]);
-      if(current.author_membership_id!==auth.membershipId)await audit(client,auth,'message.withdrawn_by_admin','message',params(request).messageId,{state:next});
-      return updated.rows[0];
-    });
+    return messageService.withdraw(auth,params(request).messageId!,expectedRevision,
+      async(client)=>recheckHouseholdAuth(client,request,auth,null),
+      async(client,messageId,state,admin)=>{if(admin)await audit(client,auth,'message.withdrawn_by_admin','message',messageId,{state});});
   });
 
   app.get('/api/v1/display/projection', async (request, reply) => {

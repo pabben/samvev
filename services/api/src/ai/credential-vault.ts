@@ -1,6 +1,6 @@
 import { constants, promises as fs } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHmac, randomBytes } from 'node:crypto';
 
 const KEY_BYTES = 32;
 
@@ -17,6 +17,15 @@ export class AiCredentialVault {
     const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
     return ['v1', nonce.toString('base64url'), tag.toString('base64url'), ciphertext.toString('base64url')].join('.');
+  }
+
+  /** Keyed, deterministic digest for durable identifiers and low-entropy
+   * payloads. The purpose derives an independent subkey; context binds hashes
+   * to their owner without storing either the key or plaintext in PostgreSQL. */
+  async keyedDigest(purpose: string, context: string, value: string): Promise<Buffer> {
+    if (!purpose || purpose.length > 100 || context.length > 500) throw new Error('AI_CREDENTIAL_DIGEST_INVALID');
+    const subkey = createHmac('sha256', await this.key()).update('samvev-vault-digest-kdf:v1\0').update(purpose).digest();
+    return createHmac('sha256', subkey).update('samvev-vault-digest:v1\0').update(context).update('\0').update(value, 'utf8').digest();
   }
 
   async decrypt(householdId: string, encoded: string): Promise<string> {

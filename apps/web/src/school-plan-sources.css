@@ -1,0 +1,13 @@
+.school-source-admin{display:grid;gap:.85rem;margin:1.25rem 0 1.75rem}
+.school-source-admin>.section-heading{align-items:flex-end}
+.school-source-admin>.section-heading h2{margin:0}
+.school-source-policy-separation{margin:0;padding:.8rem 1rem;border-radius:.9rem;background:var(--soft-teal);color:var(--text);line-height:1.45}
+.school-source-admin-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:.8rem}
+.school-source-admin-card{display:grid;gap:.55rem;min-width:0;padding:1rem}
+.school-source-admin-title{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;min-width:0}
+.school-source-admin-title>div{display:grid;min-width:0;gap:.15rem}
+.school-source-admin-title strong,.school-source-admin-url{overflow-wrap:anywhere}
+.school-source-admin-title span{font-size:.85rem;color:var(--muted)}
+.school-source-admin-url{display:block;color:var(--teal);font-size:.9rem}
+.school-source-admin-card .field-hint{margin:0}
+@media(max-width:540px){.school-source-admin>.section-heading{align-items:stretch;flex-direction:column}.school-source-admin>.section-heading>.button{justify-content:center}}
