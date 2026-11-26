@@ -14,6 +14,7 @@ export interface MessageCreateActor {
 
 export type MessageCreateTransaction = <T>(run: (client: DbClient) => Promise<T>) => Promise<T>;
 export type MessageCreateAuthorize = (client: DbClient, actor: MessageCreateActor) => Promise<Capability[]>;
+export type MessageWithdrawAudit = (client: DbClient, messageId: string, state: string) => Promise<void>;
 
 function parseCreateInput(input: unknown) {
   const parsed = messageCreateSchema.safeParse(input);
@@ -97,6 +98,50 @@ export class MessageService {
       await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key)
         VALUES ($1,NULL,$2,1,'account',$3,$4)`, [id, state, actor.accountId, `create:${id}`]);
       return (await client.query(`SELECT id,body,importance,audience_household,publish_at,expires_at,state,revision FROM messages WHERE id=$1`, [id])).rows[0]!;
+    });
+  }
+
+  async withdraw(
+    actor: MessageCreateActor,
+    messageId: string,
+    expectedRevision: number,
+    authorize: MessageCreateAuthorize,
+    auditAdmin?: MessageWithdrawAudit
+  ): Promise<Record<string, unknown>> {
+    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) throw new DomainError('VALIDATION_FAILED', 400);
+    return this.transact(async (client) => {
+      const capabilities = await authorize(client, actor);
+      const existing = await client.query<{ id: string; author_membership_id: string; state: string; audience_household: boolean }>(`SELECT id,author_membership_id,state,audience_household
+        FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`, [messageId, actor.householdId]);
+      const current = existing.rows[0];
+      if (!current) throw new DomainError('NOT_FOUND', 404);
+      if (current.author_membership_id !== actor.membershipId) requireCapability(capabilities, 'message.manage.household');
+      if (!['scheduled', 'published'].includes(current.state)) throw new DomainError('CONFLICT', 409);
+
+      if (actor.mcpGrantId) {
+        if (current.audience_household) throw new DomainError('FORBIDDEN', 403, { reason: 'mcp_message_household_audience_not_granted' });
+        const people = await client.query<{ person_id: string }>(`SELECT audience.person_id FROM message_person_audiences audience
+          JOIN persons person ON person.id=audience.person_id AND person.household_id=audience.household_id
+          WHERE audience.message_id=$1 AND audience.household_id=$2 ORDER BY audience.person_id FOR SHARE OF audience,person`, [messageId, actor.householdId]);
+        const displays = await client.query<{ display_id: string }>(`SELECT target.display_id FROM message_display_targets target
+          WHERE target.message_id=$1 AND target.household_id=$2 AND target.delivery_state<>'cancelled'
+          ORDER BY target.display_id FOR SHARE OF target`, [messageId, actor.householdId]);
+        const personIds = people.rows.map((row) => row.person_id);
+        const displayIds = displays.rows.map((row) => row.display_id);
+        if (!personIds.length && !displayIds.length) throw new DomainError('FORBIDDEN', 403, { reason: 'mcp_message_recipient_grant_required' });
+        await validateMessageAudience(client, actor, capabilities, personIds, displayIds, false);
+      }
+
+      const next = current.state === 'scheduled' ? 'cancelled' : 'withdrawn';
+      const updated = await client.query(`UPDATE messages SET state=$3,revision=revision+1,ended_at=clock_timestamp(),updated_at=clock_timestamp()
+        WHERE id=$1 AND household_id=$2 AND revision=$4 RETURNING id,state,revision`, [messageId, actor.householdId, next, expectedRevision]);
+      if (!updated.rowCount) throw new DomainError('REVISION_CONFLICT', 409);
+      await client.query(`UPDATE message_display_targets SET delivery_state='cancelled' WHERE message_id=$1 AND household_id=$2`, [messageId, actor.householdId]);
+      const revision = (updated.rows[0] as { revision: number }).revision;
+      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key)
+        VALUES ($1,$2,$3,$4,'account',$5,$6)`, [messageId, current.state, next, revision, actor.accountId, `withdraw:${messageId}:${expectedRevision}`]);
+      if (current.author_membership_id !== actor.membershipId && auditAdmin) await auditAdmin(client, messageId, next);
+      return updated.rows[0]!;
     });
   }
 }

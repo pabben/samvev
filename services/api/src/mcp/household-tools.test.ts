@@ -232,13 +232,18 @@ test('message list stops before reading when scope, token, account, membership, 
   assert.equal(fake.calls.length, 1, 'no message query follows failed live authorization');
 });
 
-test('message create requires both scopes and delegates the real OAuth member to the shared writer', async () => {
-  const tools = new Tools(), fake = dependencies(), calls: Array<{ actor: Record<string, unknown>; input: unknown; capabilities: unknown }> = [];
+test('message writes require both scopes and delegate the real OAuth member to the shared writer', async () => {
+  const tools = new Tools(), fake = dependencies(), calls: Array<{ operation: string; actor: Record<string, unknown>; input: unknown; capabilities: unknown }> = [];
   const messageService = {
     async create(actor: any, input: unknown, authorize: (client: DbClient, actor: any) => Promise<unknown>) {
       const capabilities = await authorize(fake.client as DbClient, actor);
-      calls.push({ actor, input, capabilities });
+      calls.push({ operation: 'create', actor, input, capabilities });
       return { id: 'synthetic-message-created' };
+    },
+    async withdraw(actor: any, messageId: string, expectedRevision: number, authorize: (client: DbClient, actor: any) => Promise<unknown>) {
+      const capabilities = await authorize(fake.client as DbClient, actor);
+      calls.push({ operation: 'withdraw', actor, input: { messageId, expectedRevision }, capabilities });
+      return { id: messageId, state: 'withdrawn', revision: expectedRevision + 1 };
     }
   };
   registerHouseholdTools(tools, context, { ...fake.deps, messageService });
@@ -255,6 +260,17 @@ test('message create requires both scopes and delegates the real OAuth member to
   assert.deepEqual((calls[0]!.input as Record<string, unknown>).body, input.body);
   assert.ok((calls[0]!.capabilities as string[]).includes('message.create.household'));
   assert.deepEqual(fake.calls[0]!.values?.slice(4, 6), [['mcp:messages:read', 'mcp:messages:write'], 'message.create.household']);
+
+  const withdrawn = await tools.get('household.messages.withdraw')({ messageId: principal.accountId, expectedRevision: 1 }) as { message: { id: string; state: string; revision: number } };
+  assert.deepEqual(withdrawn, { message: { id: principal.accountId, state: 'withdrawn', revision: 2 } });
+  assert.deepEqual(tools.options.get('household.messages.withdraw')?.requiredScopes, ['mcp:messages:read', 'mcp:messages:write']);
+  assert.equal(tools.options.get('household.messages.withdraw')?.destructiveHint, true);
+  assert.equal(tools.options.get('household.messages.withdraw')?.idempotentHint, false);
+  assert.equal(calls[1]!.operation, 'withdraw');
+  assert.equal(calls[1]!.actor.mcpGrantId, principal.grantId);
+  assert.deepEqual(calls[1]!.input, { messageId: principal.accountId, expectedRevision: 1 });
+  assert.ok((calls[1]!.capabilities as string[]).includes('household.view'));
+  assert.deepEqual(fake.calls[1]!.values?.slice(4, 6), [['mcp:messages:read', 'mcp:messages:write'], 'household.view']);
 });
 
 test('board reads require live household.manage plus their distinct MCP consent scopes', async () => {
@@ -306,4 +322,6 @@ test('board write tools use the existing board service with strict idempotent in
 test('write schemas reject unknown fields and empty grocery changes before board access', async () => {
   assert.equal(householdToolSchemas.groceryUpdateInput.safeParse({ id: principal.accountId, expectedRevision: 1, requestKey: 'grocery-empty-0001' }).success, false);
   assert.equal(householdToolSchemas.dinnerAssignmentInput.safeParse({ localDate: '2027-03-20', optionId: null, expectedRevision: 0, requestKey: 'dinner-clear-0001', householdId: principal.householdId }).success, false);
+  assert.equal(householdToolSchemas.messageWithdrawInput.safeParse({ messageId: principal.accountId, expectedRevision: 1, householdId: principal.householdId }).success, false);
+  assert.equal(householdToolSchemas.messageWithdrawInput.safeParse({ messageId: principal.accountId, expectedRevision: 0 }).success, false);
 });

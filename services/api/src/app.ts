@@ -218,7 +218,7 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
   return { accountId: account.accountId,sessionId:account.sessionId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
 }
 
-async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability):Promise<Capability[]>{
+async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability|null):Promise<Capability[]>{
   const row=(await client.query<{capabilities:Capability[];csrf_hash:string}>(`SELECT membership.capabilities,session.csrf_hash
     FROM sessions session JOIN accounts account ON account.id=session.account_id
     JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2
@@ -227,7 +227,7 @@ async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:
     FOR UPDATE OF session,account,membership`,[auth.sessionId,auth.householdId,auth.accountId,auth.membershipId])).rows[0];
   if(!row)throw new DomainError('UNAUTHENTICATED',401);
   if(isUnsafe(request.method)){const csrf=request.headers['x-csrf-token'];if(typeof csrf!=='string'||tokenHash(csrf)!==row.csrf_hash)throw new DomainError('CSRF_REQUIRED',403);}
-  requireCapability(row.capabilities,capability);
+  if(capability)requireCapability(row.capabilities,capability);
   return row.capabilities;
 }
 
@@ -2811,21 +2811,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.post('/api/v1/households/:householdId/messages/:messageId/withdraw', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
     const expectedRevision = Number((request.body as {expectedRevision?:unknown})?.expectedRevision);
-    if (!Number.isInteger(expectedRevision) || expectedRevision < 1) throw new DomainError('VALIDATION_FAILED',400);
-    return transaction(async (client) => {
-      const existing = await client.query<{author_membership_id:string;state:string}>(`SELECT author_membership_id,state FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).messageId,auth.householdId]);
-      const current=existing.rows[0];
-      if(!current) throw new DomainError('NOT_FOUND',404);
-      if(current.author_membership_id!==auth.membershipId) requireCapability(auth.capabilities,'message.manage.household');
-      if(!['scheduled','published'].includes(current.state)) throw new DomainError('CONFLICT',409);
-      const next=current.state==='scheduled'?'cancelled':'withdrawn';
-      const updated=await client.query(`UPDATE messages SET state=$3,revision=revision+1,ended_at=clock_timestamp(),updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$4 RETURNING id,state,revision`,[params(request).messageId,auth.householdId,next,expectedRevision]);
-      if(!updated.rowCount) throw new DomainError('REVISION_CONFLICT',409);
-      await client.query(`UPDATE message_display_targets SET delivery_state='cancelled' WHERE message_id=$1`,[params(request).messageId]);
-      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key) VALUES ($1,$2,$3,$4,'account',$5,$6)`,[params(request).messageId,current.state,next,(updated.rows[0] as {revision:number}).revision,auth.accountId,`withdraw:${params(request).messageId}:${expectedRevision}`]);
-      if(current.author_membership_id!==auth.membershipId)await audit(client,auth,'message.withdrawn_by_admin','message',params(request).messageId,{state:next});
-      return updated.rows[0];
-    });
+    return messageService.withdraw(auth,params(request).messageId!,expectedRevision,
+      async(client)=>recheckHouseholdAuth(client,request,auth,null),
+      async(client,messageId,state)=>audit(client,auth,'message.withdrawn_by_admin','message',messageId,{state}));
   });
 
   app.get('/api/v1/display/projection', async (request, reply) => {

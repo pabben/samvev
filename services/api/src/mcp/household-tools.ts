@@ -34,7 +34,7 @@ export interface HouseholdMcpToolRegistrar {
 export interface HouseholdMcpToolDependencies {
   transaction<T>(run: (client: DbClient) => Promise<T>): Promise<T>;
   boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner'>;
-  messageService?: Pick<MessageService, 'create'>;
+  messageService?: Pick<MessageService, 'create' | 'withdraw'>;
   personProfileAudit?: PersonProfileAudit;
 }
 
@@ -53,6 +53,7 @@ const personUpdateInput = z.object({
   colorToken: personUpdateSchema.shape.colorToken,
   expectedRevision: personUpdateSchema.shape.expectedRevision
 }).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.colorToken !== undefined);
+const messageWithdrawInput = z.object({ messageId: uuid, expectedRevision: z.number().int().positive() }).strict();
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
 const MAX_DINNER_DAYS = 31;
@@ -268,6 +269,22 @@ export function registerHouseholdTools(
     return { message: created };
   });
 
+  registrar.registerTool('household.messages.withdraw', {
+    description: 'Withdraw or cancel one message authored by this member, or managed by a member with current message management rights. Every recipient must be explicitly granted to this OAuth authorization and permitted for the member.',
+    inputSchema: messageWithdrawInput, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: false
+  }, async (raw) => {
+    const input = messageWithdrawInput.parse(raw);
+    const actor: MessageCreateActor = {
+      accountId: principal.accountId, installationId: principal.installationId, householdId: principal.householdId,
+      membershipId: principal.membershipId, mcpGrantId: principal.grantId
+    };
+    const withdrawn = await (dependencies.messageService ?? messageService).withdraw(actor, input.messageId, input.expectedRevision, async (client) => {
+      const authority = await assertLiveAuthority(client, principal, ['mcp:messages:read', 'mcp:messages:write'], 'household.view');
+      return authority.capabilities;
+    });
+    return { message: withdrawn };
+  });
+
   registrar.registerTool('household.groceries.list', {
     description: 'Read the household grocery list with explicit whole-household consent.', inputSchema: emptyInput,
     requiredScopes: ['mcp:groceries:read'], readOnlyHint: true, destructiveHint: false
@@ -336,4 +353,4 @@ export function registerHouseholdTools(
 }
 
 /** Exported for focused authorization tests without registering an MCP server. */
-export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, dinnerAssignmentInput, personUpdateInput } as const;
+export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, dinnerAssignmentInput, personUpdateInput, messageWithdrawInput } as const;

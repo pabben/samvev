@@ -62,3 +62,17 @@ test('MCP household broadcast is denied until an explicit broad-audience grant e
   );
   assert.equal(serviceQueries, 0);
 });
+
+test('withdrawal by another member requires current message management capability', async () => {
+  let queries = 0;
+  const service = new MessageService(async (run) => run({ async query(sql: string) {
+    queries += 1;
+    assert.match(sql, /FROM messages WHERE id=\$1 AND household_id=\$2 FOR UPDATE/);
+    return { rows: [{ id: 'message-1', author_membership_id: 'different-membership', state: 'published', audience_household: false }], rowCount: 1 };
+  } } as unknown as DbClient));
+  await assert.rejects(
+    service.withdraw(actor, '77777777-7777-4777-8777-777777777777', 1, async () => ['household.view'] as Capability[]),
+    (error: unknown) => error instanceof DomainError && error.status === 403
+  );
+  assert.equal(queries, 1, 'authorization stops before audience reads or mutation');
+});
