@@ -44,7 +44,7 @@ export interface HouseholdMcpToolDependencies {
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
   displayAppearanceAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
-  displayLayoutAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
+  displayLayoutAudit?: (client: DbClient, displayId: string, revision: number, setupVersion: string) => Promise<void>;
   displaySetupReadAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
   calendarAudit?: Parameters<typeof registerCalendarWriteTools>[2]['audit'];
 }
@@ -193,10 +193,10 @@ async function lockGrantedDisplayAssignment(
   return display;
 }
 
-async function readLockedDisplaySetup(client: DbClient, householdId: string, setupId: string): Promise<DisplaySetup> {
+async function readLockedDisplaySetup(client: DbClient, householdId: string, setupId: string, write = false): Promise<DisplaySetup> {
   const setup = (await client.query<DisplaySetup>(`SELECT name,revision,cards,card_order AS "cardOrder",
     family_layout_enabled AS "familyLayoutEnabled",locale,theme
-    FROM display_setups WHERE household_id=$1 AND id=$2 FOR SHARE`, [householdId, setupId])).rows[0];
+    FROM display_setups WHERE household_id=$1 AND id=$2 FOR ${write ? 'UPDATE' : 'SHARE'}`, [householdId, setupId])).rows[0];
   if (!setup) throw new DomainError('NOT_FOUND', 404);
   return setup;
 }
@@ -213,6 +213,27 @@ const setupSelectionTables = [
   ['display_setup_calendar_sources', 'source_id'],
   ['display_setup_sensors', 'sensor_id']
 ] as const;
+
+async function updateOwnedDisplaySetupLayout(
+  client: DbClient, householdId: string, displayId: string, setupId: string, revision: number, layout: DisplayLayout
+): Promise<number | undefined> {
+  // The caller holds the source setup FOR UPDATE. Browser assignment and its
+  // foreign key take conflicting setup locks. Check references in a fresh
+  // statement after acquiring the lock, without locking other display rows.
+  const updated = await client.query<{ revision: number }>(`WITH changed AS (UPDATE display_setups setup SET
+      cards=$5::jsonb,card_order=$6::jsonb,family_layout_enabled=$7,revision=setup.revision+1,updated_at=clock_timestamp()
+    WHERE setup.household_id=$1 AND setup.id=$2 AND setup.revision=$4 AND NOT setup.is_default
+      AND EXISTS (SELECT 1 FROM mcp_display_layout_ownership ownership
+        WHERE ownership.household_id=$1 AND ownership.setup_id=$2 AND ownership.display_id=$3
+          AND ownership.last_mcp_revision=setup.revision)
+      AND NOT EXISTS (SELECT 1 FROM displays other
+        WHERE other.household_id=$1 AND other.setup_id=$2 AND other.id<>$3)
+    RETURNING setup.revision)
+    UPDATE mcp_display_layout_ownership ownership SET last_mcp_revision=changed.revision FROM changed
+    WHERE ownership.setup_id=$2 RETURNING ownership.last_mcp_revision AS revision`,
+  [householdId, setupId, displayId, revision, JSON.stringify(layout.cards), JSON.stringify(layout.cardOrder), layout.familyLayoutEnabled]);
+  return updated.rows[0]?.revision;
+}
 
 async function cloneDisplaySetupLayout(
   client: DbClient, householdId: string, setupId: string, revision: number, layout: DisplayLayout
@@ -312,7 +333,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.displays.layout.update', {
-    description: 'Replace the selected cards, card order, and family layout setting of one explicitly approved display. Use the current setupVersion from household.displays.setup.get. An actual change creates a separate setup for this display while retaining its existing content selections, access permissions, and appearance.',
+    description: 'Replace the selected cards, card order, and family layout setting of one explicitly approved display. Use the current setupVersion from household.displays.setup.get. The display uses its own setup after the change and retains its existing content selections, access permissions, and appearance.',
     inputSchema: displayLayoutWriteInput, outputSchema: z.strictObject({ layout: displayLayoutWriteOutput }),
     requiredScopes: displayLayoutWriteScopes, readOnlyHint: false, destructiveHint: false, idempotentHint: false
   }, async (raw) => {
@@ -326,7 +347,7 @@ export function registerHouseholdTools(
       // reading the source so the clone cannot revive a removed selection.
       await client.query('INSERT INTO media_household_usage(household_id) VALUES($1) ON CONFLICT DO NOTHING', [principal.householdId]);
       await client.query('SELECT household_id FROM media_household_usage WHERE household_id=$1 FOR UPDATE', [principal.householdId]);
-      const current = await readLockedDisplaySetup(client, principal.householdId, assignment.setup_id);
+      const current = await readLockedDisplaySetup(client, principal.householdId, assignment.setup_id, true);
       await assertLiveAuthority(client, principal, displayLayoutWriteScopes, 'display.manage');
       if (displaySetupVersion(displayId, assignment, current.revision) !== expectedSetupVersion) {
         throw new DomainError('REVISION_CONFLICT', 409);
@@ -336,15 +357,24 @@ export function registerHouseholdTools(
         return { layout: { displayId, setupVersion: expectedSetupVersion, cards, cardOrder, familyLayoutEnabled } };
       }
 
-      const clone = await cloneDisplaySetupLayout(client, principal.householdId, assignment.setup_id, current.revision, layout);
-      const updated = (await client.query<DisplayAssignment>(`UPDATE displays SET setup_id=$5
-        WHERE id=$1 AND household_id=$2 AND setup_id=$3 AND setup_assignment_revision=$4 AND revoked_at IS NULL
-        RETURNING setup_id,setup_assignment_revision::text`,
-      [displayId, principal.householdId, assignment.setup_id, assignment.setup_assignment_revision, clone.id])).rows[0];
-      if (!updated) throw new DomainError('REVISION_CONFLICT', 409);
-      await audit(client, displayId, clone.revision);
+      let updated = assignment;
+      let revision = await updateOwnedDisplaySetupLayout(client, principal.householdId, displayId, assignment.setup_id, current.revision, layout);
+      if (revision === undefined) {
+        const clone = await cloneDisplaySetupLayout(client, principal.householdId, assignment.setup_id, current.revision, layout);
+        const reassigned = (await client.query<DisplayAssignment>(`UPDATE displays SET setup_id=$5
+          WHERE id=$1 AND household_id=$2 AND setup_id=$3 AND setup_assignment_revision=$4 AND revoked_at IS NULL
+          RETURNING setup_id,setup_assignment_revision::text`,
+        [displayId, principal.householdId, assignment.setup_id, assignment.setup_assignment_revision, clone.id])).rows[0];
+        if (!reassigned) throw new DomainError('REVISION_CONFLICT', 409);
+        await client.query('INSERT INTO mcp_display_layout_ownership(household_id,setup_id,display_id,last_mcp_revision) VALUES($1,$2,$3,$4)',
+          [principal.householdId, clone.id, displayId, clone.revision]);
+        updated = reassigned;
+        revision = clone.revision;
+      }
+      const setupVersion = displaySetupVersion(displayId, updated, revision);
+      await audit(client, displayId, revision, setupVersion);
       await assertLiveAuthority(client, principal, displayLayoutWriteScopes, 'display.manage');
-      return { layout: { displayId, setupVersion: displaySetupVersion(displayId, updated, clone.revision), ...layout } };
+      return { layout: { displayId, setupVersion, ...layout } };
     });
   });
 

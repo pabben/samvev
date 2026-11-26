@@ -918,7 +918,7 @@ export const en = {
   mcpScopeDisplaysRead: "Read selected displays",
   mcpScopeDisplaysSetupRead: "Read the card layout, order, language, and theme of selected displays. Also requires display read access.",
   mcpScopeDisplaysLayoutWrite: "Change selected display layouts",
-  mcpDisplayLayoutWriteDependency: "With display and display setup read access, this client can change cards, their order, and family layout. Each change gives the selected display its own setup for future edits, with the same content selections, access permissions, and appearance. Other displays keep their setups. Uncheck a display or remove layout access to revoke this permission.",
+  mcpDisplayLayoutWriteDependency: "With display and display setup read access, this client can change cards, their order, and family layout. After a change, the selected display uses its own setup for future edits, with the same content selections, access permissions, and appearance. Other displays keep their setups. Uncheck a display or remove layout access to revoke this permission.",
   mcpScopeDisplaysAppearanceWrite: "Change selected display appearance",
   mcpDisplayAppearanceWriteDependency: "With display read access, this client can change the name, language and theme of each selected display. Clear a display or remove appearance access to revoke this permission.",
   mcpScopeMessagesRead: "Read shared messages and messages for selected people",
