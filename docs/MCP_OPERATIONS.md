@@ -83,8 +83,41 @@ Use only after the approved source, class and the client's household/person/reso
 | 059 | Adds `mcp:displays:read` for minimal display discovery. | Keep the additive scope entry. Display results remain constrained by live `display.manage` and exact display grants; this is not credential or control access. |
 | 060 | Allows `integration` as a dinner-option creator actor type for delegated MCP board writes. | On code rollback, retain the widened constraint and integration rows. Do not destructively narrow it while integration-authored rows may exist; handle any cleanup through a reviewed, data-preserving migration. |
 | 061 | Adds the separate `mcp:monitors:content` read scope for bounded monitor-result content. Existing monitor-read grants do not receive it. | Preserve the additive scope row on code rollback. Do not widen old grants or treat `mcp:monitors:read` as implicit consent. Revoke any explicit content grants before rolling back code that cannot enforce this boundary; retain audit history and data. |
+| 062 | Registers `mcp:calendar:write`, an explicit native calendar resource, a credentialless Samvev source, and mutation receipts. | Stop clients and drain the current API/workers. Apply [the native calendar rollback transaction](../scripts/mcp-native-calendar-rollback.sql) before starting an older API. It hides native appointments from older source readers and retains their data. |
 
 For code rollback, first revoke relevant grants and stop/restart MCP clients so cached access tokens cannot continue. Preserve schema/data. Do not apply destructive down migrations or restore an old database over newer writes as routine rollback. Grocery removal adds no migration: preserve soft-deleted grocery rows and their audit events. In particular, preserve migration 060's widened actor constraint; do not narrow it while integration rows exist. Preserve migration 061's scope catalog entry and do not silently grant or infer its consent; revoke explicit result-content grants before rolling back code that cannot enforce it. A local synthetic schema-48-to-61 rehearsal passed. Public backup/restore or rollback has not been run; private operator scripts exist but are not evidence of public action. Public rollback from schema 48 to source `8391041...` is not validated; board/message/profile writes may leave records or actor metadata older code does not understand, and older code may not understand calendar-source, HA school, display resource/scope, integration-actor, or monitor-content-scope additions.
+
+### Native calendar
+
+A client needs paired calendar read/write consent, the explicit Samvev source,
+and approved person IDs. Create, update and delete use a request key. Updates and
+deletes use the event revision from the last read. Updates check the full current
+and replacement person audiences. All-day appointments use two civil dates with
+an exclusive end. Timed appointments use two offset timestamps. MCP discovery
+covers the existing upcoming window. Native appointments support selected people
+and appear in the member calendar. Provider/ICS/HA sources remain read-only for
+MCP. Browser appointment editing, recurrence, household broadcasts and display
+sharing are outside this slice.
+
+To prepare a schema-062 database for older code, stop MCP clients, drain the
+current API and workers, and run the linked transaction with `psql`, setting
+`ON_ERROR_STOP`. Verify that all native connections are revoked and their
+appointments and receipts are retained before starting the older API. The
+transaction revokes live tokens and consumes pending codes for the affected
+authorizations. Other scopes and source grants on mixed authorizations remain
+available after those clients reconnect. A grant with only calendar write and
+optional offline access is revoked. Unrelated authorizations are untouched.
+
+For reactivation, restore the upgraded API image first and keep it stopped until
+the database is ready. In one transaction set `mcp_oauth_scope_catalog.active` to
+`true` for `mcp:calendar:write`, then clear `integration_connections.revoked_at`
+for rows with `native_calendar=true`, increment their revision and update
+`updated_at`. Verify both changes before starting the upgraded API. Each client
+must obtain fresh OAuth consent for calendar writes, and a household administrator
+must explicitly select the native source and allowed people again. An old token
+or native source selection cannot reactivate access. Public rollback and restore
+remain unverified.
+
 
 ## MCP versus internal AI
 

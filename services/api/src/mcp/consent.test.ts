@@ -44,3 +44,13 @@ test('monitor result consent distinguishes content from status in both locales',
   const english = authorizationConsentHtml({ request: contentRequest, clientName: 'Synthetic client', households: [{ id: 'household-en', name: 'Synthetic', locale: 'en' }], csrf: 'synthetic-csrf' });
   assert.match(english, /Read bounded AI-generated result text, which may contain household or school information/);
 });
+
+test('calendar write consent discloses native scope and the calendar read dependency in both locales', () => {
+  const calendarRequest: AuthorizeRequest = { ...request, scopes: ['mcp:calendar:read', 'mcp:calendar:write'] };
+  const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
+    request: calendarRequest, clientName: 'Synthetic calendar client',
+    households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
+  });
+  assert.match(render('en'), /Create, edit, and remove appointments in the native Samvev calendar for explicitly approved people. Also requires calendar read access/);
+  assert.match(render('nb'), /Opprette, endre og fjerne avtaler i Samvevs egen kalender for eksplisitt godkjente personer. Krever også lesetilgang/);
+});

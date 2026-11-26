@@ -1,4 +1,5 @@
 import { pool, type DbClient } from '../db.ts';
+import { samvevNativeEventPredicate } from './native-events.ts';
 
 export interface ExternalItemRow {
   id:string; external_id:string; kind:string; content_locale:'en'|'nb'|null; target_household:boolean; title:string; body:string;
@@ -8,6 +9,7 @@ export interface ExternalItemRow {
   subject_person_ids:string[];
   calendar_connection_state:string|null; calendar_source_error_code:string|null; calendar_provider_status:string|null; calendar_owner_authorized:boolean;
   temperature_sensor_available:boolean|null;
+  native_calendar?:boolean;
   acl_witness?:string;acl_sensor_id?:string|null;
 }
 
@@ -15,9 +17,8 @@ export function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:
   const source=options.forDisplay
     ? Object.fromEntries(Object.entries(row.source).filter(([key])=>!['url','links'].includes(key)))
     : row.source;
-  const metadata=options.forDisplay
-    ? Object.fromEntries(Object.entries(row.metadata).filter(([key])=>key!=='actionUrl'))
-    : row.metadata;
+  const metadata=Object.fromEntries(Object.entries(row.metadata).filter(([key])=>key!=='nativeCalendar'&&(!options.forDisplay||key!=='actionUrl')));
+  if(row.native_calendar)metadata.nativeCalendar=true;
   const storedCalendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?metadata.calendar as Record<string,unknown>:undefined;
   const storedFreshnessReason=['sync_failed','provider_disabled','reauthorization_required','source_missing'].includes(String(storedCalendar?.freshnessReason))?String(storedCalendar?.freshnessReason):undefined;
   const calendarIsStale=storedCalendar&&row.calendar_connection_state?row.calendar_owner_authorized!==true||storedCalendar.freshness==='stale'||!['connected','syncing','error'].includes(row.calendar_connection_state):false;
@@ -32,12 +33,13 @@ export function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:
   const storedTemperature=metadata.temperature&&typeof metadata.temperature==='object'&&!Array.isArray(metadata.temperature)?metadata.temperature as Record<string,unknown>:undefined;
   const temperatureAuthorityStale=Boolean(storedTemperature&&row.calendar_connection_state&&(row.calendar_owner_authorized!==true||row.calendar_provider_status==='disabled'||['expired','awaiting_consent','setup'].includes(row.calendar_connection_state)));
   const temperatureMetadata=storedTemperature?{...storedTemperature,...(temperatureAuthorityStale?{status:'stale',freshness:'stale',reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':'reauthorization_required'}:row.temperature_sensor_available===false?{status:'unavailable',freshness:'stale',reason:'sensor_missing'}:{})}:undefined;
+  const subjects = row.native_calendar ? row.person_ids : row.subject_person_ids;
   return {
     id:row.id,
     ...(options.includeExternalId?{externalId:row.external_id,status:row.status}:{}),
     kind:row.kind,contentLocale:row.content_locale,
     targets:{household:row.target_household,personIds:options.selectedPersonIds?row.person_ids.filter((id)=>options.selectedPersonIds!.includes(id)):row.person_ids,...(options.includeExternalId?{displayIds:row.display_ids}:{})},
-    subjects:{personIds:options.selectedPersonIds?row.subject_person_ids.filter((id)=>options.selectedPersonIds!.includes(id)):row.subject_person_ids},
+    subjects:{personIds:options.selectedPersonIds?subjects.filter((id)=>options.selectedPersonIds!.includes(id)):subjects},
     title:row.title,body:row.body,entries:row.entries,priority:row.priority,
     publishAt:row.publish_at?.toISOString()??null,startsAt:row.starts_at?.toISOString()??null,
     endsAt:row.ends_at?.toISOString()??null,expiresAt:row.expires_at?.toISOString()??null,
@@ -47,6 +49,7 @@ export function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:
 
 export const externalItemProjectionColumns=`i.id,i.external_id,i.kind,i.content_locale,i.target_household,i.title,i.body,i.entries,i.priority,
   i.publish_at,i.starts_at,i.ends_at,i.expires_at,i.source,i.metadata,i.status,i.revision,i.updated_at,
+  EXISTS(SELECT 1 FROM integration_connections native_source WHERE native_source.id=i.connection_id AND native_source.native_calendar) AS native_calendar,
   (SELECT calendar.state FROM calendar_connections calendar WHERE calendar.integration_connection_id=i.connection_id) AS calendar_connection_state,
   (SELECT source.last_error_code FROM calendar_occurrences occurrence JOIN calendar_sources source ON source.id=occurrence.source_id WHERE occurrence.integration_item_id=i.id LIMIT 1) AS calendar_source_error_code,
   (SELECT provider.status FROM calendar_connections calendar JOIN households calendar_household ON calendar_household.id=calendar.household_id LEFT JOIN installation_calendar_provider_configs provider ON provider.installation_id=calendar_household.installation_id AND provider.provider=calendar.provider WHERE calendar.integration_connection_id=i.connection_id) AS calendar_provider_status,
@@ -68,6 +71,7 @@ export interface CalendarActivityReadInput {
   canViewAll:boolean; from:string; to:string; limit:number; sourceIds?:string[];
   cursor?:ActivityCursor; upcomingOnly?:boolean; display?:DisplayActivityContext;
   requirePersonAudience?:boolean;
+  nativeSourceApproved?:boolean;
 }
 
 /** Shared implementation of the calendar half of personActivities. The API
@@ -81,7 +85,8 @@ export async function readCalendarActivityRows(input:CalendarActivityReadInput,c
   const displayGenericSource=`(NOT EXISTS(SELECT 1 FROM calendar_occurrences generic_occurrence WHERE generic_occurrence.integration_item_id=i.id)
       AND ($15::boolean OR connection.id=ANY($16::uuid[])))`;
   const calendar=await client.query<ActivityRow>(`SELECT ${externalItemProjectionColumns},${display?displayWitness?.('$12','$19','$17')??'NULL::text':'NULLIF($19::uuid[],$19::uuid[])::text'} AS acl_witness,activity.starts_at AS activity_at,
-      (SELECT min(occurrence.source_id::text)::uuid FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND ($8::uuid[] IS NULL OR occurrence.source_id=ANY($8))) AS activity_source_id,
+      CASE WHEN connection.native_calendar AND $21::boolean THEN i.household_id ELSE
+        (SELECT min(occurrence.source_id::text)::uuid FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND ($8::uuid[] IS NULL OR occurrence.source_id=ANY($8))) END AS activity_source_id,
       (SELECT min(subject.person_id::text)::uuid FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))) AS activity_person_id,
       COALESCE((SELECT array_agg(subject.person_id ORDER BY subject.person_id) FROM integration_item_person_subjects subject WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),ARRAY[]::uuid[]) AS activity_person_ids,
       COALESCE((SELECT jsonb_object_agg(subject.person_id::text,person.color_token) FROM integration_item_person_subjects subject JOIN persons person ON person.id=subject.person_id AND person.household_id=i.household_id WHERE subject.item_id=i.id AND ($2::uuid[] IS NULL OR subject.person_id=ANY($2))),'{}'::jsonb) AS activity_person_colors
@@ -90,9 +95,9 @@ export async function readCalendarActivityRows(input:CalendarActivityReadInput,c
     -- Calendar all-day timestamps encode civil dates, not UTC instants. Keep
     -- their stored/returned values, but compare local-midnight boundaries.
     CROSS JOIN LATERAL (SELECT
-      CASE WHEN (i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
+      CASE WHEN (connection.native_calendar OR i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
         THEN (i.starts_at AT TIME ZONE 'UTC')::date::timestamp AT TIME ZONE household.timezone ELSE i.starts_at END AS starts_at,
-      CASE WHEN (i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
+      CASE WHEN (connection.native_calendar OR i.metadata->'calendar' IS NOT NULL OR i.metadata->'haBridge'='true'::jsonb) AND i.metadata->'allDay'='true'::jsonb
         THEN COALESCE((i.ends_at AT TIME ZONE 'UTC')::date,(i.starts_at AT TIME ZONE 'UTC')::date+1)::timestamp AT TIME ZONE household.timezone WHEN i.ends_at=i.starts_at THEN NULL ELSE i.ends_at END AS ends_at) activity
     WHERE i.household_id=$1 AND i.kind IN ('event','reminder') AND i.status='active'
       AND (i.publish_at IS NULL OR i.publish_at<=clock_timestamp()) AND (i.expires_at IS NULL OR i.expires_at>clock_timestamp())
@@ -110,9 +115,11 @@ export async function readCalendarActivityRows(input:CalendarActivityReadInput,c
           AND (${displayCalendarSource} OR ${displayGenericSource})))
       AND ($18::timestamptz IS NULL OR (activity.ends_at IS NULL AND activity.starts_at>=$18::timestamptz OR activity.ends_at>$18::timestamptz))
       AND ($18::timestamptz IS NULL OR COALESCE(i.metadata#>>'{calendar,status}','') NOT IN ('cancelled','canceled','declined'))
-      AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8)))
+      AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8))
+        OR ($21::boolean AND ${samvevNativeEventPredicate}
+          AND NOT EXISTS(SELECT 1 FROM integration_item_person_targets other_reader WHERE other_reader.item_id=i.id AND other_reader.person_id<>ALL($2::uuid[]))))
       AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
       ${calendarCursor}
-    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null,display?.selectedPersonIds??[],input.requirePersonAudience??false]);
+    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null,display?.selectedPersonIds??[],input.requirePersonAudience??false,input.nativeSourceApproved??false]);
   return calendar.rows;
 }

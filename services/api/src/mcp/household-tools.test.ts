@@ -24,7 +24,7 @@ class Tools implements HouseholdMcpToolRegistrar {
 test('all household tools publish meaningful output schemas that validate returned projections', () => {
   const tools = new Tools();
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run({ query: async () => ({ rows: [] }) } as unknown as DbClient) });
-  assert.equal(tools.options.size, 19);
+  assert.equal(tools.options.size, 22);
   for (const [name, options] of tools.options) {
     assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
     assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
@@ -34,6 +34,9 @@ test('all household tools publish meaningful output schemas that validate return
     'household.displays.list': { displays: [] },
     'household.people.update': { id: principal.membershipId, revision: 2 },
     'calendar.sources.list': { sources: [{ id: 'source-1', name: 'Synthetic calendar', provider: 'ics' }] },
+    'calendar.events.create': { event: { id: principal.accountId, revision: 1 } },
+    'calendar.events.update': { event: { id: principal.accountId, revision: 2 } },
+    'calendar.events.delete': { event: { id: principal.accountId, revision: 3 } },
     'calendar.events.list': { events: [{ id: 'event-1', title: 'Synthetic event', description: null, startsAt: '2027-03-20T09:00:00.000Z', endsAt: null, allDay: false, sourceId: 'source-1', sourceName: 'Synthetic calendar' }] },
     'household.people.list': { people: [{ id: 'person-1', displayName: 'Synthetic member', ageGroup: 'adult' }] },
     'household.messages.list': { messages: [{ id: 'message-1', body: 'Synthetic message' }] },

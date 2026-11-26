@@ -7,6 +7,7 @@ import { listMessages } from '../messages/read.ts';
 import { readCalendarActivityRows } from '../calendar/activity-reader.ts';
 import { localDateInTimezone } from '../people/domain.ts';
 import { messageService, type MessageCreateActor, type MessageEditAudit, type MessageService, type MessageWithdrawAudit } from '../messages/service.ts';
+import { hasNativeCalendarGrant, NATIVE_CALENDAR_NAME, registerCalendarWriteTools } from './calendar-write.ts';
 import { updatePersonProfile, type PersonProfileAudit } from '../people/profile-service.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
@@ -41,6 +42,7 @@ export interface HouseholdMcpToolDependencies {
   messageEditAudit?: MessageEditAudit;
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
+  calendarAudit?: Parameters<typeof registerCalendarWriteTools>[2]['audit'];
 }
 
 const uuid = z.uuid();
@@ -79,8 +81,8 @@ const idOutput = z.string().min(1).max(128);
 const nullableTextOutput = z.string().max(5000).nullable();
 const displayOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), locale: z.string().max(35).nullable(), theme: z.string().max(20).nullable(), privacyMode: z.boolean(), setupName: z.string().min(1).max(200), createdAt: z.iso.datetime() });
 const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult']) });
-const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50) });
-const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable() });
+const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50), writable: z.boolean().optional() });
+const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), revision: revisionOutput.optional(), writable: z.boolean().optional(), personIds: z.array(z.uuid()).max(50).optional(), location: z.string().max(160).optional() });
 const groceryOutput = z.object({ id: idOutput, label: z.string().min(1).max(200), checked: z.boolean(), revision: revisionOutput, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
 const groceryDeletionOutput = z.object({ item: z.object({ id: idOutput, revision: revisionOutput }) });
 const dinnerAssignmentOutput = z.object({ id: idOutput, localDate: date, title: z.string().max(500).nullable(), emoji: z.string().max(32).nullable(), revision: z.number().int().positive(), cleared: z.boolean() });
@@ -96,11 +98,11 @@ const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, stat
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:displays:read';
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | 'mcp:displays:read';
 type Capability = MemberCapability;
 
-async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[]}> {
-  const result = await client.query<{ allowed: boolean; person_id: string; capabilities: Capability[] }>(`SELECT (
+async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[];calendarWriteAllowed:boolean}> {
+  const result = await client.query<{ allowed: boolean; person_id: string; capabilities: Capability[]; calendar_write_allowed: boolean }>(`SELECT (
       grant_row.id IS NOT NULL
       AND grant_row.revoked_at IS NULL
       AND grant_row.scopes ?& $5::text[]
@@ -111,19 +113,23 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
       AND person.age_group = 'adult'
       AND account.disabled_at IS NULL
       AND household.installation_id = $4
-    ) AS allowed,membership.person_id,membership.capabilities
+    ) AS allowed,membership.person_id,membership.capabilities,
+      (grant_row.scopes ? 'mcp:calendar:write' AND token_set.scopes ? 'mcp:calendar:write'
+       AND membership.capabilities ? 'household.manage') AS calendar_write_allowed
     FROM mcp_oauth_grants grant_row
+    JOIN mcp_oauth_clients oauth_client ON oauth_client.id=grant_row.client_id
+      AND oauth_client.installation_id=grant_row.installation_id AND oauth_client.revoked_at IS NULL
     JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=grant_row.id AND token_set.id=$8
     JOIN memberships membership ON membership.id=grant_row.membership_id AND membership.household_id=grant_row.household_id AND membership.account_id=grant_row.account_id
     JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id
     JOIN accounts account ON account.id=membership.account_id AND account.installation_id=$4
     JOIN households household ON household.id=grant_row.household_id AND household.installation_id=$4
     WHERE grant_row.id=$1 AND grant_row.household_id=$2 AND grant_row.account_id=$3 AND grant_row.membership_id=$7
-    FOR SHARE OF grant_row,token_set,membership,person,account,household`,
+    FOR SHARE OF grant_row,token_set,membership,person,account,household,oauth_client`,
     [principal.grantId, principal.householdId, principal.accountId, principal.installationId, scopes, capability, principal.membershipId, principal.tokenSetId]);
   const row = result.rows[0];
   if (!row?.allowed || !uuid.safeParse(row.person_id).success) throw new DomainError('FORBIDDEN', 403);
-  return { personId: row.person_id, capabilities: row.capabilities };
+  return { personId: row.person_id, capabilities: row.capabilities, calendarWriteAllowed: row.calendar_write_allowed };
 }
 
 /** Live grant and member-visible source projection shared by both calendar tools. */
@@ -206,9 +212,12 @@ export function registerHouseholdTools(
   }, async (raw) => {
     emptyInput.parse(raw);
     return dependencies.transaction(async (client) => {
-      await assertLiveAuthority(client, principal, ['mcp:calendar:read'], 'household.view');
+      const authority = await assertLiveAuthority(client, principal, ['mcp:calendar:read'], 'household.view');
       const sources = await listLiveCalendarSources(client, principal);
-      return { sources };
+      const native = authority.capabilities?.includes('household.manage') && await hasNativeCalendarGrant(client, principal);
+      return { sources: native
+        ? [{ id: principal.householdId, name: NATIVE_CALENDAR_NAME, provider: 'samvev', writable: authority.calendarWriteAllowed }, ...sources].slice(0, 100)
+        : sources };
     });
   });
 
@@ -226,22 +235,42 @@ export function registerHouseholdTools(
           ORDER BY person.id LIMIT 100 FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId]),
         listLiveCalendarSources(client, principal)
       ]);
-      if (!people.rows.length || !sources.length) return { events: [] };
+      if (!people.rows.length) return { events: [] };
+      const native = authority.capabilities?.includes('household.manage') && await hasNativeCalendarGrant(client, principal);
+      if (!sources.length && !native) return { events: [] };
       const household = await client.query<{ timezone: string }>('SELECT timezone FROM households WHERE id=$1 AND installation_id=$2 FOR SHARE', [principal.householdId, principal.installationId]);
       if (!household.rows[0]) throw new DomainError('FORBIDDEN', 403);
       const from = localDateInTimezone(new Date(), household.rows[0].timezone);
       const rows = await readCalendarActivityRows({
         householdId: principal.householdId, personIds: people.rows.map((row) => row.id),
         viewer: { personId: authority.personId, membershipId: principal.membershipId }, canViewAll: true,
-        from, to: dateOffset(from, input.days - 1), limit: input.limit, sourceIds: sources.map((row) => row.id), upcomingOnly: true, requirePersonAudience: true
+        from, to: dateOffset(from, input.days - 1), limit: input.limit, sourceIds: sources.map((row) => row.id), upcomingOnly: true, requirePersonAudience: true, nativeSourceApproved: Boolean(native)
       }, client);
       const sourceNames = new Map(sources.map((source) => [source.id, source.name]));
-      return { events: rows.slice(0, input.limit).map((row) => ({
-        id: row.id, title: row.title, description: row.body, startsAt: row.starts_at?.toISOString() ?? null,
-        endsAt: row.ends_at?.toISOString() ?? null, allDay: row.metadata.allDay === true,
-        sourceId: row.activity_source_id, sourceName: row.activity_source_id ? sourceNames.get(row.activity_source_id) ?? null : null
-      })) };
+      return { events: rows.slice(0, input.limit).map((row) => {
+        const nativeEvent = native && row.activity_source_id === principal.householdId;
+        return {
+          id: row.id, title: row.title, description: nativeEvent && row.metadata.descriptionEmpty === true ? null : row.body,
+          startsAt: row.starts_at?.toISOString() ?? null, endsAt: row.ends_at?.toISOString() ?? null, allDay: row.metadata.allDay === true,
+          sourceId: row.activity_source_id,
+          sourceName: nativeEvent ? NATIVE_CALENDAR_NAME : row.activity_source_id ? sourceNames.get(row.activity_source_id) ?? null : null,
+          ...(nativeEvent && { revision: row.revision, personIds: row.person_ids, writable: authority.calendarWriteAllowed,
+            ...(typeof row.metadata.location === 'string' && { location: row.metadata.location }) })
+        };
+      }) };
     });
+  });
+
+  registerCalendarWriteTools(registrar, principal, {
+    transaction: dependencies.transaction,
+    assertWriteAuthority: async (client) => {
+      const authority = await assertLiveAuthority(client, principal, ['mcp:calendar:read', 'mcp:calendar:write'], 'household.view');
+      if (!authority.capabilities.includes('household.manage')) throw new DomainError('FORBIDDEN', 403);
+    },
+    audit: async (client, action, eventId, revision) => {
+      if (!dependencies.calendarAudit) throw new DomainError('FORBIDDEN', 403);
+      await dependencies.calendarAudit(client, action, eventId, revision);
+    }
   });
 
   const boardActor: IntegrationBoardActor = {

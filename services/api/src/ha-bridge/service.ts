@@ -1,10 +1,11 @@
-import {createHash,randomUUID} from 'node:crypto';
+import {createHash} from 'node:crypto';
 import type {FastifyInstance,FastifyRequest} from 'fastify';
 import type pg from 'pg';
 import {z} from 'zod';
 import {groceryCreateSchema,groceryUpdateSchema,groceryDeleteSchema,type Capability,integrationCapabilities} from '@samvev/contracts';
 import {DomainError,initialMessageState,requireCapability} from '@samvev/core';
 import {pool,transaction,type DbClient} from '../db.ts';
+import {deleteNativeEvent,insertNativeEvent,nativeEventDates,nativeEventTime,updateNativeEvent,type NativeEventRow} from '../calendar/native-events.ts';
 import {HouseholdBoardService,type IntegrationBoardActor,type BoardKind} from '../household-board/service.ts';
 
 type IntegrationCapability=(typeof integrationCapabilities)[number];
@@ -33,10 +34,9 @@ const messageFields={body:z.string().trim().min(1).max(1000),importance:z.enum([
 const messageCreate=z.object({...messageFields,requestKey}).strict();
 const messageUpdate=z.object({body:messageFields.body.optional(),importance:messageFields.importance.optional(),audience:audience.optional(),publishAt:instant.optional(),expiresAt:instant.optional(),expectedRevision:revision,requestKey}).strict();
 const mutationRevision=z.object({expectedRevision:revision,requestKey}).strict();
-const eventTime=z.union([z.iso.date(),instant]);
-const eventFields={summary:z.string().trim().min(1).max(160),start:eventTime,end:eventTime,description:z.string().max(4000).optional(),location:z.string().max(160).optional()};
+const eventFields={summary:z.string().trim().min(1).max(160),start:nativeEventTime,end:nativeEventTime,description:z.string().max(4000).optional(),location:z.string().max(160).optional()};
 const eventCreate=z.object({...eventFields,requestKey}).strict();
-const eventUpdate=z.object({summary:eventFields.summary.optional(),start:eventTime.optional(),end:eventTime.optional(),description:eventFields.description,location:eventFields.location,expectedRevision:revision,requestKey}).strict();
+const eventUpdate=z.object({summary:eventFields.summary.optional(),start:nativeEventTime.optional(),end:nativeEventTime.optional(),description:eventFields.description,location:eventFields.location,expectedRevision:revision,requestKey}).strict();
 function ids(request:FastifyRequest){return request.params as Record<string,string>;}
 function mustUuid(value:string|undefined):string{return uuid.parse(value);}
 function payloadHash(value:unknown){return createHash('sha256').update(JSON.stringify(value)).digest('hex');}
@@ -67,7 +67,7 @@ function messageWritable(row:MessageRow,context:HaIntegrationContext,grants:HaSh
     &&(includeEnded||['published','scheduled'].includes(row.state)&&row.expires_at>new Date());
 }
 function mapMessage(row:MessageRow,context:HaIntegrationContext,grants:HaSharing){return{id:row.id,body:row.body,authorName:row.author_name,authorType:row.author_type,audience:{household:row.audience_household,personIds:row.person_ids},publishAt:row.publish_at.toISOString(),expiresAt:row.expires_at.toISOString(),importance:row.importance,state:row.state,revision:row.revision,readOnly:!messageWritable(row,context,grants)};}
-interface EventRow{id:string;connection_id:string;title:string;body:string;starts_at:Date;ends_at:Date|null;metadata:Record<string,unknown>;revision:number;provider?:string;target_household:boolean;person_ids:string[];status:string;source_active:boolean;has_occurrence:boolean;ha_native_origin:boolean;}
+interface EventRow extends NativeEventRow{provider?:string;target_household:boolean;person_ids:string[];status:string;source_active:boolean;has_occurrence:boolean;ha_native_origin:boolean;}
 function eventWritable(row:EventRow,context:HaIntegrationContext,grants:HaSharing,includeEnded=false){
   const targets={household:row.target_household,personIds:row.person_ids};
   return writeCapabilities(context,'calendar')&&row.source_active&&row.ha_native_origin===true&&row.metadata.haBridge===true&&!Object.hasOwn(row.metadata,'calendar')&&!row.has_occurrence
@@ -81,13 +81,6 @@ function mapEvent(row:EventRow,context:HaIntegrationContext,grants:HaSharing,inc
   const end=allDay?(row.ends_at??fallbackEnd).toISOString().slice(0,10):(row.ends_at??fallbackEnd).toISOString();
   return{id:row.id,summary:row.title,start,end,description:row.metadata.haDescriptionEmpty===true?'':typeof row.metadata.haDescription==='string'?row.metadata.haDescription:row.body,location:typeof row.metadata.location==='string'?row.metadata.location:'',revision:row.revision,readOnly:!eventWritable(row,context,grants),source:row.provider??'samvev',...(includeAudience?{audience:{household:row.target_household,personIds:row.person_ids}}:{})};
 }
-function eventDates(start:string,end:string){
-  const allDay=start.length===10;if(allDay!==(end.length===10)||end<=start&&allDay)throw new DomainError('VALIDATION_FAILED',400,{reason:'calendar_event_time_invalid'});
-  const startDate=new Date(allDay?`${start}T00:00:00.000Z`:start),endDate=new Date(allDay?`${end}T00:00:00.000Z`:end);
-  if(endDate<=startDate)throw new DomainError('VALIDATION_FAILED',400,{reason:'calendar_event_time_invalid'});
-  return{allDay,startDate,endDate};
-}
-
 /** Native transport adapter over Samvev's existing board, message and item models. */
 export class HaBridgeService{
   constructor(private readonly dependencies:Dependencies){}
@@ -229,7 +222,7 @@ export class HaBridgeService{
       return transaction(async(client)=>{
         // Match integration administration lock order: connection before actor
         // rows, so revocation/audit cannot deadlock against this policy edit.
-        const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
+        const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
         await this.dependencies.recheckHouseholdAuth(client,request,auth,'household.manage');
         return this.sharing(client,{...auth,connectionId,credentialId:'',credentialRevision:0,capabilities:[]});
       });
@@ -241,7 +234,7 @@ export class HaBridgeService{
       return transaction(async(client)=>{
         // Match integration administration lock order: connection before actor
         // rows, so revocation/audit cannot deadlock against this policy edit.
-        const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
+        const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
         await this.dependencies.recheckHouseholdAuth(client,request,auth,'household.manage');
         const context={...auth,connectionId,credentialId:'',credentialRevision:0,capabilities:[]};
         const previous=await this.sharing(client,context);if(previous.revision!==body.expectedRevision)conflict();
@@ -344,7 +337,7 @@ export class HaBridgeService{
         if(sourceId&&(!complete||start<new Date(complete.from)||end>new Date(complete.to)))throw new DomainError('CONFLICT',409,{reason:'ha_calendar_window_not_synced'});
         const rows=(await client.query<EventRow>(`SELECT i.id,i.connection_id,i.title,i.body,i.starts_at,i.ends_at,i.metadata,i.revision,calendar.provider,i.target_household,i.status,i.ha_native_origin,true AS source_active,(occurrence.id IS NOT NULL) AS has_occurrence,
           COALESCE((SELECT array_agg(target.person_id ORDER BY target.person_id) FROM integration_item_person_targets target WHERE target.item_id=i.id),ARRAY[]::uuid[]) AS person_ids
-          FROM integration_items i JOIN integration_connections authority ON authority.id=i.connection_id AND authority.household_id=i.household_id AND authority.revoked_at IS NULL
+          FROM integration_items i JOIN integration_connections authority ON authority.id=i.connection_id AND authority.household_id=i.household_id AND authority.revoked_at IS NULL AND NOT authority.native_calendar
           JOIN households household ON household.id=i.household_id
           LEFT JOIN calendar_occurrences occurrence ON occurrence.integration_item_id=i.id AND occurrence.household_id=i.household_id
           LEFT JOIN calendar_sources source ON source.id=occurrence.source_id AND source.household_id=i.household_id
@@ -366,11 +359,10 @@ export class HaBridgeService{
       const context=await this.authenticate(request);if(ids(request).calendarId!=='samvev')throw new DomainError('FORBIDDEN',403,{reason:'ha_calendar_read_only'});const body=eventCreate.parse(request.body);reply.header('Cache-Control','private, no-store');
       const result=await this.mutation(context,'ha.calendar.write',body,'event.create',async(client,grants)=>{
         if(!grants.household&&!grants.personIds.length)throw new DomainError('FORBIDDEN',403,{reason:'ha_calendar_not_shared'});
-        const dates=eventDates(body.start,body.end),metadata={allDay:dates.allDay,haBridge:true,haDescriptionEmpty:!body.description,...(body.location?{location:body.location}:{})};
+        const dates=nativeEventDates(body.start,body.end),metadata={allDay:dates.allDay,haBridge:true,haDescriptionEmpty:!body.description,...(body.location?{location:body.location}:{})};
         const identity=await this.connection(client,context,grants),source={label:identity.name,observedAt:new Date().toISOString(),uncertainty:'low'};
-        const row=(await client.query<EventRow>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,priority,starts_at,ends_at,source,metadata,request_hash,ha_native_origin)
-          VALUES($1,$2,$3,'event',$4,$5,$6,'normal',$7,$8,$9,$10,$11,true) RETURNING id,connection_id,title,body,starts_at,ends_at,metadata,revision`,[context.householdId,context.connectionId,`ha:${randomUUID()}`,grants.household,body.summary,body.description||body.summary,dates.startDate,dates.endDate,JSON.stringify(source),JSON.stringify(metadata),payloadHash(body)])).rows[0]!;
-        for(const personId of grants.personIds)await client.query('INSERT INTO integration_item_person_targets(household_id,item_id,person_id) VALUES($1,$2,$3)',[context.householdId,row.id,personId]);
+        const row=await insertNativeEvent(client,context,{origin:'ha',household:grants.household,personIds:grants.personIds,
+          title:body.summary,description:body.description,dates,source,metadata,requestHash:payloadHash(body)});
         await this.dependencies.auditIntegration(client,context,'ha.event_created','integration_item',row.id);return{event:mapEvent({...row,target_household:grants.household,person_ids:grants.personIds,status:'active',source_active:true,has_occurrence:false,ha_native_origin:true},context,grants,true)};
       });return reply.status(201).send(result);
     });
@@ -378,16 +370,17 @@ export class HaBridgeService{
       const context=await this.authenticate(request);if(ids(request).calendarId!=='samvev')throw new DomainError('FORBIDDEN',403,{reason:'ha_calendar_read_only'});const id=mustUuid(ids(request).id),body=eventUpdate.parse(request.body);reply.header('Cache-Control','private, no-store');
       return this.mutation(context,'ha.calendar.write',body,{action:'event.update',id},async(client,grants)=>{
         const current=await this.writableEvent(client,context,grants,id);
-        const before=mapEvent(current,context,grants),dates=eventDates(body.start??before.start,body.end??before.end),metadata:Record<string,unknown>={...current.metadata,allDay:dates.allDay,...(body.description!==undefined?{haDescriptionEmpty:!body.description}:{}),...(body.location!==undefined?{location:body.location}:{})};delete metadata.haDescription;
-        const updated=(await client.query<EventRow>(`UPDATE integration_items SET title=COALESCE($4,title),body=CASE WHEN $5::text IS NULL THEN body WHEN $5='' THEN COALESCE($4,title) ELSE $5 END,starts_at=$6,ends_at=$7,metadata=$8,revision=revision+1,updated_at=clock_timestamp(),request_hash=$9
-          WHERE id=$1 AND household_id=$2 AND revision=$3 RETURNING id,connection_id,title,body,starts_at,ends_at,metadata,revision`,[id,context.householdId,body.expectedRevision,body.summary??null,body.description??null,dates.startDate,dates.endDate,JSON.stringify(metadata),payloadHash(body)])).rows[0];if(!updated)conflict();
+        const before=mapEvent(current,context,grants),dates=nativeEventDates(body.start??before.start,body.end??before.end),metadata:Record<string,unknown>={...current.metadata,allDay:dates.allDay,...(body.description!==undefined?{haDescriptionEmpty:!body.description}:{}),...(body.location!==undefined?{location:body.location}:{})};delete metadata.haDescription;
+        const updated=await updateNativeEvent(client,{...context,connectionId:current.connection_id},id,{
+          expectedRevision:body.expectedRevision,title:body.summary,description:body.description,dates,metadata,requestHash:payloadHash(body)});
         await this.dependencies.auditIntegration(client,context,'ha.event_edited','integration_item',id);return{event:mapEvent({...current,...updated},context,grants,true)};
       });
     });
     app.delete('/api/v1/ha/calendars/:calendarId/events/:id',async(request,reply)=>{
       const context=await this.authenticate(request);if(ids(request).calendarId!=='samvev')throw new DomainError('FORBIDDEN',403,{reason:'ha_calendar_read_only'});const id=mustUuid(ids(request).id),body=mutationRevision.parse(request.body);reply.header('Cache-Control','private, no-store');
       return this.mutation(context,'ha.calendar.write',body,{action:'event.delete',id},async(client,grants)=>{
-        const current=await this.writableEvent(client,context,grants,id);const row=(await client.query<{id:string;revision:number}>(`UPDATE integration_items SET status='withdrawn',withdrawn_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$3 RETURNING id,revision`,[id,context.householdId,body.expectedRevision])).rows[0];if(!row)conflict();
+        const current=await this.writableEvent(client,context,grants,id);
+        const row=await deleteNativeEvent(client,{...context,connectionId:current.connection_id},id,body.expectedRevision);
         await this.dependencies.auditIntegration(client,context,'ha.event_deleted','integration_item',id);return{event:{...row,audience:{household:current.target_household,personIds:current.person_ids}}};
       });
     });
@@ -397,7 +390,7 @@ export class HaBridgeService{
     if(!source)throw new DomainError('NOT_FOUND',404);
     if(source.connection_id!==context.connectionId&&!grants.allowSharedNativeWrites)throw new DomainError('NOT_FOUND',404);
     // Pin the original source's revocation state as well as the editing actor.
-    const active=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR SHARE`,[source.connection_id,context.householdId]);
+    const active=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL AND NOT native_calendar FOR SHARE`,[source.connection_id,context.householdId]);
     if(!active.rowCount)throw new DomainError('FORBIDDEN',403);
     const row=(await client.query<EventRow>(`SELECT i.id,i.connection_id,i.title,i.body,i.starts_at,i.ends_at,i.metadata,i.revision,i.target_household,i.status,i.ha_native_origin,true AS source_active,
       COALESCE((SELECT array_agg(target.person_id ORDER BY target.person_id) FROM integration_item_person_targets target WHERE target.item_id=i.id),ARRAY[]::uuid[]) AS person_ids,

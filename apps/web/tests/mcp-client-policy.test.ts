@@ -225,3 +225,10 @@ test('policy cannot be edited before the source resource list is present in the 
   const { resources: _resources, ...incomplete } = authorization;
   await assert.rejects(saveMcpPolicy('/households/synthetic-household-id/mcp/authorizations', incomplete, [], []), /mcp_policy_unavailable/);
 });
+
+test('native calendar access and activity use localized keys', () => {
+  assert.equal(mcpScopeTranslationKey('mcp:calendar:write'), 'mcpScopeCalendarWrite');
+  assert.equal(mcpActivityTranslationKey('mcp.calendar_event_created'), 'mcpActivityCalendarEventCreated');
+  assert.equal(mcpActivityTranslationKey('mcp.calendar_event_updated'), 'mcpActivityCalendarEventUpdated');
+  assert.equal(mcpActivityTranslationKey('mcp.calendar_event_deleted'), 'mcpActivityCalendarEventDeleted');
+});

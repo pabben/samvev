@@ -528,7 +528,7 @@ async function integrationAuth(request: FastifyRequest,profile:'legacy'|'ha'='le
       JOIN integration_connections c ON c.id=cr.connection_id
       JOIN households h ON h.id=c.household_id
       WHERE cr.token_hash=$1 AND cr.revoked_at IS NULL AND (cr.expires_at IS NULL OR cr.expires_at>clock_timestamp())
-        AND c.revoked_at IS NULL`, [tokenHash(match[1]!)]) ;
+        AND c.revoked_at IS NULL AND NOT c.native_calendar`, [tokenHash(match[1]!)]) ;
   const row = result.rows[0];
   if (!row) {
     await durableRateLimit('integration_auth_invalid', request.ip, 20, 60);
@@ -573,7 +573,7 @@ async function auditIntegration(client: DbClient, integration: IntegrationContex
 }
 
 async function lockIntegrationAuthority(client:DbClient,integration:IntegrationContext,capability:IntegrationCapability):Promise<void>{
-  const connection=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[integration.connectionId,integration.householdId]);
+  const connection=await client.query(`SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL AND NOT native_calendar FOR UPDATE`,[integration.connectionId,integration.householdId]);
   if(!connection.rowCount)throw new DomainError('UNAUTHENTICATED',401);
   const credential=await client.query<{capabilities:IntegrationCapability[]}>(`SELECT capabilities FROM integration_credentials
     WHERE id=$1 AND connection_id=$2 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>clock_timestamp()) FOR UPDATE`,[integration.credentialId,integration.connectionId]);
@@ -712,7 +712,12 @@ async function personActivities(input:{householdId:string;personIds:string[]|nul
       ${schoolCursor}
     ORDER BY activity_at,event.id LIMIT $9`,[householdId,personIds,from,to,canViewAll,viewer.membershipId,viewer.personId,sourceIds??null,limit+1,cursor?.at??null,cursor?.rank??0,cursor?.id??null,display?.id??null]);
   const merged=[
-    ...calendarRows.map((row)=>({rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',personId:row.activity_person_id,...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds:row.activity_person_ids,personColors:row.activity_person_colors}})),
+    ...calendarRows.map((row)=>{
+      const personIds=row.native_calendar?row.person_ids.filter(id=>!input.personIds||input.personIds.includes(id)):row.activity_person_ids;
+      return {rank:0 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'calendar',
+        personId:row.native_calendar?personIds[0]??null:row.activity_person_id,
+        ...mapExternalItem(row,{forDisplay:Boolean(display),selectedPersonIds:display?.selectedPersonIds}),personIds,personColors:row.activity_person_colors}};
+    }),
     ...school.rows.map((row)=>({rank:1 as const,id:row.id,at:row.activity_at.toISOString(),value:{type:'school',personId:row.person_id,personIds:row.person_ids,personColors:row.person_colors,id:row.id,taskId:row.task_id,date:row.event_date,time:row.event_time,startsAt:row.activity_at.toISOString(),kind:row.event_type,title:row.description,...schoolProjectionMetadata(row),evidence:row.evidence,confidence:row.confidence,uncertainty:row.uncertainty,sourceUrl:row.source_url,expiresAt:row.school_expires_at.toISOString()}}))
   ].filter((row)=>!cursor||row.at>cursor.at||(row.at===cursor.at&&(row.rank>cursor.rank||(row.rank===cursor.rank&&row.id>cursor.id))))
     .sort((left,right)=>left.at.localeCompare(right.at)||left.rank-right.rank||left.id.localeCompare(right.id));
@@ -1232,7 +1237,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.put('/api/v1/households/:householdId/mcp/authorizations/:grantId/policy',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     const body=(request.body??{}) as Record<string,unknown>;
-    const policy=await mcp.updateAuthorizationPolicy(auth,params(request).grantId!,{expectedRevision:Number(body.expectedRevision),scopes:body.scopes as string[]|undefined,personIds:body.personIds as string[],displayIds:body.displayIds as string[],resources:body.resources as Array<{kind:'school_source'|'calendar_source';id:string}>});
+    const policy=await mcp.updateAuthorizationPolicy(auth,params(request).grantId!,{expectedRevision:Number(body.expectedRevision),scopes:body.scopes as string[]|undefined,personIds:body.personIds as string[],displayIds:body.displayIds as string[],resources:body.resources as Parameters<McpOAuthService['updateAuthorizationPolicy']>[2]['resources']});
     return reply.header('Cache-Control','private, no-store').send(policy);
   });
   app.post('/api/v1/households/:householdId/mcp/authorizations/:grantId/revoke',async(request,reply)=>{
@@ -2169,7 +2174,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.get('/api/v1/households/:householdId/integrations',async(request,reply)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'household.manage');
     reply.header('Cache-Control','private, no-store');
-    const ids=await pool.query<{id:string}>(`SELECT connection.id FROM integration_connections connection WHERE connection.household_id=$1 AND NOT EXISTS(SELECT 1 FROM calendar_connections calendar WHERE calendar.integration_connection_id=connection.id) ORDER BY connection.created_at,connection.id`,[auth.householdId]);
+    const ids=await pool.query<{id:string}>(`SELECT connection.id FROM integration_connections connection WHERE connection.household_id=$1 AND NOT connection.native_calendar AND NOT EXISTS(SELECT 1 FROM calendar_connections calendar WHERE calendar.integration_connection_id=connection.id) ORDER BY connection.created_at,connection.id`,[auth.householdId]);
     return {connections:await Promise.all(ids.rows.map((row)=>integrationConnectionResponse(row.id,auth.householdId)))};
   });
 
@@ -2198,7 +2203,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationConnectionUpdateSchema,request.body);const connectionId=params(request).connectionId!;
     await transaction(async(client)=>{
-      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
+      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);
       if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
       if(body.displayIds){const displays=await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL',[auth.householdId,body.displayIds]);if(displays.rowCount!==new Set(body.displayIds).size)throw new DomainError('NOT_FOUND',404);}
       const updated=await client.query(`UPDATE integration_connections SET name=COALESCE($3,name),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$4 RETURNING id`,[connectionId,auth.householdId,body.name??null,body.expectedRevision]);
@@ -2214,7 +2219,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationConnectionRevisionSchema,request.body);const connectionId=params(request).connectionId!;
     await transaction(async(client)=>{
-      const current=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);
+      const current=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);
       if(!current.rowCount)throw new DomainError('NOT_FOUND',404);if(current.rows[0]!.revoked_at)throw new DomainError('CONFLICT',409,{reason:'connection_already_revoked'});
       const updated=await client.query('UPDATE integration_connections SET revoked_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND revision=$2 RETURNING id',[connectionId,body.expectedRevision]);
       if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
@@ -2230,7 +2235,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationCredentialCreateSchema,request.body);const connectionId=params(request).connectionId!;const credentialToken=`samvev_it_${opaqueToken()}`;
     const credentialId=await transaction(async(client)=>{
-      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
+      const current=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar AND revoked_at IS NULL FOR UPDATE',[connectionId,auth.householdId]);if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
       if(body.expiresAt&&new Date(body.expiresAt)<=new Date())throw new DomainError('VALIDATION_FAILED',400,{reason:'credential_expiry_must_be_future'});
       const bumped=await client.query('UPDATE integration_connections SET revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND revision=$2 RETURNING id',[connectionId,body.expectedRevision]);if(!bumped.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       const credential=(await client.query<{id:string}>('INSERT INTO integration_credentials(connection_id,name,token_hash,capabilities,expires_at) VALUES($1,$2,$3,$4,$5) RETURNING id',[connectionId,body.name,tokenHash(credentialToken),JSON.stringify(body.capabilities),body.expiresAt])).rows[0]!;
@@ -2244,7 +2249,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     reply.header('Cache-Control','private, no-store');
     const body=parse(integrationCredentialRevokeSchema,request.body);const connectionId=params(request).connectionId!;const credentialId=params(request).credentialId!;
     await transaction(async(client)=>{
-      const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
+      const connection=await client.query('SELECT id FROM integration_connections WHERE id=$1 AND household_id=$2 AND NOT native_calendar FOR UPDATE',[connectionId,auth.householdId]);if(!connection.rowCount)throw new DomainError('NOT_FOUND',404);
       const credential=await client.query<{revoked_at:Date|null}>('SELECT revoked_at FROM integration_credentials WHERE id=$1 AND connection_id=$2 FOR UPDATE',[credentialId,connectionId]);if(!credential.rowCount)throw new DomainError('NOT_FOUND',404);if(credential.rows[0]!.revoked_at)throw new DomainError('CONFLICT',409,{reason:'credential_already_revoked'});
       const updated=await client.query('UPDATE integration_credentials SET revoked_at=clock_timestamp(),revision=revision+1 WHERE id=$1 AND connection_id=$2 AND revision=$3 RETURNING id',[credentialId,connectionId,body.expectedRevision]);if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
       await audit(client,auth,'integration.credential_revoked','integration_credential',credentialId,{connectionId});
