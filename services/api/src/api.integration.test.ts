@@ -406,12 +406,13 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '070_mcp_monitor_discovery_scope.sql',
     '071_mcp_people_create_profiles.sql',
     '072_mcp_monitor_draft_content_read.sql',
-    '073_mcp_monitor_pause_scope.sql'
+    '073_mcp_monitor_pause_scope.sql',
+    '074_mcp_home_read_scope.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
-  assert.deepEqual((await pool.query<{scope:string;introduced_version:number;risk:string}>(`SELECT scope,introduced_version,risk FROM mcp_oauth_scope_catalog WHERE scope IN ('mcp:monitors:discover','mcp:monitors:pause','mcp:monitors:draft:write','mcp:monitors:draft:manage','mcp:monitors:draft:content','mcp:people:create') ORDER BY scope`)).rows,
-    [{scope:'mcp:monitors:discover',introduced_version:15,risk:'read'},{scope:'mcp:monitors:draft:content',introduced_version:17,risk:'read'},{scope:'mcp:monitors:draft:manage',introduced_version:14,risk:'write'},{scope:'mcp:monitors:draft:write',introduced_version:12,risk:'write'},{scope:'mcp:monitors:pause',introduced_version:18,risk:'write'},{scope:'mcp:people:create',introduced_version:16,risk:'write'}],
-    'monitor discovery and profile creation receive fresh scopes without widening existing grants');
+  assert.deepEqual((await pool.query<{scope:string;introduced_version:number;risk:string}>(`SELECT scope,introduced_version,risk FROM mcp_oauth_scope_catalog WHERE scope IN ('mcp:home:read','mcp:monitors:discover','mcp:monitors:pause','mcp:monitors:draft:write','mcp:monitors:draft:manage','mcp:monitors:draft:content','mcp:people:create') ORDER BY scope`)).rows,
+    [{scope:'mcp:home:read',introduced_version:19,risk:'read'},{scope:'mcp:monitors:discover',introduced_version:15,risk:'read'},{scope:'mcp:monitors:draft:content',introduced_version:17,risk:'read'},{scope:'mcp:monitors:draft:manage',introduced_version:14,risk:'write'},{scope:'mcp:monitors:draft:write',introduced_version:12,risk:'write'},{scope:'mcp:monitors:pause',introduced_version:18,risk:'write'},{scope:'mcp:people:create',introduced_version:16,risk:'write'}],
+    'home, monitor and profile capabilities receive fresh scopes without widening existing grants');
 });
 
 test('migration checksum mismatch fails closed without changing the isolated schema or application data', async()=>{

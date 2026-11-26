@@ -54,6 +54,15 @@ test('monitor pause consent discloses notice withdrawal and non-restoration in b
   assert.match(render('nb'),/gjenopprettes ikke automatisk hvis oppdraget senere startes igjen/);
 });
 
+test('home consent discloses paired section scopes and excluded sensitive surfaces in both locales',()=>{
+  const homeRequest:AuthorizeRequest={...request,scopes:['mcp:home:read','mcp:people:read']};
+  const render=(locale:'en'|'nb')=>authorizationConsentHtml({request:homeRequest,clientName:'Synthetic home client',households:[{id:'synthetic-household',name:'Synthetic',locale}],csrf:'synthetic-csrf'});
+  assert.match(render('en'),/Every requested section also requires its existing read permission/);
+  assert.match(render('en'),/does not grant access to birthdays, photos, school evidence, or smart-home data/);
+  assert.match(render('nb'),/Hver valgt del krever også sin egen eksisterende lesetilgang/);
+  assert.match(render('nb'),/gir ikke tilgang til bursdager, bilder, skolebelegg eller smarthusdata/);
+});
+
 test('calendar write consent discloses native scope and the calendar read dependency in both locales', () => {
   const calendarRequest: AuthorizeRequest = { ...request, scopes: ['mcp:calendar:read', 'mcp:calendar:write'] };
   const render = (locale: 'en' | 'nb') => authorizationConsentHtml({

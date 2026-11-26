@@ -50,6 +50,9 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:groceries:read'), 'mcpScopeGroceriesRead');
   assert.equal(mcpScopeTranslationKey('mcp:dinners:read'), 'mcpScopeDinnersRead');
   assert.equal(mcpScopeTranslationKey('mcp:calendar:read'), 'mcpScopeCalendarRead');
+  assert.equal(mcpScopeTranslationKey('mcp:home:read'), 'mcpScopeHomeRead');
+  assert.match(en.mcpScopeHomeRead, /each section also requires its own read permission/i);
+  assert.match(nb.mcpScopeHomeRead, /hver del krever også sin egen lesetilgang/i);
   assert.equal(mcpScopeTranslationKey('mcp:messages:write'), 'mcpScopeMessagesWrite');
   assert.equal(mcpScopeTranslationKey('mcp:people:write'), 'mcpScopePeopleWrite');
   assert.equal(mcpScopeTranslationKey('mcp:people:create'), 'mcpScopePeopleCreate');
@@ -75,6 +78,7 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.match(nb.mcpScopeMonitorsDraftManage, /Endre eller slette inaktive oppdragsutkast uten mottakere/);
   assert.match(nb.mcpScopeMonitorsDraftManage, /sletting er permanent og kan ikke angres/i);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
+  assert.equal(mcpActivityTranslationKey('mcp.home_read'), 'mcpActivityHomeRead');
   assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
   assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');
   assert.equal(mcpActivityTranslationKey('mcp.display_appearance_updated'), 'mcpActivityDisplayAppearanceUpdated');

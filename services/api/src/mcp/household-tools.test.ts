@@ -4,6 +4,7 @@ import { DomainError } from '@samvev/core';
 import { z } from 'zod';
 import type { ZodType } from 'zod';
 import type { DbClient } from '../db.ts';
+import { listMessages } from '../messages/read.ts';
 import { householdToolSchemas, registerHouseholdTools, type HouseholdMcpScope, type HouseholdMcpToolContext, type HouseholdMcpToolRegistrar } from './household-tools.ts';
 
 const principal = {
@@ -24,13 +25,14 @@ class Tools implements HouseholdMcpToolRegistrar {
 test('all household tools publish meaningful output schemas that validate returned projections', () => {
   const tools = new Tools();
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run({ query: async () => ({ rows: [] }) } as unknown as DbClient) });
-  assert.equal(tools.options.size, 26);
+  assert.equal(tools.options.size, 27);
   for (const [name, options] of tools.options) {
     assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
     assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
     assert.doesNotThrow(() => z.toJSONSchema(options.outputSchema), `${name} output schema converts to JSON Schema`);
   }
   const samples: Record<string, unknown> = {
+    'household.home.get': { householdId: principal.householdId, timezone: 'Europe/Oslo', locale: 'en', serverNow: '2027-03-20T09:00:00.000Z', today: '2027-03-20', tomorrow: '2027-03-21', people: [], truncated: { people: false } },
     'household.displays.list': { displays: [] },
     'household.displays.setup.get': { setup: { setupVersion: 'a'.repeat(64), name: 'Synthetic setup', revision: 2, cards: ['family_layout'], cardOrder: ['family_layout'], familyLayoutEnabled: true, locale: 'nb', theme: 'dark' } },
     'household.displays.layout.update': { layout: { displayId: principal.membershipId, setupVersion: 'a'.repeat(64), cards: ['family_layout'], cardOrder: ['family_layout'], familyLayoutEnabled: true } },
@@ -70,6 +72,59 @@ test('MCP accountless profile tool has strict request, minimal output, and fresh
   assert.equal(options.inputSchema.safeParse({displayName:'Synthetic profile',requestKey:'11111111-1111-4111-8111-111111111111',ageGroup:'adult'}).success,false);
   assert.equal(options.inputSchema.safeParse({displayName:'Synthetic profile',requestKey:'11111111-1111-4111-8111-111111111111'}).success,true);
   assert.equal(options.outputSchema.safeParse({creation:{personId:principal.membershipId,createdRevision:1,hadLoginAtCreation:false,accountId:principal.accountId}}).success,false);
+});
+
+test('home overview requires fresh home plus selected section scope and returns only the bounded strict projection', async()=>{
+  const tools=new Tools(),calls:Array<{sql:string;values?:unknown[]}>=[];
+  const client={async query(sql:string,values?:unknown[]){
+    calls.push({sql,values});
+    if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:true,person_id:'77777777-7777-4777-8777-777777777777',capabilities:['household.view'],calendar_write_allowed:false}]};
+    if(sql.includes('FROM mcp_oauth_scope_catalog'))return{rowCount:2,rows:[{scope:'mcp:home:read'},{scope:'mcp:people:read'}]};
+    if(sql.includes('SELECT timezone,default_locale'))return{rows:[{timezone:'Europe/Oslo',locale:'en'}]};
+    if(sql.includes('person.display_name AS "displayName"'))return{rows:[{id:'88888888-8888-4888-8888-888888888888',displayName:'Synthetic granted person',revision:2}]};
+    if(sql.includes('INSERT INTO audit_events'))return{rowCount:1,rows:[]};
+    throw new Error(`Unexpected home query: ${sql}`);
+  }} as unknown as DbClient;
+  registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client)});
+  const options=tools.options.get('household.home.get')!;
+  assert.deepEqual(options.requiredScopes,['mcp:home:read']);
+  assert.equal(options.readOnlyHint,true);
+  assert.equal(options.inputSchema.safeParse({sections:[]}).success,false);
+  assert.equal(options.inputSchema.safeParse({sections:['people','people']}).success,false);
+  assert.equal(options.inputSchema.safeParse({sections:['people'],displayId:principal.membershipId}).success,false);
+  const result=await tools.get('household.home.get')({sections:['people']}) as Record<string,unknown>;
+  assert.deepEqual(result.people,[{id:'88888888-8888-4888-8888-888888888888',displayName:'Synthetic granted person',revision:2}]);
+  assert.deepEqual(Object.keys(result).sort(),['householdId','locale','people','serverNow','timezone','today','tomorrow','truncated'].sort());
+  assert.deepEqual(calls[0]!.values?.[4],['mcp:home:read','mcp:people:read']);
+  assert.match(String(calls.at(-1)!.values?.[3]),/"sections":\["people"\]/);
+  assert.doesNotMatch(JSON.stringify(result),/birthDate|photo|school|evidence|sourceUrl|credential|avatar/i);
+});
+
+test('home calendar preserves the strict person bound and reports the shared reader overfetch',async()=>{
+  const tools=new Tools(),calls:Array<{sql:string;values?:unknown[]}>=[];
+  const personIds=Array.from({length:100},(_,index)=>`00000000-0000-4000-8000-${String(index+1).padStart(12,'0')}`);
+  const sourceId='99999999-9999-4999-8999-999999999999';
+  const rows=Array.from({length:26},(_,index)=>({
+    id:`aaaaaaaa-aaaa-4aaa-8aaa-${String(index+1).padStart(12,'0')}`,title:`Synthetic event ${index+1}`,
+    starts_at:new Date(`2027-03-20T${String(index%24).padStart(2,'0')}:00:00Z`),ends_at:null,
+    metadata:{allDay:false},activity_source_id:sourceId,person_ids:personIds
+  }));
+  const client={async query(sql:string,values?:unknown[]){
+    calls.push({sql,values});
+    if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:true,person_id:personIds[0],capabilities:['household.view'],calendar_write_allowed:false}]};
+    if(sql.includes('FROM mcp_oauth_scope_catalog'))return{rowCount:2,rows:[{scope:'mcp:home:read'},{scope:'mcp:calendar:read'}]};
+    if(sql.includes('SELECT timezone,default_locale'))return{rows:[{timezone:'Europe/Oslo',locale:'en'}]};
+    if(sql.includes('FROM mcp_oauth_grant_people grant_person')&&!sql.includes('display_name'))return{rows:personIds.map((id)=>({id}))};
+    if(sql.includes('FROM mcp_oauth_grant_resources'))return{rows:[{id:sourceId,name:'Synthetic calendar',provider:'ics'}]};
+    if(sql.includes('explicit_person'))return{rows};
+    if(sql.includes('INSERT INTO audit_events'))return{rowCount:1,rows:[]};
+    throw new Error(`Unexpected home calendar query: ${sql}`);
+  }} as unknown as DbClient;
+  registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client)});
+  const result=await tools.get('household.home.get')({sections:['calendar']}) as {calendar:Array<{personIds:string[]}>;truncated:{calendar:boolean}};
+  assert.equal(result.calendar.length,25);assert.equal(result.calendar[0]!.personIds.length,100);assert.equal(result.truncated.calendar,true);
+  const calendarQuery=calls.find((call)=>call.sql.includes('explicit_person'))!;
+  assert.equal(calendarQuery.values?.[6],26,'the shared reader receives limit+1 and makes truncation observable');
 });
 
 function dependencies(options: { allowed?: boolean; people?: unknown[] } = {}) {
@@ -305,7 +360,19 @@ test('message list uses the current member identity and exact granted-person res
   assert.match(fake.calls[0]!.sql, /grant_row\.scopes \?& \$5::text\[\]/);
   assert.match(fake.calls[1]!.sql, /mcp_oauth_grant_people allowed/);
   assert.match(fake.calls[1]!.sql, /allowed\.grant_id=\$5 AND allowed\.household_id=m\.household_id/);
-  assert.deepEqual(fake.calls[1]!.values, [principal.householdId, false, principal.membershipId, '77777777-7777-4777-8777-777777777777', principal.grantId, principal.grantId]);
+  assert.deepEqual(fake.calls[1]!.values, [principal.householdId, false, principal.membershipId, '77777777-7777-4777-8777-777777777777', principal.grantId, principal.grantId, null, null, 200]);
+});
+
+test('home message window is applied before the bounded limit without changing ordinary message reads',async()=>{
+  const calls:Array<{sql:string;values?:unknown[]}>=[];
+  const client={query:async(sql:string,values?:unknown[])=>{calls.push({sql,values});return{rows:[]};}};
+  const actor={householdId:principal.householdId,membershipId:principal.membershipId,personId:'77777777-7777-4777-8777-777777777777',manageHousehold:false,mcpGrantId:principal.grantId};
+  await listMessages(client as Pick<DbClient,'query'>,actor,{fromLocalDate:'2027-03-28',toLocalDate:'2027-03-29',limit:26});
+  assert.match(calls[0]!.sql,/m\.state IN \('scheduled','published'\).*m\.expires_at.*household\.timezone.*m\.publish_at.*ORDER BY m\.created_at DESC LIMIT \$9/s);
+  assert.deepEqual(calls[0]!.values?.slice(6),['2027-03-28','2027-03-29',26]);
+  calls.length=0;
+  await listMessages(client as Pick<DbClient,'query'>,actor);
+  assert.deepEqual(calls[0]!.values?.slice(6),[null,null,200]);
 });
 
 test('message list stops before reading when scope, token, account, membership, or household authority is stale', async () => {

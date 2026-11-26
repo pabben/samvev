@@ -56,6 +56,10 @@ const date = z.iso.date();
 const emptyInput = z.object({}).strict();
 const dinnersInput = z.object({ from: date, to: date }).strict();
 const calendarInput = z.object({ days: z.number().int().min(1).max(31).default(14), limit: z.number().int().min(1).max(50).default(25) }).strict();
+const homeSections = ['people', 'calendar', 'messages', 'groceries', 'dinners'] as const;
+export type HomeSection = typeof homeSections[number];
+const homeInput = z.strictObject({ sections: z.array(z.enum(homeSections)).min(1).max(homeSections.length) })
+  .refine(({ sections }) => new Set(sections).size === sections.length, 'Home sections must be unique.');
 // MCP profile writes deliberately omit birthDate and ageGroup: both feed live
 // account authorization predicates. Reuse the shared route validators for the
 // display-only fields without inheriting its more privileged schema.
@@ -126,6 +130,26 @@ const dinnerOptionOutput = z.object({ id: idOutput, title: z.string().min(1).max
 const dinnerOptionDeletionOutput = z.object({ option: z.object({ id: idOutput, revision: revisionOutput }) });
 const boardAssignmentWriteOutput = z.object({ assignment: z.object({ id: idOutput, localDate: date, title: z.string().max(500).nullable(), emoji: z.string().max(32).nullable(), revision: z.number().int().positive(), cleared: z.boolean() }) });
 const messageRecordOutput = z.object({ id: idOutput, body: z.string().max(10000) }).passthrough();
+const homePersonOutput = z.strictObject({ id: uuid, displayName: z.string().min(1).max(100), revision: revisionOutput });
+const homeEventOutput = z.strictObject({
+  id: idOutput, title: z.string().max(500), startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(),
+  allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), personIds: z.array(uuid).max(100)
+});
+const homeMessageOutput = z.strictObject({
+  id: uuid, body: z.string().max(10000), importance: z.enum(['normal', 'attention']), authorName: z.string().max(200).nullable(),
+  authorType: z.enum(['member', 'display', 'integration']), publishAt: z.iso.datetime(), expiresAt: z.iso.datetime(), personIds: z.array(uuid).max(50)
+});
+const homeGroceryOutput = z.strictObject({ id: uuid, label: z.string().min(1).max(200), checked: z.boolean(), revision: revisionOutput });
+const homeDinnerOutput = z.strictObject({ id: uuid, localDate: date, title: z.string().max(500).nullable(), emoji: z.string().max(32).nullable(), revision: revisionOutput });
+const homeOutput = z.strictObject({
+  householdId: uuid, timezone: z.string().min(1).max(100), locale: localeSchema, serverNow: z.iso.datetime(), today: date, tomorrow: date,
+  people: z.array(homePersonOutput).max(100).optional(), calendar: z.array(homeEventOutput).max(25).optional(),
+  messages: z.array(homeMessageOutput).max(25).optional(), groceries: z.array(homeGroceryOutput).max(50).optional(),
+  dinners: z.array(homeDinnerOutput).max(2).optional(),
+  truncated: z.strictObject({
+    people: z.boolean().optional(), calendar: z.boolean().optional(), messages: z.boolean().optional(), groceries: z.boolean().optional(), dinners: z.boolean().optional()
+  })
+});
 const createdMessageOutput = z.object({ message: z.object({ id: idOutput }).passthrough() });
 const editedMessageOutput = z.strictObject({
   message: z.strictObject({ id: uuid, state: z.enum(['scheduled', 'published']), revision: revisionOutput })
@@ -134,7 +158,7 @@ const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, stat
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:people:create' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displayLayoutWriteScopes[number];
+export type HouseholdMcpScope = 'mcp:home:read' | 'mcp:people:read' | 'mcp:people:write' | 'mcp:people:create' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displayLayoutWriteScopes[number];
 type Capability = MemberCapability;
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[];calendarWriteAllowed:boolean}> {
@@ -305,6 +329,105 @@ export function registerHouseholdTools(
   if (!uuid.safeParse(principal.tokenSetId).success || !uuid.safeParse(principal.grantId).success || !uuid.safeParse(principal.householdId).success ||
       !uuid.safeParse(principal.accountId).success || !uuid.safeParse(principal.membershipId).success ||
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
+
+  registrar.registerTool('household.home.get', {
+    description: 'Read a bounded household-local today/tomorrow overview. Each requested section also requires its existing read permission. This does not expose birthdays, photos, Home Assistant data, school evidence, source URLs, credentials, or a display snapshot.',
+    inputSchema: homeInput, outputSchema: homeOutput, requiredScopes: ['mcp:home:read'], readOnlyHint: true, destructiveHint: false
+  }, async (raw) => {
+    const input = homeInput.parse(raw);
+    const pairedScope: Record<HomeSection, HouseholdMcpScope> = {
+      people: 'mcp:people:read', calendar: 'mcp:calendar:read', messages: 'mcp:messages:read',
+      groceries: 'mcp:groceries:read', dinners: 'mcp:dinners:read'
+    };
+    const scopes: HouseholdMcpScope[] = ['mcp:home:read', ...input.sections.map((section) => pairedScope[section])];
+    return dependencies.transaction(async (client) => {
+      const authority = await assertLiveAuthority(client, principal, scopes, 'household.view');
+      await lockActiveMcpScopes(client, scopes);
+      if (input.sections.some((section) => section === 'groceries' || section === 'dinners') && !authority.capabilities.includes('household.manage')) {
+        throw new DomainError('FORBIDDEN', 403);
+      }
+      const household = await client.query<{ timezone: string; locale: 'en'|'nb' }>(`SELECT timezone,default_locale AS locale FROM households
+        WHERE id=$1 AND installation_id=$2 FOR SHARE`, [principal.householdId, principal.installationId]);
+      if (!household.rows[0]) throw new DomainError('FORBIDDEN', 403);
+      const serverNow = new Date();
+      const today = localDateInTimezone(serverNow, household.rows[0].timezone);
+      const tomorrow = dateOffset(today, 1);
+      const result: Record<string, unknown> = {
+        householdId: principal.householdId, timezone: household.rows[0].timezone, locale: household.rows[0].locale,
+        serverNow: serverNow.toISOString(), today, tomorrow, truncated: {}
+      };
+      const counts: Partial<Record<HomeSection, number>> = {};
+      const truncated: Partial<Record<HomeSection, boolean>> = {};
+      let grantedPersonIds: string[] | undefined;
+      const grantedPeople = async () => {
+        if (grantedPersonIds) return grantedPersonIds;
+        const people = await client.query<{ id: string }>(`SELECT person.id FROM mcp_oauth_grant_people grant_person
+          JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
+          WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2 ORDER BY person.id LIMIT 100
+          FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId]);
+        grantedPersonIds = people.rows.map(({ id }) => id);
+        return grantedPersonIds;
+      };
+
+      if (input.sections.includes('people')) {
+        const people = await client.query<{ id:string; displayName:string; revision:number }>(`SELECT person.id,person.display_name AS "displayName",person.revision
+          FROM mcp_oauth_grant_people grant_person JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
+          WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2 ORDER BY person.display_name,person.id LIMIT 101
+          FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId]);
+        result.people = people.rows.slice(0, 100); counts.people = Math.min(people.rows.length, 100); truncated.people = people.rows.length > 100;
+      }
+      if (input.sections.includes('calendar')) {
+        const personIds = await grantedPeople();
+        const sources = await listLiveCalendarSources(client, principal);
+        const native = authority.capabilities.includes('household.manage') && await hasNativeCalendarGrant(client, principal);
+        const rows = personIds.length && (sources.length || native) ? await readCalendarActivityRows({
+          householdId: principal.householdId, personIds,
+          viewer: { personId: authority.personId, membershipId: principal.membershipId }, canViewAll: true,
+          from: today, to: tomorrow, limit: 25, sourceIds: sources.map(({ id }) => id), upcomingOnly: false,
+          requirePersonAudience: true, nativeSourceApproved: Boolean(native)
+        }, client) : [];
+        const names = new Map(sources.map((source) => [source.id, source.name]));
+        const allowedPeople = new Set(personIds);
+        result.calendar = rows.slice(0, 25).map((row) => ({
+          id: row.id, title: row.title, startsAt: row.starts_at?.toISOString() ?? null, endsAt: row.ends_at?.toISOString() ?? null,
+          allDay: row.metadata.allDay === true, sourceId: row.activity_source_id,
+          sourceName: native && row.activity_source_id === principal.householdId ? NATIVE_CALENDAR_NAME : row.activity_source_id ? names.get(row.activity_source_id) ?? null : null,
+          personIds: row.person_ids.filter((id) => allowedPeople.has(id)).slice(0, 100)
+        }));
+        counts.calendar = Math.min(rows.length, 25); truncated.calendar = rows.length > 25;
+      }
+      if (input.sections.includes('messages')) {
+        const messages = await listMessages(client, {
+          householdId: principal.householdId, membershipId: principal.membershipId, personId: authority.personId,
+          manageHousehold: false, mcpGrantId: principal.grantId
+        }, { fromLocalDate: today, toLocalDate: tomorrow, limit: 26 });
+        result.messages = messages.slice(0, 25).map((message) => ({
+          id: message.id, body: message.body, importance: message.importance, authorName: message.author_name,
+          authorType: message.author_type, publishAt: new Date(message.publish_at).toISOString(), expiresAt: new Date(message.expires_at).toISOString(),
+          personIds: message.person_ids.slice(0, 50)
+        }));
+        counts.messages = Math.min(messages.length, 25); truncated.messages = messages.length > 25;
+      }
+      if (input.sections.includes('groceries')) {
+        const groceries = await client.query<{ id:string; label:string; checked:boolean; revision:number }>(`SELECT id,label,checked,revision
+          FROM household_grocery_items WHERE household_id=$1 AND deleted_at IS NULL ORDER BY created_at,id LIMIT 51`, [principal.householdId]);
+        result.groceries = groceries.rows.slice(0, 50); counts.groceries = Math.min(groceries.rows.length, 50); truncated.groceries = groceries.rows.length > 50;
+      }
+      if (input.sections.includes('dinners')) {
+        const dinners = await client.query<{ id:string; localDate:string; title:string|null; emoji:string|null; revision:number }>(`SELECT id,local_date::text AS "localDate",
+          CASE WHEN deleted_at IS NULL THEN title_snapshot ELSE NULL END AS title,
+          CASE WHEN deleted_at IS NULL THEN emoji_snapshot ELSE NULL END AS emoji,revision
+          FROM household_dinner_assignments WHERE household_id=$1 AND local_date BETWEEN $2::date AND $3::date
+          ORDER BY local_date,id LIMIT 3`, [principal.householdId, today, tomorrow]);
+        result.dinners = dinners.rows.slice(0, 2); counts.dinners = Math.min(dinners.rows.length, 2); truncated.dinners = dinners.rows.length > 2;
+      }
+      result.truncated = truncated;
+      await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id,metadata)
+        VALUES($1,$2,'mcp',$3,'mcp.home_read','mcp_oauth_grant',$3,$4)`,
+      [principal.installationId, principal.householdId, principal.grantId, JSON.stringify({ sections: input.sections, counts, truncated })]);
+      return homeOutput.parse(result);
+    });
+  });
 
   registrar.registerTool('household.displays.list', {
     description: 'List non-revoked displays explicitly approved for this client. Includes appearance overrides and their revision for a conditional appearance update.',
@@ -715,4 +838,4 @@ export function registerHouseholdTools(
 }
 
 /** Exported for focused authorization tests without registering an MCP server. */
-export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, groceryDeleteInput, dinnerAssignmentInput, dinnerOptionUpdateInput, dinnerOptionDeleteInput, personUpdateInput, messageEditInput, messageWithdrawInput } as const;
+export const householdToolSchemas = { emptyInput, homeInput, homeOutput, dinnersInput, groceryUpdateInput, groceryDeleteInput, dinnerAssignmentInput, dinnerOptionUpdateInput, dinnerOptionDeleteInput, personUpdateInput, messageEditInput, messageWithdrawInput } as const;
