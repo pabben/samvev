@@ -401,9 +401,13 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '065_mcp_display_setup_read_scope.sql',
     '066_mcp_monitor_draft_write.sql',
     '067_mcp_display_layout_write.sql',
-    '068_mcp_display_layout_ownership.sql'
+    '068_mcp_display_layout_ownership.sql',
+    '069_mcp_monitor_draft_manage.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
+  assert.deepEqual((await pool.query<{scope:string;introduced_version:number;risk:string}>(`SELECT scope,introduced_version,risk FROM mcp_oauth_scope_catalog WHERE scope IN ('mcp:monitors:draft:write','mcp:monitors:draft:manage') ORDER BY scope`)).rows,
+    [{scope:'mcp:monitors:draft:manage',introduced_version:14,risk:'write'},{scope:'mcp:monitors:draft:write',introduced_version:12,risk:'write'}],
+    'draft manage receives a fresh grant scope without widening existing draft-write consent');
 });
 
 test('migration checksum mismatch fails closed without changing the isolated schema or application data', async()=>{

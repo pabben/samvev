@@ -109,3 +109,15 @@ test('monitor draft write consent discloses its inert recipient-free boundary in
   assert.match(render('nb'), /henter ikke kilder, bruker ikke KI, kjøres ikke og sender ingenting/);
   assert.match(render('nb'), /husstandsadministrator må fullføre mottakere og godkjenning i Samvev/);
 });
+
+test('monitor draft manage consent describes the narrow lifecycle boundary in both locales',()=>{
+  const render=(locale:'en'|'nb')=>authorizationConsentHtml({
+    request:{...request,scopes:['mcp:monitors:read','mcp:monitors:draft:write','mcp:monitors:draft:manage']},
+    clientName:'Synthetic monitor draft manager',
+    households:[{id:'synthetic-household',name:'Synthetic',locale}],csrf:'synthetic-csrf'
+  });
+  assert.match(render('en'),/Edit or delete inactive, recipient-free monitor drafts created by this client/);
+  assert.match(render('en'),/proposal text and plan/);
+  assert.match(render('nb'),/Endre eller slette inaktive oppdragsutkast uten mottakere/);
+  assert.match(render('nb'),/som denne klienten selv opprettet/);
+});

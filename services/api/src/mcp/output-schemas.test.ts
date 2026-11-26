@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 39 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 41 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 39 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 39);
+  assert.equal(tools.length, 41);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -84,6 +84,15 @@ test('MCP discovery advertises object output schemas for all 39 tools', async (t
   assert.equal(creation.properties.createdAs?.const, 'draft');
   assert.equal(creation.properties.recipientCountAtCreation?.const, 0);
   assert.equal(creation.properties.requiresBrowserCompletion?.const, true);
+  const draftUpdate=outputByName.get('samvev_monitor_draft_update');
+  assert.deepEqual(draftUpdate?.required.sort(),['revision','taskId']);
+  assert.equal(draftUpdate?.additionalProperties,false);
+  assert.deepEqual(Object.keys(draftUpdate?.properties??{}).sort(),['revision','taskId']);
+  const draftDelete=outputByName.get('samvev_monitor_draft_delete');
+  assert.deepEqual(draftDelete?.required.sort(),['deleted','revision','taskId']);
+  assert.equal(draftDelete?.additionalProperties,false);
+  const draftDeleteProperties=draftDelete?.properties as Record<string,Record<string,unknown>>|undefined;
+  assert.deepEqual(draftDeleteProperties?.deleted?.const,true);
   const reviewStatus = outputByName.get('samvev_monitor_result_review_get');
   assert.deepEqual(reviewStatus?.required.sort(), ['disposition', 'reviewRevision']);
   assert.equal(reviewStatus?.additionalProperties, false);
