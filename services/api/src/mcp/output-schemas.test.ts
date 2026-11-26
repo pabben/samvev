@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 41 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 42 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 41 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 41);
+  assert.equal(tools.length, 42);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -67,6 +67,10 @@ test('MCP discovery advertises object output schemas for all 41 tools', async (t
   assert.deepEqual(outputByName.get('samvev_context')?.required?.sort(), ['household', 'scopes']);
   assert.deepEqual(outputByName.get('samvev_monitor_get')?.required, ['task']);
   assert.deepEqual(outputByName.get('samvev_monitor_runs_list')?.required, ['runs']);
+  const monitorDiscovery=outputByName.get('samvev_monitors_discover');
+  assert.deepEqual(monitorDiscovery?.required.sort(),['nextAfterId','tasks']);
+  assert.equal(monitorDiscovery?.type,'object');
+  assert.equal(monitorDiscovery?.additionalProperties,false);
   const draftCreation = outputByName.get('samvev_monitor_draft_create');
   assert.deepEqual(draftCreation?.required, ['creation']);
   assert.equal(draftCreation?.additionalProperties, false);
