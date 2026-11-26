@@ -45,6 +45,9 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.match(en.mcpScopeDisplaysSetupRead, /Also requires display read access\./);
   assert.match(nb.mcpScopeDisplaysSetupRead, /Krever også lesetilgang til skjermer\./);
   assert.equal(mcpScopeTranslationKey('mcp:displays:appearance:write'), 'mcpScopeDisplaysAppearanceWrite');
+  assert.equal(mcpScopeTranslationKey('mcp:displays:layout:write'), 'mcpScopeDisplaysLayoutWrite');
+  assert.match(en.mcpDisplayLayoutWriteDependency, /display and display setup read access/);
+  assert.match(nb.mcpDisplayLayoutWriteDependency, /lesetilgang til skjermer og skjermoppsett/);
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
   assert.match(en.mcpScopeMonitorsDraftWrite, /without recipients/);
   assert.match(en.mcpScopeMonitorsDraftWrite, /do not fetch, use AI, run, schedule, or send anything/);
@@ -55,6 +58,7 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');
   assert.equal(mcpActivityTranslationKey('mcp.display_appearance_updated'), 'mcpActivityDisplayAppearanceUpdated');
   assert.equal(mcpActivityTranslationKey('mcp.display_setup_read'), 'mcpActivityDisplaySetupRead');
+  assert.equal(mcpActivityTranslationKey('mcp.display_layout_updated'), 'mcpActivityDisplayLayoutUpdated');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_read'), 'mcpActivityMonitorResultRead');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_reviewed'), 'mcpActivityMonitorResultReviewed');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_review_read'), 'mcpActivityMonitorResultReviewRead');

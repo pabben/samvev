@@ -162,6 +162,7 @@ export function McpAuthorizationCard({authorization,base,householdId,timezone,pe
         })}
         {hasMcpMonitorContentScope(authorization.scopes)&&<p className="field-hint" role="note">{t('mcpMonitorContentDependency')}</p>}
         {authorization.scopes.includes('mcp:calendar:write')&&<p className="field-hint" role="note">{t('mcpCalendarWriteDependency')}</p>}
+        {authorization.scopes.includes('mcp:displays:layout:write')&&<p className="field-hint" role="note">{t('mcpDisplayLayoutWriteDependency')}</p>}
         {authorization.scopes.includes('mcp:displays:appearance:write')&&<p className="field-hint" role="note">{t('mcpDisplayAppearanceWriteDependency')}</p>}
         <p className="field-hint" role="note">{t('mcpScopesWidenConsent')}</p>
       </fieldset>

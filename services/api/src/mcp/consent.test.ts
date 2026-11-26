@@ -73,6 +73,15 @@ test('display setup read consent names the narrow setup fields in both locales',
   assert.match(render('nb'), /Se kortoppsett, rekkefølge, språk og tema for skjermer du har valgt eksplisitt\. Krever også lesetilgang til skjermer/);
 });
 
+test('display layout write consent specifies the layout fields, target displays, and read requirements in both locales', () => {
+  const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
+    request: { ...request, scopes: ['mcp:displays:read', 'mcp:displays:setup:read', 'mcp:displays:layout:write'] },
+    clientName: 'Synthetic display client', households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
+  });
+  assert.match(render('en'), /Change selected cards, card order, and family layout for displays already selected or later selected for this client\. Requires display and display setup read access/);
+  assert.match(render('nb'), /Endre valgte kort, kortrekkefølgen og familieoppsettet for skjermer som allerede er valgt eller senere velges for denne klienten\. Krever lesetilgang til skjermer og skjermoppsett/);
+});
+
 test('monitor review consent describes personal review and monitor read access in both locales', () => {
   const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
     request: { ...request, scopes: ['mcp:monitors:read', 'mcp:monitors:review'] },

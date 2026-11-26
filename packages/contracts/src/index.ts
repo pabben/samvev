@@ -228,11 +228,17 @@ const displaySetupFieldsSchema = z.object({
   locale: localeSchema,
   theme: themeSchema.default('system')
 }).strict();
-function refineDisplaySetup(value: z.infer<typeof displaySetupFieldsSchema>, context: z.RefinementCtx): void {
+const displaySetupLayoutFieldsSchema = z.strictObject({
+  cards: displaySetupCardListSchema,
+  cardOrder: displaySetupCardListSchema,
+  familyLayoutEnabled: z.boolean()
+});
+function refineDisplaySetup(value: z.infer<typeof displaySetupLayoutFieldsSchema>, context: z.RefinementCtx): void {
   if (value.cardOrder.length !== value.cards.length || value.cardOrder.some((card) => !value.cards.includes(card))) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['cardOrder'], message: 'card_order_must_match_cards' });
   }
 }
+export const displaySetupLayoutSchema = displaySetupLayoutFieldsSchema.superRefine(refineDisplaySetup);
 export const displaySetupCreateSchema = displaySetupFieldsSchema.superRefine(refineDisplaySetup);
 export const displaySetupUpdateSchema = displaySetupFieldsSchema.extend({ expectedRevision: z.number().int().positive() }).strict().superRefine(refineDisplaySetup);
 export const displaySetupPreviewSchema = z.object({setupId:uuidSchema.optional(),draft:displaySetupCreateSchema.optional()}).strict().refine(value=>Boolean(value.setupId)!==Boolean(value.draft),'exactly_one_preview_source_required');

@@ -1,5 +1,6 @@
+import { createHash } from 'node:crypto';
 import { DomainError } from '@samvev/core';
-import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, displaySetupCards, groceryCreateSchema, groceryUpdateSchema, localeSchema, messageCreateSchema, messageUpdateSchema, nameSchema, personUpdateSchema, themeSchema, type Capability as MemberCapability } from '@samvev/contracts';
+import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, displaySetupCards, displaySetupLayoutSchema, groceryCreateSchema, groceryUpdateSchema, localeSchema, messageCreateSchema, messageUpdateSchema, nameSchema, personUpdateSchema, themeSchema, type Capability as MemberCapability } from '@samvev/contracts';
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
@@ -43,6 +44,7 @@ export interface HouseholdMcpToolDependencies {
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
   displayAppearanceAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
+  displayLayoutAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
   displaySetupReadAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
   calendarAudit?: Parameters<typeof registerCalendarWriteTools>[2]['audit'];
 }
@@ -83,6 +85,7 @@ const idOutput = z.string().min(1).max(128);
 const nullableTextOutput = z.string().max(5000).nullable();
 const displayAppearanceScopes = ['mcp:displays:read', 'mcp:displays:appearance:write'] as const;
 const displaySetupReadScopes = ['mcp:displays:read', 'mcp:displays:setup:read'] as const;
+const displayLayoutWriteScopes = [...displaySetupReadScopes, 'mcp:displays:layout:write'] as const;
 const displayAppearanceOutput = z.strictObject({
   id: uuid, name: z.string().min(1).max(200), localeOverride: localeSchema.nullable(), themeOverride: themeSchema.nullable(),
   appearanceRevision: revisionOutput
@@ -97,13 +100,20 @@ const displayAppearanceInput = z.strictObject({
 const displayOutput = displayAppearanceOutput.extend({
   locale: localeSchema.nullable(), theme: themeSchema.nullable(), privacyMode: z.boolean(), setupName: z.string().min(1).max(200), createdAt: z.iso.datetime()
 });
+const setupVersionSchema = z.string().regex(/^[a-f0-9]{64}$/);
 const displaySetupOutput = z.strictObject({
-  name: z.string().min(1).max(80), revision: revisionOutput,
+  setupVersion: setupVersionSchema, name: z.string().min(1).max(80), revision: revisionOutput,
   cards: z.array(z.enum(displaySetupCards)).max(displaySetupCards.length),
   cardOrder: z.array(z.enum(displaySetupCards)).max(displaySetupCards.length),
   familyLayoutEnabled: z.boolean(), locale: localeSchema, theme: themeSchema
 });
 const displaySetupInput = z.strictObject({ displayId: uuid });
+const displayLayoutWriteInput = displaySetupLayoutSchema.safeExtend({ displayId: uuid, expectedSetupVersion: setupVersionSchema });
+const displayLayoutWriteOutput = displaySetupLayoutSchema.safeExtend({ displayId: uuid, setupVersion: setupVersionSchema });
+
+type DisplayAssignment = { setup_id: string; setup_assignment_revision: string };
+type DisplaySetup = Omit<z.infer<typeof displaySetupOutput>, 'setupVersion'>;
+type DisplayLayout = z.infer<typeof displaySetupLayoutSchema>;
 const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult']) });
 const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50), writable: z.boolean().optional() });
 const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), revision: revisionOutput.optional(), writable: z.boolean().optional(), personIds: z.array(z.uuid()).max(50).optional(), location: z.string().max(160).optional() });
@@ -122,7 +132,7 @@ const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, stat
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displaySetupReadScopes[number];
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displayLayoutWriteScopes[number];
 type Capability = MemberCapability;
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[];calendarWriteAllowed:boolean}> {
@@ -154,6 +164,79 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
   const row = result.rows[0];
   if (!row?.allowed || !uuid.safeParse(row.person_id).success) throw new DomainError('FORBIDDEN', 403);
   return { personId: row.person_id, capabilities: row.capabilities, calendarWriteAllowed: row.calendar_write_allowed };
+}
+
+async function lockDisplayWriteAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[]): Promise<void> {
+  // Browser administration takes installation and member authority before target
+  // rows. OAuth policy changes take member authority before the grant.
+  await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE', [principal.installationId]);
+  const actor = await client.query(`SELECT 1 FROM memberships membership JOIN accounts account ON account.id=membership.account_id
+    WHERE membership.id=$1 AND membership.household_id=$2 AND account.id=$3 FOR SHARE OF membership,account`,
+  [principal.membershipId, principal.householdId, principal.accountId]);
+  if (!actor.rowCount) throw new DomainError('FORBIDDEN', 403);
+  await assertLiveAuthority(client, principal, scopes, 'display.manage');
+  const activeScopes = await client.query(`SELECT scope FROM mcp_oauth_scope_catalog
+    WHERE scope=ANY($1::text[]) AND active ORDER BY scope FOR SHARE`, [scopes]);
+  if (activeScopes.rowCount !== scopes.length) throw new DomainError('FORBIDDEN', 403);
+}
+
+async function lockGrantedDisplayAssignment(
+  client: DbClient, principal: HouseholdMcpPrincipal, displayId: string, write: boolean
+): Promise<DisplayAssignment> {
+  const grant = await client.query(`SELECT 1 FROM mcp_oauth_grant_displays
+    WHERE grant_id=$1 AND household_id=$2 AND display_id=$3 FOR SHARE`, [principal.grantId, principal.householdId, displayId]);
+  if (!grant.rowCount) throw new DomainError('NOT_FOUND', 404);
+  const display = (await client.query<DisplayAssignment>(`SELECT setup_id,setup_assignment_revision::text FROM displays
+    WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR ${write ? 'NO KEY UPDATE' : 'SHARE'}`,
+  [displayId, principal.householdId])).rows[0];
+  if (!display) throw new DomainError('NOT_FOUND', 404);
+  return display;
+}
+
+async function readLockedDisplaySetup(client: DbClient, householdId: string, setupId: string): Promise<DisplaySetup> {
+  const setup = (await client.query<DisplaySetup>(`SELECT name,revision,cards,card_order AS "cardOrder",
+    family_layout_enabled AS "familyLayoutEnabled",locale,theme
+    FROM display_setups WHERE household_id=$1 AND id=$2 FOR SHARE`, [householdId, setupId])).rows[0];
+  if (!setup) throw new DomainError('NOT_FOUND', 404);
+  return setup;
+}
+
+function displaySetupVersion(displayId: string, assignment: DisplayAssignment, revision: number): string {
+  return createHash('sha256').update(JSON.stringify([
+    displayId.toLowerCase(), assignment.setup_id, assignment.setup_assignment_revision, revision
+  ])).digest('hex');
+}
+
+const setupSelectionTables = [
+  ['display_setup_people', 'person_id'],
+  ['display_setup_sources', 'connection_id'],
+  ['display_setup_calendar_sources', 'source_id'],
+  ['display_setup_sensors', 'sensor_id']
+] as const;
+
+async function cloneDisplaySetupLayout(
+  client: DbClient, householdId: string, setupId: string, revision: number, layout: DisplayLayout
+): Promise<{ id: string; revision: number }> {
+  const clone = (await client.query<{ id: string; revision: number }>(`INSERT INTO display_setups(
+      household_id,name,cards,card_order,family_layout_enabled,all_sources,all_sensors,
+      is_default,album_ids,background_id,locale,theme)
+    SELECT household_id,name,$4::jsonb,$5::jsonb,$6,all_sources,all_sensors,false,album_ids,background_id,locale,theme
+    FROM display_setups WHERE household_id=$1 AND id=$2 AND revision=$3 RETURNING id,revision`,
+  [householdId, setupId, revision, JSON.stringify(layout.cards), JSON.stringify(layout.cardOrder), layout.familyLayoutEnabled])).rows[0];
+  if (!clone) throw new DomainError('REVISION_CONFLICT', 409);
+  for (const [table, column] of setupSelectionTables) {
+    await client.query(`INSERT INTO ${table}(household_id,setup_id,${column})
+      SELECT household_id,$3,${column} FROM ${table} WHERE household_id=$1 AND setup_id=$2`, [householdId, setupId, clone.id]);
+  }
+  return clone;
+}
+
+function sameDisplayLayout(current: DisplayLayout, requested: DisplayLayout): boolean {
+  return current.familyLayoutEnabled === requested.familyLayoutEnabled
+    && current.cards.length === requested.cards.length
+    && requested.cards.every((card) => current.cards.includes(card))
+    && current.cardOrder.length === requested.cardOrder.length
+    && current.cardOrder.every((card, index) => card === requested.cardOrder[index]);
 }
 
 /** Live grant and member-visible source projection shared by both calendar tools. */
@@ -212,27 +295,56 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.displays.setup.get', {
-    description: 'Read the minimal layout and appearance configuration for one explicitly approved, active display. Does not return people, sources, sensors, albums, backgrounds, device permissions, or credentials.',
+    description: 'Read the minimal layout and appearance configuration for one explicitly approved, active display, with a setupVersion for conditional layout updates. Does not return people, sources, sensors, albums, backgrounds, device permissions, or credentials.',
     inputSchema: displaySetupInput, outputSchema: z.strictObject({ setup: displaySetupOutput }),
     requiredScopes: displaySetupReadScopes, readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     const { displayId } = displaySetupInput.parse(raw);
     return dependencies.transaction(async (client) => {
       await assertLiveAuthority(client, principal, displaySetupReadScopes, 'display.manage');
-      const setup = (await client.query<z.infer<typeof displaySetupOutput>>(`SELECT
-          setup.name,setup.revision,setup.cards,setup.card_order AS "cardOrder",
-          setup.family_layout_enabled AS "familyLayoutEnabled",setup.locale,setup.theme
-        FROM mcp_oauth_grant_displays grant_display
-        JOIN displays display ON display.id=grant_display.display_id AND display.household_id=grant_display.household_id
-        JOIN display_setups setup ON setup.id=display.setup_id AND setup.household_id=display.household_id
-        WHERE grant_display.grant_id=$1 AND grant_display.household_id=$2
-          AND grant_display.display_id=$3 AND display.revoked_at IS NULL
-        FOR SHARE OF grant_display,display,setup`, [principal.grantId, principal.householdId, displayId])).rows[0];
-      if (!setup) throw new DomainError('NOT_FOUND', 404);
+      const assignment = await lockGrantedDisplayAssignment(client, principal, displayId, false);
+      const setup = await readLockedDisplaySetup(client, principal.householdId, assignment.setup_id);
       // Recheck token/grant/member authority after waiting on the selected rows.
       await assertLiveAuthority(client, principal, displaySetupReadScopes, 'display.manage');
       await dependencies.displaySetupReadAudit?.(client, displayId, setup.revision);
-      return { setup };
+      return { setup: { ...setup, setupVersion: displaySetupVersion(displayId, assignment, setup.revision) } };
+    });
+  });
+
+  registrar.registerTool('household.displays.layout.update', {
+    description: 'Replace the selected cards, card order, and family layout setting of one explicitly approved display. Use the current setupVersion from household.displays.setup.get. An actual change creates a separate setup for this display while retaining its existing content selections, access permissions, and appearance.',
+    inputSchema: displayLayoutWriteInput, outputSchema: z.strictObject({ layout: displayLayoutWriteOutput }),
+    requiredScopes: displayLayoutWriteScopes, readOnlyHint: false, destructiveHint: false, idempotentHint: false
+  }, async (raw) => {
+    const { displayId, expectedSetupVersion, ...layout } = displayLayoutWriteInput.parse(raw);
+    const audit = dependencies.displayLayoutAudit;
+    if (!audit) throw new DomainError('FORBIDDEN', 403);
+    return dependencies.transaction(async (client) => {
+      await lockDisplayWriteAuthority(client, principal, displayLayoutWriteScopes);
+      const assignment = await lockGrantedDisplayAssignment(client, principal, displayId, true);
+      // Media deletion clears setup references under this lock. Take it before
+      // reading the source so the clone cannot revive a removed selection.
+      await client.query('INSERT INTO media_household_usage(household_id) VALUES($1) ON CONFLICT DO NOTHING', [principal.householdId]);
+      await client.query('SELECT household_id FROM media_household_usage WHERE household_id=$1 FOR UPDATE', [principal.householdId]);
+      const current = await readLockedDisplaySetup(client, principal.householdId, assignment.setup_id);
+      await assertLiveAuthority(client, principal, displayLayoutWriteScopes, 'display.manage');
+      if (displaySetupVersion(displayId, assignment, current.revision) !== expectedSetupVersion) {
+        throw new DomainError('REVISION_CONFLICT', 409);
+      }
+      if (sameDisplayLayout(current, layout)) {
+        const { cards, cardOrder, familyLayoutEnabled } = current;
+        return { layout: { displayId, setupVersion: expectedSetupVersion, cards, cardOrder, familyLayoutEnabled } };
+      }
+
+      const clone = await cloneDisplaySetupLayout(client, principal.householdId, assignment.setup_id, current.revision, layout);
+      const updated = (await client.query<DisplayAssignment>(`UPDATE displays SET setup_id=$5
+        WHERE id=$1 AND household_id=$2 AND setup_id=$3 AND setup_assignment_revision=$4 AND revoked_at IS NULL
+        RETURNING setup_id,setup_assignment_revision::text`,
+      [displayId, principal.householdId, assignment.setup_id, assignment.setup_assignment_revision, clone.id])).rows[0];
+      if (!updated) throw new DomainError('REVISION_CONFLICT', 409);
+      await audit(client, displayId, clone.revision);
+      await assertLiveAuthority(client, principal, displayLayoutWriteScopes, 'display.manage');
+      return { layout: { displayId, setupVersion: displaySetupVersion(displayId, updated, clone.revision), ...layout } };
     });
   });
 
@@ -245,17 +357,7 @@ export function registerHouseholdTools(
     const audit = dependencies.displayAppearanceAudit;
     if (!audit) throw new DomainError('FORBIDDEN', 403);
     return dependencies.transaction(async (client) => {
-      // Browser display administration and account management take installation
-      // and member authority before display rows. OAuth consent changes take
-      // member authority before the grant. Keep that order for this write.
-      await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE', [principal.installationId]);
-      const actor = await client.query(`SELECT 1 FROM memberships membership JOIN accounts account ON account.id=membership.account_id
-        WHERE membership.id=$1 AND membership.household_id=$2 AND account.id=$3 FOR SHARE OF membership,account`,
-      [principal.membershipId, principal.householdId, principal.accountId]);
-      if (!actor.rowCount) throw new DomainError('FORBIDDEN', 403);
-      await assertLiveAuthority(client, principal, displayAppearanceScopes, 'display.manage');
-      const scopes = await client.query(`SELECT scope FROM mcp_oauth_scope_catalog WHERE scope=ANY($1::text[]) AND active ORDER BY scope FOR SHARE`, [displayAppearanceScopes]);
-      if (scopes.rowCount !== displayAppearanceScopes.length) throw new DomainError('FORBIDDEN', 403);
+      await lockDisplayWriteAuthority(client, principal, displayAppearanceScopes);
       const current = (await client.query<z.infer<typeof displayAppearanceOutput>>(`SELECT ${displayAppearanceColumns}
         FROM mcp_oauth_grant_displays grant_display
         JOIN displays display ON display.id=grant_display.display_id AND display.household_id=grant_display.household_id

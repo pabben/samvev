@@ -7,6 +7,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.ts';
 import { pool } from '../db.ts';
 import { migrate } from '../db/migrate.ts';
+import { MediaService } from '../media/service.ts';
 
 const origin='https://display-discovery.test.invalid',callback='https://display-discovery-client.test.invalid/oauth/callback';
 const scope='mcp:displays:read';
@@ -225,7 +226,9 @@ test('setup read requires fresh setup consent and returns only configuration for
   token=await authorize(21,[scope,setupScope]);
 
   const setupRead=await call(token,30,'household.displays.setup.get',{displayId:target});
-  assert.deepEqual(succeeded(setupRead),{setup:{name:'Synthetic minimal setup',revision:2,cards:['family_layout','today'],cardOrder:['today','family_layout'],familyLayoutEnabled:false,locale:'nb',theme:'dark'}});
+  const {setupVersion}=succeeded(setupRead).setup;
+  assert.match(setupVersion,/^[a-f0-9]{64}$/);
+  assert.deepEqual(succeeded(setupRead),{setup:{setupVersion,name:'Synthetic minimal setup',revision:2,cards:['family_layout','today'],cardOrder:['today','family_layout'],familyLayoutEnabled:false,locale:'nb',theme:'dark'}});
   assert.doesNotMatch(setupRead.body,/Synthetic sharing|Synthetic authorized|all_sources|all_sensors|album_ids|background_id|person|source|sensor|photo|credential|permission/i);
   failed(await call(token,31,'household.displays.setup.get',{displayId:ungranted}),/NOT_FOUND/);
   failed(await call(token,32,'household.displays.setup.get',{displayId:foreignDisplayId}),/NOT_FOUND/);
@@ -258,4 +261,317 @@ test('setup read requires fresh setup consent and returns only configuration for
   const revokedGrant=await inject({method:'POST',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/revoke`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin}});
   assert.equal(revokedGrant.statusCode,204,revokedGrant.body);
   assert.equal((await call(token,37,'household.displays.setup.get',{displayId:target})).statusCode,401);
+});
+
+const layoutScope = 'mcp:displays:layout:write';
+const layoutScopes = [scope, setupScope, layoutScope];
+const layoutTool = 'household.displays.layout.update';
+
+async function oneId(sql: string, values: unknown[]) {
+  return (await pool.query<{ id: string }>(sql, values)).rows[0]!.id;
+}
+
+async function makeLayoutTarget(setupId: string, name: string, credential: string | null = null) {
+  return oneId(`INSERT INTO displays(household_id,setup_id,name,locale,theme,external_items_enabled,credential_hash,credential_expires_at)
+    VALUES($1,$2,$3,'en','light',true,$4,clock_timestamp()+interval '1 day') RETURNING id`,
+  [householdId, setupId, name, credential ? createHash('sha256').update(credential).digest('hex') : null]);
+}
+
+async function makeLayoutSetup() {
+  return oneId(`INSERT INTO display_setups(household_id,name,locale,theme)
+    VALUES($1,'Synthetic layout source','nb','dark') RETURNING id`, [householdId]);
+}
+
+async function authorizeLayout(serial: number, displayId: string) {
+  await authorize(serial, layoutScopes);
+  grantId = (await pool.query<{ id: string }>(`SELECT id FROM mcp_oauth_grants WHERE household_id=$1 AND revoked_at IS NULL`, [householdId])).rows[0]!.id;
+  const policy = await setDisplayPolicy(await grantRevision(), [displayId], layoutScopes);
+  assert.equal(policy.statusCode, 200, policy.body);
+  return authorize(serial + 1, layoutScopes);
+}
+
+async function readSetup(token: string, displayId: string) {
+  return succeeded(await call(token, 100, 'household.displays.setup.get', { displayId })).setup;
+}
+
+function changeLayout(displayId: string, expectedSetupVersion: string) {
+  return { displayId, expectedSetupVersion, cards: ['photos', 'people'], cardOrder: ['people', 'photos'], familyLayoutEnabled: false };
+}
+
+async function setupCount() {
+  return (await pool.query<{ total: number }>('SELECT count(*)::int AS total FROM display_setups WHERE household_id=$1', [householdId])).rows[0]!.total;
+}
+
+async function layoutAudit(displayId: string) {
+  return (await pool.query(`SELECT actor_type,subject_type,subject_id,metadata
+    FROM audit_events WHERE household_id=$1 AND subject_id=$2 AND action='mcp.display_layout_updated'`, [householdId, displayId])).rows;
+}
+
+test('layout write clones private setup selections, preserves device permissions, and isolates a shared default', async () => {
+  const sourceId = await makeLayoutSetup();
+  const credential = 'synthetic-display-layout-projection';
+  const target = await makeLayoutTarget(sourceId, 'Synthetic layout target', credential);
+  const sibling = await makeLayoutTarget(sourceId, 'Synthetic layout sibling');
+  const actor = (await pool.query<{ id: string; account_id: string; person_id: string }>(
+    'SELECT id,account_id,person_id FROM memberships WHERE household_id=$1', [householdId])).rows[0]!;
+  const integration = await oneId(`INSERT INTO integration_connections(household_id,name) VALUES($1,'Synthetic layout integration') RETURNING id`, [householdId]);
+  const connection = await oneId(`INSERT INTO calendar_connections(household_id,integration_connection_id,owner_account_id,provider,name)
+    VALUES($1,$2,$3,'ics','Synthetic layout calendar') RETURNING id`, [householdId, integration, actor.account_id]);
+  const source = await oneId(`INSERT INTO calendar_sources(household_id,connection_id,external_id,name)
+    VALUES($1,$2,'synthetic-layout-schedule','Synthetic layout schedule') RETURNING id`, [householdId, connection]);
+  const sensor = await oneId(`INSERT INTO home_assistant_temperature_sensors(household_id,connection_id,external_id,entity_id,identity_kind,name)
+    VALUES($1,$2,'synthetic-layout-sensor','sensor.synthetic_layout','entity','Synthetic layout sensor') RETURNING id`, [householdId, connection]);
+  const album = await oneId(`INSERT INTO media_albums(household_id,owner_membership_id,name)
+    VALUES($1,$2,'Synthetic layout album') RETURNING id`, [householdId, actor.id]);
+  const backgroundAlbum = await oneId(`INSERT INTO media_albums(household_id,owner_membership_id,name,album_kind)
+    VALUES($1,$2,'Synthetic layout backgrounds','backgrounds') RETURNING id`, [householdId, actor.id]);
+  await pool.query('INSERT INTO media_household_usage(household_id) VALUES($1) ON CONFLICT DO NOTHING', [householdId]);
+  const background = await oneId(`INSERT INTO media_assets(household_id,album_id,title,original_mime,width,height,content_sha256,master_webp,preview_webp,created_by_membership_id)
+    VALUES($1,$2,'Synthetic layout background','image/webp',1,1,repeat('0',64),'abc','abc',$3) RETURNING id`, [householdId, backgroundAlbum, actor.id]);
+  await pool.query(`UPDATE display_setups SET is_default=true,all_sources=true,all_sensors=true,album_ids=$2::jsonb,background_id=$3 WHERE id=$1`,
+    [sourceId, JSON.stringify([album]), background]);
+  const selections = [
+    ['display_setup_people', 'person_id', actor.person_id],
+    ['display_setup_sources', 'connection_id', integration],
+    ['display_setup_calendar_sources', 'source_id', source],
+    ['display_setup_sensors', 'sensor_id', sensor]
+  ] as const;
+  for (const [table, column, value] of selections) {
+    await pool.query(`INSERT INTO ${table}(household_id,setup_id,${column}) VALUES($1,$2,$3)`, [householdId, sourceId, value]);
+  }
+  await pool.query(`INSERT INTO display_person_grants(household_id,display_id,person_id,profile_allowed)
+    VALUES($1,$2,$3,true)`, [householdId, target, actor.person_id]);
+  await pool.query('UPDATE display_action_policies SET grocery_write=true WHERE display_id=$1', [target]);
+  await pool.query('UPDATE display_board_read_grants SET grocery_read=true WHERE display_id=$1', [target]);
+  await pool.query('INSERT INTO media_album_display_grants(household_id,album_id,display_id,can_read) VALUES($1,$2,$3,true)', [householdId, album, sibling]);
+
+  const snapshotDevice = async () => (await pool.query(`SELECT to_jsonb(device)-ARRAY['setup_id','setup_assignment_revision','last_seen_at'] AS device,
+    to_jsonb(actions) AS actions,to_jsonb(boards) AS boards,
+    (SELECT jsonb_agg(to_jsonb(g)) FROM display_person_grants g WHERE g.display_id=device.id) AS people,
+    (SELECT jsonb_agg(to_jsonb(g)) FROM media_album_display_grants g WHERE g.display_id=device.id) AS media
+    FROM displays device JOIN display_action_policies actions ON actions.display_id=device.id
+      JOIN display_board_read_grants boards ON boards.display_id=device.id WHERE device.id=$1`, [target])).rows[0];
+  const snapshotSetup = async (setupId: string) => (await pool.query('SELECT * FROM display_setups WHERE id=$1', [setupId])).rows[0];
+  const beforeDevice = await snapshotDevice(), beforeSetup = await snapshotSetup(sourceId), beforeCount = await setupCount();
+
+  const readToken = await authorize(30, [scope, setupScope]);
+  grantId = (await pool.query<{ id: string }>('SELECT id FROM mcp_oauth_grants WHERE household_id=$1 AND revoked_at IS NULL', [householdId])).rows[0]!.id;
+  const broadening = await setDisplayPolicy(await grantRevision(), [target], layoutScopes);
+  assert.equal(broadening.statusCode, 400, broadening.body);
+  assert.match(broadening.body, /scope_broadening_requires_consent/);
+  const noWrite = await call(readToken, 101, layoutTool, changeLayout(target, 'a'.repeat(64)));
+  assert.equal(noWrite.statusCode, 403, noWrite.body);
+  assert.match(noWrite.body, /insufficient_scope/);
+
+  const noSetupToken = await authorize(31, [scope, layoutScope]);
+  const noSetup = await call(noSetupToken, 102, layoutTool, changeLayout(target, 'a'.repeat(64)));
+  assert.equal(noSetup.statusCode, 403, noSetup.body);
+  assert.match(noSetup.body, /insufficient_scope/);
+  const token = await authorizeLayout(32, target);
+  const { setupVersion } = await readSetup(token, target);
+  const request = changeLayout(target, setupVersion);
+
+  for (const displayId of [sibling, foreignDisplayId]) {
+    failed(await call(token, 103, layoutTool, { ...request, displayId }), /NOT_FOUND/);
+  }
+  for (const overrides of [
+    { albumIds: [album] }, { personIds: [actor.person_id] }, { setupId: sourceId }, { privacyMode: false },
+    { cards: ['photos', 'photos'] }, { cards: ['synthetic-unknown-card'] }, { cardOrder: ['photos'] }
+  ]) {
+    const invalid = await call(token, 104, layoutTool, { ...request, ...overrides });
+    assert.ok(rpc(invalid).error || rpc(invalid).result?.isError, invalid.body);
+  }
+  assert.equal(await setupCount(), beforeCount);
+  assert.deepEqual(await layoutAudit(target), []);
+
+  const updated = succeeded(await call(token, 105, layoutTool, request)).layout;
+  assert.match(updated.setupVersion, /^[a-f0-9]{64}$/);
+  assert.notEqual(updated.setupVersion, setupVersion);
+  assert.deepEqual(updated, { displayId: target, setupVersion: updated.setupVersion, cards: ['photos', 'people'], cardOrder: ['people', 'photos'], familyLayoutEnabled: false });
+  assert.equal((await readSetup(token, target)).setupVersion, updated.setupVersion);
+  assert.deepEqual(await snapshotDevice(), beforeDevice);
+  assert.deepEqual(await snapshotSetup(sourceId), beforeSetup);
+  assert.equal(await setupCount(), beforeCount + 1);
+  const devices = (await pool.query<{ id: string; setup_id: string; setup_assignment_revision: string }>(
+    'SELECT id,setup_id,setup_assignment_revision FROM displays WHERE id=ANY($1::uuid[])', [[target, sibling]])).rows;
+  assert.deepEqual(devices.find(row => row.id === sibling), { id: sibling, setup_id: sourceId, setup_assignment_revision: '1' });
+  const cloneId = devices.find(row => row.id === target)!.setup_id;
+  assert.notEqual(cloneId, sourceId);
+  const clone = await snapshotSetup(cloneId);
+  assert.equal(clone.is_default, false);
+  for (const field of ['name', 'locale', 'theme', 'all_sources', 'all_sensors', 'album_ids', 'background_id']) {
+    assert.deepEqual(clone[field], beforeSetup[field], field);
+  }
+  for (const [table, column, value] of selections) {
+    const copied = await pool.query(`SELECT ${column} FROM ${table} WHERE setup_id=$1`, [cloneId]);
+    assert.deepEqual(copied.rows, [{ [column]: value }]);
+  }
+  const projection = await inject({ method: 'GET', url: '/api/v1/display/projection', headers: { cookie: `samvev_display=${credential}` } });
+  assert.equal(projection.statusCode, 200, projection.body);
+  assert.deepEqual(projection.json().setup.cardOrder, updated.cardOrder);
+  const mediaProjection = await new MediaService().displayProjection({ id: target, householdId, setupId: cloneId, privacyMode: false, credentialHash: createHash('sha256').update(credential).digest('hex') });
+  assert.deepEqual(mediaProjection, { albums: [], assets: [], background: null, householdBackground: null });
+
+  const audit = await layoutAudit(target);
+  assert.deepEqual(audit, [{ actor_type: 'mcp', subject_type: 'display', subject_id: target, metadata: { revision: clone.revision, clientId: audit[0]?.metadata.clientId } }]);
+  assert.match(audit[0]!.metadata.clientId, /^[0-9a-f-]{36}$/);
+  failed(await call(token, 106, layoutTool, request), /REVISION_CONFLICT/);
+  assert.deepEqual(succeeded(await call(token, 107, layoutTool, {
+    ...request, cards: [...request.cards].reverse(), expectedSetupVersion: updated.setupVersion
+  })), { layout: updated });
+  assert.equal(await setupCount(), beforeCount + 1);
+  assert.deepEqual(await layoutAudit(target), audit);
+});
+
+test('layout setup version fences browser reassignment, ABA, and concurrent updates', async () => {
+  const source = await makeLayoutSetup(), other = await makeLayoutSetup();
+  const target = await makeLayoutTarget(source, 'Synthetic reassignment target');
+  const token = await authorizeLayout(34, target);
+  const original = await readSetup(token, target);
+  const assign = async (setupId: string) => {
+    const response = await inject({ method: 'PATCH', url: `/api/v1/households/${householdId}/displays/${target}`,
+      headers: { cookie: adminCookie, 'x-csrf-token': adminCsrf, origin }, payload: { setupId } });
+    assert.equal(response.statusCode, 200, response.body);
+    return readSetup(token, target);
+  };
+  const reassigned = await assign(other);
+  assert.equal(reassigned.revision, original.revision);
+  assert.notEqual(reassigned.setupVersion, original.setupVersion);
+  failed(await call(token, 110, layoutTool, changeLayout(target, original.setupVersion)), /REVISION_CONFLICT/);
+  const restored = await assign(source);
+  assert.equal(restored.revision, original.revision);
+  assert.notEqual(restored.setupVersion, original.setupVersion);
+  assert.notEqual(restored.setupVersion, reassigned.setupVersion);
+  assert.deepEqual(await assign(source), restored);
+  failed(await call(token, 111, layoutTool, changeLayout(target, original.setupVersion)), /REVISION_CONFLICT/);
+
+  const before = await setupCount();
+  const request = changeLayout(target, restored.setupVersion);
+  const responses = await Promise.all([
+    call(token, 112, layoutTool, request),
+    call(token, 113, layoutTool, { ...request, cards: ['today'], cardOrder: ['today'] })
+  ]);
+  const winner = responses.find(response => rpc(response).result?.structuredContent);
+  const stale = responses.find(response => rpc(response).result?.isError);
+  assert.ok(winner);
+  assert.ok(stale);
+  failed(stale, /REVISION_CONFLICT/);
+  assert.equal(await setupCount(), before + 1);
+  assert.equal((await layoutAudit(target)).length, 1);
+});
+
+test('layout write rechecks live capability, scope, token expiry, and exact display revocation', async () => {
+  const source = await makeLayoutSetup();
+  const target = await makeLayoutTarget(source, 'Synthetic layout revocation target');
+  const token = await authorizeLayout(36, target);
+  const request = changeLayout(target, (await readSetup(token, target)).setupVersion);
+  const update = (id: number) => call(token, id, layoutTool, request);
+  const before = await setupCount();
+  const member = (await pool.query<{ id: string; capabilities: string[] }>(
+    'SELECT id,capabilities FROM memberships WHERE household_id=$1', [householdId])).rows[0]!;
+  await pool.query("UPDATE memberships SET capabilities=capabilities-'display.manage' WHERE id=$1", [member.id]);
+  try {
+    failed(await update(114), /FORBIDDEN/);
+  } finally {
+    await pool.query('UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1', [member.id, JSON.stringify(member.capabilities)]);
+  }
+  await pool.query('UPDATE mcp_oauth_scope_catalog SET active=false WHERE scope=$1', [layoutScope]);
+  try {
+    failed(await update(115), /FORBIDDEN/);
+  } finally {
+    await pool.query('UPDATE mcp_oauth_scope_catalog SET active=true WHERE scope=$1', [layoutScope]);
+  }
+
+  const tokenHash = createHash('sha256').update(token).digest('hex');
+  await pool.query(`UPDATE mcp_oauth_token_sets SET access_expires_at=clock_timestamp()+interval '2 seconds' WHERE access_token_hash=$1`, [tokenHash]);
+  const blocker = await pool.connect();
+  let waiting: Promise<LightMyRequestResponse>;
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM displays WHERE id=$1 FOR UPDATE', [target]);
+    waiting = update(116);
+    await waitForBlockedQuery('SELECT setup_id,setup_assignment_revision::text FROM displays');
+    await delay(2050);
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+  }
+  failed(await waiting!, /FORBIDDEN/);
+  const fresh = await authorize(38, layoutScopes);
+  await pool.query('UPDATE displays SET revoked_at=clock_timestamp() WHERE id=$1', [target]);
+  failed(await call(fresh, 117, layoutTool, request), /NOT_FOUND/);
+  const revoked = await inject({ method: 'POST', url: `/api/v1/households/${householdId}/mcp/authorizations/${grantId}/revoke`,
+    headers: { cookie: adminCookie, 'x-csrf-token': adminCsrf, origin } });
+  assert.equal(revoked.statusCode, 204, revoked.body);
+  assert.equal((await call(fresh, 118, layoutTool, request)).statusCode, 401);
+  assert.deepEqual(await layoutAudit(target), []);
+  assert.equal(await setupCount(), before);
+});
+
+test('layout clone waits for media deletion and retries from the setup with its reference cleared', async () => {
+  const source = await makeLayoutSetup();
+  const target = await makeLayoutTarget(source, 'Synthetic layout media race target');
+  const token = await authorizeLayout(40, target);
+  const ownerPerson = await oneId(`INSERT INTO persons(household_id,display_name,age_group)
+    VALUES($1,'Synthetic layout media owner','adult') RETURNING id`, [householdId]);
+  const ownerAccount = await oneId(`INSERT INTO accounts(installation_id,email_normalized,locale,theme)
+    VALUES($1,'layout-media-owner@test.invalid','en','system') RETURNING id`, [installationId]);
+  const ownerMembership = await oneId(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities)
+    VALUES($1,$2,$3,'member','["household.view"]') RETURNING id`, [householdId, ownerAccount, ownerPerson]);
+  const ownerSession = await oneId(`INSERT INTO sessions(account_id,token_hash,csrf_hash,expires_at)
+    VALUES($1,'synthetic-layout-media-session-hash','synthetic-layout-media-csrf-hash',clock_timestamp()+interval '1 day') RETURNING id`, [ownerAccount]);
+  const album = await oneId(`INSERT INTO media_albums(household_id,owner_membership_id,name)
+    VALUES($1,$2,'Synthetic layout media race album') RETURNING id`, [householdId, ownerMembership]);
+  await pool.query('UPDATE display_setups SET album_ids=$2::jsonb WHERE id=$1', [source, JSON.stringify([album])]);
+  const version = (await readSetup(token, target)).setupVersion;
+  const count = await setupCount();
+  const blocker = await pool.connect();
+  let deletion: Promise<{ deleted: boolean; remainingAssets: number }>;
+  let waiting: Promise<LightMyRequestResponse>;
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM media_albums WHERE id=$1 FOR UPDATE', [album]);
+    deletion = new MediaService().deleteAlbum({ householdId, membershipId: ownerMembership, accountId: ownerAccount, personId: ownerPerson, sessionId: ownerSession }, album, 1);
+    await waitForBlockedQuery('FROM media_albums album WHERE album.household_id=$1 AND album.id=$2 FOR UPDATE');
+    waiting = call(token, 119, layoutTool, changeLayout(target, version));
+    await waitForBlockedQuery('SELECT household_id FROM media_household_usage WHERE household_id=$1 FOR UPDATE');
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+  }
+  assert.equal((await deletion!).deleted, true);
+  failed(await waiting!, /REVISION_CONFLICT/);
+  assert.equal(await setupCount(), count);
+  assert.deepEqual(await layoutAudit(target), []);
+  const afterDeletion = await readSetup(token, target);
+  assert.notEqual(afterDeletion.setupVersion, version);
+  succeeded(await call(token, 120, layoutTool, changeLayout(target, afterDeletion.setupVersion)));
+  const assigned = await pool.query(`SELECT setup.album_ids FROM displays display JOIN display_setups setup ON setup.id=display.setup_id WHERE display.id=$1`, [target]);
+  assert.deepEqual(assigned.rows, [{ album_ids: [] }]);
+  assert.equal(await setupCount(), count + 1);
+  assert.equal((await layoutAudit(target)).length, 1);
+});
+
+test('layout clone and assignment roll back if their in-transaction audit fails', async () => {
+  const source = await makeLayoutSetup();
+  const target = await makeLayoutTarget(source, 'Synthetic layout audit target');
+  const token = await authorizeLayout(42, target);
+  const before = await readSetup(token, target), count = await setupCount();
+  await pool.query(`CREATE FUNCTION fail_layout_audit_for_test() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN RAISE EXCEPTION 'synthetic layout audit failure'; END $$`);
+  try {
+    await pool.query(`CREATE TRIGGER fail_layout_audit_for_test BEFORE INSERT ON audit_events
+      FOR EACH ROW WHEN (NEW.action='mcp.display_layout_updated') EXECUTE FUNCTION fail_layout_audit_for_test()`);
+    const rejected = await call(token, 121, layoutTool, changeLayout(target, before.setupVersion));
+    assert.equal(rpc(rejected).result?.isError, true, rejected.body);
+    assert.equal(await setupCount(), count);
+    assert.deepEqual(await readSetup(token, target), before);
+    assert.deepEqual(await layoutAudit(target), []);
+  } finally {
+    await pool.query('DROP FUNCTION fail_layout_audit_for_test() CASCADE');
+  }
+  const retried = succeeded(await call(token, 122, layoutTool, changeLayout(target, before.setupVersion)));
+  assert.notEqual(retried.layout.setupVersion, before.setupVersion);
+  assert.equal(await setupCount(), count + 1);
+  assert.equal((await layoutAudit(target)).length, 1);
 });
