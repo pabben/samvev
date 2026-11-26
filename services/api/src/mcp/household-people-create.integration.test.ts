@@ -53,7 +53,16 @@ test('MCP creates strict accountless profiles with isolated fresh consent and du
   const token=await authorize(2,'mcp:context mcp:people:read mcp:people:write mcp:people:create');
   const grant=(await pool.query<{id:string;revision:number}>('SELECT id,revision FROM mcp_oauth_grants WHERE household_id=$1',[householdId])).rows[0]!;
   assert.equal((await pool.query('SELECT 1 FROM mcp_oauth_grant_people WHERE grant_id=$1',[grant.id])).rowCount,0,'fresh consent does not add person grants');
-  const [first,concurrent]=await Promise.all([create(token,2,input),create(token,3,input)]);
+  await pool.query("UPDATE mcp_oauth_scope_catalog SET active=false WHERE scope='mcp:people:create'");
+  try {
+    const disabledScope=await create(token,2,input);
+    assert.equal(disabledScope.statusCode,200,disabledScope.body);
+    assert.equal(result(disabledScope).isError,true,'an inactive catalog scope fences an already issued grant and token');
+    assert.equal((await pool.query('SELECT 1 FROM persons WHERE household_id=$1 AND display_name=$2',[householdId,input.displayName])).rowCount,0);
+  } finally {
+    await pool.query("UPDATE mcp_oauth_scope_catalog SET active=true WHERE scope='mcp:people:create'");
+  }
+  const [first,concurrent]=await Promise.all([create(token,3,input),create(token,4,input)]);
   assert.equal(result(first).isError,undefined,first.body);assert.equal(result(concurrent).isError,undefined,concurrent.body);
   const original=result(first).structuredContent.creation as {personId:string;createdRevision:number;hadLoginAtCreation:boolean};
   const replay=result(concurrent).structuredContent.creation;
@@ -64,23 +73,28 @@ test('MCP creates strict accountless profiles with isolated fresh consent and du
   assert.equal((await pool.query('SELECT 1 FROM account_invitations WHERE account_id IN (SELECT account_id FROM memberships WHERE person_id=$1)',[original.personId])).rowCount,0);
   assert.equal((await pool.query('SELECT 1 FROM membership_display_grants WHERE membership_id IN (SELECT id FROM memberships WHERE person_id=$1)',[original.personId])).rowCount,0);
   assert.equal((await pool.query('SELECT 1 FROM mcp_oauth_grant_people WHERE grant_id=$1 AND person_id=$2',[grant.id,original.personId])).rowCount,0);
-  const personList=await callTool(token,'household.people.list',4,{});assert.equal(result(personList).isError,undefined,personList.body);
+  const receipt=(await pool.query<{request_key_hash:string;payload_hash:string}>(`SELECT encode(request_key_hash,'hex') request_key_hash,encode(payload_hash,'hex') payload_hash
+    FROM mcp_people_create_receipts WHERE household_id=$1 AND grant_id=$2 AND person_id=$3`,[householdId,grant.id,original.personId])).rows[0]!;
+  assert.match(receipt.request_key_hash,/^[a-f0-9]{64}$/);assert.match(receipt.payload_hash,/^[a-f0-9]{64}$/);
+  assert.equal(JSON.stringify(receipt).includes(input.displayName),false,'receipt stores only keyed hashes, not the guessable profile name');
+  assert.notEqual(receipt.payload_hash,createHash('sha256').update(JSON.stringify({displayName:input.displayName})).digest('hex'));
+  const personList=await callTool(token,'household.people.list',5,{});assert.equal(result(personList).isError,undefined,personList.body);
   assert.deepEqual(result(personList).structuredContent.people,[],'the created profile stays unreadable without a separate person selection');
-  const personEdit=await callTool(token,'household.people.update',5,{personId:original.personId,displayName:'Synthetic unauthorized edit',expectedRevision:1});
+  const personEdit=await callTool(token,'household.people.update',6,{personId:original.personId,displayName:'Synthetic unauthorized edit',expectedRevision:1});
   assert.equal(result(personEdit).isError,true,'the created profile stays uneditable without a separate person selection');
 
-  const changed=await create(token,6,{...input,displayName:'Synthetic changed payload'});assert.equal(result(changed).isError,true);
-  const extra=await create(token,7,{...input,ageGroup:'adult'});assert.equal(result(extra).isError,true);
+  const changed=await create(token,7,{...input,displayName:'Synthetic changed payload'});assert.equal(result(changed).isError,true);
+  const extra=await create(token,8,{...input,ageGroup:'adult'});assert.equal(result(extra).isError,true);
   await pool.query("UPDATE persons SET display_name='Synthetic browser edit',revision=revision+1 WHERE id=$1",[original.personId]);
   await pool.query('DELETE FROM persons WHERE id=$1',[original.personId]);
-  const afterDelete=await create(token,8,input);assert.equal(result(afterDelete).isError,undefined,afterDelete.body);
+  const afterDelete=await create(token,9,input);assert.equal(result(afterDelete).isError,undefined,afterDelete.body);
   assert.deepEqual(result(afterDelete).structuredContent.creation,original,'durable replay returns the historical receipt after profile deletion');
 
   await pool.query(`INSERT INTO mcp_people_create_receipts(household_id,grant_id,request_key_hash,payload_hash,person_id)
     SELECT $1,$2,decode(md5(i::text)||md5('key-'||i::text),'hex'),decode(md5('payload-'||i::text)||md5(i::text),'hex'),gen_random_uuid()
     FROM generate_series(1,19) i`,[householdId,grant.id]);
-  const replayAtQuota=await create(token,9,input);assert.equal(result(replayAtQuota).isError,undefined,replayAtQuota.body);
-  const overQuota=await create(token,10,{displayName:'Synthetic over quota',requestKey:'22222222-2222-4222-8222-222222222222'});assert.equal(result(overQuota).isError,true);
+  const replayAtQuota=await create(token,10,input);assert.equal(result(replayAtQuota).isError,undefined,replayAtQuota.body);
+  const overQuota=await create(token,11,{displayName:'Synthetic over quota',requestKey:'22222222-2222-4222-8222-222222222222'});assert.equal(result(overQuota).isError,true);
   assert.equal((await pool.query('SELECT count(*)::int AS count FROM mcp_people_create_receipts WHERE household_id=$1',[householdId])).rows[0]!.count,20);
 
   await pool.query('DELETE FROM mcp_people_create_receipts WHERE household_id=$1 AND person_id<>$2',[householdId,original.personId]);
@@ -88,7 +102,7 @@ test('MCP creates strict accountless profiles with isolated fresh consent and du
     BEGIN IF NEW.action='mcp.person_profile_created' THEN RAISE EXCEPTION 'synthetic audit failure'; END IF; RETURN NEW; END $$`);
   await pool.query(`CREATE TRIGGER fail_synthetic_person_create_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fail_synthetic_person_create_audit()`);
   try {
-    const failed=await create(token,11,{displayName:'Synthetic audit rollback',requestKey:'33333333-3333-4333-8333-333333333333'});
+    const failed=await create(token,12,{displayName:'Synthetic audit rollback',requestKey:'33333333-3333-4333-8333-333333333333'});
     assert.equal(result(failed).isError,true);
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM persons WHERE household_id=$1 AND display_name=$2',[householdId,'Synthetic audit rollback'])).rows[0]!.count,0);
     assert.equal((await pool.query('SELECT count(*)::int AS count FROM mcp_people_create_receipts WHERE household_id=$1',[householdId])).rows[0]!.count,1);
@@ -98,11 +112,11 @@ test('MCP creates strict accountless profiles with isolated fresh consent and du
   }
 
   await pool.query(`UPDATE mcp_oauth_grants SET scopes=scopes-'mcp:people:create' WHERE id=$1`,[grant.id]);
-  const narrowed=await create(token,12,{displayName:'Synthetic stale-scope denial',requestKey:'44444444-4444-4444-8444-444444444444'});assert.equal(result(narrowed).isError,true);
+  const narrowed=await create(token,13,{displayName:'Synthetic stale-scope denial',requestKey:'44444444-4444-4444-8444-444444444444'});assert.equal(result(narrowed).isError,true);
   await pool.query(`UPDATE mcp_oauth_grants SET scopes=scopes||'"mcp:people:create"'::jsonb WHERE id=$1`,[grant.id]);
   const ownerPerson=(await pool.query<{id:string}>('SELECT person_id AS id FROM memberships WHERE household_id=$1 AND account_id IS NOT NULL LIMIT 1',[householdId])).rows[0]!.id;
   await pool.query(`UPDATE memberships SET capabilities=capabilities-'people.manage' WHERE household_id=$1 AND person_id=$2`,[householdId,ownerPerson]);
-  const demoted=await create(token,13,{displayName:'Synthetic demoted denial',requestKey:'55555555-5555-4555-8555-555555555555'});assert.equal(result(demoted).isError,true);
+  const demoted=await create(token,14,{displayName:'Synthetic demoted denial',requestKey:'55555555-5555-4555-8555-555555555555'});assert.equal(result(demoted).isError,true);
 
   const catalog=(await pool.query<{introduced_version:number;risk:string}>(`SELECT introduced_version,risk FROM mcp_oauth_scope_catalog WHERE scope='mcp:people:create'`)).rows[0]!;
   assert.deepEqual(catalog,{introduced_version:16,risk:'write'});

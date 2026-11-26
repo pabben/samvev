@@ -1045,10 +1045,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   const app = Fastify({ logger, trustProxy: runtime.trustProxy, bodyLimit: 32 * 1024, requestTimeout: 15_000 });
   const responseSecurityHeaders=browserSecurityHeaders(runtime.secureCookies);
   const aiAdmin = new AiAdminService({ transport: options.aiTransport, keyFile: options.aiKeyFile });
+  const credentialVault = new AiCredentialVault(options.aiKeyFile);
   const monitors = new MonitorService(aiAdmin,options.monitorFetcher,options.monitorWeather);
   const monitorEngine = new MonitorEngine(options.monitorFetcher,aiAdmin,options.monitorWeather);
   const monitorExecutions = new MonitorExecutionQueue(monitors,monitorEngine,aiAdmin);
-  const calendars=new CalendarService(options.calendarTransport,new AiCredentialVault(options.aiKeyFile));
+  const calendars=new CalendarService(options.calendarTransport,credentialVault);
   const homeAssistantControls=new HomeAssistantControlService(calendars,options.homeAssistantControlTransport??new HomeAssistantControlClient());
   const normalizePhoto=options.photoNormalizer??normalizeProfilePhoto;
   const media=options.mediaImageNormalizer?new MediaService({normalizer:options.mediaImageNormalizer}):mediaService;
@@ -1079,7 +1080,8 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.decorate('projectionStreamStats',()=>projectionEvents.stats());
   app.addHook('preClose',async()=>projectionEvents.close());
   const mcp=new McpOAuthService(runtime.publicOrigin,options.schoolPdfFetcher,
-    (grantId,sourceId)=>durableRateLimit('mcp_school_pdf_verify',`${grantId}:${sourceId}`,6,3600));
+    (grantId,sourceId)=>durableRateLimit('mcp_school_pdf_verify',`${grantId}:${sourceId}`,6,3600),
+    (purpose,context,value)=>credentialVault.keyedDigest(purpose,context,value));
   app.addHook('preClose',async()=>mcp.close());
   const haBridge=new HaBridgeService({integrationAuth:(request)=>integrationAuth(request,'ha'),lockIntegrationAuthority,auditIntegration,authForHousehold,recheckHouseholdAuth:async(client,request,auth,capability)=>{await recheckHouseholdAuth(client,request,auth,capability);},rateLimit:durableRateLimit});
   const householdBoards=new HouseholdBoardService(async(client,actor,board,write)=>{

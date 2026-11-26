@@ -48,6 +48,7 @@ export interface HouseholdMcpToolDependencies {
   displayLayoutAudit?: (client: DbClient, displayId: string, revision: number, setupVersion: string) => Promise<void>;
   displaySetupReadAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
   calendarAudit?: Parameters<typeof registerCalendarWriteTools>[2]['audit'];
+  profileDigest?: (purpose: string, context: string, value: string) => Promise<Buffer>;
 }
 
 const uuid = z.uuid();
@@ -167,7 +168,13 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
   return { personId: row.person_id, capabilities: row.capabilities, calendarWriteAllowed: row.calendar_write_allowed };
 }
 
-async function lockDisplayWriteAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[]): Promise<void> {
+async function lockActiveMcpScopes(client: DbClient, scopes: readonly HouseholdMcpScope[]): Promise<void> {
+  const activeScopes = await client.query(`SELECT scope FROM mcp_oauth_scope_catalog
+    WHERE scope=ANY($1::text[]) AND active ORDER BY scope FOR SHARE`, [scopes]);
+  if (activeScopes.rowCount !== scopes.length) throw new DomainError('FORBIDDEN', 403);
+}
+
+async function lockMcpWriteAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<void> {
   // Browser administration takes installation and member authority before target
   // rows. OAuth policy changes take member authority before the grant.
   await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE', [principal.installationId]);
@@ -175,10 +182,12 @@ async function lockDisplayWriteAuthority(client: DbClient, principal: HouseholdM
     WHERE membership.id=$1 AND membership.household_id=$2 AND account.id=$3 FOR SHARE OF membership,account`,
   [principal.membershipId, principal.householdId, principal.accountId]);
   if (!actor.rowCount) throw new DomainError('FORBIDDEN', 403);
-  await assertLiveAuthority(client, principal, scopes, 'display.manage');
-  const activeScopes = await client.query(`SELECT scope FROM mcp_oauth_scope_catalog
-    WHERE scope=ANY($1::text[]) AND active ORDER BY scope FOR SHARE`, [scopes]);
-  if (activeScopes.rowCount !== scopes.length) throw new DomainError('FORBIDDEN', 403);
+  await assertLiveAuthority(client, principal, scopes, capability);
+  await lockActiveMcpScopes(client, scopes);
+}
+
+async function lockDisplayWriteAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[]): Promise<void> {
+  await lockMcpWriteAuthority(client, principal, scopes, 'display.manage');
 }
 
 async function lockGrantedDisplayAssignment(
@@ -441,9 +450,14 @@ export function registerHouseholdTools(
     requiredScopes: ['mcp:people:create'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
     const input = z.strictObject({ displayName: nameSchema, requestKey: uuid }).parse(raw);
+    const keyedDigest = dependencies.profileDigest;
+    if (!keyedDigest) throw new DomainError('CONFLICT', 409, { reason: 'profile_digest_unavailable' });
     return dependencies.transaction((client) => createMcpPersonProfile(client, principal, input, async () => {
+      // Keep the creation lock first, then lock live authority and the catalog
+      // row. Do not add the display writer's member-before-household prelocks.
       await assertLiveAuthority(client, principal, ['mcp:people:create'], 'people.manage');
-    }));
+      await lockActiveMcpScopes(client, ['mcp:people:create']);
+    }, keyedDigest));
   });
 
   registrar.registerTool('calendar.sources.list', {

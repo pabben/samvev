@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { constants, promises as fs } from 'node:fs';
 import { createServer } from 'node:http';
 import test from 'node:test';
@@ -545,6 +546,14 @@ test('credential vault encrypts at rest, binds ciphertext to household and creat
     await fs.access(keyFile, constants.R_OK | constants.W_OK);
     const restarted = new AiCredentialVault(keyFile);
     assert.equal(await restarted.decrypt('11111111-1111-4111-8111-111111111111', ciphertext), 'synthetic-secret-value');
+    const digest = await vault.keyedDigest('mcp.people.create.payload', 'synthetic-household\0synthetic-grant', 'Synthetic profile');
+    const replayDigest = await restarted.keyedDigest('mcp.people.create.payload', 'synthetic-household\0synthetic-grant', 'Synthetic profile');
+    assert.equal(digest.length, 32);
+    assert.deepEqual(replayDigest, digest, 'the protected vault key keeps durable digests stable across restarts');
+    assert.notDeepEqual(await restarted.keyedDigest('mcp.people.create.request-key', 'synthetic-household\0synthetic-grant', 'Synthetic profile'), digest, 'digest purposes use separate subkeys');
+    assert.notDeepEqual(await restarted.keyedDigest('mcp.people.create.payload', 'different-household\0synthetic-grant', 'Synthetic profile'), digest, 'digest context binds the household and grant');
+    assert.notDeepEqual(await restarted.keyedDigest('mcp.people.create.payload', 'synthetic-household\0different-grant', 'Synthetic profile'), digest, 'the same name under another grant has a different digest');
+    assert.notEqual(digest.toString('hex'), createHash('sha256').update('Synthetic profile').digest('hex'));
   } finally {
     await fs.rm(resolve(process.cwd(), '.local/m21-provider-test'), { recursive: true, force: true });
   }

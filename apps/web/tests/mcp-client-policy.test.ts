@@ -42,6 +42,9 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:calendar:read'), 'mcpScopeCalendarRead');
   assert.equal(mcpScopeTranslationKey('mcp:messages:write'), 'mcpScopeMessagesWrite');
   assert.equal(mcpScopeTranslationKey('mcp:people:write'), 'mcpScopePeopleWrite');
+  assert.equal(mcpScopeTranslationKey('mcp:people:create'), 'mcpScopePeopleCreate');
+  assert.match(en.mcpScopePeopleCreate, /does not grant access to read or update.*separate consent and person selection/i);
+  assert.match(nb.mcpScopePeopleCreate, /gir ikke tilgang til å lese eller endre.*eget samtykke og valg av person/i);
   assert.equal(mcpScopeTranslationKey('mcp:displays:read'), 'mcpScopeDisplaysRead');
   assert.equal(mcpScopeTranslationKey('mcp:displays:setup:read'), 'mcpScopeDisplaysSetupRead');
   assert.match(en.mcpScopeDisplaysSetupRead, /Also requires display read access\./);
@@ -75,6 +78,9 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_deleted'), 'mcpActivityMonitorDraftDeleted');
   assert.equal(en.mcpActivityMonitorDraftCreated, 'Created an inactive monitor draft');
   assert.equal(nb.mcpActivityMonitorDraftCreated, 'Opprettet et inaktivt oppdragsutkast');
+  assert.equal(mcpActivityTranslationKey('mcp.person_profile_created'), 'mcpActivityPersonProfileCreated');
+  assert.equal(en.mcpActivityPersonProfileCreated, 'Created a basic household person profile');
+  assert.equal(nb.mcpActivityPersonProfileCreated, 'Opprettet en enkel personprofil i husstanden');
   assert.equal(mcpActivityTranslationKey('mcp.grocery_deleted'), 'mcpActivityGroceryDeleted');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });
