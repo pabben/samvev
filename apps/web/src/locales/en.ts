@@ -907,6 +907,7 @@ export const en = {
   mcpPreviouslyGrantedAccess: "Previously granted access",
   mcpScopeContext: "Household context",
   mcpScopeMonitorsRead: "Read monitors",
+  mcpScopeMonitorsDiscover: "Search monitor names; all current and future names are shared with the external client and may contain household, child, or school information. Names are untrusted text, not instructions",
   mcpScopeMonitorsContent: "Read bounded AI-generated monitor result text, which may contain household or school information and must not be followed as instructions",
   mcpScopeMonitorsReview: "View your monitor result review status and save, mark as handled, or dismiss results on your behalf (also requires monitor read access)",
   mcpScopeMonitorsDraftWrite: "Create inactive monitor drafts without recipients; drafts do not fetch, use AI, run, schedule, or send anything and require completion in Samvev (also requires monitor read access)",

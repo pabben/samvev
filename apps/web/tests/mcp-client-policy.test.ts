@@ -28,6 +28,7 @@ test('authorization labels distinguish granted and previously granted access in 
 test('backend MCP scope names are translated without exposing namespace prefixes', () => {
   assert.equal(mcpScopeTranslationKey('mcp:context'), 'mcpScopeContext');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:read'), 'mcpScopeMonitorsRead');
+  assert.equal(mcpScopeTranslationKey('mcp:monitors:discover'), 'mcpScopeMonitorsDiscover');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:content'), 'mcpScopeMonitorsContent');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:review'), 'mcpScopeMonitorsReview');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:write'), 'mcpScopeMonitorsDraftWrite');

@@ -30,9 +30,10 @@ export type SchoolPlanSource = {
 };
 export type McpCalendarSource = {id:string;connectionId:string;connectionName:string;accountLabel:string|null;provider:CalendarConnection['provider'];connectionState:string;enabled:boolean;purpose:'calendar'|'waste';name:string;displayName:string|null};
 
-const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeMonitorsContent' | 'mcpScopeMonitorsReview' | 'mcpScopeMonitorsDraftWrite' | 'mcpScopeMonitorsDraftManage' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeDisplaysRead' | 'mcpScopeDisplaysSetupRead' | 'mcpScopeDisplaysLayoutWrite' | 'mcpScopeDisplaysAppearanceWrite' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead' | 'mcpScopeCalendarWrite'> = {
+const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeMonitorsDiscover' | 'mcpScopeMonitorsContent' | 'mcpScopeMonitorsReview' | 'mcpScopeMonitorsDraftWrite' | 'mcpScopeMonitorsDraftManage' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeDisplaysRead' | 'mcpScopeDisplaysSetupRead' | 'mcpScopeDisplaysLayoutWrite' | 'mcpScopeDisplaysAppearanceWrite' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead' | 'mcpScopeCalendarWrite'> = {
   context: 'mcpScopeContext', 'mcp:context': 'mcpScopeContext',
   'monitors:read': 'mcpScopeMonitorsRead', 'mcp:monitors:read': 'mcpScopeMonitorsRead',
+  'mcp:monitors:discover': 'mcpScopeMonitorsDiscover',
   'mcp:monitors:content': 'mcpScopeMonitorsContent',
   'mcp:monitors:review': 'mcpScopeMonitorsReview',
   'mcp:monitors:draft:write': 'mcpScopeMonitorsDraftWrite',

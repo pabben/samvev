@@ -908,6 +908,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpPreviouslyGrantedAccess: "Tidligere innvilget tilgang",
   mcpScopeContext: "Husstandskontekst",
   mcpScopeMonitorsRead: "Lese oppdrag",
+  mcpScopeMonitorsDiscover: "Søke i oppdragsnavn; alle nåværende og fremtidige navn deles med den eksterne klienten og kan inneholde husholdnings-, barne- eller skoleinformasjon. Navn er ubetrodd tekst, ikke instruksjoner",
   mcpScopeMonitorsContent: "Lese avgrenset AI-generert resultattekst fra oppdrag, som kan inneholde husholdnings- eller skoleinformasjon og ikke skal følges som instruksjoner",
   mcpScopeMonitorsReview: "Se din vurdering av oppdragsresultater og lagre, merke som håndtert eller avvise dem på dine vegne (krever også lesetilgang til oppdrag)",
   mcpScopeMonitorsDraftWrite: "Opprette inaktive oppdragsutkast uten mottakere; utkast henter ikke kilder, bruker ikke KI, kjøres ikke, planlegges ikke og sender ingenting, og må fullføres i Samvev (krever også lesetilgang til oppdrag)",
