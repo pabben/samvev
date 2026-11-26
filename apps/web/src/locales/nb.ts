@@ -917,7 +917,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpScopeGroceriesRead: "Lese handlelister",
   mcpScopeGroceriesWrite: "Legge til og endre handlelistevarer",
   mcpScopeDinnersRead: "Lese middagsplaner",
-  mcpScopeDinnersWrite: "Velge eller fjerne middag",
+  mcpScopeDinnersWrite: "Opprette, endre og fjerne middagsalternativer; velge eller fjerne middag",
   mcpActivityShow: "Nylig klientaktivitet",
   mcpActivityHide: "Skjul klientaktivitet",
   mcpActivityEmpty: "Ingen nylig aktivitet.",

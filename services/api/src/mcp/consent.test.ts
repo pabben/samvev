@@ -17,3 +17,14 @@ test('message write consent discloses create, cancellation, withdrawal, and admi
   assert.match(english, /Create messages, cancel scheduled messages, and withdraw published messages/);
   assert.match(english, /including messages by other members you are authorized to manage/);
 });
+
+test('dinner write consent discloses option management and date assignment in both locales', () => {
+  const dinnerRequest: AuthorizeRequest = { ...request, scopes: ['mcp:dinners:write'] };
+  const norwegian = authorizationConsentHtml({ request: dinnerRequest, clientName: 'Synthetic client', households: [{ id: 'household-nb', name: 'Synthetic', locale: 'nb' }], csrf: 'synthetic-csrf' });
+  assert.match(norwegian, /Opprette, endre og fjerne middagsalternativer/);
+  assert.match(norwegian, /tilordne eller fjerne middag for en dato/);
+
+  const english = authorizationConsentHtml({ request: dinnerRequest, clientName: 'Synthetic client', households: [{ id: 'household-en', name: 'Synthetic', locale: 'en' }], csrf: 'synthetic-csrf' });
+  assert.match(english, /Create, edit, and remove dinner options/);
+  assert.match(english, /assign or clear dinner for a date/);
+});

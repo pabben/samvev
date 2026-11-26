@@ -6,6 +6,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.ts';
 import { pool } from '../db.ts';
 import { migrate } from '../db/migrate.ts';
+import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
 
 const origin='https://samvev.test.invalid',callback='https://board-client.test.invalid/oauth/callback';
 const allScopes='mcp:groceries:read mcp:groceries:write mcp:dinners:read mcp:dinners:write';
@@ -56,6 +57,20 @@ test('MCP board writes use live delegated authority, revisions and durable reque
   const cross=await call(token,'household.groceries.update',{id:foreignGroceryId,checked:true,expectedRevision:1,requestKey:'grocery-cross-0001'},8);assert.equal(cross.statusCode,200,cross.body);assert.equal(rpc(cross).result.isError,true);assert.doesNotMatch(cross.body,/Foreign private grocery/);
 
   const options=await call(token,'household.dinners.options.list',{},9);assert.equal(options.statusCode,200,options.body);assert.deepEqual(rpc(options).result.structuredContent.options.map((option:{id:string})=>option.id),[dinnerOptionId]);
+  const createdOption=await call(token,'household.dinners.options.create',{title:'Synthetic rice',emoji:'🍚',requestKey:'dinner-option-create-0001'},90);assert.equal(createdOption.statusCode,200,createdOption.body);const optionId=rpc(createdOption).result.structuredContent.option.id as string;
+  const optionAudit=await pool.query<{subject_type:string;subject_id:string;action:string}>(`SELECT subject_type,subject_id,action FROM audit_events WHERE household_id=$1 AND action='mcp.dinner_option_created' ORDER BY id DESC LIMIT 1`,[householdId]);assert.deepEqual(optionAudit.rows[0],{subject_type:'dinner_option',subject_id:optionId,action:'mcp.dinner_option_created'});
+  const editedOption=await call(token,'household.dinners.options.update',{id:optionId,title:'Synthetic rice bowl',expectedRevision:1,requestKey:'dinner-option-update-0001'},91);assert.equal(editedOption.statusCode,200,editedOption.body);
+  const removedOption=await call(token,'household.dinners.options.delete',{id:optionId,expectedRevision:2,requestKey:'dinner-option-delete-0001'},92);assert.equal(removedOption.statusCode,200,removedOption.body);
+
+  const integrationActor:IntegrationBoardActor={kind:'integration',id:'00000000-0000-4000-8000-000000000099',householdId,installationId:(await pool.query<{installation_id:string}>('SELECT installation_id FROM households WHERE id=$1',[householdId])).rows[0]!.installation_id,credentialId:'00000000-0000-4000-8000-000000000099',credentialRevision:0,capabilities:[]};
+  const directBoard=new HouseholdBoardService(async()=>{},async()=>{});
+  const optionCountBefore=(await pool.query<{count:number}>(`SELECT count(*)::int AS count FROM household_dinner_options WHERE household_id=$1`,[householdId])).rows[0]!.count;
+  await assert.rejects(directBoard.createDinnerOption(integrationActor,{title:'Synthetic rolled back',emoji:'🥣',requestKey:'dinner-audit-failure-0001'},async()=>{throw new Error('synthetic audit insert failure');}),/synthetic audit insert failure/);
+  assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int AS count FROM household_dinner_options WHERE household_id=$1`,[householdId])).rows[0]!.count,optionCountBefore,'audit failure rolls back option write');
+  let auditCalls=0,targetId='';
+  const committedOption=await directBoard.createDinnerOption(integrationActor,{title:'Synthetic audit replay',emoji:'🍜',requestKey:'dinner-audit-replay-0001'},async(_client,result)=>{auditCalls++;targetId=result.option.id;});
+  const replayedOption=await directBoard.createDinnerOption(integrationActor,{title:'Synthetic audit replay',emoji:'🍜',requestKey:'dinner-audit-replay-0001'},async()=>{auditCalls++;});
+  assert.equal(committedOption.option.id,targetId);assert.equal(replayedOption.option.id,targetId);assert.equal(auditCalls,1,'idempotent replay does not write a duplicate audit');
   const assigned=await call(token,'household.dinners.assign',{localDate:'2027-03-20',optionId:dinnerOptionId,expectedRevision:0,requestKey:'dinner-assign-0001'},10);assert.equal(assigned.statusCode,200,assigned.body);assert.equal(rpc(assigned).result.structuredContent.assignment.title,'Synthetic soup');assert.equal(rpc(assigned).result.structuredContent.assignment.revision,1);
   const assignedReplay=await call(token,'household.dinners.assign',{localDate:'2027-03-20',optionId:dinnerOptionId,expectedRevision:0,requestKey:'dinner-assign-0001'},11);assert.equal(assignedReplay.statusCode,200,assignedReplay.body);assert.equal(rpc(assignedReplay).result.structuredContent.assignment.revision,1);
   const cleared=await call(token,'household.dinners.assign',{localDate:'2027-03-20',optionId:null,expectedRevision:1,requestKey:'dinner-clear-0001'},12);assert.equal(cleared.statusCode,200,cleared.body);assert.equal(rpc(cleared).result.structuredContent.assignment.cleared,true);assert.equal(rpc(cleared).result.structuredContent.assignment.revision,2);

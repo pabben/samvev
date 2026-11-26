@@ -34,6 +34,7 @@ export interface HouseholdMcpToolRegistrar {
 export interface HouseholdMcpToolDependencies {
   transaction<T>(run: (client: DbClient) => Promise<T>): Promise<T>;
   boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner' | 'createDinnerOption' | 'updateDinnerOption' | 'deleteDinnerOption'>;
+  dinnerOptionAudit?: (client: DbClient, action: 'mcp.dinner_option_created' | 'mcp.dinner_option_updated' | 'mcp.dinner_option_deleted', optionId: string) => Promise<void>;
   messageService?: Pick<MessageService, 'create' | 'withdraw'>;
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
@@ -357,14 +358,14 @@ export function registerHouseholdTools(
   registrar.registerTool('household.dinners.options.create', {
     description: 'Create a dinner option using a durable request key for safe retries.', inputSchema: dinnerOptionCreateSchema,
     requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
-  }, async (raw) => boardService.createDinnerOption(boardActor, dinnerOptionCreateSchema.parse(raw)));
+  }, async (raw) => boardService.createDinnerOption(boardActor, dinnerOptionCreateSchema.parse(raw), dependencies.dinnerOptionAudit ? (client, result) => dependencies.dinnerOptionAudit!(client, 'mcp.dinner_option_created', result.option.id) : undefined));
 
   registrar.registerTool('household.dinners.options.update', {
     description: 'Update one dinner option using its current revision and a durable request key.', inputSchema: dinnerOptionUpdateInput,
     requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
     const { id, ...input } = dinnerOptionUpdateInput.parse(raw);
-    return boardService.updateDinnerOption(boardActor, id, input);
+    return boardService.updateDinnerOption(boardActor, id, input, dependencies.dinnerOptionAudit ? (client, result) => dependencies.dinnerOptionAudit!(client, 'mcp.dinner_option_updated', result.option.id) : undefined);
   });
 
   registrar.registerTool('household.dinners.options.delete', {
@@ -372,7 +373,7 @@ export function registerHouseholdTools(
     requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: true
   }, async (raw) => {
     const { id, ...input } = dinnerOptionDeleteInput.parse(raw);
-    return boardService.deleteDinnerOption(boardActor, id, input);
+    return boardService.deleteDinnerOption(boardActor, id, input, dependencies.dinnerOptionAudit ? (client, result) => dependencies.dinnerOptionAudit!(client, 'mcp.dinner_option_deleted', result.option.id) : undefined);
   });
 }
 
