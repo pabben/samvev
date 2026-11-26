@@ -69,10 +69,10 @@ export class HouseholdBoardService {
     const row=(await client.query(`UPDATE household_grocery_items SET label=COALESCE($3,label),checked=COALESCE($4,checked),revision=revision+1,updated_at=clock_timestamp()
       WHERE id=$1 AND household_id=$2 AND deleted_at IS NULL AND revision=$5 RETURNING id,label,checked,revision,created_at AS "createdAt",updated_at AS "updatedAt"`,[id,actor.householdId,input.label??null,input.checked??null,input.expectedRevision])).rows[0];if(!row)conflict();return{item:row};
   });}
-  deleteGrocery(actor:BoardActor,id:string,input:{expectedRevision:number;requestKey:string}){return this.mutate(actor,input.requestKey,{kind:'grocery.delete',id},'groceries',async(client)=>{
+  deleteGrocery(actor:BoardActor,id:string,input:{expectedRevision:number;requestKey:string},audit?:(client:DbClient,result:{item:{id:string;revision:number}})=>Promise<void>){return this.mutate(actor,input.requestKey,{kind:'grocery.delete',id},'groceries',async(client)=>{
     const row=(await client.query(`UPDATE household_grocery_items SET deleted_at=clock_timestamp(),revision=revision+1,updated_at=clock_timestamp()
       WHERE id=$1 AND household_id=$2 AND deleted_at IS NULL AND revision=$3 RETURNING id,revision`,[id,actor.householdId,input.expectedRevision])).rows[0];if(!row)conflict();return{item:row};
-  });}
+  },audit);}
 
   async listDinnerOptions(householdId:string){const rows=await pool.query(`SELECT id,title,emoji,revision FROM household_dinner_options WHERE household_id=$1 AND deleted_at IS NULL ORDER BY title,id LIMIT 100`,[householdId]);return{options:rows.rows};}
   async listDisplayDinnerOptions(actor:Extract<BoardActor,{kind:'display'}>){return transaction(async(client)=>{await this.authorizeActor(client,actor,'dinners',false);const rows=await client.query(`SELECT id,title,emoji,revision FROM household_dinner_options WHERE household_id=$1 AND deleted_at IS NULL ORDER BY title,id LIMIT 100`,[actor.householdId]);await this.authorizeActor(client,actor,'dinners',false);return{options:rows.rows};});}

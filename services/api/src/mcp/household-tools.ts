@@ -33,8 +33,9 @@ export interface HouseholdMcpToolRegistrar {
 }
 export interface HouseholdMcpToolDependencies {
   transaction<T>(run: (client: DbClient) => Promise<T>): Promise<T>;
-  boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner' | 'createDinnerOption' | 'updateDinnerOption' | 'deleteDinnerOption'>;
+  boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'deleteGrocery' | 'setDinner' | 'createDinnerOption' | 'updateDinnerOption' | 'deleteDinnerOption'>;
   dinnerOptionAudit?: (client: DbClient, action: 'mcp.dinner_option_created' | 'mcp.dinner_option_updated' | 'mcp.dinner_option_deleted', optionId: string) => Promise<void>;
+  groceryDeleteAudit?: (client: DbClient, action: 'mcp.grocery_deleted', itemId: string) => Promise<void>;
   messageService?: Pick<MessageService, 'create' | 'withdraw'>;
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
@@ -57,6 +58,7 @@ const personUpdateInput = z.object({
 }).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.colorToken !== undefined);
 const messageWithdrawInput = z.object({ messageId: uuid, expectedRevision: z.number().int().positive() }).strict();
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
+const groceryDeleteInput = z.object({ id: uuid, expectedRevision: groceryUpdateSchema.shape.expectedRevision, requestKey: groceryCreateSchema.shape.requestKey }).strict();
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
 const dinnerOptionUpdateInput = dinnerOptionUpdateSchema.extend({ id: uuid });
 const dinnerOptionDeleteInput = z.object({ id: uuid, expectedRevision: z.number().int().positive(), requestKey: dinnerOptionCreateSchema.shape.requestKey }).strict();
@@ -316,6 +318,18 @@ export function registerHouseholdTools(
     return boardService.updateGrocery(boardActor, id, input);
   });
 
+  registrar.registerTool('household.groceries.delete', {
+    description: 'Remove one grocery item using its current revision and a durable request key.', inputSchema: groceryDeleteInput,
+    requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: true
+  }, async (raw) => {
+    const { id, ...input } = groceryDeleteInput.parse(raw);
+    return boardService.deleteGrocery(boardActor, id, input, async (client, result) => {
+      if (dependencies.groceryDeleteAudit) return dependencies.groceryDeleteAudit(client, 'mcp.grocery_deleted', result.item.id);
+      await client.query(`INSERT INTO audit_events(installation_id,household_id,actor_type,actor_id,action,subject_type,subject_id)
+        VALUES($1,$2,'mcp',$3,'mcp.grocery_deleted','grocery_item',$4)`, [principal.installationId, principal.householdId, principal.grantId, result.item.id]);
+    });
+  });
+
   registrar.registerTool('household.dinners.list', {
     description: 'Read assigned dinners for a date range of at most 31 days, with explicit whole-household consent.', inputSchema: dinnersInput,
     requiredScopes: ['mcp:dinners:read'], readOnlyHint: true, destructiveHint: false
@@ -378,4 +392,4 @@ export function registerHouseholdTools(
 }
 
 /** Exported for focused authorization tests without registering an MCP server. */
-export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, dinnerAssignmentInput, dinnerOptionUpdateInput, dinnerOptionDeleteInput, personUpdateInput, messageWithdrawInput } as const;
+export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, groceryDeleteInput, dinnerAssignmentInput, dinnerOptionUpdateInput, dinnerOptionDeleteInput, personUpdateInput, messageWithdrawInput } as const;
