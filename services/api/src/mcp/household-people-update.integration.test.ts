@@ -73,7 +73,8 @@ test('MCP profile updates share member PATCH behavior and enforce grant, capabil
   const stale=await callUpdate(token,4,{personId:targetPersonId,displayName:'Stale profile write',expectedRevision:routeProfile.revision});assert.equal(stale.statusCode,200,stale.body);assert.equal(rpc(stale).result.isError,true);
   assert.equal((await pool.query<{display_name:string}>('SELECT display_name FROM persons WHERE id=$1',[targetPersonId])).rows[0]!.display_name,fields.displayName);
 
-  policy=await selectPerson(grant.id,policy.revision,[],['mcp:context']);
+  const currentGrant=(await pool.query<{revision:number}>('SELECT revision FROM mcp_oauth_grants WHERE id=$1',[grant.id])).rows[0]!;
+  policy=await selectPerson(grant.id,currentGrant.revision,[],['mcp:context']);
   const revoked=await callUpdate(token,5,{personId:targetPersonId,displayName:'Narrowed scope denied',expectedRevision:mcpProfile.revision});assert.equal(revoked.statusCode,401,revoked.body);
   const contextOnly=await authorize(3,'mcp:context');
   const noWrite=await callUpdate(contextOnly,6,{personId:targetPersonId,displayName:'Narrowed scope denied',expectedRevision:mcpProfile.revision});assert.equal(noWrite.statusCode,403,noWrite.body);assert.match(String(noWrite.headers['www-authenticate']),/mcp%3Apeople%3Awrite|mcp:people:write/);
