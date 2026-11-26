@@ -1,6 +1,6 @@
 # MCP operations and school-plan workflow
 
-Status: local candidate at `3e2d120`, with 24 tools; the public service remains on source `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. Migrations 049–059 and `/mcp` are not deployed publicly. Do not use the placeholder `https://samvev.pabben.org/mcp` as if it were live. Client compatibility and scheduled runs are unverified; see [MCP clients](MCP_CLIENTS.md) and the [MCP tool matrix](MCP_TOOL_MATRIX.md).
+Status: local candidate at `9e82648`, with 27 tools; the public service remains on source `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. Migrations 049–059 and `/mcp` are not deployed publicly. Do not use the placeholder `https://samvev.pabben.org/mcp` as if it were live. Client compatibility and scheduled runs are unverified; see [MCP clients](MCP_CLIENTS.md) and the [MCP tool matrix](MCP_TOOL_MATRIX.md).
 
 ## OAuth and resource policy
 
@@ -24,11 +24,17 @@ Migration 051 stores one bounded original PDF snapshot per plan and content revi
 
 `household.messages.withdraw` currently requests the same `mcp:messages:read` plus `mcp:messages:write` scopes and accepts a `messageId` and positive `expectedRevision`. The implementation attempts to cancel scheduled or withdraw published messages, checks author or current `message.manage.household`, denies household-wide-audience messages, checks person/display recipients against grants and member rights, and registers audit action `mcp.message_withdrawn` with the normal account-attributed lifecycle record. It is destructive and non-idempotent; no general message-edit tool is exposed. No separate withdrawal scope was added: it uses the existing write scope from migration 056.
 
-**Security status:** the latest security review found unresolved findings involving withdrawal consent, audit, and authorization/error boundaries. Do not treat the described checks as validated or enable this operation for public use until the code follow-up and independent re-review close those findings. No security pass is claimed for message withdrawal.
+**Security status:** the current security re-review closed the earlier withdrawal consent, audit, and authorization/error-boundary findings. This does not establish live client compatibility or public deployment.
 
 ## People profiles and display discovery
 
 `household.people.update` requires `mcp:people:write`, the delegated member's current `people.manage` capability, and an exact person grant on the OAuth authorization. The request supplies `expectedRevision` for compare-and-swap. MCP accepts only `displayName`, `avatarKey`, and/or `colorToken`; birth date and age group are deliberately excluded because they affect live account authorization predicates. The result contains only `{id, revision}`. It cannot change account, membership, role, or permissions. Migration 058 adds the people-write scope separately from people reads.
+
+## Dinner-option writes
+
+The local candidate registers `household.dinners.options.create`, `.update`, and `.delete` under `mcp:dinners:read` plus `mcp:dinners:write`, routed through the existing household-board service and its live `household.manage` authorization. Create uses a durable request key. Update and delete require the current option revision and a durable request key; delete removes the option from future choices while existing dinner assignments retain their saved title and emoji. Audit action names are `mcp.dinner_option_created`, `mcp.dinner_option_updated`, and `mcp.dinner_option_deleted`.
+
+**Security status:** the security review found new consent and audit findings in this tool expansion. Do not treat the current write behavior or audit mapping as approved for public use; code fixes and a fresh security re-review remain required. These tools use existing migrations/scopes and add no migration beyond 059.
 
 `household.displays.list` requires `mcp:displays:read`, current `display.manage`, and an exact active display grant. It returns only display ID/name, locale, theme, privacy mode, setup name, and creation timestamp. It does not return pairing data, credentials, controls, or an impersonation route. Migration 059 adds the display-read scope. Both tools are local-candidate only.
 
@@ -72,4 +78,4 @@ MCP is a user-delegated external client surface: the household administrator con
 
 ## Release checks still required
 
-The local candidate does not complete issue #33. Before public use, verify migrations 049–059 on a clean/restored database, exact OAuth metadata/redirect/resource/audience behavior, grant revocation and refresh replay, all 24 tool scopes and resource filters, board/message-write idempotency and recipient policy, message withdrawal consent/CAS/authorization/audit and error behavior after security findings are fixed and reviewed, restricted people-profile fields and revision CAS, display resource filtering, calendar/message audience filtering, PDF fetch bounds/revision fencing and browser fallback, UI/API/MCP parity, Home Assistant dashboard integration, and real-client interoperability. Synthetic paired-display hero QA at 1280×752 observed the greeting visible and school card below the fold; this is not a physical display or public-service test. Test scheduled invocation separately; MCP transport support alone does not establish it. No production deployment or live client test is claimed here.
+The local candidate does not complete issue #33. Before public use, verify migrations 049–059 on a clean/restored database, exact OAuth metadata/redirect/resource/audience behavior, grant revocation and refresh replay, all 27 tool scopes and resource filters, board/message-write idempotency and recipient policy, dinner-option write consent/idempotency/revision/audit after security fixes and re-review, message withdrawal CAS/authorization/audit, restricted people-profile fields and revision CAS, display resource filtering, calendar/message audience filtering, PDF fetch bounds/revision fencing and browser fallback, UI/API/MCP parity, Home Assistant dashboard integration, and real-client interoperability. Synthetic paired-display hero QA at 1280×752 observed the greeting visible and school card below the fold; this is not a physical display or public-service test. Test scheduled invocation separately; MCP transport support alone does not establish it. No production deployment or live client test is claimed here.
