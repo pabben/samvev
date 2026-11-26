@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 42 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 43 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 42 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 42);
+  assert.equal(tools.length, 43);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -112,6 +112,13 @@ test('MCP discovery advertises object output schemas for all 42 tools', async (t
   assert.equal(outputByName.get('household.displays.layout.update')?.additionalProperties, false);
   assert.deepEqual(outputByName.get('household.displays.setup.get')?.required, ['setup']);
   assert.equal(outputByName.get('household.displays.setup.get')?.additionalProperties, false);
+  const createProfile = outputByName.get('household.people.create_profile');
+  assert.deepEqual(createProfile?.required, ['creation']);
+  assert.equal(createProfile?.additionalProperties, false);
+  const profileCreation = createProfile?.properties.creation as { properties: Record<string, Record<string, unknown>>; required: string[]; additionalProperties?: boolean };
+  assert.deepEqual(profileCreation.required, ['personId', 'createdRevision', 'hadLoginAtCreation']);
+  assert.equal(profileCreation.additionalProperties, false);
+  assert.equal(profileCreation.properties.hadLoginAtCreation?.const, false);
   assert.deepEqual(outputByName.get('school.plans.get')?.required, ['plan']);
   assert.deepEqual(outputByName.get('school.plans.verify_pdf')?.required, ['result']);
 });

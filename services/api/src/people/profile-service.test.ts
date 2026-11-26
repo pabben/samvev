@@ -3,7 +3,7 @@ import test from 'node:test';
 import { DomainError } from '@samvev/core';
 import type { DbClient } from '../db.ts';
 import { deriveAgeGroup, localDateInTimezone } from './domain.ts';
-import { updatePersonProfile } from './profile-service.ts';
+import { insertPersonRow, updatePersonProfile } from './profile-service.ts';
 
 const householdId='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',personId='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
@@ -38,4 +38,19 @@ test('profile update cannot cross households and stale revision never emits upda
   const stale=fakeClient({updateSucceeds:false}),auditCalls:string[]=[];
   await assert.rejects(updatePersonProfile(stale.client,householdId,personId,{displayName:'Stale change',expectedRevision:1},async()=>{auditCalls.push('audit');}),(error:unknown)=>error instanceof DomainError&&error.status===409);
   assert.deepEqual(auditCalls,[]);
+});
+
+test('shared person row helper assigns a household color and inserts the same browser profile fields',async()=>{
+  const calls:Array<{sql:string;values?:unknown[]}>=[];
+  const client={async query(sql:string,values?:unknown[]){
+    calls.push({sql,values});
+    if(sql.includes('SELECT id FROM households'))return{rows:[{id:householdId}],rowCount:1};
+    if(sql.includes('SELECT color_token,count(*)::int AS count'))return{rows:[],rowCount:0};
+    if(sql.includes('INSERT INTO persons('))return{rows:[{id:personId}],rowCount:1};
+    throw new Error(`Unexpected insert profile SQL: ${sql}`);
+  }} as unknown as DbClient;
+  const inserted=await insertPersonRow(client,householdId,{displayName:'Synthetic browser profile',avatarKey:'avatar-01',ageGroup:'child',birthDate:'2015-01-01'});
+  assert.deepEqual(inserted,{id:personId});
+  assert.match(calls[0]!.sql,/FOR UPDATE/);
+  assert.deepEqual(calls.at(-1)!.values?.slice(0,5),[householdId,'Synthetic browser profile','avatar-01','child','2015-01-01']);
 });

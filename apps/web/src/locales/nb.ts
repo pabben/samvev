@@ -918,6 +918,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpScopeOffline: "Forbli tilkoblet mellom økter",
   mcpScopePeopleRead: "Lese husstandens personer",
   mcpScopePeopleWrite: "Oppdatere valgte personer i husstanden",
+  mcpScopePeopleCreate: "Opprette personprofiler i husstanden uten konto",
   mcpScopeDisplaysRead: "Lese valgte skjermer",
   mcpScopeDisplaysSetupRead: "Lese kortoppsett, rekkefølge, språk og tema for valgte skjermer. Krever også lesetilgang til skjermer.",
   mcpScopeDisplaysLayoutWrite: "Endre oppsett på valgte skjermer",

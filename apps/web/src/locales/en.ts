@@ -917,6 +917,7 @@ export const en = {
   mcpScopeOffline: "Stay connected between sessions",
   mcpScopePeopleRead: "Read household people",
   mcpScopePeopleWrite: "Update selected household people",
+  mcpScopePeopleCreate: "Create accountless household person profiles",
   mcpScopeDisplaysRead: "Read selected displays",
   mcpScopeDisplaysSetupRead: "Read the card layout, order, language, and theme of selected displays. Also requires display read access.",
   mcpScopeDisplaysLayoutWrite: "Change selected display layouts",

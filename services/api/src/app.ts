@@ -45,7 +45,7 @@ import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
 import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, birthdaysDueSoon, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
 import { assignPersonColor } from './people/person-colors.ts';
-import { updatePersonProfile } from './people/profile-service.ts';
+import { insertPersonRow, updatePersonProfile } from './people/profile-service.ts';
 import { normalizeProfilePhoto } from './people/photo.ts';
 import { schoolProvenanceJoins, schoolProvenanceColumns, schoolProjectionMetadata, type SchoolProvenanceRow } from './monitor/school-projection.ts';
 import { schoolHasPracticalActionsSql } from './monitor/practical-actions.ts';
@@ -1804,17 +1804,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const passwordHash=body.login?.loginMethod==='password'?await hashPassword(body.login.password!):null;
     const result = await transaction(async (client) => {
       await validateMessageAudience(client,auth,auth.capabilities,[],body.displayIds,false);
-      const colorToken=await assignPersonColor(client,auth.householdId);
-      const person = await client.query<{id:string}>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group,birth_date,color_token) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [auth.householdId,body.displayName,body.avatarKey??null,ageGroup,body.birthDate??null,colorToken]);
+      const person = await insertPersonRow(client,auth.householdId,{displayName:body.displayName,avatarKey:body.avatarKey,ageGroup,birthDate:body.birthDate});
       let accountId: string|null = null;
       if (body.login) {
         accountId = (await client.query<{id:string}>(`INSERT INTO accounts(installation_id,email_normalized,password_hash,locale,theme) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.installationId,body.login.email,passwordHash,body.login.locale,body.login.theme])).rows[0]!.id;
       }
-      const membership = await client.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,accountId,person.rows[0]!.id,body.rolePreset,JSON.stringify(desired)]);
+      const membership = await client.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES ($1,$2,$3,$4,$5) RETURNING id`, [auth.householdId,accountId,person.id,body.rolePreset,JSON.stringify(desired)]);
       if(accountId && invitationToken)await client.query(`INSERT INTO account_invitations(installation_id,household_id,account_id,token_hash,expires_at,created_by_account_id) VALUES($1,$2,$3,$4,clock_timestamp()+interval '7 days',$5)`,[auth.installationId,auth.householdId,accountId,tokenHash(invitationToken),auth.accountId]);
       for (const displayId of body.displayIds) await client.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES ($1,$2,$3)', [auth.householdId,membership.rows[0]!.id,displayId]);
-      await audit(client,auth,'person.created','person',person.rows[0]!.id,{ rolePreset: body.rolePreset, hasLogin: Boolean(body.login) });
-      return { personId: person.rows[0]!.id, membershipId: membership.rows[0]!.id, hasLogin: Boolean(body.login),invitationToken };
+      await audit(client,auth,'person.created','person',person.id,{ rolePreset: body.rolePreset, hasLogin: Boolean(body.login) });
+      return { personId: person.id, membershipId: membership.rows[0]!.id, hasLogin: Boolean(body.login),invitationToken };
     });
     return reply.status(201).send(result);
   });

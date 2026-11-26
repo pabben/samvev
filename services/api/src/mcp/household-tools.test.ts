@@ -24,7 +24,7 @@ class Tools implements HouseholdMcpToolRegistrar {
 test('all household tools publish meaningful output schemas that validate returned projections', () => {
   const tools = new Tools();
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run({ query: async () => ({ rows: [] }) } as unknown as DbClient) });
-  assert.equal(tools.options.size, 25);
+  assert.equal(tools.options.size, 26);
   for (const [name, options] of tools.options) {
     assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
     assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
@@ -36,12 +36,13 @@ test('all household tools publish meaningful output schemas that validate return
     'household.displays.layout.update': { layout: { displayId: principal.membershipId, setupVersion: 'a'.repeat(64), cards: ['family_layout'], cardOrder: ['family_layout'], familyLayoutEnabled: true } },
     'household.displays.appearance.update': { display: { id: principal.membershipId, name: 'Synthetic display', localeOverride: null, themeOverride: 'dark', appearanceRevision: 2 } },
     'household.people.update': { id: principal.membershipId, revision: 2 },
+    'household.people.create_profile': { creation: { personId: principal.membershipId, createdRevision: 1, hadLoginAtCreation: false } },
     'calendar.sources.list': { sources: [{ id: 'source-1', name: 'Synthetic calendar', provider: 'ics' }] },
     'calendar.events.create': { event: { id: principal.accountId, revision: 1 } },
     'calendar.events.update': { event: { id: principal.accountId, revision: 2 } },
     'calendar.events.delete': { event: { id: principal.accountId, revision: 3 } },
     'calendar.events.list': { events: [{ id: 'event-1', title: 'Synthetic event', description: null, startsAt: '2027-03-20T09:00:00.000Z', endsAt: null, allDay: false, sourceId: 'source-1', sourceName: 'Synthetic calendar' }] },
-    'household.people.list': { people: [{ id: 'person-1', displayName: 'Synthetic member', ageGroup: 'adult' }] },
+    'household.people.list': { people: [{ id: 'person-1', displayName: 'Synthetic member', ageGroup: 'adult' }, { id: 'person-2', displayName: 'Synthetic profile', ageGroup: 'unspecified' }] },
     'household.messages.list': { messages: [{ id: 'message-1', body: 'Synthetic message' }] },
     'household.messages.create': { message: { id: 'message-1' } },
     'household.messages.edit': { message: { id: principal.accountId, state: 'published', revision: 2 } },
@@ -58,6 +59,17 @@ test('all household tools publish meaningful output schemas that validate return
     'household.dinners.options.delete': { option: { id: 'option-1', revision: 2 } }
   };
   for (const [name, result] of Object.entries(samples)) assert.equal(tools.options.get(name)?.outputSchema.safeParse(result).success, true, `${name} accepts its returned output shape`);
+});
+
+test('MCP accountless profile tool has strict request, minimal output, and fresh create scope',()=>{
+  const tools=new Tools();
+  registerHouseholdTools(tools,context,{transaction:async <T>(run:(client:DbClient)=>Promise<T>)=>run({query:async()=>({rows:[]})} as unknown as DbClient)});
+  const options=tools.options.get('household.people.create_profile')!;
+  assert.deepEqual(options.requiredScopes,['mcp:people:create']);
+  assert.equal(options.idempotentHint,true);
+  assert.equal(options.inputSchema.safeParse({displayName:'Synthetic profile',requestKey:'11111111-1111-4111-8111-111111111111',ageGroup:'adult'}).success,false);
+  assert.equal(options.inputSchema.safeParse({displayName:'Synthetic profile',requestKey:'11111111-1111-4111-8111-111111111111'}).success,true);
+  assert.equal(options.outputSchema.safeParse({creation:{personId:principal.membershipId,createdRevision:1,hadLoginAtCreation:false,accountId:principal.accountId}}).success,false);
 });
 
 function dependencies(options: { allowed?: boolean; people?: unknown[] } = {}) {

@@ -3,9 +3,25 @@ import { personUpdateSchema } from '@samvev/contracts';
 import type { z } from 'zod';
 import type { DbClient } from '../db.ts';
 import { deriveAgeGroup, localDateInTimezone } from './domain.ts';
+import { assignPersonColor } from './person-colors.ts';
 
 export type PersonProfileUpdateInput = z.infer<typeof personUpdateSchema>;
 export type PersonProfileAudit = (client: DbClient, personId: string, fields: string[]) => Promise<void>;
+
+/** Insert the household-owned person row. assignPersonColor takes the
+ * household creation lock before reading colors, so every caller shares the
+ * same serialization point for color assignment and person creation. */
+export async function insertPersonRow(
+  client: DbClient,
+  householdId: string,
+  input: { displayName: string; avatarKey?: string | null; ageGroup: 'adult' | 'teen' | 'child' | 'unspecified'; birthDate?: string | null }
+): Promise<{ id: string }> {
+  const colorToken = await assignPersonColor(client, householdId);
+  const result = await client.query<{ id: string }>(`INSERT INTO persons(household_id,display_name,avatar_key,age_group,birth_date,color_token)
+    VALUES($1,$2,$3,$4,$5,$6) RETURNING id`,
+  [householdId, input.displayName, input.avatarKey ?? null, input.ageGroup, input.birthDate ?? null, colorToken]);
+  return result.rows[0]!;
+}
 
 /** Shared member/MCP profile update. Callers enforce their own live actor and
  * resource policy, and provide the actor-specific audit writer. */

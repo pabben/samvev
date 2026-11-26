@@ -10,6 +10,7 @@ import { localDateInTimezone } from '../people/domain.ts';
 import { messageService, type MessageCreateActor, type MessageEditAudit, type MessageService, type MessageWithdrawAudit } from '../messages/service.ts';
 import { hasNativeCalendarGrant, NATIVE_CALENDAR_NAME, registerCalendarWriteTools } from './calendar-write.ts';
 import { updatePersonProfile, type PersonProfileAudit } from '../people/profile-service.ts';
+import { createMcpPersonProfile } from './people-create.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
  * still authoritative: every invocation rechecks the grant and membership. */
@@ -114,7 +115,7 @@ const displayLayoutWriteOutput = displaySetupLayoutSchema.safeExtend({ displayId
 type DisplayAssignment = { setup_id: string; setup_assignment_revision: string };
 type DisplaySetup = Omit<z.infer<typeof displaySetupOutput>, 'setupVersion'>;
 type DisplayLayout = z.infer<typeof displaySetupLayoutSchema>;
-const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult']) });
+const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult', 'unspecified']) });
 const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50), writable: z.boolean().optional() });
 const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), revision: revisionOutput.optional(), writable: z.boolean().optional(), personIds: z.array(z.uuid()).max(50).optional(), location: z.string().max(160).optional() });
 const groceryOutput = z.object({ id: idOutput, label: z.string().min(1).max(200), checked: z.boolean(), revision: revisionOutput, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
@@ -132,7 +133,7 @@ const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, stat
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displayLayoutWriteScopes[number];
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:people:create' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displayLayoutWriteScopes[number];
 type Capability = MemberCapability;
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[];calendarWriteAllowed:boolean}> {
@@ -431,6 +432,18 @@ export function registerHouseholdTools(
         (auditClient, updatedPersonId, fields) => dependencies.personProfileAudit!(auditClient, updatedPersonId, fields));
       return { id: updated.id, revision: updated.revision };
     });
+  });
+
+  registrar.registerTool('household.people.create_profile', {
+    description: 'Create a basic accountless household person profile. The profile has unspecified age and household viewing only; it receives no login, invitation, display access, or MCP person grant.',
+    inputSchema: z.strictObject({ displayName: nameSchema, requestKey: uuid }),
+    outputSchema: z.strictObject({ creation: z.strictObject({ personId: uuid, createdRevision: z.literal(1), hadLoginAtCreation: z.literal(false) }) }),
+    requiredScopes: ['mcp:people:create'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
+  }, async (raw) => {
+    const input = z.strictObject({ displayName: nameSchema, requestKey: uuid }).parse(raw);
+    return dependencies.transaction((client) => createMcpPersonProfile(client, principal, input, async () => {
+      await assertLiveAuthority(client, principal, ['mcp:people:create'], 'people.manage');
+    }));
   });
 
   registrar.registerTool('calendar.sources.list', {
