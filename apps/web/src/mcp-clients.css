@@ -29,3 +29,4 @@
 .mcp-policy-actions{display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap}
 .mcp-endpoint-copy .button{flex:0 0 auto}
 @media(max-width:520px){.mcp-endpoint-copy{align-items:stretch;flex-direction:column}.mcp-endpoint-copy .button{justify-content:center}.mcp-authorization-title{flex-wrap:wrap}}
+@media(max-width:640px){.mcp-policy :is(input,button,a,[tabindex]){scroll-margin-block-end:calc(6.5rem + env(safe-area-inset-bottom))}}
