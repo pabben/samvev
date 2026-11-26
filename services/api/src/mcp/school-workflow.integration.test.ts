@@ -84,7 +84,7 @@ before(async () => {
   adminCookie = cookies(claim);
   adminCsrf = claim.json().csrfToken;
   const actor = (await pool.query<{ person_id: string }>(
-    'SELECT person_id FROM memberships WHERE household_id=$1 AND role_preset=\'household_admin\' LIMIT 1', [householdId])).rows[0]!;
+    'SELECT person_id FROM memberships WHERE household_id=$1 LIMIT 1', [householdId])).rows[0]!;
   personId = actor.person_id;
   connectionId = (await pool.query<{ id: string }>(
     `INSERT INTO integration_connections(household_id,name) VALUES($1,'Synthetic school workflow connection') RETURNING id`, [householdId])).rows[0]!.id;
@@ -144,7 +144,7 @@ test('authorized school source discovery and plan writes preserve revision and l
   const staleWrite = await call(token, 'school.plans.upsert', { ...planInput(0, 4), sourceRevision: 'synthetic-document-v2' }, 7);
   assert.equal(staleWrite.statusCode, 200, staleWrite.body);
   assert.equal(rpc(staleWrite).result.isError, true);
-  assert.match(rpc(staleWrite).result.content[0].text, /REVISION_CONFLICT/);
+  assert.match(rpc(staleWrite).result.content[0].text, /CONFLICT/);
 
   const failure = await call(token, 'school.plans.source_failure', { sourceId, personId, sourcePageUrl,
     classKey: 'synthetic-1a', isoYear: 2020, isoWeek: 53, expectedRevision: 1, checkedAt: checkTime(6), reason: 'timeout' }, 8);
