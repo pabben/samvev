@@ -5,7 +5,7 @@ import type { Display, MonitorExecution, MonitorRunResult, MonitorSource, Monito
 import type { TranslationKey } from "./locales/en";
 import { Field, Icon, Loading, useI18n } from "./ui";
 import { formatDate } from "./time";
-import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorResultNoticeKey, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
+import { isWeatherSource, locationCandidates, monitorIncompleteHintKey, monitorPresentationUpdateBody, monitorResultNotice, monitorResultNoticeKey, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from "./monitor-presentation";
 
 interface Draft {
   name: string; instruction: string; sourceUrl: string;
@@ -316,7 +316,7 @@ export function MonitorsPanel({ householdId, timezone, people, displays, initial
         <p className="monitor-stats">{t('monitorStats', { checks: task.stats.checks, ai: task.stats.aiCalls })}</p>
         {errorNotice(task.id)}{!working && !task.latestExecution?.errorCode && task.errorCode && error?.taskId !== task.id && <p className="notice error" role="alert">{t(taskErrorKey(task.errorCode))}</p>}
         {working && <div className="notice monitor-progress" id={`monitor-working-${task.id}`} role="status"><p className="monitor-progress-stage"><span className="spinner monitor-progress-spinner" aria-hidden="true" /><strong>{t(durableWorking ? stageKey : 'monitorStarting')}</strong></p>{durableWorking && execution?.usesLocalAi && <p>{t('monitorLocalWork')}</p>}{durableWorking && execution && <p>{t('monitorExpectedDuration', { minimum: Math.max(1, Math.ceil(execution.expectedDurationSeconds / 150)), minutes: Math.max(1, Math.ceil(execution.expectedDurationSeconds / 60)) })}</p>}{execution?.id && <p>{t('monitorLeavePage')}</p>}</div>}
-        {!working && lifecycle.status === 'incomplete' && <p className="field-hint">{lifecycle.actions.test.reason === 'targets_invalid' ? t(blockedReason('targets_invalid'), task.lastCheckedAt ? { time: formatDate(task.lastCheckedAt, locale, timezone) } : undefined) : t('monitorIncompleteHint')}</p>}
+        {!working && lifecycle.status === 'incomplete' && <p className="field-hint">{t(monitorIncompleteHintKey(task,lifecycle.actions.test.reason),task.lastCheckedAt ? { time: formatDate(task.lastCheckedAt, locale, timezone) } : undefined)}</p>}
         {!working && lifecycle.status === 'setup_failed' && <p className="field-hint">{t('monitorSetupFailedHint')}</p>}
         {!working && lifecycle.status === 'ready_for_approval' && !can('approve') && <p className="notice" id={`monitor-approve-reason-${task.id}`}>{t(blockedReason(lifecycle.actions.approve.reason))}</p>}
         <div className="card-actions monitor-actions" aria-busy={working}>

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ApiError } from '../src/api.ts';
-import { isWeatherSource, locationCandidates, monitorPresentationUpdateBody, monitorResultNotice, monitorResultNoticeKey, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
+import { isWeatherSource, locationCandidates, monitorIncompleteHintKey, monitorPresentationUpdateBody, monitorResultNotice, monitorResultNoticeKey, monitorValidationIssues, placeLabel, shouldShowAnswerEvidence, taskErrorKey } from '../src/monitor-presentation.ts';
 import { en } from '../src/locales/en.ts';
 import { nb } from '../src/locales/nb.ts';
 
@@ -33,6 +33,15 @@ test('stored owner authorization failures stay distinct from the current actor p
   assert.match(en.displayEmptyBody, /calendars.*household.*home/i);
   assert.match(nb.displayEmptyBody, /Kalendere.*husstand.*hjem/i);
   assert.ok(en.monitorSourceEvidence); assert.ok(nb.monitorSourceEvidence);
+});
+
+test('recipient-free drafts show direct completion copy instead of an unavailable-target error',()=>{
+  const recipientFree={targets:{personIds:[],displayIds:[]},lastCheckedAt:null};
+  assert.equal(monitorIncompleteHintKey(recipientFree,'targets_invalid'),'monitorRecipientsRequiredHint');
+  assert.equal(en.monitorRecipientsRequiredHint,'Edit this draft to choose at least one person or display.');
+  assert.equal(nb.monitorRecipientsRequiredHint,'Rediger dette utkastet og velg minst én person eller skjerm.');
+  assert.equal(monitorIncompleteHintKey({targets:{personIds:['person'],displayIds:[]},lastCheckedAt:null},'targets_invalid'),'monitorErrorTargets');
+  assert.equal(monitorIncompleteHintKey({targets:{personIds:[],displayIds:['display']},lastCheckedAt:'2030-01-01T00:00:00Z'},'targets_invalid'),'monitorErrorTargetsChecked');
 });
 
 test('ambiguity projects only bounded, human-readable place fields', () => {

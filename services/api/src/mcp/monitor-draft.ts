@@ -7,7 +7,7 @@ import { createRecipientFreeMonitorDraft, type MonitorActor } from '../monitor/s
 import type { McpPrincipal } from './service.ts';
 
 export const monitorDraftCreateInputSchema=monitorRecipientFreeDraftCreateSchema.extend({
-  requestKey:z.string().min(8).max(128)
+  requestKey:z.uuid()
 }).strict();
 
 export const monitorDraftCreateOutputSchema=z.strictObject({
@@ -62,23 +62,28 @@ function canonicalPayload(input:DraftInput){
 export async function createMcpMonitorDraft(principal:McpPrincipal,raw:unknown,deps:Dependencies):Promise<DraftOutput>{
   const input=monitorDraftCreateInputSchema.parse(raw);
   const {requestKey,...draftInput}=input;
+  // The legacy request_key column stores only this digest, never the client UUID.
+  const requestKeyHash=createHash('sha256').update(requestKey).digest('hex');
   const requestHash=createHash('sha256').update(JSON.stringify(canonicalPayload(input))).digest('hex');
   return deps.transaction(async client=>{
-    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`monitor-draft:${principal.grantId}:${requestKey}`]);
+    await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[`monitor-draft-grant:${principal.grantId}`]);
     const actor=await assertMcpMonitorDraftWriteAuthority(client,principal);
     const receipt=(await client.query<{request_hash:string;task_id:string;task_revision:number}>(`SELECT request_hash,task_id,task_revision
       FROM mcp_monitor_draft_requests WHERE household_id=$1 AND grant_id=$2 AND request_key=$3`,[
-      principal.householdId,principal.grantId,requestKey
+      principal.householdId,principal.grantId,requestKeyHash
     ])).rows[0];
     if(receipt){
       if(receipt.request_hash!==requestHash)throw new DomainError('CONFLICT',409,{reason:'idempotency_payload_mismatch'});
       await assertMcpMonitorDraftWriteAuthority(client,principal);
       return{creation:{taskId:receipt.task_id,createdRevision:receipt.task_revision,createdAs:'draft',recipientCountAtCreation:0,requiresBrowserCompletion:true}};
     }
+    const recentReceipts=(await client.query<{count:number}>(`SELECT count(*)::int AS count FROM mcp_monitor_draft_requests
+      WHERE grant_id=$1 AND created_at>=clock_timestamp()-interval '24 hours'`,[principal.grantId])).rows[0]?.count??0;
+    if(recentReceipts>=50)throw new DomainError('RATE_LIMITED',429,{reason:'mcp_monitor_draft_daily_limit'});
     const draft=await createRecipientFreeMonitorDraft(client,actor,draftInput);
     await deps.audit(client,draft.id,draft.revision);
     await client.query(`INSERT INTO mcp_monitor_draft_requests(household_id,grant_id,request_key,request_hash,task_id,task_revision)
-      VALUES($1,$2,$3,$4,$5,$6)`,[principal.householdId,principal.grantId,requestKey,requestHash,draft.id,draft.revision]);
+      VALUES($1,$2,$3,$4,$5,$6)`,[principal.householdId,principal.grantId,requestKeyHash,requestHash,draft.id,draft.revision]);
     await assertMcpMonitorDraftWriteAuthority(client,principal);
     return{creation:{taskId:draft.id,createdRevision:draft.revision,createdAs:'draft',recipientCountAtCreation:0,requiresBrowserCompletion:true}};
   });

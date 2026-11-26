@@ -73,8 +73,9 @@ let release;
 function presented(task) {
   const status = task.activeExecution ? 'running' : task.lifecycleStatus ?? (task.state === 'draft' ? task.interpretedRule ? 'ready_for_approval' : task.errorCode ? 'setup_failed' : 'incomplete' : task.state);
   const setupComplete = !['incomplete', 'setup_failed'].includes(status) && Boolean(task.interpretedRule);
+  const targetsPresent = task.targets.personIds.length + task.targets.displayIds.length > 0;
   const allowed = status === 'running' ? ['refresh'] : ['edit', 'delete',
-    ...(status === 'incomplete' || status === 'setup_failed' ? ['interpret'] : []),
+    ...((status === 'incomplete' || status === 'setup_failed') && targetsPresent ? ['interpret'] : []),
     ...(status === 'ready_for_approval' ? ['test', 'approve', 'smarter', 'interpret'] : []),
     ...(status === 'active' ? ['run', 'pause', 'smarter', 'quality'] : []),
     ...(status === 'paused' ? ['test', 'resume', 'smarter', 'quality'] : []),
@@ -306,6 +307,13 @@ try {
   // Approval is independent of Test now, and errors/deletion never strand a draft.
   const template = { id: taskId, name: 'Tilstandstest', instruction: 'Finn overskriften fra https://example.com/news.', sourceUrl, state: 'draft', checkIntervalMinutes: 60, noticeDaysBefore: 1, noticeLocalTime: '18:00', providerPolicy: 'local', modelTier: 'routine', targets: { personIds: [], displayIds: ['50000000-0000-4000-8000-000000000001'] }, interpretedRule: rule, events: [], revision: 1, approvedRevision: null, lastCheckedAt: null, nextCheckAt: null, lastResult: null, lastChangedAt: null, errorCode: null, stats: { checks: 0, aiCalls: 0, unchanged: 0 } };
   const showTasks = async (values) => { tasks = values; await page.reload(); await navigate(); };
+  await showTasks([{ ...template, targets: { personIds: [], displayIds: [] }, interpretedRule: null, lifecycleStatus: 'incomplete' }]);
+  await expect(card()).toContainText('Rediger dette utkastet og velg minst én person eller skjerm.');
+  await expect(button('Lag oppsett fra forespørselen')).toHaveCount(0);
+  await button('Endre').click();
+  await page.getByLabel('Testeier', { exact: true }).check();
+  await panel().getByRole('button', { name: 'Lagre utkast', exact: true }).click();
+  await expect(button('Lag oppsett fra forespørselen')).toBeEnabled();
   await showTasks([{ ...template }]);
   await expect(button('Test nå')).toBeEnabled(); await expect(button('Godkjenn og aktiver')).toBeEnabled();
   const beforeApproval = calls.length;

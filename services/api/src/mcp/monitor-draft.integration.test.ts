@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import test, { after, before } from 'node:test';
 import { CLIENT_CAPABILITIES_META_KEY, CLIENT_INFO_META_KEY, PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server';
 import { tokenHash } from '@samvev/core';
@@ -7,6 +7,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.ts';
 import { pool, transaction } from '../db.ts';
 import { migrate } from '../db/migrate.ts';
+import { MonitorService } from '../monitor/service.ts';
 import { assertMcpMonitorDraftWriteAuthority } from './monitor-draft.ts';
 import type { McpPrincipal } from './service.ts';
 
@@ -38,8 +39,9 @@ async function authorize(clientId:string,scope:string){
   assert.equal(exchanged.statusCode,200,exchanged.body);return exchanged.json().access_token as string;
 }
 
-function validInput(requestKey='monitor-draft-request-0001'){
-  return{requestKey,name:'Synthetic source draft',instruction:'Check the synthetic public source for useful updates.',sourceUrl:'https://example.test.invalid/monitor',checkIntervalMinutes:60,noticeDaysBefore:1,noticeLocalTime:'18:00',providerPolicy:'default',modelTier:'routine'};
+function requestKey(sequence:number){return`00000000-0000-4000-8000-${String(sequence).padStart(12,'0')}`;}
+function validInput(key=requestKey(1)){
+  return{requestKey:key,name:'Synthetic source draft',instruction:'Check the synthetic public source for useful updates.',sourceUrl:'https://example.test.invalid/monitor',checkIntervalMinutes:60,noticeDaysBefore:1,noticeLocalTime:'18:00',providerPolicy:'default',modelTier:'routine'};
 }
 
 before(async()=>{
@@ -55,9 +57,9 @@ after(async()=>{await app.close();await pool.end();});
 
 test('monitor draft write requires both exact scopes and stores one inert, replay-safe draft that the browser can finish',async()=>{
   const readOnly=await authorize(await client('Synthetic read-only monitor client'),'mcp:monitors:read');
-  const readDenied=await call(readOnly,validInput('read-only-request-0001'),1);assert.equal(readDenied.statusCode,403,readDenied.body);assert.match(String(readDenied.headers['www-authenticate']),/insufficient_scope/);
+  const readDenied=await call(readOnly,validInput(requestKey(2)),1);assert.equal(readDenied.statusCode,403,readDenied.body);assert.match(String(readDenied.headers['www-authenticate']),/insufficient_scope/);
   const writeOnly=await authorize(await client('Synthetic write-only monitor client'),'mcp:monitors:draft:write');
-  const writeDenied=await call(writeOnly,validInput('write-only-request-0001'),2);assert.equal(writeDenied.statusCode,403,writeDenied.body);assert.match(String(writeDenied.headers['www-authenticate']),/insufficient_scope/);
+  const writeDenied=await call(writeOnly,validInput(requestKey(3)),2);assert.equal(writeDenied.statusCode,403,writeDenied.body);assert.match(String(writeDenied.headers['www-authenticate']),/insufficient_scope/);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_tasks`)).rows[0].count,0);
 
   const clientId=await client('Synthetic monitor draft writer');
@@ -71,9 +73,10 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
     scopes:['mcp:monitors:read','mcp:monitors:draft:write'],expiresAt:new Date(Date.now()+60_000)};
   await assert.rejects(()=>transaction(client=>assertMcpMonitorDraftWriteAuthority(client,{...forgedPrincipal,installationId:'77777777-7777-4777-8777-777777777777'})),(error:any)=>error.code==='FORBIDDEN');
   const invalidInputs=[
-    {...validInput('missing-source-request-0001'),sourceUrl:undefined,instruction:'Remember to check for useful updates later.'},
-    {...validInput('blocked-source-request-0001'),sourceUrl:'https://example.test.invalid/monitor?api%2Dkey=must-not-survive'},
-    {...validInput('recipient-injection-request-0001'),targets:{personIds:[personId],displayIds:[]}}
+    {...validInput(requestKey(4)),sourceUrl:undefined,instruction:'Remember to check for useful updates later.'},
+    {...validInput(requestKey(5)),sourceUrl:'https://example.test.invalid/monitor?api%2Dkey=must-not-survive'},
+    {...validInput(requestKey(6)),targets:{personIds:[personId],displayIds:[]}},
+    {...validInput(requestKey(9)),requestKey:'client-readable-request-key'}
   ];
   for(const [index,input] of invalidInputs.entries()){
     const response=await call(token,input,10+index);assert.equal(rpc(response).result.isError,true,response.body);
@@ -84,7 +87,7 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
 
   const originalCapabilities=(await pool.query<{capabilities:string[]}>(`SELECT capabilities FROM memberships WHERE id=$1`,[membershipId])).rows[0]!.capabilities;
   await pool.query(`UPDATE memberships SET capabilities=capabilities-'message.schedule' WHERE id=$1`,[membershipId]);
-  const narrowed=await call(token,validInput('missing-capability-request-0001'),19);
+  const narrowed=await call(token,validInput(requestKey(7)),19);
   await pool.query(`UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1`,[membershipId,JSON.stringify(originalCapabilities)]);
   assert.equal(rpc(narrowed).result.isError,true,narrowed.body);assert.match(rpc(narrowed).result.content[0].text,/FORBIDDEN/);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_tasks`)).rows[0].count,0);
@@ -106,10 +109,23 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
   assert.equal((await pool.query(`SELECT count(*)::int count FROM messages`)).rows[0].count,0);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ai_usage_events`)).rows[0].count,0);
 
+  const actor={accountId:authority.account_id,installationId:authority.installation_id,householdId,membershipId,capabilities:originalCapabilities as any};
+  await assert.rejects(()=>new MonitorService().interpret(actor,creation.taskId,1),(error:any)=>error.code==='MONITOR_SETUP_REQUIRED'&&error.status===422,'the worker path rejects before claiming or interpreting a recipient-free draft');
+  const rejectedInterpret=await inject({method:'POST',url:`/api/v1/households/${householdId}/monitors/${creation.taskId}/interpret`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{expectedRevision:1}});
+  assert.equal(rejectedInterpret.statusCode,422,rejectedInterpret.body);assert.equal(rejectedInterpret.json().error.code,'MONITOR_SETUP_REQUIRED');
+  const inertAfterInterpret=(await pool.query<any>(`SELECT revision,error_code,lease_token,
+      (SELECT count(*)::int FROM monitor_runs WHERE task_id=monitor_tasks.id) runs,
+      (SELECT count(*)::int FROM monitor_executions WHERE task_id=monitor_tasks.id) executions,
+      (SELECT count(*)::int FROM monitor_tool_audits WHERE task_id=monitor_tasks.id) tool_audits
+    FROM monitor_tasks WHERE id=$1`,[creation.taskId])).rows[0]!;
+  assert.deepEqual(inertAfterInterpret,{revision:1,error_code:null,lease_token:null,runs:0,executions:0,tool_audits:0});
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM messages`)).rows[0].count,0);
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM ai_usage_events`)).rows[0].count,0);
+
   const replay=await call(token,validInput(),21);assert.deepEqual(rpc(replay).result.structuredContent.creation,creation);
   const mismatch=await call(token,{...validInput(),instruction:'Check the synthetic public source for different updates.'},22);
   assert.equal(rpc(mismatch).result.isError,true,mismatch.body);assert.match(rpc(mismatch).result.content[0].text,/CONFLICT/);
-  const concurrentKey='monitor-draft-concurrent-0001';
+  const concurrentKey=requestKey(8);
   const concurrent=await Promise.all([call(token,validInput(concurrentKey),23),call(token,validInput(concurrentKey),24)]);
   assert.equal(new Set(concurrent.map(response=>rpc(response).result.structuredContent.creation.taskId)).size,1);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_tasks`)).rows[0].count,2);
@@ -118,9 +134,9 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
 
   const listed=await inject({method:'GET',url:`/api/v1/households/${householdId}/monitors`,headers:{cookie:adminCookie}});
   assert.equal(listed.statusCode,200,listed.body);const browserDraft=listed.json().tasks.find((task:any)=>task.id===creation.taskId);
-  assert.equal(browserDraft.lifecycle.status,'incomplete');assert.equal(browserDraft.lifecycle.actions.edit.enabled,true);assert.deepEqual(browserDraft.targets,{personIds:[],displayIds:[]});
+  assert.equal(browserDraft.lifecycle.status,'incomplete');assert.equal(browserDraft.lifecycle.actions.interpret.enabled,false);assert.equal(browserDraft.lifecycle.actions.interpret.reason,'setup_required');assert.equal(browserDraft.lifecycle.actions.edit.enabled,true);assert.deepEqual(browserDraft.targets,{personIds:[],displayIds:[]});
   const edited=await inject({method:'PATCH',url:`/api/v1/households/${householdId}/monitors/${creation.taskId}`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{expectedRevision:1,targets:{personIds:[personId],displayIds:[]}}});
-  assert.equal(edited.statusCode,200,edited.body);assert.deepEqual(edited.json().targets,{personIds:[personId],displayIds:[]});assert.equal(edited.json().state,'draft');assert.equal(edited.json().approvedRevision,null);assert.equal(edited.json().nextCheckAt,null);
+  assert.equal(edited.statusCode,200,edited.body);assert.deepEqual(edited.json().targets,{personIds:[personId],displayIds:[]});assert.equal(edited.json().state,'draft');assert.equal(edited.json().approvedRevision,null);assert.equal(edited.json().nextCheckAt,null);assert.equal(edited.json().lifecycle.actions.interpret.enabled,true);
   const current=await callTool(token,'samvev_monitor_get',{taskId:creation.taskId},25);
   assert.equal(rpc(current).result.structuredContent.task.revision,2,current.body);
   assert.equal(rpc(current).result.structuredContent.task.state,'draft');
@@ -132,6 +148,22 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
   const afterDeleteReplay=await call(token,validInput(),27);
   assert.deepEqual(rpc(afterDeleteReplay).result.structuredContent.creation,creation,'replay returns only the historical creation receipt');
   assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_tasks WHERE id=$1`,[creation.taskId])).rows[0].count,0,'replay after browser deletion never recreates the task');
+  const persistedKey=(await pool.query<{request_key:string}>(`SELECT request_key FROM mcp_monitor_draft_requests WHERE grant_id=$1 AND task_id=$2`,[authority.grant_id,creation.taskId])).rows[0]!.request_key;
+  assert.match(persistedKey,/^[a-f0-9]{64}$/);assert.notEqual(persistedKey,validInput().requestKey,'plaintext request keys never survive in durable receipts');
+
+  const existingReceipts=(await pool.query<{count:number}>(`SELECT count(*)::int count FROM mcp_monitor_draft_requests WHERE grant_id=$1 AND created_at>=clock_timestamp()-interval '24 hours'`,[authority.grant_id])).rows[0]!.count;
+  const seedCount=49-existingReceipts;assert.ok(seedCount>=0);
+  if(seedCount){const keyHashes=Array.from({length:seedCount},(_,index)=>createHash('sha256').update(randomUUID()).digest('hex'));const taskIds=keyHashes.map(()=>randomUUID());await pool.query(`INSERT INTO mcp_monitor_draft_requests(household_id,grant_id,request_key,request_hash,task_id,task_revision)
+      SELECT $1,$2,key_hash,$3,task_id,1 FROM unnest($4::text[],$5::uuid[]) AS seeded(key_hash,task_id)`,[householdId,authority.grant_id,createHash('sha256').update('{}').digest('hex'),keyHashes,taskIds]);}
+  assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM mcp_monitor_draft_requests WHERE grant_id=$1 AND created_at>=clock_timestamp()-interval '24 hours'`,[authority.grant_id])).rows[0]!.count,49);
+  const beforeQuotaTasks=(await pool.query<{count:number}>(`SELECT count(*)::int count FROM monitor_tasks`)).rows[0]!.count;
+  const quotaRace=await Promise.all([call(token,validInput(requestKey(49)),28),call(token,validInput(requestKey(50)),29)]);
+  const accepted=quotaRace.filter(response=>rpc(response).result.structuredContent?.creation);const limited=quotaRace.filter(response=>rpc(response).result.isError);
+  assert.equal(accepted.length,1,'the per-grant advisory lock admits only the fiftieth unique receipt');assert.equal(limited.length,1);assert.match(rpc(limited[0]!).result.content[0].text,/RATE_LIMITED/);
+  assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM mcp_monitor_draft_requests WHERE grant_id=$1 AND created_at>=clock_timestamp()-interval '24 hours'`,[authority.grant_id])).rows[0]!.count,50);
+  assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int count FROM monitor_tasks`)).rows[0]!.count,beforeQuotaTasks+1);
+  const quotaReplay=await call(token,validInput(accepted[0]===quotaRace[0]?requestKey(49):requestKey(50)),31);
+  assert.deepEqual(rpc(quotaReplay).result.structuredContent.creation,rpc(accepted[0]!).result.structuredContent.creation,'idempotent replay remains allowed at the quota');
 });
 
 test('monitor draft creation waits for and rejects concurrent grant revocation without mutation',async()=>{
@@ -142,7 +174,7 @@ test('monitor draft creation waits for and rejects concurrent grant revocation w
   const revoker=await pool.connect();let open=false;let pending:ReturnType<typeof call>|undefined;
   try{
     await revoker.query('BEGIN');open=true;await revoker.query('UPDATE mcp_oauth_grants SET revoked_at=clock_timestamp() WHERE id=$1',[grant.id]);
-    pending=call(token,validInput('revocation-race-request-0001'),30);
+    pending=call(token,validInput(requestKey(60)),40);
     let blocked=false;
     for(let attempt=0;attempt<500;attempt++){
       const activity=await pool.query<{blocked:boolean}>(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database()

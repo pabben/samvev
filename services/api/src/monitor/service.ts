@@ -215,6 +215,7 @@ export const selectMonitorTask=`SELECT t.*,
  ((t.lease_token IS NOT NULL AND t.lease_expires_at>clock_timestamp()) OR EXISTS(SELECT 1 FROM monitor_executions x WHERE x.task_id=t.id AND x.status IN ('queued','running'))) AS lease_active,
  (SELECT jsonb_build_object('id',x.id,'taskId',x.task_id,'taskRevision',x.task_revision,'kind',x.kind,'status',x.status,'progress',jsonb_build_object('stage',x.progress_stage,'updatedAt',x.progress_updated_at),'usesLocalAi',(x.provider_snapshot='openai_compatible'),'expectedDurationSeconds',x.expected_duration_seconds,'queuedAt',x.queued_at,'startedAt',x.started_at,'completedAt',x.completed_at,'resultSummary',x.result_summary,'errorCode',x.error_code,'errorDetails',x.error_details,'timeoutReason',x.timeout_reason) FROM monitor_executions x WHERE x.task_id=t.id AND x.task_revision=t.revision AND x.status IN ('queued','running') ORDER BY x.created_at DESC LIMIT 1) AS active_execution,
  (SELECT jsonb_build_object('id',x.id,'taskId',x.task_id,'taskRevision',x.task_revision,'kind',x.kind,'status',x.status,'progress',jsonb_build_object('stage',x.progress_stage,'updatedAt',x.progress_updated_at),'usesLocalAi',(x.provider_snapshot='openai_compatible'),'expectedDurationSeconds',x.expected_duration_seconds,'queuedAt',x.queued_at,'startedAt',x.started_at,'completedAt',x.completed_at,'resultSummary',x.result_summary,'errorCode',x.error_code,'errorDetails',x.error_details,'timeoutReason',x.timeout_reason) FROM monitor_executions x WHERE x.task_id=t.id AND (x.task_revision=t.revision OR (x.kind='interpretation' AND x.status='succeeded' AND x.task_revision=t.revision-1)) ORDER BY x.created_at DESC LIMIT 1) AS latest_execution,
+ (((SELECT count(*) FROM monitor_task_person_targets WHERE task_id=t.id)+(SELECT count(*) FROM monitor_task_display_targets WHERE task_id=t.id))>0) AS targets_present,
  (((SELECT count(*) FROM monitor_task_person_targets WHERE task_id=t.id)+(SELECT count(*) FROM monitor_task_display_targets WHERE task_id=t.id))>0
    AND NOT EXISTS(SELECT 1 FROM monitor_task_display_targets target JOIN displays d ON d.id=target.display_id WHERE target.task_id=t.id AND d.revoked_at IS NOT NULL)) AS targets_valid
  FROM monitor_tasks t`;
@@ -225,17 +226,18 @@ function blockedActions(reason:MonitorActionBlockReason):MonitorTaskLifecycle['a
   return Object.fromEntries(monitorTaskActions.map((action)=>[action,{enabled:false,reason}])) as MonitorTaskLifecycle['actions'];
 }
 export function monitorTaskLifecycle(row:Record<string,unknown>,targetAuthorized=true):MonitorTaskLifecycle{
+  const targetsPresent=row.targets_present!==false;
   const setupComplete=hasValidRule(row.interpreted_rule)&&row.targets_valid===true;
   const liveLease=row.lease_active===true;
   const rawState=String(row.state);
-  const setupReason:MonitorActionBlockReason=row.targets_valid===false?'targets_invalid':row.error_code?'setup_failed':'setup_required';
+  const setupReason:MonitorActionBlockReason=!targetsPresent?'setup_required':row.targets_valid===false?'targets_invalid':row.error_code?'setup_failed':'setup_required';
   const status:MonitorTaskLifecycle['status']=liveLease?'running':rawState==='active'?'active':rawState==='paused'?'paused':setupComplete?'ready_for_approval':row.error_code?'setup_failed':'incomplete';
   const actions=blockedActions(liveLease?'running':setupReason);
   const enable=(action:MonitorTaskAction)=>{actions[action]={enabled:true,reason:null};};
   const block=(action:MonitorTaskAction,reason:MonitorActionBlockReason)=>{actions[action]={enabled:false,reason};};
   if(liveLease){enable('refresh');return{status,setupComplete,actions};}
   enable('delete');enable('edit');
-  if(rawState==='draft')enable('interpret');
+  if(rawState==='draft'&&targetsPresent)enable('interpret');
   if(setupComplete){
     if(rawState==='draft'){enable('test');enable('smarter');if(targetAuthorized)enable('approve');else block('approve','permission_denied');}
     if(rawState==='active'){if(targetAuthorized)enable('run');else block('run','permission_denied');enable('pause');enable('smarter');enable('quality');}
@@ -311,8 +313,8 @@ export class MonitorService{
   async interpret(actor:MonitorActor,id:string,expectedRevision:number,execution:Partial<{deadlineMs:number;leaseMs:number;expectedProvider:MonitorAgentResult['provider'];expectedSettingsRevision:number;expectedRegistrationId:string;expectedRegistrationGeneration:number;observer:MonitorExecutionObserver;executionId:string;workerLeaseToken:string;expectedConfigurationRevision:number;expectedFallbackProvider:MonitorAgentResult['provider']|null;expectedFallbackConfigurationRevision:number|null}>={}){
     const deadlineMs=execution.deadlineMs??MONITOR_AGENT_DEADLINE_MS;const leaseMs=execution.leaseMs??MONITOR_LEASE_MS;const agent=deadlineMs===MONITOR_AGENT_DEADLINE_MS?this.agent:new MonitorAgentRunner(this.ai,this.fetcher,deadlineMs,this.weather);
     const token=randomUUID();
-    const claimed=await pool.query(`UPDATE monitor_tasks SET lease_token=$4,lease_expires_at=clock_timestamp()+($5::int*interval '1 millisecond'),error_code=NULL WHERE id=$1 AND household_id=$2 AND revision=$3 AND state='draft' AND (lease_expires_at IS NULL OR lease_expires_at<clock_timestamp()) RETURNING id`,[id,actor.householdId,expectedRevision,token,leaseMs]);
-    if(!claimed.rowCount){const current=(await pool.query<{revision:number;state:string;lease_active:boolean}>(`SELECT revision,state,(lease_token IS NOT NULL AND lease_expires_at>clock_timestamp()) AS lease_active FROM monitor_tasks WHERE id=$1 AND household_id=$2`,[id,actor.householdId])).rows[0];if(!current)throw new DomainError('NOT_FOUND',404);if(current.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);if(current.lease_active)throw new DomainError('MONITOR_RUNNING',409);throw new DomainError('CONFLICT',409);}
+    const claimed=await pool.query(`UPDATE monitor_tasks SET lease_token=$4,lease_expires_at=clock_timestamp()+($5::int*interval '1 millisecond'),error_code=NULL WHERE id=$1 AND household_id=$2 AND revision=$3 AND state='draft' AND (lease_expires_at IS NULL OR lease_expires_at<clock_timestamp()) AND (EXISTS(SELECT 1 FROM monitor_task_person_targets target WHERE target.task_id=monitor_tasks.id) OR EXISTS(SELECT 1 FROM monitor_task_display_targets target WHERE target.task_id=monitor_tasks.id)) RETURNING id`,[id,actor.householdId,expectedRevision,token,leaseMs]);
+    if(!claimed.rowCount){const current=(await pool.query<{revision:number;state:string;lease_active:boolean;targets_present:boolean}>(`SELECT revision,state,(lease_token IS NOT NULL AND lease_expires_at>clock_timestamp()) AS lease_active,(EXISTS(SELECT 1 FROM monitor_task_person_targets target WHERE target.task_id=monitor_tasks.id) OR EXISTS(SELECT 1 FROM monitor_task_display_targets target WHERE target.task_id=monitor_tasks.id)) AS targets_present FROM monitor_tasks WHERE id=$1 AND household_id=$2`,[id,actor.householdId])).rows[0];if(!current)throw new DomainError('NOT_FOUND',404);if(current.revision!==expectedRevision)throw new DomainError('REVISION_CONFLICT',409);if(current.lease_active)throw new DomainError('MONITOR_RUNNING',409);if(current.state!=='draft')throw new DomainError('CONFLICT',409);if(!current.targets_present)throw new DomainError('MONITOR_SETUP_REQUIRED',422);throw new DomainError('CONFLICT',409);}
     let audit:InterpretationAuditMeta=emptyInterpretationAudit();const interpretationStarted=Date.now();const interpretationController=new AbortController();const interpretationDeadline=setTimeout(()=>interpretationController.abort(),deadlineMs);
     try{
       const row=(await pool.query<Record<string,unknown>>(`${selectMonitorTask} WHERE t.id=$1 AND t.household_id=$2 AND t.lease_token=$3`,[id,actor.householdId,token])).rows[0];if(!row)throw new DomainError('CONFLICT',409);

@@ -1300,6 +1300,7 @@ export const nb: Record<TranslationKey, string> = {
   monitorErrorInterrupted: "Arbeidet ble avbrutt på serveren. Oppdraget er bevart. Prøv igjen.",
   monitorRunningHint: "Oppdraget arbeider nå. Du kan oppdatere status; resten av handlingene blir tilgjengelige når arbeidet er ferdig.",
   monitorIncompleteHint: "Lag et oppsett fra forespørselen, eller rediger det som mangler. Du kan også slette utkastet.",
+  monitorRecipientsRequiredHint: "Rediger dette utkastet og velg minst én person eller skjerm.",
   monitorSetupFailedHint: "Prøv å lage oppsettet igjen, eller rediger forespørselen. Du kan også slette utkastet.",
   monitorRefresh: "Oppdater status",
   monitorRetrySetup: "Prøv å lage oppsett igjen",

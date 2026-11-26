@@ -1,6 +1,6 @@
 import { ApiError } from "./api";
 import type { TranslationKey } from "./locales/en";
-import type { MonitorSource } from "./types";
+import type { MonitorSource, MonitorTask } from "./types";
 
 export type SchoolPresentationKind = 'school' | null;
 export interface MonitorPresentationUpdateBody {
@@ -125,6 +125,12 @@ export function monitorResultNoticeKey(notice: 'success_no_findings' | 'stale_pr
   if (notice === 'success_no_findings') return 'monitorNoFindingsSuccess';
   if (notice === 'stale_previous_success') return 'monitorPreviousResultStale';
   return null;
+}
+
+export function monitorIncompleteHintKey(task:Pick<MonitorTask,'targets'|'lastCheckedAt'>,reason:string|null):TranslationKey{
+  if(task.targets.personIds.length+task.targets.displayIds.length===0)return'monitorRecipientsRequiredHint';
+  if(reason==='targets_invalid')return task.lastCheckedAt?'monitorErrorTargetsChecked':'monitorErrorTargets';
+  return'monitorIncompleteHint';
 }
 
 /** Error details are untrusted. Show only bounded, human-readable place fields. */

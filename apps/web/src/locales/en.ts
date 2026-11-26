@@ -1299,6 +1299,7 @@ export const en = {
   monitorErrorInterrupted: "Processing was interrupted on the server. Your task is preserved. Try again.",
   monitorRunningHint: "This task is working. You can refresh its status; other actions return when it finishes.",
   monitorIncompleteHint: "Create setup from the request or edit missing details. You can also delete the draft.",
+  monitorRecipientsRequiredHint: "Edit this draft to choose at least one person or display.",
   monitorSetupFailedHint: "Try creating setup again or edit the request. You can also delete the draft.",
   monitorRefresh: "Refresh status",
   monitorRetrySetup: "Retry setup",
