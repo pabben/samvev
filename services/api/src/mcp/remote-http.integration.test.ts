@@ -29,6 +29,20 @@ async function remoteMcp(token:string,body:Record<string,unknown>,headers:Record
     request.on('error',reject);request.end(payload);
   });
 }
+async function rpcResponse(response:Response,expectedId:number):Promise<any>{
+  const body=await response.text();assert.ok(Buffer.byteLength(body)<=256*1024,'MCP response is bounded to 256 KiB');
+  const contentType=response.headers.get('content-type')??'';
+  if(/application\/json/i.test(contentType)){const value=JSON.parse(body);assert.equal(value.id,expectedId);return value;}
+  assert.match(contentType,/text\/event-stream/i);
+  for(const block of body.split(/\r?\n\r?\n/)){
+    const lines=block.split(/\r?\n/),event=lines.find(line=>line.startsWith('event:'))?.slice(6).trim();
+    if(event)assert.equal(event,'message','only MCP message events are expected in request responses');
+    const data=lines.filter(line=>line.startsWith('data:')).map(line=>line.slice(5).replace(/^ /,'')).join('\n');
+    if(!data)continue;
+    const value=JSON.parse(data);if(value.id===expectedId)return value;
+  }
+  assert.fail(`SSE response did not contain JSON-RPC id ${expectedId}`);
+}
 
 before(async()=>{
   await migrate();
@@ -54,18 +68,18 @@ after(async()=>{if(app)await app.close();await pool.end();});
 
 test('remote Streamable HTTP MCP supports initialize, tool discovery, read, and rejects invalid or revoked tokens',async()=>{
   const initialized=await remoteMcp(accessToken,{jsonrpc:'2.0',id:1,method:'initialize',params:{protocolVersion:'2025-11-25',capabilities:{},clientInfo:{name:'synthetic-remote-client',version:'1.0.0'}}});
-  assert.equal(initialized.status,200,await initialized.clone().text());assert.match(initialized.headers.get('content-type')??'',/application\/json/);
-  const initialization=await initialized.json() as {result:{protocolVersion:string;serverInfo:{name:string}}};
+  assert.equal(initialized.status,200,await initialized.clone().text());
+  const initialization=(await rpcResponse(initialized,1)) as {result:{protocolVersion:string;serverInfo:{name:string}}};
   assert.equal(initialization.result.protocolVersion,'2025-11-25');assert.equal(initialization.result.serverInfo.name,'samvev');
 
   const listed=await remoteMcp(accessToken,{jsonrpc:'2.0',id:2,method:'tools/list',params:{_meta:modernMeta}},modernHeaders('tools/list'));
   assert.equal(listed.status,200,await listed.clone().text());
-  const tools=(await listed.json() as {result:{tools:Array<{name:string}>}}).result.tools;
+  const tools=(await rpcResponse(listed,2) as {result:{tools:Array<{name:string}>}}).result.tools;
   assert.ok(tools.some(tool=>tool.name==='household.groceries.list'));
 
   const read=await remoteMcp(accessToken,{jsonrpc:'2.0',id:3,method:'tools/call',params:{name:'household.groceries.list',arguments:{},_meta:modernMeta}},modernHeaders('tools/call','household.groceries.list'));
   assert.equal(read.status,200,await read.clone().text());
-  const readResult=(await read.json() as {result:{structuredContent:{items:Array<unknown>};isError?:boolean}}).result;
+  const readResult=(await rpcResponse(read,3) as {result:{structuredContent:{items:Array<unknown>};isError?:boolean}}).result;
   assert.notEqual(readResult.isError,true);assert.deepEqual(readResult.structuredContent.items,[]);
 
   const invalid=await remoteMcp('invalid-synthetic-bearer-token',{jsonrpc:'2.0',id:4,method:'ping'});
