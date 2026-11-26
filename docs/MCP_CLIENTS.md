@@ -1,6 +1,6 @@
 # MCP client compatibility
 
-Status: research snapshot, 2026-11-26. The 23-tool MCP implementation is a local candidate at publisher commit `bb61e74`; public URL `https://samvev.pabben.org/mcp` remains unverified and is not a working-service claim. No client has been connected or tested against a live Samvev endpoint. Client support for MCP does not imply support for every Samvev tool, account plan, authentication configuration, or unattended scheduled invocation.
+Status: research snapshot, 2026-11-26. The 23-tool MCP implementation is a local candidate at publisher commit `d3007f5`; public URL `https://samvev.pabben.org/mcp` remains unverified and is not a working-service claim. No client has been connected or tested against a live Samvev endpoint. Client support for MCP does not imply support for every Samvev tool, account plan, authentication configuration, or unattended scheduled invocation.
 
 ## Client status
 

@@ -1,10 +1,10 @@
 # MCP tool and domain-operation matrix
 
-Status: local candidate on `feat/mcp-integration-33` at `bb61e74` (2026-11-26). This snapshot registers 23 tools. Refresh this list from `services/api/src/mcp/service.ts` before release. Public app/worker source remains `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. No public client compatibility or issue completion is claimed.
+Status: local candidate on `feat/mcp-integration-33` at `d3007f5` (2026-11-26). This snapshot registers 23 tools. Refresh this list from `services/api/src/mcp/service.ts` before release. Public app/worker source remains `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. No public client compatibility or issue completion is claimed.
 
 The local candidate includes school source/week UI, monitor status reads, grocery/dinner board writes, calendar source/event reads, restricted message creation, explicitly granted people-profile updates and display discovery, and protected PDF browser/download fallback. Automated API tests use synthetic local households; they do not show public deployment or live ChatGPT/Codex/Claude/Gemini compatibility. Migrations 049–059 are present in the candidate only.
 
-## Registered tools in `bb61e74`
+## Registered tools in `d3007f5`
 
 | Tool | Operation | Required MCP scope | Safety boundary |
 |---|---|---|---|

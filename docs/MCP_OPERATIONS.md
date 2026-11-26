@@ -1,6 +1,6 @@
 # MCP operations and school-plan workflow
 
-Status: local candidate at `bb61e74`, with 23 tools; the public service remains on source `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. Migrations 049–059 and `/mcp` are not deployed publicly. Do not use the placeholder `https://samvev.pabben.org/mcp` as if it were live. Client compatibility and scheduled runs are unverified; see [MCP clients](MCP_CLIENTS.md) and the [MCP tool matrix](MCP_TOOL_MATRIX.md).
+Status: local candidate at `d3007f5`, with 23 tools; the public service remains on source `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48) with no MCP endpoint. Migrations 049–059 and `/mcp` are not deployed publicly. Do not use the placeholder `https://samvev.pabben.org/mcp` as if it were live. Client compatibility and scheduled runs are unverified; see [MCP clients](MCP_CLIENTS.md) and the [MCP tool matrix](MCP_TOOL_MATRIX.md).
 
 ## OAuth and resource policy
 
