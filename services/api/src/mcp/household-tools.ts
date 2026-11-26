@@ -49,7 +49,7 @@ const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date })
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read';
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:displays:read';
 type Capability = MemberCapability;
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[]}> {
@@ -114,6 +114,25 @@ export function registerHouseholdTools(
   if (!uuid.safeParse(principal.tokenSetId).success || !uuid.safeParse(principal.grantId).success || !uuid.safeParse(principal.householdId).success ||
       !uuid.safeParse(principal.accountId).success || !uuid.safeParse(principal.membershipId).success ||
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
+
+  registrar.registerTool('household.displays.list', {
+    description: 'List only active displays explicitly approved for this client, with a minimal display configuration projection.',
+    inputSchema: emptyInput, requiredScopes: ['mcp:displays:read'], readOnlyHint: true, destructiveHint: false
+  }, async (raw) => {
+    emptyInput.parse(raw);
+    return dependencies.transaction(async (client) => {
+      await assertLiveAuthority(client, principal, ['mcp:displays:read'], 'display.manage');
+      const result = await client.query(`SELECT display.id,display.name,
+          COALESCE(display.locale,setup.locale) AS locale,COALESCE(display.theme,setup.theme) AS theme,
+          display.privacy_mode AS "privacyMode",setup.name AS "setupName",display.created_at AS "createdAt"
+        FROM mcp_oauth_grant_displays grant_display
+        JOIN displays display ON display.id=grant_display.display_id AND display.household_id=grant_display.household_id
+        JOIN display_setups setup ON setup.id=display.setup_id AND setup.household_id=display.household_id
+        WHERE grant_display.grant_id=$1 AND grant_display.household_id=$2 AND display.revoked_at IS NULL
+        ORDER BY display.id LIMIT 100 FOR SHARE OF grant_display,display,setup`, [principal.grantId, principal.householdId]);
+      return { displays: result.rows };
+    });
+  });
 
   registrar.registerTool('household.people.update', {
     description: 'Update the profile of one explicitly approved household person. Does not change their account, roles, or permissions.',

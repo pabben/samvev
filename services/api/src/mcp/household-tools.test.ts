@@ -15,8 +15,8 @@ const context: HouseholdMcpToolContext = { principal };
 
 class Tools implements HouseholdMcpToolRegistrar {
   readonly handlers = new Map<string, (input: unknown) => Promise<unknown>>();
-  readonly options = new Map<string, { description: string; inputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean }>();
-  registerTool(name: string, options: { description: string; inputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean }, handler: (input: unknown) => Promise<unknown>) { this.options.set(name, options); this.handlers.set(name, handler); }
+  readonly options = new Map<string, { description: string; inputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean; idempotentHint?: boolean }>();
+  registerTool(name: string, options: { description: string; inputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean; idempotentHint?: boolean }, handler: (input: unknown) => Promise<unknown>) { this.options.set(name, options); this.handlers.set(name, handler); }
   get(name: string) { const handler = this.handlers.get(name); assert.ok(handler, `tool ${name} registered`); return handler; }
 }
 
@@ -99,6 +99,45 @@ test('calendar tool returns no events when the grant has no live visible source'
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run(client) });
   assert.deepEqual(await tools.get('calendar.events.list')({}), { events: [] });
   assert.equal(calls.length, 3);
+});
+
+test('display discovery returns only the current nonrevoked exact grant with a minimal projection', async () => {
+  const tools=new Tools(),calls:Array<{sql:string;values?:unknown[]}>=[];
+  const client={async query(sql:string,values?:unknown[]){
+    calls.push({sql,values});
+    if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:true,person_id:'77777777-7777-4777-8777-777777777777',capabilities:['display.manage']}]};
+    if(sql.includes('FROM mcp_oauth_grant_displays'))return{rows:[{id:'display-granted',name:'Synthetic kitchen display',locale:'en',theme:'dark',privacyMode:true,setupName:'Synthetic setup',createdAt:new Date('2027-01-01T00:00:00Z')}]};
+    throw new Error('Unexpected display discovery query');
+  }} as unknown as DbClient;
+  registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client)});
+  const result=await tools.get('household.displays.list')({}) as {displays:Array<Record<string,unknown>>};
+  assert.deepEqual(result.displays,[{id:'display-granted',name:'Synthetic kitchen display',locale:'en',theme:'dark',privacyMode:true,setupName:'Synthetic setup',createdAt:new Date('2027-01-01T00:00:00Z')}]);
+  assert.deepEqual(tools.options.get('household.displays.list')?.requiredScopes,['mcp:displays:read']);
+  assert.equal(tools.options.get('household.displays.list')?.readOnlyHint,true);
+  assert.match(calls[0]!.sql,/membership\.capabilities \? \$6/);
+  assert.deepEqual(calls[0]!.values?.slice(4,6),[['mcp:displays:read'],'display.manage']);
+  assert.match(calls[1]!.sql,/grant_display\.grant_id=\$1 AND grant_display\.household_id=\$2/);
+  assert.match(calls[1]!.sql,/display\.revoked_at IS NULL/);
+  assert.match(calls[1]!.sql,/JOIN display_setups setup ON setup\.id=display\.setup_id AND setup\.household_id=display\.household_id/);
+  assert.match(calls[1]!.sql,/ORDER BY display\.id LIMIT 100/);
+  assert.doesNotMatch(calls[1]!.sql,/credential_hash|credential_generation|pairing|background|asset|url|profile_person_ids|birthday_person_ids/i);
+  assert.doesNotMatch(JSON.stringify(result),/credential|pairing|background|asset|url|photo|token/i);
+});
+
+test('display discovery returns empty for revoked or missing grants and checks live authority first', async () => {
+  const tools=new Tools(),calls:string[]=[];
+  const client={async query(sql:string){
+    calls.push(sql);
+    if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:true,person_id:'77777777-7777-4777-8777-777777777777',capabilities:['display.manage']}]};
+    if(sql.includes('FROM mcp_oauth_grant_displays'))return{rows:[]};
+    throw new Error('Unexpected discovery query');
+  }} as unknown as DbClient;
+  registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client)});
+  assert.deepEqual(await tools.get('household.displays.list')({}),{displays:[]});assert.equal(calls.length,2);
+  const deniedTools=new Tools(),deniedCalls:string[]=[];
+  const denied={async query(sql:string){deniedCalls.push(sql);if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:false,person_id:'77777777-7777-4777-8777-777777777777',capabilities:[]}]};throw new Error('Display grants must not be checked after failed live authority');}} as unknown as DbClient;
+  registerHouseholdTools(deniedTools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(denied)});
+  await assert.rejects(deniedTools.get('household.displays.list')({}),(error:unknown)=>error instanceof DomainError&&error.status===403);assert.equal(deniedCalls.length,1);
 });
 
 test('people tool returns only grant-selected fields and rechecks current delegated authority', async () => {
