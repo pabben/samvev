@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DomainError } from '@samvev/core';
+import { z } from 'zod';
 import type { ZodType } from 'zod';
 import type { DbClient } from '../db.ts';
 import { householdToolSchemas, registerHouseholdTools, type HouseholdMcpScope, type HouseholdMcpToolContext, type HouseholdMcpToolRegistrar } from './household-tools.ts';
@@ -27,6 +28,7 @@ test('all household tools publish meaningful output schemas that validate return
   for (const [name, options] of tools.options) {
     assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
     assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
+    assert.doesNotThrow(() => z.toJSONSchema(options.outputSchema), `${name} output schema converts to JSON Schema`);
   }
   const samples: Record<string, unknown> = {
     'household.displays.list': { displays: [] },
@@ -37,7 +39,7 @@ test('all household tools publish meaningful output schemas that validate return
     'household.messages.list': { messages: [{ id: 'message-1', body: 'Synthetic message' }] },
     'household.messages.create': { message: { id: 'message-1' } },
     'household.messages.withdraw': { message: { id: 'message-1', state: 'withdrawn', revision: 2 } },
-    'household.groceries.list': { items: [{ id: 'grocery-1', label: 'Synthetic apples', checked: false, revision: 1, createdAt: new Date('2027-03-20T09:00:00.000Z'), updatedAt: new Date('2027-03-20T09:00:00.000Z') }] },
+    'household.groceries.list': { items: [{ id: 'grocery-1', label: 'Synthetic apples', checked: false, revision: 1, createdAt: '2027-03-20T09:00:00.000Z', updatedAt: '2027-03-20T09:00:00.000Z' }] },
     'household.groceries.add': { item: { id: 'grocery-1', label: 'Synthetic apples', checked: false, revision: 1, createdAt: '2027-03-20T09:00:00.000Z', updatedAt: '2027-03-20T09:00:00.000Z' } },
     'household.groceries.update': { item: { id: 'grocery-1', label: 'Synthetic apples', checked: true, revision: 2, createdAt: '2027-03-20T09:00:00.000Z', updatedAt: '2027-03-20T09:01:00.000Z' } },
     'household.groceries.delete': { item: { id: 'grocery-1', revision: 2 } },
