@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { DomainError } from '@samvev/core';
 import type { DbClient } from '../db.ts';
 import { insertPersonRow } from '../people/profile-service.ts';
@@ -8,7 +9,7 @@ const MAX_NEW_PROFILES_24H = 20;
 /** Receipt hashes depend on the persistent AI credential-vault key; operators
  * must keep the configured key stable and backed up across restores. */
 /** The household row is the first lock: assignPersonColor takes the same
- * FOR UPDATE lock, so this avoids a SHARE-to-UPDATE lock upgrade deadlock.
+ * NO KEY UPDATE lock, so this avoids a SHARE-to-UPDATE lock upgrade deadlock.
  * Authority is rechecked after waiting on that lock. */
 export async function createMcpPersonProfile(
   client: DbClient,
@@ -17,7 +18,7 @@ export async function createMcpPersonProfile(
   assertAuthority: () => Promise<void>,
   keyedDigest: (purpose: string, context: string, value: string) => Promise<Buffer>
 ): Promise<{ creation: { personId: string; createdRevision: 1; hadLoginAtCreation: false } }> {
-  const household = await client.query('SELECT id FROM households WHERE id=$1 AND installation_id=$2 FOR UPDATE',
+  const household = await client.query('SELECT id FROM households WHERE id=$1 AND installation_id=$2 FOR NO KEY UPDATE',
     [principal.householdId, principal.installationId]);
   if (!household.rowCount) throw new DomainError('FORBIDDEN', 403);
   await assertAuthority();
@@ -25,6 +26,23 @@ export async function createMcpPersonProfile(
   const digestContext = `${principal.householdId}\0${principal.grantId}`;
   const requestKeyHash = await keyedDigest('mcp.people.create.request-key', digestContext, input.requestKey);
   const payloadHash = await keyedDigest('mcp.people.create.payload', digestContext, JSON.stringify({ displayName: input.displayName }));
+  const keyCheck = await keyedDigest('mcp.people.create.key-fence', principal.householdId, 'mcp-people-create-key-fence-v1');
+  if (keyCheck.length !== 32 || requestKeyHash.length !== 32 || payloadHash.length !== 32) {
+    throw new DomainError('CONFLICT', 409, { reason: 'profile_digest_invalid' });
+  }
+  const fence = await client.query<{ key_check: Buffer }>(`SELECT key_check FROM mcp_people_create_key_fences
+    WHERE household_id=$1 FOR UPDATE`, [principal.householdId]);
+  if (fence.rows[0]) {
+    const storedCheck = fence.rows[0].key_check;
+    if (storedCheck.length !== keyCheck.length || !timingSafeEqual(storedCheck, keyCheck)) {
+      throw new DomainError('CONFLICT', 409, { reason: 'profile_digest_key_changed' });
+    }
+  } else {
+    const existing = await client.query(`SELECT 1 FROM mcp_people_create_receipts WHERE household_id=$1 LIMIT 1`, [principal.householdId]);
+    if (existing.rowCount) throw new DomainError('CONFLICT', 409, { reason: 'profile_digest_fence_missing' });
+    await client.query(`INSERT INTO mcp_people_create_key_fences(household_id,key_check) VALUES($1,$2)`,
+      [principal.householdId, keyCheck]);
+  }
   const prior = await client.query<{ payload_hash: Buffer; person_id: string }>(`SELECT payload_hash,person_id
     FROM mcp_people_create_receipts WHERE household_id=$1 AND grant_id=$2 AND request_key_hash=$3 FOR UPDATE`,
   [principal.householdId, principal.grantId, requestKeyHash]);

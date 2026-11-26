@@ -51,6 +51,6 @@ test('shared person row helper assigns a household color and inserts the same br
   }} as unknown as DbClient;
   const inserted=await insertPersonRow(client,householdId,{displayName:'Synthetic browser profile',avatarKey:'avatar-01',ageGroup:'child',birthDate:'2015-01-01'});
   assert.deepEqual(inserted,{id:personId});
-  assert.match(calls[0]!.sql,/FOR UPDATE/);
+  assert.match(calls[0]!.sql,/FOR NO KEY UPDATE/);
   assert.deepEqual(calls.at(-1)!.values?.slice(0,5),[householdId,'Synthetic browser profile','avatar-01','child','2015-01-01']);
 });

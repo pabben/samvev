@@ -4,6 +4,12 @@
 INSERT INTO mcp_oauth_scope_catalog(scope,introduced_version,risk)
 VALUES ('mcp:people:create',16,'write');
 
+CREATE TABLE mcp_people_create_key_fences (
+  household_id uuid PRIMARY KEY REFERENCES households(id) ON DELETE CASCADE,
+  key_check bytea NOT NULL CHECK (octet_length(key_check)=32),
+  created_at timestamptz NOT NULL DEFAULT clock_timestamp()
+);
+
 CREATE TABLE mcp_people_create_receipts (
   household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
   -- Keep the grant UUID as a historical namespace without a foreign key:

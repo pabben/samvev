@@ -17,7 +17,9 @@ export function leastUsedPersonColor(counts: Partial<Record<PersonColorToken, nu
  * Call inside the same transaction as the person insert.
  */
 export async function assignPersonColor(client: DbClient, householdId: string): Promise<PersonColorToken> {
-  const household = await client.query('SELECT id FROM households WHERE id=$1 FOR UPDATE', [householdId]);
+  // NO KEY UPDATE still serializes concurrent member creation but remains
+  // compatible with foreign-key KEY SHARE locks taken by audit/admin flows.
+  const household = await client.query('SELECT id FROM households WHERE id=$1 FOR NO KEY UPDATE', [householdId]);
   if (!household.rowCount) throw new Error('person_color_household_missing');
   const rows = await client.query<{color_token: PersonColorToken; count: number}>(
     'SELECT color_token,count(*)::int AS count FROM persons WHERE household_id=$1 GROUP BY color_token',

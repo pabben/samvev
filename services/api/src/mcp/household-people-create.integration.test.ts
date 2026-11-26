@@ -62,7 +62,19 @@ test('MCP creates strict accountless profiles with isolated fresh consent and du
   } finally {
     await pool.query("UPDATE mcp_oauth_scope_catalog SET active=true WHERE scope='mcp:people:create'");
   }
-  const [first,concurrent]=await Promise.all([create(token,3,input),create(token,4,input)]);
+  await pool.query(`CREATE OR REPLACE FUNCTION fail_synthetic_person_create_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.action='mcp.person_profile_created' THEN RAISE EXCEPTION 'synthetic audit failure'; END IF; RETURN NEW; END $$`);
+  await pool.query(`CREATE TRIGGER fail_synthetic_person_create_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fail_synthetic_person_create_audit()`);
+  try {
+    const failedFirstCreate=await create(token,3,input);assert.equal(result(failedFirstCreate).isError,true);
+    assert.equal((await pool.query('SELECT count(*)::int AS count FROM mcp_people_create_key_fences WHERE household_id=$1',[householdId])).rows[0]!.count,0,'audit failure rolls back the initial key fence');
+    assert.equal((await pool.query('SELECT count(*)::int AS count FROM mcp_people_create_receipts WHERE household_id=$1',[householdId])).rows[0]!.count,0);
+    assert.equal((await pool.query('SELECT count(*)::int AS count FROM persons WHERE household_id=$1 AND display_name=$2',[householdId,input.displayName])).rows[0]!.count,0);
+  } finally {
+    await pool.query('DROP TRIGGER IF EXISTS fail_synthetic_person_create_audit ON audit_events');
+    await pool.query('DROP FUNCTION IF EXISTS fail_synthetic_person_create_audit()');
+  }
+  const [first,concurrent]=await Promise.all([create(token,4,input),create(token,5,input)]);
   assert.equal(result(first).isError,undefined,first.body);assert.equal(result(concurrent).isError,undefined,concurrent.body);
   const original=result(first).structuredContent.creation as {personId:string;createdRevision:number;hadLoginAtCreation:boolean};
   const replay=result(concurrent).structuredContent.creation;
