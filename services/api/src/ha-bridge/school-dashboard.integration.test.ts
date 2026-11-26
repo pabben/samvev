@@ -36,14 +36,14 @@ before(async()=>{
   secondSourceId=(await pool.query<{id:string}>(`INSERT INTO school_plan_sources(household_id,connection_id,person_id,class_key,source_page_url)
     VALUES($1,$2,$3,'synthetic-class-b','https://school.test.invalid/class-b') RETURNING id`,[householdId,school.connectionId,secondPersonId])).rows[0]!.id;
   const inserted=await pool.query<{id:string}>(`WITH week AS (
-      SELECT date_trunc('week',clock_timestamp() AT TIME ZONE timezone)::date AS monday FROM households WHERE id=$1)
+      SELECT date_trunc('week',clock_timestamp() AT TIME ZONE timezone)::date AS monday,clock_timestamp()-interval '3 minutes' AS source_at FROM households WHERE id=$1)
     INSERT INTO school_plans(household_id,connection_id,person_id,source_id,iso_year,iso_week,week_starts_on,week_ends_on,content_locale,days,pdf_url,source_revision,uncertainty,observed_at,interpreted_at,last_source_observed_at,last_checked_at,content_hash)
-    SELECT $1,$2,$3,$4,EXTRACT(ISOYEAR FROM monday)::int,EXTRACT(WEEK FROM monday)::int,monday,monday+6,'en',$5::jsonb,$6,$7,'low',clock_timestamp()-interval '5 minutes',clock_timestamp()-interval '4 minutes',clock_timestamp()-interval '3 minutes',clock_timestamp()-interval '3 minutes',repeat('a',64) FROM week RETURNING id`,
+    SELECT $1,$2,$3,$4,EXTRACT(ISOYEAR FROM monday)::int,EXTRACT(WEEK FROM monday)::int,monday,monday+6,'en',$5::jsonb,$6,$7,'low',clock_timestamp()-interval '5 minutes',clock_timestamp()-interval '4 minutes',source_at,source_at,repeat('a',64) FROM week RETURNING id`,
   [householdId,school.connectionId,ownerPersonId,sourceId,JSON.stringify([{date:'synthetic-monday',title:'Synthetic maths',items:['Synthetic pencil case']}]),`https://school.test.invalid/${privateSourceText}/week.pdf`,privateSourceText]);
   planId=inserted.rows[0]!.id;
-  await pool.query(`WITH week AS (SELECT date_trunc('week',clock_timestamp() AT TIME ZONE timezone)::date AS monday FROM households WHERE id=$1)
+  await pool.query(`WITH week AS (SELECT date_trunc('week',clock_timestamp() AT TIME ZONE timezone)::date AS monday,clock_timestamp()-interval '3 minutes' AS source_at FROM households WHERE id=$1)
     INSERT INTO school_plans(household_id,connection_id,person_id,source_id,iso_year,iso_week,week_starts_on,week_ends_on,content_locale,days,source_revision,uncertainty,observed_at,interpreted_at,last_source_observed_at,last_checked_at,content_hash)
-    SELECT $1,$2,$3,$4,EXTRACT(ISOYEAR FROM monday)::int,EXTRACT(WEEK FROM monday)::int,monday,monday+6,'en','[{"date":"synthetic-tuesday","title":"Unshared plan"}]',$5,'unknown',clock_timestamp()-interval '5 minutes',clock_timestamp()-interval '4 minutes',clock_timestamp()-interval '3 minutes',clock_timestamp()-interval '3 minutes',repeat('b',64) FROM week`,
+    SELECT $1,$2,$3,$4,EXTRACT(ISOYEAR FROM monday)::int,EXTRACT(WEEK FROM monday)::int,monday,monday+6,'en','[{"date":"synthetic-tuesday","title":"Unshared plan"}]',$5,'unknown',clock_timestamp()-interval '5 minutes',clock_timestamp()-interval '4 minutes',source_at,source_at,repeat('b',64) FROM week`,
   [householdId,school.connectionId,secondPersonId,secondSourceId,'unshared-revision']);
   const pdf=Buffer.from('%PDF-1.4\nSynthetic private PDF\n');
   await pool.query(`INSERT INTO school_plan_pdf_snapshots(household_id,plan_id,plan_content_revision,pdf_url,bytes,sha256) VALUES($1,$2,1,$3,$4,$5)`,[householdId,planId,`https://school.test.invalid/${privateSourceText}/week.pdf`,pdf,createHash('sha256').update(pdf).digest('hex')]);
