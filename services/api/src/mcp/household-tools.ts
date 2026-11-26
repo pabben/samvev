@@ -1,5 +1,5 @@
 import { DomainError } from '@samvev/core';
-import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, groceryCreateSchema, groceryUpdateSchema, localeSchema, messageCreateSchema, messageUpdateSchema, nameSchema, personUpdateSchema, themeSchema, type Capability as MemberCapability } from '@samvev/contracts';
+import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, displaySetupCards, groceryCreateSchema, groceryUpdateSchema, localeSchema, messageCreateSchema, messageUpdateSchema, nameSchema, personUpdateSchema, themeSchema, type Capability as MemberCapability } from '@samvev/contracts';
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
@@ -43,6 +43,7 @@ export interface HouseholdMcpToolDependencies {
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
   displayAppearanceAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
+  displaySetupReadAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
   calendarAudit?: Parameters<typeof registerCalendarWriteTools>[2]['audit'];
 }
 
@@ -81,6 +82,7 @@ const revisionOutput = z.number().int().positive();
 const idOutput = z.string().min(1).max(128);
 const nullableTextOutput = z.string().max(5000).nullable();
 const displayAppearanceScopes = ['mcp:displays:read', 'mcp:displays:appearance:write'] as const;
+const displaySetupReadScopes = ['mcp:displays:read', 'mcp:displays:setup:read'] as const;
 const displayAppearanceOutput = z.strictObject({
   id: uuid, name: z.string().min(1).max(200), localeOverride: localeSchema.nullable(), themeOverride: themeSchema.nullable(),
   appearanceRevision: revisionOutput
@@ -95,6 +97,13 @@ const displayAppearanceInput = z.strictObject({
 const displayOutput = displayAppearanceOutput.extend({
   locale: localeSchema.nullable(), theme: themeSchema.nullable(), privacyMode: z.boolean(), setupName: z.string().min(1).max(200), createdAt: z.iso.datetime()
 });
+const displaySetupOutput = z.strictObject({
+  name: z.string().min(1).max(80), revision: revisionOutput,
+  cards: z.array(z.enum(displaySetupCards)).max(displaySetupCards.length),
+  cardOrder: z.array(z.enum(displaySetupCards)).max(displaySetupCards.length),
+  familyLayoutEnabled: z.boolean(), locale: localeSchema, theme: themeSchema
+});
+const displaySetupInput = z.strictObject({ displayId: uuid });
 const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult']) });
 const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50), writable: z.boolean().optional() });
 const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), revision: revisionOutput.optional(), writable: z.boolean().optional(), personIds: z.array(z.uuid()).max(50).optional(), location: z.string().max(160).optional() });
@@ -113,7 +122,7 @@ const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, stat
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number];
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displaySetupReadScopes[number];
 type Capability = MemberCapability;
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[];calendarWriteAllowed:boolean}> {
@@ -199,6 +208,31 @@ export function registerHouseholdTools(
         WHERE grant_display.grant_id=$1 AND grant_display.household_id=$2 AND display.revoked_at IS NULL
         ORDER BY display.id LIMIT 100 FOR SHARE OF grant_display,display,setup`, [principal.grantId, principal.householdId]);
       return { displays: result.rows };
+    });
+  });
+
+  registrar.registerTool('household.displays.setup.get', {
+    description: 'Read the minimal layout and appearance configuration for one explicitly approved, active display. Does not return people, sources, sensors, albums, backgrounds, device permissions, or credentials.',
+    inputSchema: displaySetupInput, outputSchema: z.strictObject({ setup: displaySetupOutput }),
+    requiredScopes: displaySetupReadScopes, readOnlyHint: true, destructiveHint: false
+  }, async (raw) => {
+    const { displayId } = displaySetupInput.parse(raw);
+    return dependencies.transaction(async (client) => {
+      await assertLiveAuthority(client, principal, displaySetupReadScopes, 'display.manage');
+      const setup = (await client.query<z.infer<typeof displaySetupOutput>>(`SELECT
+          setup.name,setup.revision,setup.cards,setup.card_order AS "cardOrder",
+          setup.family_layout_enabled AS "familyLayoutEnabled",setup.locale,setup.theme
+        FROM mcp_oauth_grant_displays grant_display
+        JOIN displays display ON display.id=grant_display.display_id AND display.household_id=grant_display.household_id
+        JOIN display_setups setup ON setup.id=display.setup_id AND setup.household_id=display.household_id
+        WHERE grant_display.grant_id=$1 AND grant_display.household_id=$2
+          AND grant_display.display_id=$3 AND display.revoked_at IS NULL
+        FOR SHARE OF grant_display,display,setup`, [principal.grantId, principal.householdId, displayId])).rows[0];
+      if (!setup) throw new DomainError('NOT_FOUND', 404);
+      // Recheck token/grant/member authority after waiting on the selected rows.
+      await assertLiveAuthority(client, principal, displaySetupReadScopes, 'display.manage');
+      await dependencies.displaySetupReadAudit?.(client, displayId, setup.revision);
+      return { setup };
     });
   });
 

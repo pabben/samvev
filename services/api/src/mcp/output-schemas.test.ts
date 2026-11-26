@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 36 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 37 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 36 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 36);
+  assert.equal(tools.length, 37);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -78,6 +78,8 @@ test('MCP discovery advertises object output schemas for all 36 tools', async (t
   }
   assert.deepEqual(outputByName.get('household.messages.edit')?.required, ['message']);
   assert.deepEqual(outputByName.get('household.displays.appearance.update')?.required, ['display']);
+  assert.deepEqual(outputByName.get('household.displays.setup.get')?.required, ['setup']);
+  assert.equal(outputByName.get('household.displays.setup.get')?.additionalProperties, false);
   assert.deepEqual(outputByName.get('school.plans.get')?.required, ['plan']);
   assert.deepEqual(outputByName.get('school.plans.verify_pdf')?.required, ['result']);
 });

@@ -10,6 +10,7 @@ import { migrate } from '../db/migrate.ts';
 
 const origin='https://display-discovery.test.invalid',callback='https://display-discovery-client.test.invalid/oauth/callback';
 const scope='mcp:displays:read';
+const setupScope='mcp:displays:setup:read';
 const writeScope='mcp:displays:appearance:write';
 const updateTool='household.displays.appearance.update';
 let app:FastifyInstance,householdId='',installationId='',adminCookie='',adminCsrf='',clientId='',grantedDisplayId='',foreignDisplayId='',grantId='';
@@ -201,4 +202,60 @@ test('appearance update enforces consent, the exact display grant and CAS, prese
   const audits=await pool.query(`SELECT actor_type,metadata->>'revision' AS revision FROM audit_events
     WHERE household_id=$1 AND subject_id=$2 AND action='mcp.display_appearance_updated'`,[householdId,target]);
   assert.deepEqual(audits.rows,[{actor_type:'mcp',revision:'2'}]);
+});
+
+test('setup read requires fresh setup consent and returns only configuration for the exact active display grant',async()=>{
+  const setupId=(await pool.query<{setup_id:string}>('SELECT setup_id FROM displays WHERE id=$1',[grantedDisplayId])).rows[0]!.setup_id;
+  await pool.query(`UPDATE display_setups SET name='Synthetic minimal setup',revision=revision+1,
+    cards='["family_layout","today"]'::jsonb,card_order='["today","family_layout"]'::jsonb,
+    family_layout_enabled=false,locale='nb',theme='dark',all_sources=true,all_sensors=true,
+    album_ids='["11111111-1111-4111-8111-111111111111"]'::jsonb,
+    background_id='22222222-2222-4222-8222-222222222222'
+    WHERE id=$1`,[setupId]);
+  const target=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,setup_id)
+    VALUES($1,'Synthetic setup target',$2) RETURNING id`,[householdId,setupId])).rows[0]!.id;
+  const ungranted=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,setup_id)
+    VALUES($1,'Synthetic sharing but ungranted display',$2) RETURNING id`,[householdId,setupId])).rows[0]!.id;
+
+  let token=await authorize(20,[scope,setupScope]);
+  let grant=(await pool.query<{id:string;revision:number}>('SELECT id,revision FROM mcp_oauth_grants WHERE household_id=$1',[householdId])).rows[0]!;
+  grantId=grant.id;
+  const selection=await setDisplayPolicy(grant.revision,[target],[scope,setupScope]);
+  assert.equal(selection.statusCode,200,selection.body);
+  token=await authorize(21,[scope,setupScope]);
+
+  const setupRead=await call(token,30,'household.displays.setup.get',{displayId:target});
+  assert.deepEqual(succeeded(setupRead),{setup:{name:'Synthetic minimal setup',revision:2,cards:['family_layout','today'],cardOrder:['today','family_layout'],familyLayoutEnabled:false,locale:'nb',theme:'dark'}});
+  assert.doesNotMatch(setupRead.body,/Synthetic sharing|Synthetic authorized|all_sources|all_sensors|album_ids|background_id|person|source|sensor|photo|credential|permission/i);
+  failed(await call(token,31,'household.displays.setup.get',{displayId:ungranted}),/NOT_FOUND/);
+  failed(await call(token,32,'household.displays.setup.get',{displayId:foreignDisplayId}),/NOT_FOUND/);
+  const audit=await pool.query(`SELECT actor_type,subject_type,subject_id,metadata FROM audit_events
+    WHERE household_id=$1 AND action='mcp.display_setup_read' AND subject_id=$2`,[householdId,target]);
+  assert.equal(audit.rows.length,1);
+  assert.equal(audit.rows[0]!.actor_type,'mcp');assert.equal(audit.rows[0]!.subject_type,'display');assert.equal(audit.rows[0]!.subject_id,target);
+  assert.deepEqual(Object.keys(audit.rows[0]!.metadata).sort(),['clientId','revision']);
+  assert.equal(audit.rows[0]!.metadata.revision,2);assert.match(audit.rows[0]!.metadata.clientId,/^[0-9a-f-]{36}$/i);
+
+  const readOnlyToken=await authorize(22,[scope]);
+  const missingSetupConsent=await call(readOnlyToken,33,'household.displays.setup.get',{displayId:target});
+  assert.equal(missingSetupConsent.statusCode,403,missingSetupConsent.body);
+  assert.match(missingSetupConsent.body,/insufficient_scope/);
+
+  token=await authorize(23,[scope,setupScope]);
+  await pool.query('UPDATE displays SET revoked_at=clock_timestamp() WHERE household_id=$1 AND id=$2',[householdId,target]);
+  failed(await call(token,34,'household.displays.setup.get',{displayId:target}),/NOT_FOUND/);
+  await pool.query('UPDATE displays SET revoked_at=NULL WHERE household_id=$1 AND id=$2',[householdId,target]);
+  const member=(await pool.query<{id:string;capabilities:string[]}>('SELECT membership.id,membership.capabilities FROM memberships membership WHERE membership.household_id=$1',[householdId])).rows[0]!;
+  await pool.query(`UPDATE memberships SET capabilities=capabilities-'display.manage' WHERE id=$1`,[member.id]);
+  failed(await call(token,35,'household.displays.setup.get',{displayId:target}),/FORBIDDEN/);
+  await pool.query('UPDATE memberships SET capabilities=$2 WHERE id=$1',[member.id,JSON.stringify(member.capabilities)]);
+
+  const tokenHash=createHash('sha256').update(token).digest('hex');
+  await pool.query('UPDATE mcp_oauth_token_sets SET revoked_at=clock_timestamp() WHERE access_token_hash=$1',[tokenHash]);
+  assert.equal((await call(token,36,'household.displays.setup.get',{displayId:target})).statusCode,401);
+
+  token=await authorize(24,[scope,setupScope]);
+  const revokedGrant=await inject({method:'POST',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/revoke`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin}});
+  assert.equal(revokedGrant.statusCode,204,revokedGrant.body);
+  assert.equal((await call(token,37,'household.displays.setup.get',{displayId:target})).statusCode,401);
 });

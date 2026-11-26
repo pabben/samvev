@@ -24,7 +24,7 @@ class Tools implements HouseholdMcpToolRegistrar {
 test('all household tools publish meaningful output schemas that validate returned projections', () => {
   const tools = new Tools();
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run({ query: async () => ({ rows: [] }) } as unknown as DbClient) });
-  assert.equal(tools.options.size, 23);
+  assert.equal(tools.options.size, 24);
   for (const [name, options] of tools.options) {
     assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
     assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
@@ -32,6 +32,7 @@ test('all household tools publish meaningful output schemas that validate return
   }
   const samples: Record<string, unknown> = {
     'household.displays.list': { displays: [] },
+    'household.displays.setup.get': { setup: { name: 'Synthetic setup', revision: 2, cards: ['family_layout'], cardOrder: ['family_layout'], familyLayoutEnabled: true, locale: 'nb', theme: 'dark' } },
     'household.displays.appearance.update': { display: { id: principal.membershipId, name: 'Synthetic display', localeOverride: null, themeOverride: 'dark', appearanceRevision: 2 } },
     'household.people.update': { id: principal.membershipId, revision: 2 },
     'calendar.sources.list': { sources: [{ id: 'source-1', name: 'Synthetic calendar', provider: 'ics' }] },
@@ -176,6 +177,31 @@ test('display discovery returns empty for revoked or missing grants and checks l
   const denied={async query(sql:string){deniedCalls.push(sql);if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:false,person_id:'77777777-7777-4777-8777-777777777777',capabilities:[]}]};throw new Error('Display grants must not be checked after failed live authority');}} as unknown as DbClient;
   registerHouseholdTools(deniedTools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(denied)});
   await assert.rejects(deniedTools.get('household.displays.list')({}),(error:unknown)=>error instanceof DomainError&&error.status===403);assert.equal(deniedCalls.length,1);
+});
+
+test('display setup read requires both scopes and returns only the setup projection for an exact active display grant', async () => {
+  const tools = new Tools(), calls: Array<{ sql: string; values?: unknown[] }> = [];
+  const auditCalls: Array<[string, number]> = [];
+  const client = { async query(sql: string, values?: unknown[]) {
+    calls.push({ sql, values });
+    if (sql.includes('FROM mcp_oauth_grants')) return { rows: [{ allowed: true, person_id: principal.membershipId, capabilities: ['display.manage'] }] };
+    if (sql.includes('FROM mcp_oauth_grant_displays')) return { rows: [{ name: 'Synthetic setup', revision: 2, cards: ['family_layout'], cardOrder: ['family_layout'], familyLayoutEnabled: true, locale: 'nb', theme: 'dark' }] };
+    throw new Error('Unexpected setup read query');
+  } } as unknown as DbClient;
+  registerHouseholdTools(tools, context, {
+    transaction: async <T>(run: (client: DbClient) => Promise<T>) => run(client),
+    displaySetupReadAudit: async (_client, displayId, revision) => { auditCalls.push([displayId, revision]); }
+  });
+  const result = await tools.get('household.displays.setup.get')({ displayId: '77777777-7777-4777-8777-777777777777' }) as Record<string, unknown>;
+  assert.deepEqual(result, { setup: { name: 'Synthetic setup', revision: 2, cards: ['family_layout'], cardOrder: ['family_layout'], familyLayoutEnabled: true, locale: 'nb', theme: 'dark' } });
+  assert.deepEqual(tools.options.get('household.displays.setup.get')?.requiredScopes, ['mcp:displays:read', 'mcp:displays:setup:read']);
+  assert.equal(tools.options.get('household.displays.setup.get')?.readOnlyHint, true);
+  assert.deepEqual(calls[0]?.values?.slice(4, 6), [['mcp:displays:read', 'mcp:displays:setup:read'], 'display.manage']);
+  assert.match(calls[1]!.sql, /grant_display\.display_id=\$3 AND display\.revoked_at IS NULL/);
+  assert.match(calls[1]!.sql, /FOR SHARE OF grant_display,display,setup/);
+  assert.doesNotMatch(calls[1]!.sql, /person|source|sensor|album|background|permission|credential|url/i);
+  assert.deepEqual(auditCalls, [['77777777-7777-4777-8777-777777777777', 2]]);
+  assert.equal(tools.options.get('household.displays.setup.get')?.outputSchema.safeParse({ setup: { ...result.setup, personIds: [] } }).success, false);
 });
 
 test('people tool returns only grant-selected fields and rechecks current delegated authority', async () => {

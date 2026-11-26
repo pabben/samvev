@@ -64,6 +64,15 @@ test('display appearance consent covers prior and future display selections in b
   assert.match(render('nb'), /Endre navn, språk og tema for skjermer som allerede er valgt eller senere velges for denne klienten\. Krever også lesetilgang/);
 });
 
+test('display setup read consent names the narrow setup fields in both locales', () => {
+  const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
+    request: { ...request, scopes: ['mcp:displays:read', 'mcp:displays:setup:read'] },
+    clientName: 'Synthetic display client', households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
+  });
+  assert.match(render('en'), /View the card layout, order, language, and theme for displays you explicitly select/);
+  assert.match(render('nb'), /Se kortoppsett, rekkefølge, språk og tema for skjermer du har valgt eksplisitt/);
+});
+
 test('monitor review consent describes personal review and monitor read access in both locales', () => {
   const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
     request: { ...request, scopes: ['mcp:monitors:read', 'mcp:monitors:review'] },
