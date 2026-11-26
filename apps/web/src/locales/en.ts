@@ -939,6 +939,7 @@ export const en = {
   mcpActivityGroceriesListed: "Viewed grocery list",
   mcpActivityGroceryAdded: "Added a grocery item",
   mcpActivityGroceryUpdated: "Updated a grocery item",
+  mcpActivityGroceryDeleted: "Deleted a grocery item",
   mcpActivityDinnersListed: "Viewed dinner plan",
   mcpActivityDinnerOptionsListed: "Viewed dinner options",
   mcpActivityDinnerAssigned: "Changed assigned dinner",

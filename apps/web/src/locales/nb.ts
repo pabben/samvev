@@ -938,6 +938,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpActivityGroceriesListed: "Viste handlelisten",
   mcpActivityGroceryAdded: "La til en handlelistevare",
   mcpActivityGroceryUpdated: "Oppdaterte en handlelistevare",
+  mcpActivityGroceryDeleted: "Fjernet en vare fra handlelisten",
   mcpActivityDinnersListed: "Viste middagsplanen",
   mcpActivityDinnerOptionsListed: "Viste middagsforslag",
   mcpActivityDinnerAssigned: "Endret valgt middag",

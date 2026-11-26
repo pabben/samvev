@@ -37,6 +37,7 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
   assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_read'), 'mcpActivityMonitorResultRead');
+  assert.equal(mcpActivityTranslationKey('mcp.grocery_deleted'), 'mcpActivityGroceryDeleted');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });
 

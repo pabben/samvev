@@ -48,7 +48,7 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   'mcp:dinners:write': 'mcpScopeDinnersWrite',
   'mcp:calendar:read': 'mcpScopeCalendarRead',
 };
-const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMonitorResultRead'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'>={
+const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMonitorResultRead'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityGroceryDeleted'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'>={
   'mcp.school_sources_listed':'mcpActivitySchoolSourcesListed',
   'mcp.school_plans_listed':'mcpActivitySchoolPlansListed',
   'mcp.school_plan_read':'mcpActivitySchoolPlanRead',
@@ -63,6 +63,7 @@ const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpAc
   'mcp.groceries_listed':'mcpActivityGroceriesListed',
   'mcp.grocery_added':'mcpActivityGroceryAdded',
   'mcp.grocery_updated':'mcpActivityGroceryUpdated',
+  'mcp.grocery_deleted':'mcpActivityGroceryDeleted',
   'mcp.dinners_listed':'mcpActivityDinnersListed',
   'mcp.calendar_sources_listed':'mcpActivityCalendarSourcesListed',
   'mcp.displays_listed':'mcpActivityDisplaysListed',
