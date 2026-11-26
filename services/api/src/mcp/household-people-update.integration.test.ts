@@ -71,7 +71,7 @@ test('MCP profile updates share member PATCH behavior and enforce grant, capabil
 
   const ungranted=await callUpdate(token,2,{personId:ungrantedPersonId,displayName:'Should not change',expectedRevision:1});assert.equal(ungranted.statusCode,200,ungranted.body);assert.equal(rpc(ungranted).result.isError,true);
   const foreign=await callUpdate(token,3,{personId:foreignPersonId,displayName:'Should not change',expectedRevision:1});assert.equal(foreign.statusCode,200,foreign.body);assert.equal(rpc(foreign).result.isError,true);
-  const untouched=(await pool.query<{display_name:string}>(`SELECT display_name FROM persons WHERE id=ANY($1::uuid[])`,[[ungrantedPersonId,foreignPersonId]])).rows.map(row=>row.display_name);
+  const untouched=(await pool.query<{display_name:string}>(`SELECT display_name FROM persons WHERE id=ANY($1::uuid[]) ORDER BY array_position($1::uuid[],id)`,[[ungrantedPersonId,foreignPersonId]])).rows.map(row=>row.display_name);
   assert.deepEqual(untouched,['Synthetic ungranted profile','Synthetic foreign profile']);
   const stale=await callUpdate(token,4,{personId:targetPersonId,displayName:'Stale profile write',expectedRevision:routeProfile.revision});assert.equal(stale.statusCode,200,stale.body);assert.equal(rpc(stale).result.isError,true);
   assert.equal((await pool.query<{display_name:string}>('SELECT display_name FROM persons WHERE id=$1',[targetPersonId])).rows[0]!.display_name,fields.displayName);

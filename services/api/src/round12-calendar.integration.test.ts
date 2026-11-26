@@ -23,13 +23,15 @@ const scopes = {
 const local = (title:string,start:string,end:string|null):CalendarEvent => ({
   uid:`local:${title}:${start}`,instanceId:'single',identityKind:'local_snapshot',title,start,end,allDay:false,cancelled:false
 });
+const fixtureInstant=(dayOffset:number,hour:number)=>{const value=new Date(Date.now()+dayOffset*86_400_000);value.setUTCHours(hour,0,0,0);return value.toISOString();};
+const fixtureDay=(dayOffset:number)=>fixtureInstant(dayOffset,0).slice(0,10);
 
 class Round12Transport implements CalendarTransport {
   microsoftSubject = 'subject-a';
   eventMode:'current'|'cached-unavailable'|'unknown'|'empty'|'partial' = 'current';
   uidless:CalendarEvent[] = [
-    {...local('Synthetic local A','2026-10-24T08:00:00Z','2026-10-24T09:00:00Z'),uid:'local:synthetic-a:1'},
-    {...local('Synthetic local A','2026-10-24T08:00:00Z','2026-10-24T09:00:00Z'),uid:'local:synthetic-a:2'}
+    {...local('Synthetic local A',fixtureInstant(1,8),fixtureInstant(1,9)),uid:'local:synthetic-a:1'},
+    {...local('Synthetic local A',fixtureInstant(1,8),fixtureInstant(1,9)),uid:'local:synthetic-a:2'}
   ];
   temperatures = new Map<string,HomeAssistantTemperatureObservation|Error>([
     ['registry-temperature-a',{value:-3.5,unit:'°C',status:'current',lastReportedAt:'2026-10-15T08:00:00Z',lastUpdatedAt:'2026-10-15T08:00:00Z',fetchedAt:'2026-10-15T10:00:00Z'}],
@@ -41,7 +43,7 @@ class Round12Transport implements CalendarTransport {
   temperatureDiscoveryCalls=0;
   icsText='BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n';
   async exchangeCode(provider:Exclude<CalendarProvider,'ics'>,input:{code:string}):Promise<CalendarTokenSet>{
-    const subject=provider==='microsoft'?(input.code.includes('account-c')?'subject-c':this.microsoftSubject):`subject-${provider}`;
+    const subject=provider==='microsoft'?(input.code.includes('account-c')?'subject-c':this.microsoftSubject):provider==='home_assistant'?(input.code==='synthetic-uidless-code'?'subject-home_assistant_uidless':'subject-home_assistant'):`subject-${provider}`;
     return {accessToken:`access-${provider}`,refreshToken:`refresh-${provider}`,expiresAt:new Date(Date.now()+3_600_000).toISOString(),scopes:[...scopes[provider]],providerSubject:subject,accountLabel:`${provider}@synthetic.invalid`};
   }
   async refresh(provider:CalendarProvider):Promise<CalendarTokenSet>{
@@ -64,9 +66,9 @@ class Round12Transport implements CalendarTransport {
     if(this.eventMode==='cached-unavailable'||this.eventMode==='unknown')throw Object.assign(new Error('synthetic source health is not current'),{code:'MONITOR_SOURCE_UNAVAILABLE',details:{reason:'home_assistant_calendar_source_stale'}});
     if(this.eventMode==='partial')throw new Error('synthetic partial snapshot');
     if(this.eventMode==='empty')return {items:[]};
-    if(calendarId==='registry-waste')return {items:[{uid:'local:waste-paper:1',instanceId:'single',identityKind:'local_snapshot',title:'Synthetic paper',start:'2026-10-24',end:'2026-10-25',allDay:true,cancelled:false},{uid:'local:waste-plastic:1',instanceId:'single',identityKind:'local_snapshot',title:'Synthetic plastic',start:'2026-10-24',end:'2026-10-25',allDay:true,cancelled:false}]};
+    if(calendarId==='registry-waste')return {items:[{uid:'local:waste-paper:1',instanceId:'single',identityKind:'local_snapshot',title:'Synthetic paper',start:fixtureDay(1),end:fixtureDay(2),allDay:true,cancelled:false},{uid:'local:waste-plastic:1',instanceId:'single',identityKind:'local_snapshot',title:'Synthetic plastic',start:fixtureDay(1),end:fixtureDay(2),allDay:true,cancelled:false}]};
     if(calendarId==='registry-general-a')return {items:this.uidless};
-    return {items:[{uid:'spond-stable',instanceId:'single',identityKind:'provider',title:'Synthetic Spond activity',start:'2026-10-24T10:00:00Z',end:'2026-10-24T11:00:00Z',allDay:false,cancelled:false}]};
+    return {items:[{uid:'spond-stable',instanceId:'single',identityKind:'provider',title:'Synthetic Spond activity',start:fixtureInstant(1,10),end:fixtureInstant(1,11),allDay:false,cancelled:false}]};
   }
   async listTemperatureSensors():Promise<HomeAssistantTemperatureCandidate[]>{this.temperatureDiscoveryCalls++;if(this.discoveryBarrier){const barrier=this.discoveryBarrier;barrier.started();await barrier.wait;this.discoveryBarrier=undefined;}return [
     {externalId:'registry-temperature-a',entityId:'sensor.synthetic_a',identityKind:'registry',name:'Synthetic outside',provenance:{integrationDomain:'home_assistant',platform:'sensor',requiresTargetedTemperatureValidation:true}},
@@ -241,10 +243,10 @@ test('batch calendar removal is idempotent, transactional against reactivation, 
 
 test('complete UID-less HA snapshots retain duplicate local identities across reorder and withdraw only removed entries',async()=>{
   owner=await login();transport.eventMode='current';transport.uidless=[
-    {...local('Synthetic duplicate','2026-10-24T08:00:00Z','2026-10-24T09:00:00Z'),uid:'local:duplicate:one'},
-    {...local('Synthetic duplicate','2026-10-24T08:00:00Z','2026-10-24T09:00:00Z'),uid:'local:duplicate:two'}
+    {...local('Synthetic duplicate',fixtureInstant(1,8),fixtureInstant(1,9)),uid:'local:duplicate:one'},
+    {...local('Synthetic duplicate',fixtureInstant(1,8),fixtureInstant(1,9)),uid:'local:duplicate:two'}
   ];
-  const connection=await connect('home_assistant','Synthetic HA UID-less');const source=connection.sources.find((item)=>item.externalId==='registry-general-a')!;let current=(await enable(connection,source,{household:true,personIds:[]})).connection;
+  const connection=await connect('home_assistant','Synthetic HA UID-less','synthetic-uidless-code');const source=connection.sources.find((item)=>item.externalId==='registry-general-a')!;let current=(await enable(connection,source,{household:true,personIds:[]})).connection;
   await api('POST',`/api/v1/households/${householdId}/calendar-connections/${connection.id}/sync`,{expectedRevision:current.revision});const activeIds=()=>pool.query<{id:string}>(`SELECT occurrence.id FROM calendar_occurrences occurrence JOIN calendar_sources source ON source.id=occurrence.source_id WHERE source.connection_id=$1 AND source.external_id='registry-general-a' AND occurrence.status='active' ORDER BY occurrence.id`,[connection.id]);const first=(await activeIds()).rows.map((row)=>row.id);assert.equal(first.length,2);
   transport.uidless=[...transport.uidless].reverse();await api('POST',`/api/v1/households/${householdId}/calendar-connections/${connection.id}/sync`,{expectedRevision:current.revision});assert.deepEqual((await activeIds()).rows.map((row)=>row.id),first,'reordering indistinguishable UID-less snapshots does not create or withdraw duplicates');
   transport.uidless=[transport.uidless[0]!];await api('POST',`/api/v1/households/${householdId}/calendar-connections/${connection.id}/sync`,{expectedRevision:current.revision});assert.equal((await activeIds()).rows.length,1,'a complete snapshot may withdraw the single removed local duplicate');
