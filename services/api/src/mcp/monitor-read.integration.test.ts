@@ -154,7 +154,7 @@ test('monitor MCP reviews share the browser revision, stay private, and recheck 
     let waitingForAuthority=false;
     for(let attempt=0;attempt<500;attempt++){
       const activity=await pool.query<{blocked:boolean}>(`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname=current_database()
-        AND wait_event_type='Lock' AND query LIKE 'SELECT 1 FROM mcp_oauth_grants oauth_grant%') AS blocked`);
+        AND wait_event_type='Lock' AND query ILIKE 'SELECT%FROM mcp_oauth_grants oauth_grant%') AS blocked`);
       if(activity.rows[0]!.blocked){waitingForAuthority=true;break;}
       await new Promise(resolve=>setTimeout(resolve,10));
     }
