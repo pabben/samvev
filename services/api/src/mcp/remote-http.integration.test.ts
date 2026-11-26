@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { request as httpRequest } from 'node:http';
 import test, { after, before } from 'node:test';
 import { CLIENT_CAPABILITIES_META_KEY, CLIENT_INFO_META_KEY, PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
@@ -18,7 +19,15 @@ const modernMeta={[PROTOCOL_VERSION_META_KEY]:'2026-07-28',[CLIENT_INFO_META_KEY
 function modernHeaders(method:string,name?:string){return{'mcp-protocol-version':'2026-07-28','mcp-method':method,...(name?{'mcp-name':name}:{})};}
 async function remoteMcp(token:string,body:Record<string,unknown>,headers:Record<string,string>={}){
   // The test listener is loopback-only, while production validates the canonical public Host supplied by its reverse proxy.
-  return fetch(`${baseUrl}/mcp`,{method:'POST',headers:{host:new URL(origin).host,authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json, text/event-stream',...headers},body:JSON.stringify(body)});
+  // Node fetch rewrites Host to the loopback URL, so use node:http to preserve the reverse-proxy Host header on the wire.
+  const target=new URL(`${baseUrl}/mcp`),payload=JSON.stringify(body);
+  return new Promise<Response>((resolve,reject)=>{
+    const request=httpRequest({hostname:target.hostname,port:Number(target.port),path:target.pathname,method:'POST',headers:{host:new URL(origin).host,authorization:`Bearer ${token}`,'content-type':'application/json','content-length':Buffer.byteLength(payload),accept:'application/json, text/event-stream',...headers}},(response)=>{
+      const chunks:Buffer[]=[];response.on('data',(chunk:Buffer|string)=>chunks.push(Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk)));
+      response.on('end',()=>{const responseHeaders=new Headers();for(const [name,value] of Object.entries(response.headers)){if(value!==undefined)responseHeaders.set(name,Array.isArray(value)?value.join(', '):String(value));}resolve(new Response(Buffer.concat(chunks),{status:response.statusCode??500,headers:responseHeaders}));});
+    });
+    request.on('error',reject);request.end(payload);
+  });
 }
 
 before(async()=>{
