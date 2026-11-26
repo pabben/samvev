@@ -1,12 +1,12 @@
 import { DomainError } from '@samvev/core';
-import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, personUpdateSchema, type Capability as MemberCapability } from '@samvev/contracts';
+import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, messageUpdateSchema, personUpdateSchema, type Capability as MemberCapability } from '@samvev/contracts';
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
 import { listMessages } from '../messages/read.ts';
 import { readCalendarActivityRows } from '../calendar/activity-reader.ts';
 import { localDateInTimezone } from '../people/domain.ts';
-import { messageService, type MessageCreateActor, type MessageService, type MessageWithdrawAudit } from '../messages/service.ts';
+import { messageService, type MessageCreateActor, type MessageEditAudit, type MessageService, type MessageWithdrawAudit } from '../messages/service.ts';
 import { updatePersonProfile, type PersonProfileAudit } from '../people/profile-service.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
@@ -37,7 +37,8 @@ export interface HouseholdMcpToolDependencies {
   boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'deleteGrocery' | 'setDinner' | 'createDinnerOption' | 'updateDinnerOption' | 'deleteDinnerOption'>;
   dinnerOptionAudit?: (client: DbClient, action: 'mcp.dinner_option_created' | 'mcp.dinner_option_updated' | 'mcp.dinner_option_deleted', optionId: string) => Promise<void>;
   groceryDeleteAudit?: (client: DbClient, action: 'mcp.grocery_deleted', itemId: string) => Promise<void>;
-  messageService?: Pick<MessageService, 'create' | 'withdraw'>;
+  messageService?: Pick<MessageService, 'create' | 'edit' | 'withdraw'>;
+  messageEditAudit?: MessageEditAudit;
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
 }
@@ -57,6 +58,12 @@ const personUpdateInput = z.object({
   colorToken: personUpdateSchema.shape.colorToken,
   expectedRevision: personUpdateSchema.shape.expectedRevision
 }).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.colorToken !== undefined);
+const messageEditInput = messageUpdateSchema.extend({
+  messageId: uuid,
+  audience: messageUpdateSchema.shape.audience.unwrap().extend({
+    household: z.literal(false).default(false)
+  }).optional()
+});
 const messageWithdrawInput = z.object({ messageId: uuid, expectedRevision: z.number().int().positive() }).strict();
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const groceryDeleteInput = z.object({ id: uuid, expectedRevision: groceryUpdateSchema.shape.expectedRevision, requestKey: groceryCreateSchema.shape.requestKey }).strict();
@@ -78,6 +85,9 @@ const dinnerOptionDeletionOutput = z.object({ option: z.object({ id: idOutput, r
 const boardAssignmentWriteOutput = z.object({ assignment: z.object({ id: idOutput, localDate: date, title: z.string().max(500).nullable(), emoji: z.string().max(32).nullable(), revision: z.number().int().positive(), cleared: z.boolean() }) });
 const messageRecordOutput = z.object({ id: idOutput, body: z.string().max(10000) }).passthrough();
 const createdMessageOutput = z.object({ message: z.object({ id: idOutput }).passthrough() });
+const editedMessageOutput = z.strictObject({
+  message: z.strictObject({ id: uuid, state: z.enum(['scheduled', 'published']), revision: revisionOutput })
+});
 const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, state: z.enum(['withdrawn', 'cancelled']), revision: revisionOutput }).passthrough() });
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
@@ -93,6 +103,7 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
       AND token_set.revoked_at IS NULL AND token_set.access_expires_at>clock_timestamp()
       AND token_set.scopes ?& $5::text[]
       AND membership.id IS NOT NULL
+      AND membership.capabilities ? 'household.manage'
       AND membership.capabilities ? $6
       AND person.age_group = 'adult'
       AND account.disabled_at IS NULL
@@ -100,12 +111,13 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
     ) AS allowed,membership.person_id,membership.capabilities
     FROM mcp_oauth_grants grant_row
     JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=grant_row.id AND token_set.id=$8
+    JOIN mcp_oauth_clients oauth_client ON oauth_client.id=grant_row.client_id AND oauth_client.installation_id=$4 AND oauth_client.revoked_at IS NULL
     JOIN memberships membership ON membership.id=grant_row.membership_id AND membership.household_id=grant_row.household_id AND membership.account_id=grant_row.account_id
     JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id
     JOIN accounts account ON account.id=membership.account_id AND account.installation_id=$4
     JOIN households household ON household.id=grant_row.household_id AND household.installation_id=$4
     WHERE grant_row.id=$1 AND grant_row.household_id=$2 AND grant_row.account_id=$3 AND grant_row.membership_id=$7
-    FOR SHARE OF grant_row,token_set,membership,person,account,household`,
+    FOR SHARE OF grant_row,token_set,oauth_client,membership,person,account,household`,
     [principal.grantId, principal.householdId, principal.accountId, principal.installationId, scopes, capability, principal.membershipId, principal.tokenSetId]);
   const row = result.rows[0];
   if (!row?.allowed || !uuid.safeParse(row.person_id).success) throw new DomainError('FORBIDDEN', 403);
@@ -277,19 +289,32 @@ export function registerHouseholdTools(
     });
   });
 
+  const messageActor: MessageCreateActor = {
+    accountId: principal.accountId, installationId: principal.installationId, householdId: principal.householdId,
+    membershipId: principal.membershipId, mcpGrantId: principal.grantId
+  };
+
   registrar.registerTool('household.messages.create', {
     description: 'Create and publish or schedule one message for explicitly granted people or displays. Household-wide broadcasts are not supported; each recipient must also be permitted for the delegated member.',
     inputSchema: messageCreateSchema, outputSchema: createdMessageOutput, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
-    const actor: MessageCreateActor = {
-      accountId: principal.accountId, installationId: principal.installationId, householdId: principal.householdId,
-      membershipId: principal.membershipId, mcpGrantId: principal.grantId
-    };
-    const created = await (dependencies.messageService ?? messageService).create(actor, raw, async (client) => {
+    const created = await (dependencies.messageService ?? messageService).create(messageActor, raw, async (client) => {
       const authority = await assertLiveAuthority(client, principal, ['mcp:messages:read', 'mcp:messages:write'], 'message.create.household');
       return authority.capabilities;
     });
     return { message: created };
+  });
+
+  registrar.registerTool('household.messages.edit', {
+    description: 'Edit a scheduled or published message authored by this member or managed with current message management rights. All existing and replacement recipients must be explicitly granted people or displays. Omit the audience to keep the existing recipients, or supply a complete replacement audience.',
+    inputSchema: messageEditInput, outputSchema: editedMessageOutput, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: false
+  }, async (raw) => {
+    const { messageId, ...input } = messageEditInput.parse(raw);
+    const edited = await (dependencies.messageService ?? messageService).edit(messageActor, messageId, input, async (client) => {
+      const authority = await assertLiveAuthority(client, principal, ['mcp:messages:read', 'mcp:messages:write'], 'household.view');
+      return authority.capabilities;
+    }, dependencies.messageEditAudit);
+    return { message: { id: edited.id, state: edited.state, revision: edited.revision } };
   });
 
   registrar.registerTool('household.messages.withdraw', {
@@ -297,11 +322,7 @@ export function registerHouseholdTools(
     inputSchema: messageWithdrawInput, outputSchema: withdrawnMessageOutput, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: false
   }, async (raw) => {
     const input = messageWithdrawInput.parse(raw);
-    const actor: MessageCreateActor = {
-      accountId: principal.accountId, installationId: principal.installationId, householdId: principal.householdId,
-      membershipId: principal.membershipId, mcpGrantId: principal.grantId
-    };
-    const withdrawn = await (dependencies.messageService ?? messageService).withdraw(actor, input.messageId, input.expectedRevision, async (client) => {
+    const withdrawn = await (dependencies.messageService ?? messageService).withdraw(messageActor, input.messageId, input.expectedRevision, async (client) => {
       const authority = await assertLiveAuthority(client, principal, ['mcp:messages:read', 'mcp:messages:write'], 'household.view');
       return authority.capabilities;
     }, dependencies.messageWithdrawAudit);
@@ -409,4 +430,4 @@ export function registerHouseholdTools(
 }
 
 /** Exported for focused authorization tests without registering an MCP server. */
-export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, groceryDeleteInput, dinnerAssignmentInput, dinnerOptionUpdateInput, dinnerOptionDeleteInput, personUpdateInput, messageWithdrawInput } as const;
+export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, groceryDeleteInput, dinnerAssignmentInput, dinnerOptionUpdateInput, dinnerOptionDeleteInput, personUpdateInput, messageEditInput, messageWithdrawInput } as const;

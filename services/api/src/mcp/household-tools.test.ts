@@ -24,7 +24,7 @@ class Tools implements HouseholdMcpToolRegistrar {
 test('all household tools publish meaningful output schemas that validate returned projections', () => {
   const tools = new Tools();
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run({ query: async () => ({ rows: [] }) } as unknown as DbClient) });
-  assert.equal(tools.options.size, 18);
+  assert.equal(tools.options.size, 19);
   for (const [name, options] of tools.options) {
     assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
     assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
@@ -38,6 +38,7 @@ test('all household tools publish meaningful output schemas that validate return
     'household.people.list': { people: [{ id: 'person-1', displayName: 'Synthetic member', ageGroup: 'adult' }] },
     'household.messages.list': { messages: [{ id: 'message-1', body: 'Synthetic message' }] },
     'household.messages.create': { message: { id: 'message-1' } },
+    'household.messages.edit': { message: { id: principal.accountId, state: 'published', revision: 2 } },
     'household.messages.withdraw': { message: { id: 'message-1', state: 'withdrawn', revision: 2 } },
     'household.groceries.list': { items: [{ id: 'grocery-1', label: 'Synthetic apples', checked: false, revision: 1, createdAt: '2027-03-20T09:00:00.000Z', updatedAt: '2027-03-20T09:00:00.000Z' }] },
     'household.groceries.add': { item: { id: 'grocery-1', label: 'Synthetic apples', checked: false, revision: 1, createdAt: '2027-03-20T09:00:00.000Z', updatedAt: '2027-03-20T09:00:00.000Z' } },
@@ -273,6 +274,15 @@ test('message writes require both scopes and delegate the real OAuth member to t
       calls.push({ operation: 'create', actor, input, capabilities });
       return { id: 'synthetic-message-created' };
     },
+    async edit(actor: any, messageId: string, input: unknown, authorize: (client: DbClient, actor: any) => Promise<unknown>) {
+      const capabilities = await authorize(fake.client, actor);
+      calls.push({ operation: 'edit', actor, input: { messageId, ...input as object }, capabilities });
+      return {
+        id: messageId, state: 'published' as const, revision: 2,
+        body: 'Synthetic stored message', importance: 'normal' as const, audience_household: false,
+        publish_at: new Date('2027-03-20T09:00:00.000Z'), expires_at: new Date('2027-03-21T09:00:00.000Z')
+      };
+    },
     async withdraw(actor: any, messageId: string, expectedRevision: number, authorize: (client: DbClient, actor: any) => Promise<unknown>) {
       const capabilities = await authorize(fake.client as DbClient, actor);
       calls.push({ operation: 'withdraw', actor, input: { messageId, expectedRevision }, capabilities });
@@ -304,6 +314,21 @@ test('message writes require both scopes and delegate the real OAuth member to t
   assert.deepEqual(calls[1]!.input, { messageId: principal.accountId, expectedRevision: 1 });
   assert.ok((calls[1]!.capabilities as string[]).includes('household.view'));
   assert.deepEqual(fake.calls[1]!.values?.slice(4, 6), [['mcp:messages:read', 'mcp:messages:write'], 'household.view']);
+
+  const edit = { messageId: principal.accountId, body: 'Synthetic replacement', expectedRevision: 1 };
+  const edited = await tools.get('household.messages.edit')(edit);
+  assert.deepEqual(edited, { message: { id: principal.accountId, state: 'published', revision: 2 } });
+  const editOptions = tools.options.get('household.messages.edit')!;
+  assert.deepEqual(editOptions.requiredScopes, ['mcp:messages:read', 'mcp:messages:write']);
+  assert.equal(editOptions.idempotentHint, false);
+  assert.equal(editOptions.inputSchema.safeParse({ ...edit, audience: { household: true } }).success, false);
+  assert.equal(editOptions.outputSchema.safeParse({ message: { id: principal.accountId, state: 'published', revision: 2, body: 'Stored content' } }).success, false);
+  assert.equal(calls[2]!.operation, 'edit');
+  assert.equal(calls[2]!.actor.mcpGrantId, principal.grantId);
+  assert.deepEqual(calls[2]!.input, edit);
+  assert.deepEqual(fake.calls[2]!.values?.slice(4, 6), [['mcp:messages:read', 'mcp:messages:write'], 'household.view']);
+  assert.match(fake.calls[2]!.sql, /membership\.capabilities \? 'household.manage'/);
+  assert.match(fake.calls[2]!.sql, /oauth_client\.revoked_at IS NULL/);
 });
 
 test('board reads require live household.manage plus their distinct MCP consent scopes', async () => {

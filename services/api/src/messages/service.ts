@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
-import { messageCreateSchema, type Capability } from '@samvev/contracts';
+import { messageCreateSchema, messageUpdateSchema, type Capability } from '@samvev/contracts';
 import { DomainError, initialMessageState, requireCapability } from '@samvev/core';
+import type { ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 
 export interface MessageCreateActor {
@@ -8,7 +9,7 @@ export interface MessageCreateActor {
   installationId: string;
   householdId: string;
   membershipId: string;
-  /** Present only for a delegated OAuth create; narrows person/display recipients to this exact grant. */
+  /** Present for delegated OAuth writes and limits recipients to this exact grant. */
   mcpGrantId?: string;
 }
 
@@ -16,8 +17,25 @@ export type MessageCreateTransaction = <T>(run: (client: DbClient) => Promise<T>
 export type MessageCreateAuthorize = (client: DbClient, actor: MessageCreateActor) => Promise<Capability[]>;
 export type MessageWithdrawAudit = (client: DbClient, messageId: string, state: string, admin: boolean) => Promise<void>;
 
-function parseCreateInput(input: unknown) {
-  const parsed = messageCreateSchema.safeParse(input);
+export type MessageEditAudit = (
+  client: DbClient,
+  message: Pick<MessageEditResult, 'id' | 'state' | 'revision'>,
+  admin: boolean
+) => Promise<void>;
+
+interface MessageEditResult {
+  id: string;
+  body: string;
+  importance: 'normal' | 'attention';
+  audience_household: boolean;
+  publish_at: Date;
+  expires_at: Date;
+  state: 'scheduled' | 'published';
+  revision: number;
+}
+
+function parseMessageInput<T>(schema: ZodType<T>, input: unknown): T {
+  const parsed = schema.safeParse(input);
   if (!parsed.success) throw new DomainError('VALIDATION_FAILED', 400, { fields: parsed.error.issues.map((issue) => ({ path: issue.path.join('.'), code: issue.code })) });
   return parsed.data;
 }
@@ -57,10 +75,36 @@ export async function validateMessageAudience(
   }
 }
 
-/**
- * Create a member-authored message after the caller rechecks its current
- * authority in this transaction. Both the web route and MCP use this lifecycle.
- */
+async function requireGrantedMessageAudience(
+  client: DbClient,
+  actor: MessageCreateActor,
+  capabilities: Capability[],
+  messageId: string,
+  audienceHousehold: boolean,
+  needsDisplayPublish: boolean
+): Promise<void> {
+  if (audienceHousehold) throw new DomainError('NOT_FOUND', 404);
+
+  const people = await client.query<{ person_id: string }>(`SELECT audience.person_id FROM message_person_audiences audience
+    JOIN persons person ON person.id=audience.person_id AND person.household_id=audience.household_id
+    WHERE audience.message_id=$1 AND audience.household_id=$2 ORDER BY audience.person_id FOR SHARE OF audience,person`, [messageId, actor.householdId]);
+  // The locked message serializes changes to its audience. Validate the display
+  // rows before changing deliveries, in the same order as display revocation.
+  const displays = await client.query<{ display_id: string }>(`SELECT target.display_id FROM message_display_targets target
+    WHERE target.message_id=$1 AND target.household_id=$2 AND target.delivery_state<>'cancelled'
+    ORDER BY target.display_id`, [messageId, actor.householdId]);
+  const personIds = people.rows.map((row) => row.person_id);
+  const displayIds = displays.rows.map((row) => row.display_id);
+  if (!personIds.length && !displayIds.length) throw new DomainError('NOT_FOUND', 404);
+  try {
+    await validateMessageAudience(client, actor, capabilities, personIds, displayIds, needsDisplayPublish);
+  } catch (error) {
+    if (error instanceof DomainError && [403, 404].includes(error.status)) throw new DomainError('NOT_FOUND', 404);
+    throw error;
+  }
+}
+
+/** Shared message lifecycle. Callers recheck current authority in the write transaction. */
 export class MessageService {
   constructor(private readonly transact: MessageCreateTransaction = transaction) {}
 
@@ -68,7 +112,7 @@ export class MessageService {
     return this.transact(async (client) => {
       const capabilities = await authorize(client, actor);
       requireCapability(capabilities, 'message.create.household');
-      const body = parseCreateInput(input);
+      const body = parseMessageInput(messageCreateSchema, input);
       if (actor.mcpGrantId && body.audience.household) {
         throw new DomainError('FORBIDDEN', 403, { reason: 'mcp_message_household_audience_not_granted' });
       }
@@ -101,6 +145,93 @@ export class MessageService {
     });
   }
 
+  async edit(
+    actor: MessageCreateActor,
+    messageId: string,
+    input: unknown,
+    authorize: MessageCreateAuthorize,
+    auditEdit?: MessageEditAudit
+  ): Promise<MessageEditResult> {
+    const body = parseMessageInput(messageUpdateSchema, input);
+    return this.transact(async (client) => {
+      // Account administration locks the installation before membership rows.
+      await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE', [actor.installationId]);
+      const capabilities = await authorize(client, actor);
+      const existing = await client.query<{
+        author_membership_id: string | null;
+        state: string;
+        audience_household: boolean;
+        publish_at: Date;
+        expires_at: Date;
+      }>(`SELECT author_membership_id,state,audience_household,publish_at,expires_at
+        FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`, [messageId, actor.householdId]);
+      const current = existing.rows[0];
+      if (!current) throw new DomainError('NOT_FOUND', 404);
+
+      if (actor.mcpGrantId) {
+        await requireGrantedMessageAudience(client, actor, capabilities, messageId, current.audience_household, true);
+      }
+      const admin = current.author_membership_id !== actor.membershipId;
+      if (admin) requireCapability(capabilities, 'message.manage.household');
+      if (current.state !== 'scheduled' && current.state !== 'published') {
+        throw new DomainError('CONFLICT', 409, { reason: 'message_not_editable' });
+      }
+
+      const audience = body.audience;
+      if (audience) {
+        if (actor.mcpGrantId && audience.household) {
+          throw new DomainError('FORBIDDEN', 403, { reason: 'mcp_message_household_audience_not_granted' });
+        }
+        if (!(audience.household || audience.personIds.length || audience.displayIds.length)) {
+          throw new DomainError('VALIDATION_FAILED', 400, { fields: [{ path: 'audience', code: 'audience_required' }] });
+        }
+        await validateMessageAudience(client, actor, capabilities, audience.personIds, audience.displayIds);
+      } else if (!actor.mcpGrantId) {
+        const currentDisplays = await client.query<{ display_id: string }>(`SELECT t.display_id FROM message_display_targets t
+          JOIN displays d ON d.id=t.display_id AND d.household_id=t.household_id
+          WHERE t.message_id=$1 AND t.delivery_state IN ('queued','delivered','displayed') AND d.revoked_at IS NULL`, [messageId]);
+        await validateMessageAudience(client, actor, capabilities, [], currentDisplays.rows.map((row) => row.display_id));
+      }
+
+      const now = new Date();
+      const publishAt = body.publishAt ? new Date(body.publishAt) : current.publish_at;
+      const expiresAt = body.expiresAt ? new Date(body.expiresAt) : current.expires_at;
+      if (expiresAt <= publishAt || expiresAt <= now) throw new DomainError('SCHEDULE_INVALID', 422);
+      if (publishAt > now) {
+        requireCapability(capabilities, 'message.schedule');
+        if (current.state === 'published') throw new DomainError('CONFLICT', 409, { reason: 'published_cannot_reschedule' });
+      }
+
+      const updated = await client.query<MessageEditResult>(`UPDATE messages SET body=COALESCE($3,body),importance=COALESCE($4,importance),
+        audience_household=COALESCE($5,audience_household),publish_at=$6,expires_at=$7,revision=revision+1,updated_at=clock_timestamp()
+        WHERE id=$1 AND household_id=$2 AND revision=$8 RETURNING id,body,importance,audience_household,publish_at,expires_at,state,revision`,
+      [messageId, actor.householdId, body.body ?? null, body.importance ?? null, audience?.household ?? null, publishAt, expiresAt, body.expectedRevision]);
+      const result = updated.rows[0];
+      if (!result) throw new DomainError('REVISION_CONFLICT', 409);
+      if (audience) {
+        await client.query('DELETE FROM message_person_audiences WHERE message_id=$1', [messageId]);
+        for (const personId of audience.personIds) {
+          await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES ($1,$2,$3)', [actor.householdId, messageId, personId]);
+        }
+        await client.query(`UPDATE message_display_targets SET delivery_state='cancelled'
+          WHERE message_id=$1 AND NOT (display_id=ANY($2::uuid[]))`, [messageId, audience.displayIds]);
+        for (const displayId of audience.displayIds) {
+          await client.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES ($1,$2,$3,'queued')
+            ON CONFLICT(message_id,display_id) DO UPDATE SET delivery_state='queued',delivered_revision=NULL,delivered_at=NULL,displayed_at=NULL,failure_code=NULL`,
+          [actor.householdId, messageId, displayId]);
+        }
+      } else if (current.state === 'published') {
+        await client.query(`UPDATE message_display_targets t SET delivery_state='queued',delivered_revision=NULL,delivered_at=NULL,displayed_at=NULL,failure_code=NULL
+          FROM displays d WHERE t.message_id=$1 AND d.id=t.display_id AND d.household_id=t.household_id AND d.revoked_at IS NULL
+            AND t.delivery_state IN ('queued','delivered','displayed')`, [messageId]);
+      }
+      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key)
+        VALUES ($1,$2,$2,$3,'account',$4,$5)`, [messageId, current.state, result.revision, actor.accountId, `edit:${messageId}:${body.expectedRevision}`]);
+      if (auditEdit) await auditEdit(client, result, admin);
+      return result;
+    });
+  }
+
   async withdraw(
     actor: MessageCreateActor,
     messageId: string,
@@ -117,21 +248,7 @@ export class MessageService {
       if (!current) throw new DomainError('NOT_FOUND', 404);
 
       if (actor.mcpGrantId) {
-        const people = await client.query<{ person_id: string }>(`SELECT audience.person_id FROM message_person_audiences audience
-          JOIN persons person ON person.id=audience.person_id AND person.household_id=audience.household_id
-          WHERE audience.message_id=$1 AND audience.household_id=$2 ORDER BY audience.person_id FOR SHARE OF audience,person`, [messageId, actor.householdId]);
-        const displays = await client.query<{ display_id: string }>(`SELECT target.display_id FROM message_display_targets target
-          WHERE target.message_id=$1 AND target.household_id=$2 AND target.delivery_state<>'cancelled'
-          ORDER BY target.display_id FOR SHARE OF target`, [messageId, actor.householdId]);
-        const personIds = people.rows.map((row) => row.person_id);
-        const displayIds = displays.rows.map((row) => row.display_id);
-        try {
-          if (personIds.length || displayIds.length) await validateMessageAudience(client, actor, capabilities, personIds, displayIds, false);
-        } catch (error) {
-          if (error instanceof DomainError && [403, 404].includes(error.status)) throw new DomainError('NOT_FOUND', 404);
-          throw error;
-        }
-        if (current.audience_household || (!personIds.length && !displayIds.length)) throw new DomainError('NOT_FOUND', 404);
+        await requireGrantedMessageAudience(client, actor, capabilities, messageId, current.audience_household, false);
       }
 
       if (current.author_membership_id !== actor.membershipId) requireCapability(capabilities, 'message.manage.household');

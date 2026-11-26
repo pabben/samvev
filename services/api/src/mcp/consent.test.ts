@@ -8,13 +8,13 @@ const request: AuthorizeRequest = {
   scopes: ['mcp:messages:write'], state: 'synthetic-state'
 };
 
-test('message write consent discloses create, cancellation, withdrawal, and admin scope in both locales', () => {
+test('message write consent discloses create, edit, cancellation, withdrawal, and admin scope in both locales', () => {
   const norwegian = authorizationConsentHtml({ request, clientName: 'Synthetic client', households: [{ id: 'household-nb', name: 'Synthetic', locale: 'nb' }], csrf: 'synthetic-csrf' });
-  assert.match(norwegian, /Opprette meldinger, avlyse planlagte meldinger og trekke tilbake publiserte meldinger/);
+  assert.match(norwegian, /Opprette og endre meldinger, avlyse planlagte meldinger og trekke tilbake publiserte meldinger/);
   assert.match(norwegian, /også meldinger fra andre medlemmer du har rett til å administrere/);
 
   const english = authorizationConsentHtml({ request, clientName: 'Synthetic client', households: [{ id: 'household-en', name: 'Synthetic', locale: 'en' }], csrf: 'synthetic-csrf' });
-  assert.match(english, /Create messages, cancel scheduled messages, and withdraw published messages/);
+  assert.match(english, /Create and edit messages, cancel scheduled messages, and withdraw published messages/);
   assert.match(english, /including messages by other members you are authorized to manage/);
 });
 

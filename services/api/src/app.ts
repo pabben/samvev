@@ -11,7 +11,7 @@ import { ZodError, type ZodType } from 'zod';
 import {
   accountStatusUpdateSchema, claimSchema, displayActionPolicyUpdateSchema, displayMessageCreateSchema, displayPreviewSelectionSchema, displaySetupCreateSchema, displaySetupPreviewSchema, displaySetupUpdateSchema, displayUpdateSchema, householdSettingsUpdateSchema,
   invitationAcceptSchema, invitationReissueSchema, loginSchema, membershipUpdateSchema,
-  messageUpdateSchema, pairingApproveSchema, pairingRedeemSchema, pairingStartSchema, displayReconnectApproveSchema, displayDisconnectSchema,
+  pairingApproveSchema, pairingRedeemSchema, pairingStartSchema, displayReconnectApproveSchema, displayDisconnectSchema,
   passwordChangeSchema, personAccountCreateSchema, personCreateSchema, personUpdateSchema, personPhotoUploadSchema, personPhotoRevisionSchema, preferencesSchema, renderAckSchema, roleCapabilityPresets,
   aiConnectionTestSchema, aiSettingsUpdateSchema,aiChatGptImportSchema,aiChatGptDisconnectSchema,aiChatGptSelectSchema,aiUsageQuerySchema,
   monitorResultReviewSchema, monitorTaskCreateSchema, monitorTaskQualitySchema, monitorTaskRevisionSchema, monitorTaskSubjectsSchema, monitorTaskUpdateSchema,
@@ -2773,39 +2773,11 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
 
   app.patch('/api/v1/households/:householdId/messages/:messageId', async (request) => {
     const auth = await authForHousehold(request, params(request).householdId!);
-    const body = parse(messageUpdateSchema, request.body);
-    return transaction(async (client) => {
-      const existing = await client.query<{author_membership_id:string;state:string;publish_at:Date;expires_at:Date}>(`SELECT author_membership_id,state,publish_at,expires_at FROM messages WHERE id=$1 AND household_id=$2 FOR UPDATE`, [params(request).messageId,auth.householdId]);
-      const current = existing.rows[0];
-      if (!current) throw new DomainError('NOT_FOUND',404);
-      if (current.author_membership_id !== auth.membershipId) requireCapability(auth.capabilities,'message.manage.household');
-      if (!['scheduled','published'].includes(current.state)) throw new DomainError('CONFLICT',409,{reason:'message_not_editable'});
-      const audience = body.audience;
-      if (audience) {
-        if (!(audience.household || audience.personIds.length || audience.displayIds.length)) throw new DomainError('VALIDATION_FAILED',400,{fields:[{path:'audience',code:'audience_required'}]});
-        await validateMessageAudience(client,auth,auth.capabilities,audience.personIds,audience.displayIds);
-      } else {
-        const currentDisplays=(await client.query<{display_id:string}>(`SELECT t.display_id FROM message_display_targets t JOIN displays d ON d.id=t.display_id AND d.household_id=t.household_id WHERE t.message_id=$1 AND t.delivery_state IN ('queued','delivered','displayed') AND d.revoked_at IS NULL`,[params(request).messageId])).rows.map((row)=>row.display_id);
-        await validateMessageAudience(client,auth,auth.capabilities,[],currentDisplays);
-      }
-      const publishAt = body.publishAt ? new Date(body.publishAt) : current.publish_at;
-      const expiresAt = body.expiresAt ? new Date(body.expiresAt) : current.expires_at;
-      if (expiresAt <= publishAt || expiresAt <= new Date()) throw new DomainError('SCHEDULE_INVALID',422);
-      if (publishAt > new Date()) requireCapability(auth.capabilities,'message.schedule');
-      if (current.state === 'published' && publishAt > new Date()) throw new DomainError('CONFLICT',409,{reason:'published_cannot_reschedule'});
-      const updated = await client.query(`UPDATE messages SET body=COALESCE($3,body),importance=COALESCE($4,importance),audience_household=COALESCE($5,audience_household),publish_at=$6,expires_at=$7,revision=revision+1,updated_at=clock_timestamp()
-        WHERE id=$1 AND household_id=$2 AND revision=$8 RETURNING id,body,importance,audience_household,publish_at,expires_at,state,revision`, [params(request).messageId,auth.householdId,body.body ?? null,body.importance ?? null,audience?.household ?? null,publishAt,expiresAt,body.expectedRevision]);
-      if (!updated.rowCount) throw new DomainError('REVISION_CONFLICT',409);
-      if (audience) {
-        await client.query('DELETE FROM message_person_audiences WHERE message_id=$1',[params(request).messageId]);
-        for (const personId of audience.personIds) await client.query('INSERT INTO message_person_audiences(household_id,message_id,person_id) VALUES ($1,$2,$3)',[auth.householdId,params(request).messageId,personId]);
-        await client.query(`UPDATE message_display_targets SET delivery_state='cancelled' WHERE message_id=$1 AND NOT (display_id=ANY($2::uuid[]))`,[params(request).messageId,audience.displayIds]);
-        for (const displayId of audience.displayIds) await client.query(`INSERT INTO message_display_targets(household_id,message_id,display_id,delivery_state) VALUES ($1,$2,$3,'queued') ON CONFLICT(message_id,display_id) DO UPDATE SET delivery_state='queued',delivered_revision=NULL,delivered_at=NULL,displayed_at=NULL,failure_code=NULL`,[auth.householdId,params(request).messageId,displayId]);
-      } else if (current.state === 'published') await client.query(`UPDATE message_display_targets t SET delivery_state='queued',delivered_revision=NULL,delivered_at=NULL,displayed_at=NULL,failure_code=NULL FROM displays d WHERE t.message_id=$1 AND d.id=t.display_id AND d.household_id=t.household_id AND d.revoked_at IS NULL AND t.delivery_state IN ('queued','delivered','displayed')`,[params(request).messageId]);
-      await client.query(`INSERT INTO message_lifecycle_events(message_id,from_state,to_state,revision,actor_type,actor_id,idempotency_key) VALUES ($1,$2,$2,$3,'account',$4,$5)`,[params(request).messageId,current.state,(updated.rows[0] as {revision:number}).revision,auth.accountId,`edit:${params(request).messageId}:${body.expectedRevision}`]);
-      if (current.author_membership_id !== auth.membershipId) await audit(client,auth,'message.edited_by_admin','message',params(request).messageId);
-      return updated.rows[0];
-    });
+    return messageService.edit(auth, params(request).messageId!, request.body,
+      async (client) => recheckHouseholdAuth(client, request, auth, null),
+      async (client, message, admin) => {
+        if (admin) await audit(client, auth, 'message.edited_by_admin', 'message', message.id);
+      });
   });
 
   app.post('/api/v1/households/:householdId/messages/:messageId/withdraw', async (request) => {
