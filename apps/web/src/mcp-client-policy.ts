@@ -27,7 +27,7 @@ export type SchoolPlanSource = {
 };
 export type McpCalendarSource = {id:string;connectionId:string;connectionName:string;accountLabel:string|null;provider:CalendarConnection['provider'];connectionState:string;enabled:boolean;purpose:'calendar'|'waste';name:string;displayName:string|null};
 
-const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead'> = {
+const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeDisplaysRead' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead'> = {
   context: 'mcpScopeContext', 'mcp:context': 'mcpScopeContext',
   'monitors:read': 'mcpScopeMonitorsRead', 'mcp:monitors:read': 'mcpScopeMonitorsRead',
   'school-plans:read': 'mcpScopeSchoolRead', 'mcp:school-plans:read': 'mcpScopeSchoolRead',
@@ -35,6 +35,7 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   offline_access: 'mcpScopeOffline',
   'mcp:people:read': 'mcpScopePeopleRead',
   'mcp:people:write': 'mcpScopePeopleWrite',
+  'mcp:displays:read': 'mcpScopeDisplaysRead',
   'mcp:messages:read': 'mcpScopeMessagesRead',
   'mcp:messages:write': 'mcpScopeMessagesWrite',
   'mcp:groceries:read': 'mcpScopeGroceriesRead',
@@ -43,7 +44,7 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   'mcp:dinners:write': 'mcpScopeDinnersWrite',
   'mcp:calendar:read': 'mcpScopeCalendarRead',
 };
-const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'>={
+const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'>={
   'mcp.school_sources_listed':'mcpActivitySchoolSourcesListed',
   'mcp.school_plans_listed':'mcpActivitySchoolPlansListed',
   'mcp.school_plan_read':'mcpActivitySchoolPlanRead',
@@ -59,6 +60,7 @@ const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpAc
   'mcp.grocery_updated':'mcpActivityGroceryUpdated',
   'mcp.dinners_listed':'mcpActivityDinnersListed',
   'mcp.calendar_sources_listed':'mcpActivityCalendarSourcesListed',
+  'mcp.displays_listed':'mcpActivityDisplaysListed',
   'mcp.dinner_options_listed':'mcpActivityDinnerOptionsListed',
   'mcp.dinner_assigned':'mcpActivityDinnerAssigned',
 };
@@ -80,7 +82,7 @@ export function hasMcpPeoplePolicyScope(scopes: string[]) {
 }
 
 export function hasMcpDisplayPolicyScope(scopes: string[]) {
-  return hasMcpSchoolScope(scopes) || scopes.includes('mcp:messages:write');
+  return hasMcpSchoolScope(scopes) || scopes.includes('mcp:messages:write') || scopes.includes('mcp:displays:read');
 }
 
 export function calendarSourcesForPolicy(connections:CalendarConnection[]):McpCalendarSource[]{

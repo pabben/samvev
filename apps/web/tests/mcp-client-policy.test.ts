@@ -28,9 +28,11 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:calendar:read'), 'mcpScopeCalendarRead');
   assert.equal(mcpScopeTranslationKey('mcp:messages:write'), 'mcpScopeMessagesWrite');
   assert.equal(mcpScopeTranslationKey('mcp:people:write'), 'mcpScopePeopleWrite');
+  assert.equal(mcpScopeTranslationKey('mcp:displays:read'), 'mcpScopeDisplaysRead');
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
   assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
+  assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });
 
@@ -41,6 +43,7 @@ test('school and display policy controls require a matching current consent scop
   assert.equal(hasMcpDisplayPolicyScope(['mcp:monitors:read']), false);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:calendar:read']), false);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:messages:write']), true);
+  assert.equal(hasMcpDisplayPolicyScope(['mcp:displays:read']), true);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:groceries:read']), false);
   assert.equal(hasMcpPeoplePolicyScope(['mcp:people:write']), true);
   assert.equal(hasMcpPeoplePolicyScope(['mcp:monitors:read']), false);
