@@ -30,9 +30,10 @@ export type SchoolPlanSource = {
 };
 export type McpCalendarSource = {id:string;connectionId:string;connectionName:string;accountLabel:string|null;provider:CalendarConnection['provider'];connectionState:string;enabled:boolean;purpose:'calendar'|'waste';name:string;displayName:string|null};
 
-const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeDisplaysRead' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead'> = {
+const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeMonitorsContent' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeDisplaysRead' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead'> = {
   context: 'mcpScopeContext', 'mcp:context': 'mcpScopeContext',
   'monitors:read': 'mcpScopeMonitorsRead', 'mcp:monitors:read': 'mcpScopeMonitorsRead',
+  'mcp:monitors:content': 'mcpScopeMonitorsContent',
   'school-plans:read': 'mcpScopeSchoolRead', 'mcp:school-plans:read': 'mcpScopeSchoolRead',
   'school-plans:write': 'mcpScopeSchoolWrite', 'mcp:school-plans:write': 'mcpScopeSchoolWrite',
   offline_access: 'mcpScopeOffline',
@@ -47,7 +48,7 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   'mcp:dinners:write': 'mcpScopeDinnersWrite',
   'mcp:calendar:read': 'mcpScopeCalendarRead',
 };
-const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'>={
+const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMonitorResultRead'|'mcpActivityMessagesListed'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'>={
   'mcp.school_sources_listed':'mcpActivitySchoolSourcesListed',
   'mcp.school_plans_listed':'mcpActivitySchoolPlansListed',
   'mcp.school_plan_read':'mcpActivitySchoolPlanRead',
@@ -57,6 +58,7 @@ const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpAc
   'mcp.monitors_listed':'mcpActivityMonitorsListed',
   'mcp.monitor_read':'mcpActivityMonitorRead',
   'mcp.monitor_runs_listed':'mcpActivityMonitorRunsListed',
+  'mcp.monitor_result_read':'mcpActivityMonitorResultRead',
   'mcp.messages_listed':'mcpActivityMessagesListed',
   'mcp.groceries_listed':'mcpActivityGroceriesListed',
   'mcp.grocery_added':'mcpActivityGroceryAdded',

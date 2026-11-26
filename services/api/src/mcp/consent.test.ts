@@ -28,3 +28,11 @@ test('dinner write consent discloses option management and date assignment in bo
   assert.match(english, /Create, edit, and remove dinner options/);
   assert.match(english, /assign or clear dinner for a date/);
 });
+
+test('monitor result consent distinguishes content from status in both locales', () => {
+  const contentRequest: AuthorizeRequest = { ...request, scopes: ['mcp:monitors:read','mcp:monitors:content'] };
+  const norwegian = authorizationConsentHtml({ request: contentRequest, clientName: 'Synthetic client', households: [{ id: 'household-nb', name: 'Synthetic', locale: 'nb' }], csrf: 'synthetic-csrf' });
+  assert.match(norwegian, /Se avgrenset, AI-generert resultattekst som kan inneholde husholdnings- eller skoleinformasjon/);
+  const english = authorizationConsentHtml({ request: contentRequest, clientName: 'Synthetic client', households: [{ id: 'household-en', name: 'Synthetic', locale: 'en' }], csrf: 'synthetic-csrf' });
+  assert.match(english, /Read bounded AI-generated result text, which may contain household or school information/);
+});
