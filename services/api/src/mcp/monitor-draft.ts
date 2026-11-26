@@ -11,9 +11,9 @@ export const monitorDraftCreateInputSchema=monitorRecipientFreeDraftCreateSchema
 }).strict();
 
 export const monitorDraftCreateOutputSchema=z.strictObject({
-  draft:z.strictObject({
-    id:z.uuid(),state:z.literal('draft'),revision:z.number().int().positive(),
-    recipientCount:z.literal(0),requiresBrowserCompletion:z.literal(true)
+  creation:z.strictObject({
+    taskId:z.uuid(),createdRevision:z.number().int().positive(),createdAs:z.literal('draft'),
+    recipientCountAtCreation:z.literal(0),requiresBrowserCompletion:z.literal(true)
   })
 });
 
@@ -35,18 +35,19 @@ export async function assertMcpMonitorDraftWriteAuthority(client:DbClient,princi
     JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=oauth_grant.id AND token_set.id=$5
     JOIN memberships membership ON membership.id=oauth_grant.membership_id
       AND membership.household_id=oauth_grant.household_id AND membership.account_id=oauth_grant.account_id
-    JOIN accounts account ON account.id=oauth_grant.account_id AND account.disabled_at IS NULL
+    JOIN accounts account ON account.id=oauth_grant.account_id AND account.installation_id=$8 AND account.disabled_at IS NULL
     JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult'
     JOIN households household ON household.id=oauth_grant.household_id AND household.installation_id=oauth_grant.installation_id
     JOIN mcp_oauth_clients oauth_client ON oauth_client.id=oauth_grant.client_id
       AND oauth_client.installation_id=oauth_grant.installation_id AND oauth_client.revoked_at IS NULL
     WHERE oauth_grant.id=$1 AND oauth_grant.household_id=$2 AND oauth_grant.account_id=$3 AND oauth_grant.membership_id=$4
+      AND oauth_grant.installation_id=$8
       AND oauth_grant.revoked_at IS NULL AND oauth_grant.scopes ?& $6::text[]
       AND token_set.revoked_at IS NULL AND token_set.access_expires_at>clock_timestamp() AND token_set.scopes ?& $6::text[]
       AND membership.capabilities ?& $7::text[]
     FOR SHARE OF oauth_grant,token_set,membership,account,person,household,oauth_client`,[
     principal.grantId,principal.householdId,principal.accountId,principal.membershipId,principal.tokenSetId,
-    REQUIRED_SCOPES,REQUIRED_CAPABILITIES
+    REQUIRED_SCOPES,REQUIRED_CAPABILITIES,principal.installationId
   ])).rows[0];
   if(!row)throw new DomainError('FORBIDDEN',403,{reason:'mcp_monitor_draft_authority_required'});
   return{accountId:principal.accountId,installationId:principal.installationId,householdId:principal.householdId,membershipId:principal.membershipId,capabilities:row.capabilities};
@@ -72,13 +73,13 @@ export async function createMcpMonitorDraft(principal:McpPrincipal,raw:unknown,d
     if(receipt){
       if(receipt.request_hash!==requestHash)throw new DomainError('CONFLICT',409,{reason:'idempotency_payload_mismatch'});
       await assertMcpMonitorDraftWriteAuthority(client,principal);
-      return{draft:{id:receipt.task_id,state:'draft',revision:receipt.task_revision,recipientCount:0,requiresBrowserCompletion:true}};
+      return{creation:{taskId:receipt.task_id,createdRevision:receipt.task_revision,createdAs:'draft',recipientCountAtCreation:0,requiresBrowserCompletion:true}};
     }
     const draft=await createRecipientFreeMonitorDraft(client,actor,draftInput);
     await deps.audit(client,draft.id,draft.revision);
     await client.query(`INSERT INTO mcp_monitor_draft_requests(household_id,grant_id,request_key,request_hash,task_id,task_revision)
       VALUES($1,$2,$3,$4,$5,$6)`,[principal.householdId,principal.grantId,requestKey,requestHash,draft.id,draft.revision]);
     await assertMcpMonitorDraftWriteAuthority(client,principal);
-    return{draft:{...draft,recipientCount:0,requiresBrowserCompletion:true}};
+    return{creation:{taskId:draft.id,createdRevision:draft.revision,createdAs:'draft',recipientCountAtCreation:0,requiresBrowserCompletion:true}};
   });
 }

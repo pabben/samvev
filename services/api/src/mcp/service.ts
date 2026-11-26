@@ -807,7 +807,7 @@ export class McpOAuthService {
     if(principal){
       server.registerTool('samvev_monitor_draft_create',{
         title:'Create an inert Samvev monitor draft',
-        description:'Create one recipient-free monitor draft for later completion in Samvev. This validates and stores only the instruction and source plan. It never fetches a source, calls AI, creates a run or message, schedules work, selects recipients, or approves the draft.',
+        description:'Create one recipient-free monitor draft for later completion in Samvev. This validates and stores only the instruction and source plan. It never fetches a source, calls AI, creates a run or message, schedules work, selects recipients, or approves the draft. The result is a historical creation receipt; use samvev_monitor_get for current status. Replaying after browser edit or deletion never recreates or describes current task state.',
         inputSchema:monitorDraftCreateInputSchema,outputSchema:monitorDraftCreateOutputSchema,
         scopeChallenge:requireScopes('mcp:monitors:read','mcp:monitors:draft:write'),
         annotations:{readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false}

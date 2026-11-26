@@ -2,10 +2,13 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test, { after, before } from 'node:test';
 import { CLIENT_CAPABILITIES_META_KEY, CLIENT_INFO_META_KEY, PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server';
+import { tokenHash } from '@samvev/core';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.ts';
-import { pool } from '../db.ts';
+import { pool, transaction } from '../db.ts';
 import { migrate } from '../db/migrate.ts';
+import { assertMcpMonitorDraftWriteAuthority } from './monitor-draft.ts';
+import type { McpPrincipal } from './service.ts';
 
 const origin='https://samvev.test.invalid';
 const callback='https://monitor-draft-client.test.invalid/oauth/callback';
@@ -17,7 +20,8 @@ function form(value:Record<string,string>){return new URLSearchParams(value).toS
 function challenge(verifier:string){return createHash('sha256').update(verifier).digest('base64url');}
 const meta={[PROTOCOL_VERSION_META_KEY]:'2026-07-28',[CLIENT_INFO_META_KEY]:{name:'synthetic-monitor-draft-client',version:'1.0.0'},[CLIENT_CAPABILITIES_META_KEY]:{}};
 function rpc(response:LightMyRequestResponse):any{return response.json();}
-async function call(token:string,args:Record<string,unknown>,id:number){return inject({method:'POST',url:'/mcp',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json','mcp-protocol-version':'2026-07-28','mcp-method':'tools/call','mcp-name':'samvev_monitor_draft_create'},payload:{jsonrpc:'2.0',id,method:'tools/call',params:{name:'samvev_monitor_draft_create',arguments:args,_meta:meta}}});}
+async function callTool(token:string,name:string,args:Record<string,unknown>,id:number){return inject({method:'POST',url:'/mcp',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json','mcp-protocol-version':'2026-07-28','mcp-method':'tools/call','mcp-name':name},payload:{jsonrpc:'2.0',id,method:'tools/call',params:{name,arguments:args,_meta:meta}}});}
+async function call(token:string,args:Record<string,unknown>,id:number){return callTool(token,'samvev_monitor_draft_create',args,id);}
 
 async function client(name:string){
   const registered=await inject({method:'POST',url:'/oauth/register',payload:{client_name:name,redirect_uris:[callback],token_endpoint_auth_method:'none'}});
@@ -58,6 +62,14 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
 
   const clientId=await client('Synthetic monitor draft writer');
   const token=await authorize(clientId,'mcp:monitors:read mcp:monitors:draft:write');
+  const authority=(await pool.query<{token_set_id:string;grant_id:string;client_database_id:string;account_id:string;membership_id:string;household_id:string;installation_id:string}>(`SELECT token_set.id token_set_id,oauth_grant.id grant_id,oauth_client.id client_database_id,
+      oauth_grant.account_id,oauth_grant.membership_id,oauth_grant.household_id,oauth_grant.installation_id
+    FROM mcp_oauth_token_sets token_set JOIN mcp_oauth_grants oauth_grant ON oauth_grant.id=token_set.grant_id
+    JOIN mcp_oauth_clients oauth_client ON oauth_client.id=oauth_grant.client_id WHERE token_set.access_token_hash=$1`,[tokenHash(token)])).rows[0]!;
+  const forgedPrincipal:McpPrincipal={token,clientId,tokenSetId:authority.token_set_id,grantId:authority.grant_id,clientDatabaseId:authority.client_database_id,
+    accountId:authority.account_id,membershipId:authority.membership_id,householdId:authority.household_id,installationId:authority.installation_id,
+    scopes:['mcp:monitors:read','mcp:monitors:draft:write'],expiresAt:new Date(Date.now()+60_000)};
+  await assert.rejects(()=>transaction(client=>assertMcpMonitorDraftWriteAuthority(client,{...forgedPrincipal,installationId:'77777777-7777-4777-8777-777777777777'})),(error:any)=>error.code==='FORBIDDEN');
   const invalidInputs=[
     {...validInput('missing-source-request-0001'),sourceUrl:undefined,instruction:'Remember to check for useful updates later.'},
     {...validInput('blocked-source-request-0001'),sourceUrl:'https://example.test.invalid/monitor?api%2Dkey=must-not-survive'},
@@ -78,8 +90,8 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
   assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_tasks`)).rows[0].count,0);
 
   const created=await call(token,validInput(),20);assert.equal(created.statusCode,200,created.body);
-  const draft=rpc(created).result.structuredContent.draft;
-  assert.deepEqual(draft,{id:draft.id,state:'draft',revision:1,recipientCount:0,requiresBrowserCompletion:true});
+  const creation=rpc(created).result.structuredContent.creation;
+  assert.deepEqual(creation,{taskId:creation.taskId,createdRevision:1,createdAs:'draft',recipientCountAtCreation:0,requiresBrowserCompletion:true});
   const stored=(await pool.query<any>(`SELECT task.state,task.revision,task.approved_revision,task.next_check_at,task.last_checked_at,task.interpreted_rule,
       task.source_url,task.tool_plan,task.lease_token,task.lease_expires_at,
       (SELECT count(*)::int FROM monitor_task_person_targets WHERE task_id=task.id) person_targets,
@@ -87,28 +99,39 @@ test('monitor draft write requires both exact scopes and stores one inert, repla
       (SELECT count(*)::int FROM monitor_runs WHERE task_id=task.id) runs,
       (SELECT count(*)::int FROM monitor_executions WHERE task_id=task.id) executions,
       (SELECT count(*)::int FROM monitor_events WHERE task_id=task.id) events
-    FROM monitor_tasks task WHERE task.id=$1`,[draft.id])).rows[0]!;
+    FROM monitor_tasks task WHERE task.id=$1`,[creation.taskId])).rows[0]!;
   assert.deepEqual({state:stored.state,revision:stored.revision,approved:stored.approved_revision,next:stored.next_check_at,checked:stored.last_checked_at,rule:stored.interpreted_rule,lease:stored.lease_token,leaseExpiry:stored.lease_expires_at,people:stored.person_targets,displays:stored.display_targets,runs:stored.runs,executions:stored.executions,events:stored.events},
     {state:'draft',revision:1,approved:null,next:null,checked:null,rule:null,lease:null,leaseExpiry:null,people:0,displays:0,runs:0,executions:0,events:0});
   assert.equal(stored.source_url,'https://example.test.invalid/monitor');assert.deepEqual(stored.tool_plan,['web.open']);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM messages`)).rows[0].count,0);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM ai_usage_events`)).rows[0].count,0);
 
-  const replay=await call(token,validInput(),21);assert.deepEqual(rpc(replay).result.structuredContent.draft,draft);
+  const replay=await call(token,validInput(),21);assert.deepEqual(rpc(replay).result.structuredContent.creation,creation);
   const mismatch=await call(token,{...validInput(),instruction:'Check the synthetic public source for different updates.'},22);
   assert.equal(rpc(mismatch).result.isError,true,mismatch.body);assert.match(rpc(mismatch).result.content[0].text,/CONFLICT/);
   const concurrentKey='monitor-draft-concurrent-0001';
   const concurrent=await Promise.all([call(token,validInput(concurrentKey),23),call(token,validInput(concurrentKey),24)]);
-  assert.equal(new Set(concurrent.map(response=>rpc(response).result.structuredContent.draft.id)).size,1);
+  assert.equal(new Set(concurrent.map(response=>rpc(response).result.structuredContent.creation.taskId)).size,1);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_tasks`)).rows[0].count,2);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM audit_events WHERE action='mcp.monitor_draft_created'`)).rows[0].count,2);
   assert.equal((await pool.query(`SELECT count(*)::int count FROM mcp_monitor_draft_requests`)).rows[0].count,2);
 
   const listed=await inject({method:'GET',url:`/api/v1/households/${householdId}/monitors`,headers:{cookie:adminCookie}});
-  assert.equal(listed.statusCode,200,listed.body);const browserDraft=listed.json().tasks.find((task:any)=>task.id===draft.id);
+  assert.equal(listed.statusCode,200,listed.body);const browserDraft=listed.json().tasks.find((task:any)=>task.id===creation.taskId);
   assert.equal(browserDraft.lifecycle.status,'incomplete');assert.equal(browserDraft.lifecycle.actions.edit.enabled,true);assert.deepEqual(browserDraft.targets,{personIds:[],displayIds:[]});
-  const edited=await inject({method:'PATCH',url:`/api/v1/households/${householdId}/monitors/${draft.id}`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{expectedRevision:1,targets:{personIds:[personId],displayIds:[]}}});
+  const edited=await inject({method:'PATCH',url:`/api/v1/households/${householdId}/monitors/${creation.taskId}`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{expectedRevision:1,targets:{personIds:[personId],displayIds:[]}}});
   assert.equal(edited.statusCode,200,edited.body);assert.deepEqual(edited.json().targets,{personIds:[personId],displayIds:[]});assert.equal(edited.json().state,'draft');assert.equal(edited.json().approvedRevision,null);assert.equal(edited.json().nextCheckAt,null);
+  const current=await callTool(token,'samvev_monitor_get',{taskId:creation.taskId},25);
+  assert.equal(rpc(current).result.structuredContent.task.revision,2,current.body);
+  assert.equal(rpc(current).result.structuredContent.task.state,'draft');
+  assert.equal('createdRevision' in rpc(current).result.structuredContent.task,false,'monitor_get, not the creation receipt, is the current-status contract');
+  const removed=await inject({method:'DELETE',url:`/api/v1/households/${householdId}/monitors/${creation.taskId}`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{expectedRevision:2}});
+  assert.equal(removed.statusCode,204,removed.body);
+  const missing=await callTool(token,'samvev_monitor_get',{taskId:creation.taskId},26);
+  assert.equal(rpc(missing).result.isError,true,missing.body);assert.match(rpc(missing).result.content[0].text,/NOT_FOUND/);
+  const afterDeleteReplay=await call(token,validInput(),27);
+  assert.deepEqual(rpc(afterDeleteReplay).result.structuredContent.creation,creation,'replay returns only the historical creation receipt');
+  assert.equal((await pool.query(`SELECT count(*)::int count FROM monitor_tasks WHERE id=$1`,[creation.taskId])).rows[0].count,0,'replay after browser deletion never recreates the task');
 });
 
 test('monitor draft creation waits for and rejects concurrent grant revocation without mutation',async()=>{
