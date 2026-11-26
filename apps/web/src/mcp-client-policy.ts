@@ -27,13 +27,14 @@ export type SchoolPlanSource = {
 };
 export type McpCalendarSource = {id:string;connectionId:string;connectionName:string;accountLabel:string|null;provider:CalendarConnection['provider'];connectionState:string;enabled:boolean;purpose:'calendar'|'waste';name:string;displayName:string|null};
 
-const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead'> = {
+const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead'> = {
   context: 'mcpScopeContext', 'mcp:context': 'mcpScopeContext',
   'monitors:read': 'mcpScopeMonitorsRead', 'mcp:monitors:read': 'mcpScopeMonitorsRead',
   'school-plans:read': 'mcpScopeSchoolRead', 'mcp:school-plans:read': 'mcpScopeSchoolRead',
   'school-plans:write': 'mcpScopeSchoolWrite', 'mcp:school-plans:write': 'mcpScopeSchoolWrite',
   offline_access: 'mcpScopeOffline',
   'mcp:people:read': 'mcpScopePeopleRead',
+  'mcp:people:write': 'mcpScopePeopleWrite',
   'mcp:messages:read': 'mcpScopeMessagesRead',
   'mcp:messages:write': 'mcpScopeMessagesWrite',
   'mcp:groceries:read': 'mcpScopeGroceriesRead',
@@ -74,8 +75,12 @@ export function hasMcpSchoolScope(scopes: string[]) {
   return scopes.some(scope => scope === 'mcp:school-plans:read' || scope === 'mcp:school-plans:write' || scope === 'school-plans:read' || scope === 'school-plans:write');
 }
 
+export function hasMcpPeoplePolicyScope(scopes: string[]) {
+  return hasMcpSchoolScope(scopes) || scopes.some(scope=>['mcp:calendar:read','mcp:people:read','mcp:people:write','mcp:messages:read','mcp:messages:write'].includes(scope));
+}
+
 export function hasMcpDisplayPolicyScope(scopes: string[]) {
-  return hasMcpSchoolScope(scopes) || scopes.includes('mcp:calendar:read') || scopes.includes('mcp:messages:write') || scopes.includes('mcp:monitors:read') || scopes.includes('monitors:read');
+  return hasMcpSchoolScope(scopes) || scopes.includes('mcp:messages:write');
 }
 
 export function calendarSourcesForPolicy(connections:CalendarConnection[]):McpCalendarSource[]{
@@ -112,7 +117,8 @@ export function unlistedSchoolResources(existing: NonNullable<McpAuthorization['
   return existing.filter(resource => resource.kind==='school_source'&&!available.has(resource.id));
 }
 
-export function calendarResourcesForPolicy(existing:NonNullable<McpAuthorization['resources']>,selectedResourceIds:string[],sources:McpCalendarSource[]){
+export function calendarResourcesForPolicy(existing:NonNullable<McpAuthorization['resources']>,selectedResourceIds:string[],sources:McpCalendarSource[],selectedPersonIds:string[]){
+  if(selectedResourceIds.length&&selectedPersonIds.length===0)throw new Error('mcp_calendar_source_requires_people');
   const selected=new Set(selectedResourceIds);
   const kept=existing.filter(resource=>resource.kind!=='calendar_source'||selected.has(resource.id));
   const existingIds=new Set(existing.filter(resource=>resource.kind==='calendar_source').map(resource=>resource.id));

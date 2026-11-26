@@ -3,7 +3,7 @@ import { api } from './api';
 import { formatDate } from './time';
 import { Check, Dialog, Empty, ErrorNotice, Icon, Loading, useI18n } from './ui';
 import type { Display, Person } from './types';
-import { calendarProviderTranslationKey, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, calendarSourceRecords as calendarSourceRecordsForPolicy, hasMcpDisplayPolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type McpCalendarSource, type SchoolPlanSource } from './mcp-client-policy';
+import { calendarProviderTranslationKey, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, calendarSourceRecords as calendarSourceRecordsForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type McpCalendarSource, type SchoolPlanSource } from './mcp-client-policy';
 
 type McpAuthorizations = { authorizations: McpAuthorization[] };
 type McpActivity = { occurredAt:string; action:string; subjectType:string; subjectId:string };
@@ -103,6 +103,7 @@ export function McpAuthorizationCard({authorization,base,timezone,people,display
   const changed=JSON.stringify(personIds)!==JSON.stringify(authorization.person_ids??[])||JSON.stringify(displayIds)!==JSON.stringify(authorization.display_ids??[])||JSON.stringify(schoolResourceIds)!==JSON.stringify((authorization.resources??[]).filter(resource=>resource.kind==='school_source').map(resource=>resource.id))||JSON.stringify(calendarResourceIds)!==JSON.stringify((authorization.resources??[]).filter(resource=>resource.kind==='calendar_source').map(resource=>resource.id))||JSON.stringify(scopeIds)!==JSON.stringify(authorization.scopes);
   const hasSchoolScope=hasMcpSchoolScope(scopeIds);
   const hasCalendarScope=scopeIds.includes('mcp:calendar:read');
+  const hasPeopleScope=hasMcpPeoplePolicyScope(scopeIds);
   const hasDisplayScope=hasMcpDisplayPolicyScope(scopeIds);
   const validScopes=isValidMcpScopeNarrowing(authorization.scopes,scopeIds);
   const scopesChanged=JSON.stringify(scopeIds)!==JSON.stringify(authorization.scopes);
@@ -117,7 +118,7 @@ export function McpAuthorizationCard({authorization,base,timezone,people,display
     try{
       let selectedResources=authorization.resources??[];
       if(hasSchoolScope){if(schoolSourcesAvailable)selectedResources=schoolResourcesForPolicy(selectedResources,schoolResourceIds,schoolSources,personIds)}else selectedResources=selectedResources.filter(resource=>resource.kind!=='school_source');
-      if(hasCalendarScope){if(calendarSourcesAvailable)selectedResources=calendarResourcesForPolicy(selectedResources,calendarResourceIds,calendarSources)}else selectedResources=selectedResources.filter(resource=>resource.kind!=='calendar_source');
+      if(hasCalendarScope&&personIds.length){if(calendarSourcesAvailable)selectedResources=calendarResourcesForPolicy(selectedResources,calendarResourceIds,calendarSources,personIds)}else selectedResources=selectedResources.filter(resource=>resource.kind!=='calendar_source');
       await saveMcpPolicy(base,authorization,personIds,displayIds,selectedResources,scopesChanged?scopeIds:undefined);
       await onSaved();setSaved(true);
     }catch(cause){setError(cause)}finally{setBusy(false)}
@@ -151,12 +152,12 @@ export function McpAuthorizationCard({authorization,base,timezone,people,display
             if(!hasMcpSchoolScope(next))setSchoolResourceIds([]);
             if(!next.includes('mcp:calendar:read'))setCalendarResourceIds([]);
             if(!hasMcpDisplayPolicyScope(next))setDisplayIds([]);
-            if(!next.some(item=>['mcp:school-plans:read','mcp:school-plans:write','mcp:calendar:read','mcp:people:read','mcp:messages:read','mcp:messages:write'].includes(item)))setPersonIds([]);
+            if(!hasMcpPeoplePolicyScope(next))setPersonIds([]);
           }}/>;
         })}
         <p className="field-hint" role="note">{t('mcpScopesWidenConsent')}</p>
       </fieldset>
-      <fieldset disabled={!canEdit||busy}><legend>{t('mcpPeoplePolicy')}</legend>{people.map(person=><Check key={person.id} label={person.display_name} checked={personIds.includes(person.id)} onChange={checked=>{setPersonIds(checked?[...personIds,person.id]:personIds.filter(id=>id!==person.id));if(!checked)setSchoolResourceIds(current=>current.filter(id=>!schoolSources.some(source=>source.id===id&&source.personId===person.id)))}}/>)}</fieldset>
+      <fieldset disabled={!canEdit||busy||!hasPeopleScope}><legend>{t('mcpPeoplePolicy')}</legend>{!hasPeopleScope&&<p className="field-hint">{t('mcpPeopleScopeRequired')}</p>}{people.map(person=><Check key={person.id} label={person.display_name} checked={personIds.includes(person.id)} onChange={checked=>{const next=checked?[...personIds,person.id]:personIds.filter(id=>id!==person.id);setPersonIds(next);if(!checked)setSchoolResourceIds(current=>current.filter(id=>!schoolSources.some(source=>source.id===id&&source.personId===person.id)));if(next.length===0)setCalendarResourceIds([])}}/>)}</fieldset>
       <fieldset disabled={!canEdit||busy||!hasDisplayScope}><legend>{t('mcpDisplaysPolicy')}</legend>{!hasDisplayScope&&<p className="field-hint">{t('mcpDisplayScopeRequired')}</p>}{displays.filter(display=>!display.revoked_at).map(display=><Check key={display.id} label={display.name} checked={displayIds.includes(display.id)} onChange={checked=>setDisplayIds(checked?[...displayIds,display.id]:displayIds.filter(id=>id!==display.id))}/>)}</fieldset>
       <fieldset disabled={!canEdit||busy||!schoolSourcesAvailable||!hasSchoolScope}>
         <legend>{t('mcpSchoolSourcesPolicy')}</legend>
@@ -175,9 +176,9 @@ export function McpAuthorizationCard({authorization,base,timezone,people,display
           </div>)}
         </div>}
       </fieldset>
-      <fieldset disabled={!canEdit||busy||!calendarSourcesAvailable||!hasCalendarScope}>
+      <fieldset disabled={!canEdit||busy||!calendarSourcesAvailable||!hasCalendarScope||personIds.length===0}>
         <legend>{t('mcpCalendarSourcesPolicy')}</legend>
-        <p className="field-hint">{t(!hasCalendarScope?'mcpCalendarScopeRequired':calendarSourcesAvailable?'mcpCalendarSourcesPolicyHelp':'mcpCalendarSourcesUnavailable')}</p>
+        <p className="field-hint">{t(!hasCalendarScope?'mcpCalendarScopeRequired':personIds.length===0?'mcpCalendarPeopleRequired':calendarSourcesAvailable?'mcpCalendarSourcesPolicyHelp':'mcpCalendarSourcesUnavailable')}</p>
         {calendarSourcesAvailable&&calendarSources.length?calendarSources.map(source=><Check key={source.id} label={`${calendarSourcePolicyLabel(source)} · ${t(calendarProviderTranslationKey(source.provider))}`} checked={calendarResourceIds.includes(source.id)} onChange={checked=>setCalendarResourceIds(checked?[...calendarResourceIds,source.id]:calendarResourceIds.filter(id=>id!==source.id))}/>):calendarSourcesAvailable?<p className="field-hint">{t('mcpCalendarNoApprovedSources')}</p>:null}
         {hasCalendarScope&&calendarSourcesAvailable&&unlistedCalendarGrants.length>0&&<div className="mcp-unlisted-calendar-grants" role="note">
           <p className="field-hint">{t('mcpCalendarSourceUnlistedAction',{count:unlistedCalendarGrants.length})}</p>

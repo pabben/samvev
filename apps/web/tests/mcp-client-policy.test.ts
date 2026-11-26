@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, hasMcpDisplayPolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
+import { calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
 
 const authorization: McpAuthorization = {
   id: 'synthetic-grant-id',
@@ -27,6 +27,7 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:dinners:read'), 'mcpScopeDinnersRead');
   assert.equal(mcpScopeTranslationKey('mcp:calendar:read'), 'mcpScopeCalendarRead');
   assert.equal(mcpScopeTranslationKey('mcp:messages:write'), 'mcpScopeMessagesWrite');
+  assert.equal(mcpScopeTranslationKey('mcp:people:write'), 'mcpScopePeopleWrite');
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
   assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
@@ -37,10 +38,12 @@ test('school and display policy controls require a matching current consent scop
   assert.equal(hasMcpSchoolScope(['mcp:school-plans:read']), true);
   assert.equal(hasMcpSchoolScope(['mcp:school-plans:write']), true);
   assert.equal(hasMcpSchoolScope(['mcp:people:read']), false);
-  assert.equal(hasMcpDisplayPolicyScope(['mcp:monitors:read']), true);
-  assert.equal(hasMcpDisplayPolicyScope(['mcp:calendar:read']), true);
+  assert.equal(hasMcpDisplayPolicyScope(['mcp:monitors:read']), false);
+  assert.equal(hasMcpDisplayPolicyScope(['mcp:calendar:read']), false);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:messages:write']), true);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:groceries:read']), false);
+  assert.equal(hasMcpPeoplePolicyScope(['mcp:people:write']), true);
+  assert.equal(hasMcpPeoplePolicyScope(['mcp:monitors:read']), false);
 });
 
 test('scope policy permits only subsets and requires a non-offline permission', () => {
@@ -98,10 +101,11 @@ test('calendar policy catalog is connected, enabled, calendar-only, and distingu
 test('calendar resource selection preserves existing school grants byte-for-byte and surfaces stale calendar grants',()=>{
   const school={kind:'school_source' as const,id:'synthetic-school',extension:'keep-me'};
   const calendar={kind:'calendar_source' as const,id:'synthetic-old-calendar',extension:'also-keep-until-explicit-removal'};
-  const next=calendarResourcesForPolicy([school,calendar],['synthetic-old-calendar','synthetic-calendar-source'],[{id:'synthetic-calendar-source',connectionId:'synthetic-connection',connectionName:'Family',accountLabel:'family@example.test',provider:'google',connectionState:'connected',enabled:true,purpose:'calendar',name:'Primary',displayName:'School dates'}]);
+  const next=calendarResourcesForPolicy([school,calendar],['synthetic-old-calendar','synthetic-calendar-source'],[{id:'synthetic-calendar-source',connectionId:'synthetic-connection',connectionName:'Family',accountLabel:'family@example.test',provider:'google',connectionState:'connected',enabled:true,purpose:'calendar',name:'Primary',displayName:'School dates'}],['synthetic-person']);
   assert.deepEqual(next,[school,calendar,{kind:'calendar_source',id:'synthetic-calendar-source'}]);
   assert.deepEqual(unlistedCalendarResources([school,calendar],[]),[calendar]);
-  assert.deepEqual(calendarResourcesForPolicy([school,calendar],[],[]),[school]);
+  assert.deepEqual(calendarResourcesForPolicy([school,calendar],[],[],[]),[school]);
+  assert.throws(()=>calendarResourcesForPolicy([],['synthetic-calendar-source'],[],[]),/mcp_calendar_source_requires_people/);
   assert.deepEqual(schoolResourcesForPolicy([school],['synthetic-school'],[],['synthetic-person-id']),[school]);
 });
 
