@@ -978,7 +978,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpSchoolSourceTechnicalReference: "Teknisk referanse",
   mcpSchoolScopeRequired: "Koble til klienten på nytt og be om lesetilgang eller skrivetilgang til skoleplaner før du godkjenner skolekilder.",
   mcpScopeCalendarRead: "Lese valgte kalenderkilder",
-  mcpScopeMessagesWrite: "Opprette beskjeder for valgte mottakere",
+  mcpScopeMessagesWrite: "Opprette eller trekke tilbake beskjeder for valgte mottakere",
   mcpCalendarSourcesPolicy: "Kalenderkilder klienten kan lese",
   mcpCalendarSourcesPolicyHelp: "Bare tilkoblede kalendere og aktiverte kilder vises. Velg bestemte kilder for klienten. Tilkoblingsadresser vises ikke her.",
   mcpCalendarNoApprovedSources: "Ingen tilkoblede og aktiverte kalenderkilder er tilgjengelige.",

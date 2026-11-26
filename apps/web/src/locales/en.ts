@@ -918,7 +918,7 @@ export const en = {
   mcpScopeDinnersRead: "Read dinner plans",
   mcpScopeDinnersWrite: "Assign or clear dinner",
   mcpScopeCalendarRead: "Read selected calendar sources",
-  mcpScopeMessagesWrite: "Create messages for selected recipients",
+  mcpScopeMessagesWrite: "Create or withdraw messages for selected recipients",
   mcpActivityShow: "Recent client activity",
   mcpActivityHide: "Hide client activity",
   mcpActivityEmpty: "No recent activity.",
