@@ -32,11 +32,11 @@ async function client(name:string){
   assert.equal(registered.statusCode,201,registered.body);return registered.json().client_id as string;
 }
 
-async function authorize(clientId:string,scope:string){
+async function authorize(clientId:string,scope:string,targetHouseholdId=householdId){
   const verifier='synthetic-monitor-draft-verifier-abcdefghijklmnopqrstuvwxyz',state='monitor-draft-state-0123456789';
   const query=new URLSearchParams({response_type:'code',client_id:clientId,redirect_uri:callback,code_challenge:challenge(verifier),code_challenge_method:'S256',resource:`${origin}/mcp`,scope,state});
   const page=await inject({method:'GET',url:`/oauth/authorize?${query}`,headers:{cookie:adminCookie}});assert.equal(page.statusCode,200,page.body);
-  const approved=await inject({method:'POST',url:'/oauth/authorize',headers:{cookie:adminCookie,origin,'content-type':'application/x-www-form-urlencoded'},payload:form({...Object.fromEntries(query),_csrf:adminCsrf,household_id:householdId,decision:'approve'})});assert.equal(approved.statusCode,303,approved.body);
+  const approved=await inject({method:'POST',url:'/oauth/authorize',headers:{cookie:adminCookie,origin,'content-type':'application/x-www-form-urlencoded'},payload:form({...Object.fromEntries(query),_csrf:adminCsrf,household_id:targetHouseholdId,decision:'approve'})});assert.equal(approved.statusCode,303,approved.body);
   const code=new URL(String(approved.headers.location)).searchParams.get('code')!;
   const exchanged=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:form({grant_type:'authorization_code',client_id:clientId,code,redirect_uri:callback,code_verifier:verifier,resource:`${origin}/mcp`})});
   assert.equal(exchanged.statusCode,200,exchanged.body);return exchanged.json().access_token as string;
@@ -351,7 +351,23 @@ test('monitor draft content read requires fresh consent and returns only eligibl
   const noContent=await authorize(await client('Synthetic monitor draft reader without content'), 'mcp:monitors:read mcp:monitors:draft:write');
   const created=await call(token,validInput(requestKey(301)),301);assert.equal(created.statusCode,200,created.body);
   const taskId=rpc(created).result.structuredContent.creation.taskId as string;
+  const readSnapshot=async()=>{
+    const row=(await pool.query<any>(`SELECT task.revision,task.state,task.approved_revision,task.interpreted_rule,task.last_checked_at,task.next_check_at,
+      (SELECT count(*)::int FROM monitor_task_person_targets WHERE task_id=task.id) people,
+      (SELECT count(*)::int FROM monitor_task_display_targets WHERE task_id=task.id) displays,
+      (SELECT count(*)::int FROM monitor_runs WHERE task_id=task.id) runs,
+      (SELECT count(*)::int FROM monitor_executions WHERE task_id=task.id) executions,
+      (SELECT count(*)::int FROM monitor_events WHERE task_id=task.id) events,
+      (SELECT count(*)::int FROM monitor_tool_audits WHERE task_id=task.id) toolAudits,
+      (SELECT count(*)::int FROM monitor_quality_audits WHERE task_id=task.id) qualityAudits
+      FROM monitor_tasks task WHERE task.id=$1`,[taskId])).rows[0]!;
+    const external=(await pool.query<any>(`SELECT (SELECT count(*)::int FROM ai_usage_events) aiUsage,
+      (SELECT count(*)::int FROM messages) messages`)).rows[0]!;
+    return{...row,...external};
+  };
+  const beforeRead=await readSnapshot();
   const result=await getDraft(token,{taskId},302);assert.equal(result.statusCode,200,result.body);
+  assert.deepEqual(await readSnapshot(),beforeRead,'GET adds no AI call, run, execution, event, target, message, or monitor mutation');
   const proposal=rpc(result).result.structuredContent;
   assert.deepEqual(proposal,{taskId,revision:1,name:'Synthetic source draft',instruction:'Check the synthetic public source for useful updates.',sourceUrl:'https://example.test.invalid/monitor',checkIntervalMinutes:60,noticeDaysBefore:1,noticeLocalTime:'18:00',providerPolicy:'default',modelTier:'routine'});
   for(const key of ['targets','state','status','history','runs','events','results','source_final_url','credentials','interpretedRule'])assert.equal(key in proposal,false,`strict output omits ${key}`);
@@ -359,6 +375,23 @@ test('monitor draft content read requires fresh consent and returns only eligibl
   assert.match(String(deniedScope.headers['www-authenticate']),/insufficient_scope/);
   const otherGrant=await authorize(await client('Synthetic other-grant draft content reader'),scopes);
   const deniedGrant=await getDraft(otherGrant,{taskId},304);assert.equal(rpc(deniedGrant).result.isError,true,deniedGrant.body);assert.match(rpc(deniedGrant).result.content[0].text,/NOT_FOUND/);
+
+  const installationId=(await pool.query<{installation_id:string}>(`SELECT installation_id FROM households WHERE id=$1`,[householdId])).rows[0]!.installation_id;
+  const account=(await pool.query<{account_id:string;capabilities:string[]}>(`SELECT account_id,capabilities FROM memberships WHERE id=$1`,[membershipId])).rows[0]!;
+  const foreignHousehold=(await pool.query<{id:string}>(`INSERT INTO households(installation_id,name,timezone,default_locale) VALUES($1,'Synthetic foreign draft household','UTC','en') RETURNING id`,[installationId])).rows[0]!.id;
+  const foreignPerson=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic foreign adult','adult') RETURNING id`,[foreignHousehold])).rows[0]!.id;
+  await pool.query(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities) VALUES($1,$2,$3,'household_admin',$4::jsonb)`,[foreignHousehold,account.account_id,foreignPerson,JSON.stringify(account.capabilities)]);
+  const foreignHouseholdToken=await authorize(await client('Synthetic foreign household draft reader'),scopes,foreignHousehold);
+  const deniedHousehold=await getDraft(foreignHouseholdToken,{taskId},306);assert.equal(rpc(deniedHousehold).result.isError,true,deniedHousehold.body);assert.match(rpc(deniedHousehold).result.content[0].text,/NOT_FOUND/);
+
+  const expiredToken=await authorize(await client('Synthetic expired draft content token'),scopes);
+  const expiredTokenSet=(await pool.query<{id:string}>(`SELECT id FROM mcp_oauth_token_sets WHERE access_token_hash=$1`,[tokenHash(expiredToken)])).rows[0]!;
+  await pool.query(`UPDATE mcp_oauth_token_sets SET access_expires_at=clock_timestamp()-interval '1 second' WHERE id=$1`,[expiredTokenSet.id]);
+  const expired=await getDraft(expiredToken,{taskId},307);assert.equal(expired.statusCode,401,expired.body);
+  const revokedClientId=await client('Synthetic revoked draft content grant');const revokedToken=await authorize(revokedClientId,scopes);
+  const revokedGrant=(await pool.query<{id:string}>(`SELECT id FROM mcp_oauth_grants WHERE client_id=(SELECT id FROM mcp_oauth_clients WHERE client_id=$1)`,[revokedClientId])).rows[0]!;
+  await pool.query(`UPDATE mcp_oauth_grants SET revoked_at=clock_timestamp() WHERE id=$1`,[revokedGrant.id]);
+  const revoked=await getDraft(revokedToken,{taskId},308);assert.equal(revoked.statusCode,401,revoked.body);
   await inject({method:'PATCH',url:`/api/v1/households/${householdId}/monitors/${taskId}`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{expectedRevision:1,targets:{personIds:[personId],displayIds:[]}}});
   const browserCompleted=await getDraft(token,{taskId},305);assert.equal(rpc(browserCompleted).result.isError,true,browserCompleted.body);assert.match(rpc(browserCompleted).result.content[0].text,/NOT_FOUND/);
   const readAudit=(await pool.query<{metadata:Record<string,unknown>}>(`SELECT metadata FROM audit_events WHERE action='mcp.monitor_draft_read' AND subject_id=$1`,[taskId])).rows;

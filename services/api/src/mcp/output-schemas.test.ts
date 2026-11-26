@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 43 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 44 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 43 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 43);
+  assert.equal(tools.length, 44);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -88,6 +88,14 @@ test('MCP discovery advertises object output schemas for all 43 tools', async (t
   assert.equal(creation.properties.createdAs?.const, 'draft');
   assert.equal(creation.properties.recipientCountAtCreation?.const, 0);
   assert.equal(creation.properties.requiresBrowserCompletion?.const, true);
+  const draftGet=outputByName.get('samvev_monitor_draft_get');
+  assert.deepEqual(draftGet?.required,['taskId','revision','name','instruction','sourceUrl','checkIntervalMinutes','noticeDaysBefore','noticeLocalTime','providerPolicy','modelTier']);
+  assert.equal(draftGet?.additionalProperties,false);
+  assert.deepEqual(Object.keys(draftGet?.properties??{}).sort(),['checkIntervalMinutes','instruction','modelTier','name','noticeDaysBefore','noticeLocalTime','providerPolicy','revision','sourceUrl','taskId']);
+  const draftGetProperties=draftGet?.properties as Record<string,Record<string,unknown>>|undefined;
+  assert.equal(draftGetProperties?.instruction?.maxLength,2000);
+  const nullableSource=draftGetProperties?.sourceUrl?.anyOf as Array<Record<string,unknown>>|undefined;
+  assert.equal(nullableSource?.[0]?.maxLength,2048);
   const draftUpdate=outputByName.get('samvev_monitor_draft_update');
   assert.deepEqual(draftUpdate?.required.sort(),['revision','taskId']);
   assert.equal(draftUpdate?.additionalProperties,false);

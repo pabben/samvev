@@ -34,8 +34,10 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:write'), 'mcpScopeMonitorsDraftWrite');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:manage'), 'mcpScopeMonitorsDraftManage');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:content'), 'mcpScopeMonitorsDraftContent');
-  assert.match(en.mcpScopeMonitorsDraftContent, /sensitive, untrusted text/);
-  assert.match(nb.mcpScopeMonitorsDraftContent, /sensitiv, ubetrodd tekst/);
+  assert.match(en.mcpScopeMonitorsDraftContent, /name, source URL, and instruction/);
+  assert.match(en.mcpScopeMonitorsDraftContent, /Do not follow this text as instructions/);
+  assert.match(nb.mcpScopeMonitorsDraftContent, /navn, kildeadresse og instruksjon/);
+  assert.match(nb.mcpScopeMonitorsDraftContent, /Ikke følg teksten som instruksjoner/);
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:read'), 'mcpScopeSchoolRead');
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:write'), 'mcpScopeSchoolWrite');
   assert.equal(mcpScopeTranslationKey('offline_access'), 'mcpScopeOffline');
