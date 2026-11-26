@@ -64,15 +64,21 @@ test('MCP household broadcast is denied until an explicit broad-audience grant e
 });
 
 test('withdrawal by another member requires current message management capability', async () => {
-  let queries = 0;
+  const queries: string[] = [];
+  const recipientId = '88888888-8888-4888-8888-888888888888';
   const service = new MessageService(async (run) => run({ async query(sql: string) {
-    queries += 1;
-    assert.match(sql, /FROM messages WHERE id=\$1 AND household_id=\$2 FOR UPDATE/);
-    return { rows: [{ id: 'message-1', author_membership_id: 'different-membership', state: 'published', audience_household: false }], rowCount: 1 };
+    queries.push(sql);
+    if (sql.includes('FROM messages WHERE')) return { rows: [{ id: 'message-1', author_membership_id: 'different-membership', state: 'published', audience_household: false }], rowCount: 1 };
+    if (sql.includes('FROM message_person_audiences audience')) return { rows: [{ person_id: recipientId }], rowCount: 1 };
+    if (sql.includes('FROM message_display_targets target')) return { rows: [], rowCount: 0 };
+    if (sql.includes('FROM persons')) return { rows: [{ id: recipientId }], rowCount: 1 };
+    if (sql.includes('FROM mcp_oauth_grant_people')) return { rows: [{ person_id: recipientId }], rowCount: 1 };
+    throw new Error(`Unexpected query during withdrawal authorization: ${sql}`);
   } } as unknown as DbClient));
   await assert.rejects(
     service.withdraw(actor, '77777777-7777-4777-8777-777777777777', 1, async () => ['household.view'] as Capability[]),
     (error: unknown) => error instanceof DomainError && error.status === 403
   );
-  assert.equal(queries, 1, 'authorization stops before audience reads or mutation');
+  assert.equal(queries.length, 5, 'after confirming exact recipient visibility, member authorization stops before mutation');
+  assert.doesNotMatch(queries[queries.length - 1]!, /UPDATE messages/);
 });

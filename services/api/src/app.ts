@@ -2813,7 +2813,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const expectedRevision = Number((request.body as {expectedRevision?:unknown})?.expectedRevision);
     return messageService.withdraw(auth,params(request).messageId!,expectedRevision,
       async(client)=>recheckHouseholdAuth(client,request,auth,null),
-      async(client,messageId,state)=>audit(client,auth,'message.withdrawn_by_admin','message',messageId,{state}));
+      async(client,messageId,state,admin)=>{if(admin)await audit(client,auth,'message.withdrawn_by_admin','message',messageId,{state});});
   });
 
   app.get('/api/v1/display/projection', async (request, reply) => {

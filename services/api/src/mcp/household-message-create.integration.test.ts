@@ -7,6 +7,7 @@ import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.ts';
 import { pool } from '../db.ts';
 import { migrate } from '../db/migrate.ts';
+import { messageService } from '../messages/service.ts';
 
 const origin='https://samvev.test.invalid',callback='https://message-writer.test.invalid/oauth/callback';
 let app:FastifyInstance,householdId='',installationId='',membershipId='',accountId='',adminCookie='',adminCsrf='',clientId='',personId='',grantedPersonId='',deniedPersonId='',grantedDisplayId='',deniedDisplayId='',foreignHouseholdId='',foreignPersonId='',foreignDisplayId='';
@@ -89,7 +90,7 @@ test('MCP message create and withdraw use member policy, exact recipients, and t
   assert.equal((await pool.query('SELECT 1 FROM message_display_targets WHERE household_id=$1 AND message_id=$2 AND display_id=$3',[householdId,displayMessage.id,grantedDisplayId])).rowCount,1);
   await pool.query('DELETE FROM membership_display_grants WHERE membership_id=$1 AND display_id=$2',[membershipId,grantedDisplayId]);
   const missingMemberDisplayWithdraw=await withdrawCall(token,displayMessage.id,1,16);
-  assert.equal(rpc(missingMemberDisplayWithdraw).result.isError,true,'OAuth display consent alone cannot authorize withdrawing a message for a display');assert.match(rpc(missingMemberDisplayWithdraw).result.content[0].text,/FORBIDDEN/);
+  assert.equal(rpc(missingMemberDisplayWithdraw).result.isError,true,'OAuth display consent alone cannot authorize withdrawing a message for a display');assert.equal(rpc(missingMemberDisplayWithdraw).result.content[0].text,'NOT_FOUND');
   await pool.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES($1,$2,$3)',[householdId,membershipId,grantedDisplayId]);
   const displayWithdraw=await withdrawCall(token,displayMessage.id,1,17);
   assert.equal(rpc(displayWithdraw).result.structuredContent.message.state,'withdrawn');
@@ -119,23 +120,43 @@ test('MCP message create and withdraw use member policy, exact recipients, and t
   assert.equal(rpc(staleRevision).result.isError,true);assert.match(rpc(staleRevision).result.content[0].text,/REVISION_CONFLICT/);
   const scheduledWithdraw=await withdrawCall(token,rpc(scheduled).result.structuredContent.message.id,1,19);
   assert.equal(rpc(scheduledWithdraw).result.structuredContent.message.state,'cancelled');
+  await assert.rejects(messageService.withdraw({accountId,installationId,householdId,membershipId,mcpGrantId:grant.id},personMessage.id,1,async()=>[],async()=>{throw new Error('synthetic audit insert failure');}));
+  const beforeCommittedAudit=(await pool.query<{state:string;revision:number}>('SELECT state,revision FROM messages WHERE id=$1',[personMessage.id])).rows[0]!;
+  assert.deepEqual(beforeCommittedAudit,{state:'published',revision:1},'an audit failure rolls back the lifecycle mutation in the same transaction');
+  assert.equal((await pool.query(`SELECT 1 FROM message_lifecycle_events WHERE message_id=$1 AND idempotency_key=$2`,[personMessage.id,`withdraw:${personMessage.id}:1`])).rowCount,0);
   const personWithdraw=await withdrawCall(token,personMessage.id,1,20);
   assert.equal(rpc(personWithdraw).result.structuredContent.message.state,'withdrawn');
   const lifecycle=(await pool.query<{actor_type:string;actor_id:string;to_state:string}>(`SELECT actor_type,actor_id,to_state FROM message_lifecycle_events WHERE message_id=$1 AND idempotency_key=$2`,[personMessage.id,`withdraw:${personMessage.id}:1`])).rows[0]!;
   assert.deepEqual(lifecycle,{actor_type:'account',actor_id:accountId,to_state:'withdrawn'});
   const mcpAudit=(await pool.query<{actor_type:string;actor_id:string;action:string}>(`SELECT actor_type,actor_id,action FROM audit_events WHERE household_id=$1 AND subject_id=$2 AND action='mcp.message_withdrawn'`,[householdId,personMessage.id])).rows[0]!;
   assert.deepEqual(mcpAudit,{actor_type:'mcp',actor_id:grant.id,action:'mcp.message_withdrawn'});
+  assert.equal((await pool.query(`SELECT count(*)::int AS count FROM audit_events WHERE household_id=$1 AND subject_id=$2 AND action IN ('mcp.message_withdrawn','message.withdrawn_by_admin')`,[householdId,personMessage.id])).rows[0]!.count,1,'ordinary author withdrawal writes one in-transaction MCP audit');
+
+  const otherPerson=(await pool.query<{id:string}>(`INSERT INTO persons(household_id,display_name,age_group) VALUES($1,'Synthetic other message author','adult') RETURNING id`,[householdId])).rows[0]!.id;
+  const otherMembership=(await pool.query<{id:string}>(`INSERT INTO memberships(household_id,person_id,role_preset,capabilities) VALUES($1,$2,'limited',$3) RETURNING id`,[householdId,otherPerson,JSON.stringify(['household.view','message.create.household'])])).rows[0]!.id;
+  const otherMessage=await messageService.create({accountId,installationId,householdId,membershipId:otherMembership},input('Synthetic message from another member','other-author-withdraw-001',{household:false,personIds:[grantedPersonId],displayIds:[]}),async()=>['message.create.household']);
+  const adminWithdraw=await withdrawCall(token,String(otherMessage.id),1,27);
+  assert.equal(rpc(adminWithdraw).result.structuredContent.message.state,'withdrawn');
+  assert.deepEqual((await pool.query<{actor_type:string;action:string}>(`SELECT actor_type,action FROM audit_events WHERE household_id=$1 AND subject_id=$2 AND action IN ('mcp.message_withdrawn','message.withdrawn_by_admin') ORDER BY action`,[householdId,String(otherMessage.id)])).rows,[
+    {actor_type:'mcp',action:'mcp.message_withdrawn'},
+    {actor_type:'mcp',action:'message.withdrawn_by_admin'}
+  ]);
 
   const webHouseholdMessage=await inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:input('Synthetic web household audience','web-household-withdraw-001',{household:true,personIds:[],displayIds:[]})});assert.equal(webHouseholdMessage.statusCode,201,webHouseholdMessage.body);
   const denyHouseholdWithdraw=await withdrawCall(token,webHouseholdMessage.json().id,1,21);
-  assert.equal(rpc(denyHouseholdWithdraw).result.isError,true);assert.match(rpc(denyHouseholdWithdraw).result.content[0].text,/FORBIDDEN/);
+  assert.equal(rpc(denyHouseholdWithdraw).result.isError,true);assert.equal(rpc(denyHouseholdWithdraw).result.content[0].text,'NOT_FOUND');
   const webDeniedPerson=await inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:input('Synthetic ungranted person withdrawal target','web-denied-person-withdraw-001',{household:false,personIds:[deniedPersonId],displayIds:[]})});assert.equal(webDeniedPerson.statusCode,201,webDeniedPerson.body);
   const denyPersonWithdraw=await withdrawCall(token,webDeniedPerson.json().id,1,22);
-  assert.equal(rpc(denyPersonWithdraw).result.isError,true);assert.match(rpc(denyPersonWithdraw).result.content[0].text,/FORBIDDEN/);
+  assert.equal(rpc(denyPersonWithdraw).result.isError,true);assert.equal(rpc(denyPersonWithdraw).result.content[0].text,'NOT_FOUND');
+  const webDeniedPersonWithdraw=await inject({method:'POST',url:`/api/v1/households/${householdId}/messages/${webDeniedPerson.json().id}/withdraw`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:{expectedRevision:1}});assert.equal(webDeniedPersonWithdraw.statusCode,200,webDeniedPersonWithdraw.body);
+  const deniedAfterStateChange=await withdrawCall(token,webDeniedPerson.json().id,2,28);
+  assert.equal(rpc(deniedAfterStateChange).result.isError,true);assert.equal(rpc(deniedAfterStateChange).result.content[0].text,'NOT_FOUND','ungranted targets stay indistinguishable after a state change');
   await pool.query('INSERT INTO membership_display_grants(household_id,membership_id,display_id) VALUES($1,$2,$3)',[householdId,membershipId,deniedDisplayId]);
   const webDeniedDisplay=await inject({method:'POST',url:`/api/v1/households/${householdId}/messages`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:input('Synthetic ungranted display withdrawal target','web-denied-display-withdraw-001',{household:false,personIds:[],displayIds:[deniedDisplayId]})});assert.equal(webDeniedDisplay.statusCode,201,webDeniedDisplay.body);
   const denyDisplayWithdraw=await withdrawCall(token,webDeniedDisplay.json().id,1,23);
-  assert.equal(rpc(denyDisplayWithdraw).result.isError,true);assert.match(rpc(denyDisplayWithdraw).result.content[0].text,/FORBIDDEN/);
+  assert.equal(rpc(denyDisplayWithdraw).result.isError,true);assert.equal(rpc(denyDisplayWithdraw).result.content[0].text,'NOT_FOUND');
+  const absentWithdraw=await withdrawCall(token,'77777777-7777-4777-8777-777777777777',1,29);
+  assert.equal(rpc(absentWithdraw).result.isError,true);assert.equal(rpc(absentWithdraw).result.content[0].text,'NOT_FOUND');
   const foreignMembershipId=(await pool.query<{id:string}>(`INSERT INTO memberships(household_id,account_id,person_id,role_preset,capabilities)
     VALUES($1,$2,$3,'limited',$4) RETURNING id`,[foreignHouseholdId,accountId,foreignPersonId,JSON.stringify(['household.view','message.create.household'])])).rows[0]!.id;
   assert.ok(foreignMembershipId);

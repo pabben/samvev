@@ -6,7 +6,7 @@ import { HouseholdBoardService, type IntegrationBoardActor } from '../household-
 import { listMessages } from '../messages/read.ts';
 import { readCalendarActivityRows } from '../calendar/activity-reader.ts';
 import { localDateInTimezone } from '../people/domain.ts';
-import { messageService, type MessageCreateActor, type MessageService } from '../messages/service.ts';
+import { messageService, type MessageCreateActor, type MessageService, type MessageWithdrawAudit } from '../messages/service.ts';
 import { updatePersonProfile, type PersonProfileAudit } from '../people/profile-service.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
@@ -35,6 +35,7 @@ export interface HouseholdMcpToolDependencies {
   transaction<T>(run: (client: DbClient) => Promise<T>): Promise<T>;
   boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner' | 'createDinnerOption' | 'updateDinnerOption' | 'deleteDinnerOption'>;
   messageService?: Pick<MessageService, 'create' | 'withdraw'>;
+  messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
 }
 
@@ -283,7 +284,7 @@ export function registerHouseholdTools(
     const withdrawn = await (dependencies.messageService ?? messageService).withdraw(actor, input.messageId, input.expectedRevision, async (client) => {
       const authority = await assertLiveAuthority(client, principal, ['mcp:messages:read', 'mcp:messages:write'], 'household.view');
       return authority.capabilities;
-    });
+    }, dependencies.messageWithdrawAudit);
     return { message: withdrawn };
   });
 
