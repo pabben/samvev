@@ -45,6 +45,7 @@ import type { MonitorSourceFetcher } from './monitor/source-fetcher.ts';
 import type { MetWeatherClient } from './monitor/weather.ts';
 import { ageOnDate, birthdaysDueSoon, deriveAgeGroup, localDateInTimezone, nextBirthday } from './people/domain.ts';
 import { assignPersonColor } from './people/person-colors.ts';
+import { updatePersonProfile } from './people/profile-service.ts';
 import { normalizeProfilePhoto } from './people/photo.ts';
 import { schoolProvenanceJoins, schoolProvenanceColumns, schoolProjectionMetadata, type SchoolProvenanceRow } from './monitor/school-projection.ts';
 import { schoolHasPracticalActionsSql } from './monitor/practical-actions.ts';
@@ -1807,16 +1808,9 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
   app.patch('/api/v1/households/:householdId/people/:personId',async(request)=>{
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'people.manage');
     const body=parse(personUpdateSchema,request.body);
-    const household=(await pool.query<{timezone:string}>('SELECT timezone FROM households WHERE id=$1',[auth.householdId])).rows[0]!;
     return transaction(async(client)=>{
-      const current=await client.query<{birth_date:string|null;age_group:'adult'|'teen'|'child'|'unspecified'}>(`SELECT birth_date::text,age_group FROM persons WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).personId,auth.householdId]);
-      if(!current.rowCount)throw new DomainError('NOT_FOUND',404);
-      const birthDate=body.birthDate===undefined?current.rows[0]!.birth_date:body.birthDate;
-      const ageGroup=body.ageGroup??(body.birthDate===undefined?current.rows[0]!.age_group:deriveAgeGroup(birthDate,localDateInTimezone(new Date(),household.timezone)));
-      const updated=await client.query(`UPDATE persons SET display_name=COALESCE($3,display_name),avatar_key=CASE WHEN $4 THEN $5 ELSE avatar_key END,color_token=COALESCE($6,color_token),birth_date=$7,age_group=$8,revision=revision+1,updated_at=clock_timestamp() WHERE id=$1 AND household_id=$2 AND revision=$9 RETURNING id,display_name,avatar_key AS "avatarKey",color_token AS "colorToken",birth_date::text,age_group,revision`,[params(request).personId,auth.householdId,body.displayName??null,body.avatarKey!==undefined,body.avatarKey??null,body.colorToken??null,birthDate,ageGroup,body.expectedRevision]);
-      if(!updated.rowCount)throw new DomainError('REVISION_CONFLICT',409);
-      await audit(client,auth,'person.updated','person',params(request).personId,{fields:Object.keys(body).filter((key)=>key!=='expectedRevision')});
-      return updated.rows[0];
+      return updatePersonProfile(client,auth.householdId,params(request).personId!,body,
+        (auditClient,personId,fields)=>audit(auditClient,auth,'person.updated','person',personId,{fields}));
     });
   });
 

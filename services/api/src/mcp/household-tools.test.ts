@@ -113,6 +113,54 @@ test('people tool returns only grant-selected fields and rechecks current delega
   assert.doesNotMatch(JSON.stringify(result), /email|password|photo|private|calendar/i);
 });
 
+test('people update requires write consent, people.manage, and the exact granted person before using the shared profile service', async () => {
+  const tools = new Tools(), calls:Array<{sql:string;values?:unknown[]}>=[],audits:Array<{personId:string;fields:string[]}>=[];
+  const client={async query(sql:string,values?:unknown[]){
+    calls.push({sql,values});
+    if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:true,person_id:'77777777-7777-4777-8777-777777777777',capabilities:['people.manage']}]};
+    if(sql.includes('FROM mcp_oauth_grant_people grant_person'))return{rows:[{person_id:principal.membershipId}],rowCount:1};
+    if(sql.includes('SELECT timezone FROM households'))return{rows:[{timezone:'Europe/Oslo'}],rowCount:1};
+    if(sql.includes('SELECT birth_date::text,age_group FROM persons'))return{rows:[{birth_date:'2015-01-01',age_group:'child'}],rowCount:1};
+    if(sql.includes('UPDATE persons SET display_name='))return{rows:[{id:principal.membershipId,displayName:'Synthetic profile update',avatarKey:null,colorToken:'blue',birth_date:'2008-11-24',age_group:'adult',revision:2}],rowCount:1};
+    throw new Error(`Unexpected MCP profile SQL: ${sql}`);
+  }} as unknown as DbClient;
+  registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client),personProfileAudit:async(_client,personId,fields)=>{audits.push({personId,fields});}});
+  const result=await tools.get('household.people.update')({personId:principal.membershipId,displayName:'Synthetic profile update',colorToken:'blue',birthDate:'2008-11-24',expectedRevision:1}) as Record<string,unknown>;
+  assert.equal(result.displayName,'Synthetic profile update');
+  assert.deepEqual(tools.options.get('household.people.update')?.requiredScopes,['mcp:people:write']);
+  assert.equal(tools.options.get('household.people.update')?.readOnlyHint,false);
+  assert.equal(tools.options.get('household.people.update')?.destructiveHint,false);
+  assert.deepEqual(calls[0]!.values?.slice(4,6),[['mcp:people:write'],'people.manage']);
+  assert.match(calls[1]!.sql,/grant_person\.grant_id=\$1 AND grant_person\.household_id=\$2 AND grant_person\.person_id=\$3/);
+  assert.deepEqual(calls[1]!.values,[principal.grantId,principal.householdId,principal.membershipId]);
+  assert.equal(calls.filter(call=>call.sql.includes('UPDATE persons')).length,1);
+  assert.ok(calls.every(call=>!/(UPDATE|INSERT INTO) (accounts|memberships|account_invitations)/i.test(call.sql)));
+  assert.deepEqual(audits,[{personId:principal.membershipId,fields:['displayName','colorToken','birthDate']}]);
+});
+
+test('people update returns no resource information and performs no mutation for an ungranted person', async () => {
+  const tools=new Tools(),calls:string[]=[];
+  const client={async query(sql:string){
+    calls.push(sql);
+    if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:true,person_id:'77777777-7777-4777-8777-777777777777',capabilities:['people.manage']}]};
+    if(sql.includes('FROM mcp_oauth_grant_people grant_person'))return{rows:[],rowCount:0};
+    throw new Error('No profile query should follow a missing person grant');
+  }} as unknown as DbClient;
+  registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client),personProfileAudit:async()=>{throw new Error('audit must not run');}});
+  await assert.rejects(tools.get('household.people.update')({personId:principal.membershipId,displayName:'Blocked',expectedRevision:1}),(error:unknown)=>error instanceof DomainError&&error.status===404);
+  assert.equal(calls.length,2);
+});
+
+test('people update stops before target lookup when write scope, token, membership or people.manage is stale', async () => {
+  const tools=new Tools(),calls:string[]=[];
+  const client={async query(sql:string){calls.push(sql);if(sql.includes('FROM mcp_oauth_grants'))return{rows:[{allowed:false,person_id:'77777777-7777-4777-8777-777777777777',capabilities:[]}]};throw new Error('Denied authority must stop before person lookup');}} as unknown as DbClient;
+  registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client),personProfileAudit:async()=>{throw new Error('audit must not run');}});
+  await assert.rejects(tools.get('household.people.update')({personId:principal.membershipId,displayName:'Blocked',expectedRevision:1}),(error:unknown)=>error instanceof DomainError&&error.status===403);
+  assert.equal(calls.length,1);
+  assert.match(calls[0]!,/membership\.capabilities \? \$6/);
+  assert.equal(tools.options.get('household.people.update')?.inputSchema.safeParse({personId:principal.membershipId,displayName:'Blocked',expectedRevision:1,rolePreset:'admin'}).success,false);
+});
+
 test('a revoked, cross-household, or insufficient-scope grant returns no private household rows', async () => {
   const tools = new Tools(), fake = dependencies({ allowed: false });
   registerHouseholdTools(tools, context, fake.deps);

@@ -1,5 +1,5 @@
 import { DomainError } from '@samvev/core';
-import { dinnerAssignmentSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, type Capability as MemberCapability } from '@samvev/contracts';
+import { dinnerAssignmentSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, personUpdateSchema, type Capability as MemberCapability } from '@samvev/contracts';
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
@@ -7,6 +7,7 @@ import { listMessages } from '../messages/read.ts';
 import { readCalendarActivityRows } from '../calendar/activity-reader.ts';
 import { localDateInTimezone } from '../people/domain.ts';
 import { messageService, type MessageCreateActor, type MessageService } from '../messages/service.ts';
+import { updatePersonProfile, type PersonProfileAudit } from '../people/profile-service.ts';
 
 /** OAuth principal copied from the authenticated MCP request. The database is
  * still authoritative: every invocation rechecks the grant and membership. */
@@ -33,6 +34,7 @@ export interface HouseholdMcpToolDependencies {
   transaction<T>(run: (client: DbClient) => Promise<T>): Promise<T>;
   boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner'>;
   messageService?: Pick<MessageService, 'create'>;
+  personProfileAudit?: PersonProfileAudit;
 }
 
 const uuid = z.uuid();
@@ -40,12 +42,13 @@ const date = z.iso.date();
 const emptyInput = z.object({}).strict();
 const dinnersInput = z.object({ from: date, to: date }).strict();
 const calendarInput = z.object({ days: z.number().int().min(1).max(31).default(14), limit: z.number().int().min(1).max(50).default(25) }).strict();
+const personUpdateInput = personUpdateSchema.extend({ personId: uuid });
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read';
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read';
 type Capability = MemberCapability;
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[]}> {
@@ -110,6 +113,24 @@ export function registerHouseholdTools(
   if (!uuid.safeParse(principal.tokenSetId).success || !uuid.safeParse(principal.grantId).success || !uuid.safeParse(principal.householdId).success ||
       !uuid.safeParse(principal.accountId).success || !uuid.safeParse(principal.membershipId).success ||
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
+
+  registrar.registerTool('household.people.update', {
+    description: 'Update the profile of one explicitly approved household person. Does not change their account, roles, or permissions.',
+    inputSchema: personUpdateInput, requiredScopes: ['mcp:people:write'], readOnlyHint: false, destructiveHint: false
+  }, async (raw) => {
+    const { personId, ...body } = personUpdateInput.parse(raw);
+    if (!dependencies.personProfileAudit) throw new DomainError('FORBIDDEN', 403);
+    return dependencies.transaction(async (client) => {
+      await assertLiveAuthority(client, principal, ['mcp:people:write'], 'people.manage');
+      const personGrant = await client.query(`SELECT grant_person.person_id FROM mcp_oauth_grant_people grant_person
+        JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
+        WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2 AND grant_person.person_id=$3
+        FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId, personId]);
+      if (!personGrant.rowCount) throw new DomainError('NOT_FOUND', 404);
+      return updatePersonProfile(client, principal.householdId, personId, body,
+        (auditClient, updatedPersonId, fields) => dependencies.personProfileAudit!(auditClient, updatedPersonId, fields));
+    });
+  });
 
   registrar.registerTool('calendar.sources.list', {
     description: 'List only calendar sources currently granted to this client and readable by the delegated household member.',
@@ -285,4 +306,4 @@ export function registerHouseholdTools(
 }
 
 /** Exported for focused authorization tests without registering an MCP server. */
-export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, dinnerAssignmentInput } as const;
+export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, dinnerAssignmentInput, personUpdateInput } as const;
