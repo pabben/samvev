@@ -1203,4 +1203,15 @@ body:has(.family-hub.hub-member.hub-board.hub-dark) {
 #root .family-hub.hub-display.hub-board:has(> .school-week-plans > .school-week-card) > .hub-grid .hub-day {
   min-height: 160px;
 }
+/* The low-height viewport rule is more specific than the school-card rule above.
+   Give the hero its intrinsic height and let the verified week continue below
+   the fold instead of collapsing the greeting under the display shell. */
+#root .family-display-page .family-hub.hub-display.hub-board.hub-low-height:not(.hub-board-portrait):has(> .school-week-plans > .school-week-card) {
+  height: auto;
+  min-height: 0;
+}
+#root .family-display-page .family-hub.hub-display.hub-board:has(> .school-week-plans > .school-week-card) .hub-hero {
+  flex: 0 0 auto;
+  min-height: 80px;
+}
 .family-display-page .display-dinner-editor > summary { min-height: 44px; padding: 10px 16px; cursor: pointer; }
