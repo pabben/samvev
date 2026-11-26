@@ -164,8 +164,10 @@ test('people update requires write consent, people.manage, and the exact granted
     throw new Error(`Unexpected MCP profile SQL: ${sql}`);
   }} as unknown as DbClient;
   registerHouseholdTools(tools,context,{transaction:async<T>(run:(client:DbClient)=>Promise<T>)=>run(client),personProfileAudit:async(_client,personId,fields)=>{audits.push({personId,fields});}});
-  const result=await tools.get('household.people.update')({personId:principal.membershipId,displayName:'Synthetic profile update',colorToken:'blue',birthDate:'2008-11-24',expectedRevision:1}) as Record<string,unknown>;
-  assert.equal(result.displayName,'Synthetic profile update');
+  const result=await tools.get('household.people.update')({personId:principal.membershipId,displayName:'Synthetic profile update',colorToken:'blue',expectedRevision:1}) as Record<string,unknown>;
+  assert.deepEqual(result,{id:principal.membershipId,revision:2});
+  assert.equal(tools.options.get('household.people.update')?.inputSchema.safeParse({personId:principal.membershipId,displayName:'Safe profile update',birthDate:'2008-11-24',expectedRevision:1}).success,false);
+  assert.equal(tools.options.get('household.people.update')?.inputSchema.safeParse({personId:principal.membershipId,displayName:'Safe profile update',ageGroup:'adult',expectedRevision:1}).success,false);
   assert.deepEqual(tools.options.get('household.people.update')?.requiredScopes,['mcp:people:write']);
   assert.equal(tools.options.get('household.people.update')?.readOnlyHint,false);
   assert.equal(tools.options.get('household.people.update')?.destructiveHint,false);
@@ -175,7 +177,7 @@ test('people update requires write consent, people.manage, and the exact granted
   assert.deepEqual(calls[1]!.values,[principal.grantId,principal.householdId,principal.membershipId]);
   assert.equal(calls.filter(call=>call.sql.includes('UPDATE persons')).length,1);
   assert.ok(calls.every(call=>!/(UPDATE|INSERT INTO) (accounts|memberships|account_invitations)/i.test(call.sql)));
-  assert.deepEqual(audits,[{personId:principal.membershipId,fields:['displayName','colorToken','birthDate']}]);
+  assert.deepEqual(audits,[{personId:principal.membershipId,fields:['displayName','colorToken']}]);
 });
 
 test('people update returns no resource information and performs no mutation for an ungranted person', async () => {

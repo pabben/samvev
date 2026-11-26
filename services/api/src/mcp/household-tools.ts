@@ -43,7 +43,16 @@ const date = z.iso.date();
 const emptyInput = z.object({}).strict();
 const dinnersInput = z.object({ from: date, to: date }).strict();
 const calendarInput = z.object({ days: z.number().int().min(1).max(31).default(14), limit: z.number().int().min(1).max(50).default(25) }).strict();
-const personUpdateInput = personUpdateSchema.extend({ personId: uuid });
+// MCP profile writes deliberately omit birthDate and ageGroup: both feed live
+// account authorization predicates. Reuse the shared route validators for the
+// display-only fields without inheriting its more privileged schema.
+const personUpdateInput = z.object({
+  personId: uuid,
+  displayName: personUpdateSchema.shape.displayName,
+  avatarKey: personUpdateSchema.shape.avatarKey,
+  colorToken: personUpdateSchema.shape.colorToken,
+  expectedRevision: personUpdateSchema.shape.expectedRevision
+}).strict().refine((value) => value.displayName !== undefined || value.avatarKey !== undefined || value.colorToken !== undefined);
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
 const MAX_DINNER_DAYS = 31;
@@ -147,8 +156,9 @@ export function registerHouseholdTools(
         WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2 AND grant_person.person_id=$3
         FOR SHARE OF grant_person,person`, [principal.grantId, principal.householdId, personId]);
       if (!personGrant.rowCount) throw new DomainError('NOT_FOUND', 404);
-      return updatePersonProfile(client, principal.householdId, personId, body,
+      const updated = await updatePersonProfile(client, principal.householdId, personId, body,
         (auditClient, updatedPersonId, fields) => dependencies.personProfileAudit!(auditClient, updatedPersonId, fields));
+      return { id: updated.id, revision: updated.revision };
     });
   });
 
