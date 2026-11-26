@@ -41,6 +41,13 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });
 
+test('message write policy copy discloses creating, editing, cancelling, and withdrawing for selected recipients', () => {
+  const key = mcpScopeTranslationKey('mcp:messages:write');
+  assert.ok(key);
+  assert.match(en[key], /create, edit, cancel, or withdraw messages for selected recipients/i);
+  assert.match(nb[key], /opprette, endre, avlyse eller trekke tilbake beskjeder for valgte mottakere/i);
+});
+
 test('grocery write scope copy discloses deletion in consent and admin policy locales', () => {
   assert.match(en.mcpScopeGroceriesWrite, /delete/i);
   assert.match(nb.mcpScopeGroceriesWrite, /fjerne/i);
