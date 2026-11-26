@@ -42,7 +42,7 @@ test('all household tools publish meaningful output schemas that validate return
     'calendar.events.update': { event: { id: principal.accountId, revision: 2 } },
     'calendar.events.delete': { event: { id: principal.accountId, revision: 3 } },
     'calendar.events.list': { events: [{ id: 'event-1', title: 'Synthetic event', description: null, startsAt: '2027-03-20T09:00:00.000Z', endsAt: null, allDay: false, sourceId: 'source-1', sourceName: 'Synthetic calendar' }] },
-    'household.people.list': { people: [{ id: 'person-1', displayName: 'Synthetic member', ageGroup: 'adult' }, { id: 'person-2', displayName: 'Synthetic profile', ageGroup: 'unspecified' }] },
+    'household.people.list': { people: [{ id: 'person-1', displayName: 'Synthetic member', ageGroup: 'adult', revision: 1 }, { id: 'person-2', displayName: 'Synthetic profile', ageGroup: 'unspecified', revision: 1 }] },
     'household.messages.list': { messages: [{ id: 'message-1', body: 'Synthetic message' }] },
     'household.messages.create': { message: { id: 'message-1' } },
     'household.messages.edit': { message: { id: principal.accountId, state: 'published', revision: 2 } },
@@ -222,14 +222,16 @@ test('display setup read requires both scopes and returns only the setup project
 });
 
 test('people tool returns only grant-selected fields and rechecks current delegated authority', async () => {
-  const tools = new Tools(), fake = dependencies({ people: [{ id: 'person-granted', displayName: 'Granted member', ageGroup: 'adult' }] });
+  const tools = new Tools(), fake = dependencies({ people: [{ id: 'person-granted', displayName: 'Granted member', ageGroup: 'adult', revision: 3 }] });
   registerHouseholdTools(tools, context, fake.deps);
   const result = await tools.get('household.people.list')({}) as { people: Array<Record<string, unknown>> };
-  assert.deepEqual(result.people, [{ id: 'person-granted', displayName: 'Granted member', ageGroup: 'adult' }]);
+  assert.deepEqual(result.people, [{ id: 'person-granted', displayName: 'Granted member', ageGroup: 'adult', revision: 3 }]);
   assert.equal(fake.calls[0]!.values?.[0], principal.grantId);
   assert.match(fake.calls[0]!.sql, /grant_row\.revoked_at IS NULL/);
   assert.match(fake.calls[0]!.sql, /membership\.capabilities \? \$6/);
   assert.match(fake.calls[1]!.sql, /grant_person\.grant_id=\$1 AND grant_person\.household_id=\$2/);
+  assert.match(fake.calls[1]!.sql, /person\.revision/);
+  assert.equal(tools.options.get('household.people.list')?.outputSchema.safeParse({people:[{id:'p',displayName:'Synthetic member',ageGroup:'adult',revision:0}]}).success,false);
   assert.doesNotMatch(JSON.stringify(result), /email|password|photo|private|calendar/i);
 });
 

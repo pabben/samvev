@@ -17,7 +17,7 @@ function form(value:Record<string,string>){return new URLSearchParams(value).toS
 function challenge(verifier:string){return createHash('sha256').update(verifier).digest('base64url');}
 function mcpHeaders(name:string){return{'mcp-protocol-version':'2026-07-28','mcp-method':'tools/call','mcp-name':name};}
 function rpc(response:LightMyRequestResponse):any{return response.json();}
-async function authorize(serial:number,scope='mcp:people:write mcp:context'){
+async function authorize(serial:number,scope='mcp:people:read mcp:people:write mcp:context'){
   const verifier=`synthetic-people-update-verifier-${serial}-abcdefghijklmnopqrstuvwxyz0123456789`,state=`people-update-state-${serial}-0123456789`;
   const query=new URLSearchParams({response_type:'code',client_id:clientId,redirect_uri:callback,code_challenge:challenge(verifier),code_challenge_method:'S256',resource:`${origin}/mcp`,scope,state});
   const page=await inject({method:'GET',url:`/oauth/authorize?${query}`,headers:{cookie:ownerCookie}});assert.equal(page.statusCode,200,page.body);
@@ -26,7 +26,8 @@ async function authorize(serial:number,scope='mcp:people:write mcp:context'){
   const exchanged=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:form({grant_type:'authorization_code',client_id:clientId,code,redirect_uri:callback,code_verifier:verifier,resource:`${origin}/mcp`})});assert.equal(exchanged.statusCode,200,exchanged.body);return exchanged.json().access_token as string;
 }
 async function callUpdate(token:string,id:number,args:Record<string,unknown>){return inject({method:'POST',url:'/mcp',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json',...mcpHeaders('household.people.update')},payload:{jsonrpc:'2.0',id,method:'tools/call',params:{name:'household.people.update',arguments:args,_meta:meta}}});}
-async function selectPerson(grantId:string,revision:number,personIds:string[],scopes=['mcp:people:write','mcp:context']){
+async function callPeopleList(token:string,id:number){return inject({method:'POST',url:'/mcp',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json',...mcpHeaders('household.people.list')},payload:{jsonrpc:'2.0',id,method:'tools/call',params:{name:'household.people.list',arguments:{},_meta:meta}}});}
+async function selectPerson(grantId:string,revision:number,personIds:string[],scopes=['mcp:people:read','mcp:people:write','mcp:context']){
   const response=await inject({method:'PUT',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/policy`,headers:{cookie:ownerCookie,'x-csrf-token':ownerCsrf,origin,'content-type':'application/json'},payload:{expectedRevision:revision,scopes,personIds,displayIds:[],resources:[]}});
   assert.equal(response.statusCode,200,response.body);return response.json() as {revision:number};
 }
@@ -57,7 +58,11 @@ test('MCP profile updates share member PATCH behavior and enforce grant, capabil
   const fields={displayName:'Synthetic shared profile',avatarKey:'avatar-03',colorToken:personColorTokens[1]};
   const routeUpdate=await inject({method:'PATCH',url:`/api/v1/households/${householdId}/people/${targetPersonId}`,headers:{cookie:ownerCookie,'x-csrf-token':ownerCsrf,origin,'content-type':'application/json'},payload:{...fields,expectedRevision:1}});assert.equal(routeUpdate.statusCode,200,routeUpdate.body);
   const routeProfile=routeUpdate.json();assert.equal(routeProfile.birth_date,'2015-01-01');assert.equal(routeProfile.age_group,'child');
-  const mcpUpdate=await callUpdate(token,1,{personId:targetPersonId,...fields,expectedRevision:routeProfile.revision});assert.equal(mcpUpdate.statusCode,200,mcpUpdate.body);
+  const peopleRead=await callPeopleList(token,1);assert.equal(peopleRead.statusCode,200,peopleRead.body);assert.equal(rpc(peopleRead).result.isError,undefined,peopleRead.body);
+  const listedPeople=rpc(peopleRead).result.structuredContent.people as Array<Record<string,unknown>>;
+  assert.deepEqual(listedPeople,[{id:targetPersonId,displayName:routeProfile.display_name,ageGroup:'child',revision:routeProfile.revision}], 'grant-scoped list provides the current revision with only the existing profile fields');
+  const listedRevision=listedPeople[0]!.revision as number;
+  const mcpUpdate=await callUpdate(token,2,{personId:targetPersonId,...fields,expectedRevision:listedRevision});assert.equal(mcpUpdate.statusCode,200,mcpUpdate.body);
   const mcpResult=rpc(mcpUpdate).result;assert.equal(mcpResult.isError,undefined,mcpUpdate.body);
   const mcpProfile=mcpResult.structuredContent as {id:string;revision:number};
   assert.deepEqual(mcpProfile,{id:targetPersonId,revision:routeProfile.revision+1});
@@ -69,11 +74,11 @@ test('MCP profile updates share member PATCH behavior and enforce grant, capabil
   const auditRows=await pool.query<{actor_type:string;action:string}>(`SELECT actor_type,action FROM audit_events WHERE household_id=$1 AND subject_type='person' AND subject_id=$2 AND action='person.updated' ORDER BY occurred_at`,[householdId,targetPersonId]);
   assert.deepEqual(auditRows.rows.map(row=>row.actor_type),['account','mcp']);
 
-  const ungranted=await callUpdate(token,2,{personId:ungrantedPersonId,displayName:'Should not change',expectedRevision:1});assert.equal(ungranted.statusCode,200,ungranted.body);assert.equal(rpc(ungranted).result.isError,true);
-  const foreign=await callUpdate(token,3,{personId:foreignPersonId,displayName:'Should not change',expectedRevision:1});assert.equal(foreign.statusCode,200,foreign.body);assert.equal(rpc(foreign).result.isError,true);
+  const ungranted=await callUpdate(token,3,{personId:ungrantedPersonId,displayName:'Should not change',expectedRevision:1});assert.equal(ungranted.statusCode,200,ungranted.body);assert.equal(rpc(ungranted).result.isError,true);
+  const foreign=await callUpdate(token,4,{personId:foreignPersonId,displayName:'Should not change',expectedRevision:1});assert.equal(foreign.statusCode,200,foreign.body);assert.equal(rpc(foreign).result.isError,true);
   const untouched=(await pool.query<{display_name:string}>(`SELECT display_name FROM persons WHERE id=ANY($1::uuid[]) ORDER BY array_position($1::uuid[],id)`,[[ungrantedPersonId,foreignPersonId]])).rows.map(row=>row.display_name);
   assert.deepEqual(untouched,['Synthetic ungranted profile','Synthetic foreign profile']);
-  const stale=await callUpdate(token,4,{personId:targetPersonId,displayName:'Stale profile write',expectedRevision:routeProfile.revision});assert.equal(stale.statusCode,200,stale.body);assert.equal(rpc(stale).result.isError,true);
+  const stale=await callUpdate(token,5,{personId:targetPersonId,displayName:'Stale profile write',expectedRevision:listedRevision});assert.equal(stale.statusCode,200,stale.body);assert.equal(rpc(stale).result.isError,true);
   assert.equal((await pool.query<{display_name:string}>('SELECT display_name FROM persons WHERE id=$1',[targetPersonId])).rows[0]!.display_name,fields.displayName);
 
   const currentGrant=(await pool.query<{revision:number}>('SELECT revision FROM mcp_oauth_grants WHERE id=$1',[grant.id])).rows[0]!;

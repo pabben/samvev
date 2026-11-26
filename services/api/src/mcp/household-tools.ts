@@ -116,7 +116,7 @@ const displayLayoutWriteOutput = displaySetupLayoutSchema.safeExtend({ displayId
 type DisplayAssignment = { setup_id: string; setup_assignment_revision: string };
 type DisplaySetup = Omit<z.infer<typeof displaySetupOutput>, 'setupVersion'>;
 type DisplayLayout = z.infer<typeof displaySetupLayoutSchema>;
-const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult', 'unspecified']) });
+const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult', 'unspecified']), revision: revisionOutput });
 const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50), writable: z.boolean().optional() });
 const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), revision: revisionOutput.optional(), writable: z.boolean().optional(), personIds: z.array(z.uuid()).max(50).optional(), location: z.string().max(160).optional() });
 const groceryOutput = z.object({ id: idOutput, label: z.string().min(1).max(200), checked: z.boolean(), revision: revisionOutput, createdAt: z.iso.datetime(), updatedAt: z.iso.datetime() });
@@ -550,7 +550,7 @@ export function registerHouseholdTools(
     emptyInput.parse(raw);
     return dependencies.transaction(async (client) => {
       await assertLiveAuthority(client, principal, ['mcp:people:read'], 'household.view');
-      const result = await client.query(`SELECT person.id,person.display_name AS "displayName",person.age_group AS "ageGroup"
+      const result = await client.query(`SELECT person.id,person.display_name AS "displayName",person.age_group AS "ageGroup",person.revision
         FROM mcp_oauth_grant_people grant_person
         JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
         WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2
