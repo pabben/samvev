@@ -3,7 +3,7 @@ import { api } from './api';
 import { formatDate } from './time';
 import { Check, Dialog, Empty, ErrorNotice, Icon, Loading, useI18n } from './ui';
 import type { Display, Person } from './types';
-import { approvedMcpResourceCount, calendarProviderTranslationKey, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, calendarSourceRecords as calendarSourceRecordsForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type McpCalendarSource, type SchoolPlanSource } from './mcp-client-policy';
+import { approvedMcpResourceCount, calendarProviderTranslationKey, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, calendarSourceRecords as calendarSourceRecordsForPolicy, hasMcpDisplayPolicyScope, hasMcpMonitorContentScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type McpCalendarSource, type SchoolPlanSource } from './mcp-client-policy';
 
 type McpAuthorizations = { authorizations: McpAuthorization[] };
 type McpActivity = { occurredAt:string; action:string; subjectType:string; subjectId:string };
@@ -156,6 +156,7 @@ export function McpAuthorizationCard({authorization,base,timezone,people,display
             if(!hasMcpPeoplePolicyScope(next))setPersonIds([]);
           }}/>;
         })}
+        {hasMcpMonitorContentScope(authorization.scopes)&&<p className="field-hint" role="note">{t('mcpMonitorContentDependency')}</p>}
         <p className="field-hint" role="note">{t('mcpScopesWidenConsent')}</p>
       </fieldset>
       <fieldset disabled={!canEdit||busy||!hasPeopleScope}><legend>{t('mcpPeoplePolicy')}</legend>{!hasPeopleScope&&<p className="field-hint">{t('mcpPeopleScopeRequired')}</p>}{people.map(person=><Check key={person.id} label={person.display_name} checked={personIds.includes(person.id)} onChange={checked=>{const next=checked?[...personIds,person.id]:personIds.filter(id=>id!==person.id);setPersonIds(next);if(!checked)setSchoolResourceIds(current=>current.filter(id=>!schoolSources.some(source=>source.id===id&&source.personId===person.id)));if(next.length===0)setCalendarResourceIds([])}}/>)}</fieldset>

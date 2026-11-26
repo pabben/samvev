@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { approvedMcpResourceCount, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
+import { approvedMcpResourceCount, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, hasMcpDisplayPolicyScope, hasMcpMonitorContentScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
+import { en } from '../src/locales/en';
+import { nb } from '../src/locales/nb';
 
 const authorization: McpAuthorization = {
   id: 'synthetic-grant-id',
@@ -36,6 +38,18 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_read'), 'mcpActivityMonitorResultRead');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
+});
+
+test('monitor result content is described precisely and its read-scope dependency is explicit in both locales', () => {
+  assert.equal(en.mcpScopeMonitorsContent.includes('monitor result text'), true);
+  assert.equal(en.mcpScopeMonitorsContent.includes('monitor text,'), false);
+  assert.equal(nb.mcpScopeMonitorsContent.includes('resultattekst'), true);
+  assert.equal(en.mcpMonitorContentDependency.includes('Read monitors'), true);
+  assert.equal(en.mcpMonitorContentDependency.includes('will not enable it automatically'), true);
+  assert.equal(nb.mcpMonitorContentDependency.includes('Lese oppdrag'), true);
+  assert.equal(nb.mcpMonitorContentDependency.includes('slår ikke på tilgangen automatisk'), true);
+  assert.equal(hasMcpMonitorContentScope(['mcp:monitors:content']), true);
+  assert.equal(hasMcpMonitorContentScope(['mcp:monitors:read']), false);
 });
 
 test('school and display policy controls require a matching current consent scope', () => {

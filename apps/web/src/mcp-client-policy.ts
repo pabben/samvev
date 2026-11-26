@@ -74,6 +74,10 @@ export function mcpScopeTranslationKey(scope: string) {
   return scopeTranslation[scope];
 }
 
+export function hasMcpMonitorContentScope(scopes: readonly string[]) {
+  return scopes.includes('mcp:monitors:content');
+}
+
 export function mcpActivityTranslationKey(action: string) {
   return activityTranslation[action];
 }
