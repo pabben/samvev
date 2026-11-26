@@ -124,16 +124,18 @@ test('monitor draft manage consent describes the narrow lifecycle boundary in bo
   assert.match(render('nb'),/Sletting er permanent og kan ikke angres/);
 });
 
-test('monitor discovery consent warns that every current and future task name is shared in both locales',()=>{
+test('monitor discovery consent explains safe-name sharing and whole-name withholding in both locales',()=>{
   const render=(locale:'en'|'nb')=>authorizationConsentHtml({
     request:{...request,scopes:['mcp:monitors:read','mcp:monitors:discover']},
     clientName:'Synthetic monitor discovery client',
     households:[{id:'synthetic-household',name:'Synthetic',locale}],csrf:'synthetic-csrf'
   });
-  assert.match(render('en'),/All current and future task names are shared with the external client/);
+  assert.match(render('en'),/Safe human-readable names are shared with the external client/);
+  assert.match(render('en'),/names with URL-like punctuation or credential words are withheld/);
   assert.match(render('en'),/household, child, or school information/);
   assert.match(render('en'),/untrusted text, not instructions/);
-  assert.match(render('nb'),/Alle nåværende og fremtidige oppdragsnavn deles med den eksterne klienten/);
+  assert.match(render('nb'),/Trygge, menneskelesbare navn deles med den eksterne klienten/);
+  assert.match(render('nb'),/URL-lignende tegnsetting eller ord for påloggingsopplysninger holdes tilbake/);
   assert.match(render('nb'),/husholdnings-, barne- eller skoleinformasjon/);
   assert.match(render('nb'),/ubetrodd tekst, ikke instruksjoner/);
 });

@@ -11,24 +11,15 @@ export const monitorDiscoveryOutputSchema=z.strictObject({
 });
 export type MonitorDiscoveryInput=z.infer<typeof monitorDiscoveryInputSchema>;
 
-const sensitiveNamePatterns=[
-  /\b[a-z][a-z0-9+.-]*:\s*\/\//i, // Any URI scheme, including credentials in the authority.
-  /(?:^|[\s("'<])(?:[a-z0-9-]+\.)+[a-z]{2,}(?::\d+)?(?:[\/?#]|$)/i, // Schemeless host/path.
-  /(?:^|[\s("'<])(?:localhost|127(?:\.\d{1,3}){3}|\[[0-9a-f:]+\])(?::\d+)?(?:[\/?#]|$)/i,
-  /(?:^|[\s/])[^\s/@:]+:[^\s/@]+@/i, // Userinfo, even when quoted.
-  /[?&][^\s=&#]+=/, /#[^\s]+/, // Query and fragment syntax.
-  /%(?:2f|3f|23|40|5c|3a|26|3d)/i, // Encoded path/query/authority delimiters.
-  /(?:^|[^a-z0-9])(?:api[\s_-]*key|access[\s_-]*key|private[\s_-]*key|client[\s_-]*secret|password|passwd|pwd|credential|session|secret|authorization|bearer|token|signature)(?:$|[^a-z0-9])/i,
-  /[\u0000-\u001f\u007f-\u009f]/,
-  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/,
-  /(?:^|[^a-z0-9])[A-Za-z0-9_-]{32,}(?:$|[^a-z0-9])/,
-];
+const credentialWords=/(?<![\p{L}\p{M}\p{N}])(?:api\s+key|access\s+key|private\s+key|client\s+secret|auth|authorization|sig|signature|code|password|passwd|pwd|credential|session|bearer|token|secret)(?![\p{L}\p{M}\p{N}])/iu;
+const ordinaryNameCharacters=/^[\p{L}\p{M}\p{N} ’'\-–,()]+$/u;
+const longAlphaNumeric=/[\p{L}\p{M}\p{N}]{32,}/u;
 
 // Task names may embed sensitive fragments. Inspect the full normalized name,
 // then either disclose it whole or withhold it whole to avoid partial leaks.
 export function safeMonitorName(name:string):string {
   const normalized=name.normalize('NFKC');
-  if(sensitiveNamePatterns.some(pattern=>pattern.test(normalized)))return '[name withheld]';
+  if(!ordinaryNameCharacters.test(normalized)||credentialWords.test(normalized)||longAlphaNumeric.test(normalized))return '[name withheld]';
   let output='';
   for(const character of normalized){if(output.length+character.length>80)break;output+=character;}
   return output;

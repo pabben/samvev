@@ -81,8 +81,10 @@ test('backend MCP scope names are translated without exposing namespace prefixes
 
 test('monitor discovery activity is localized without exposing filter text',()=>{
   assert.equal(mcpActivityTranslationKey('mcp.monitors_discovered'),'mcpActivityMonitorsDiscovered');
-  assert.equal(en.mcpActivityMonitorsDiscovered,'Searched monitoring task names');
-  assert.equal(nb.mcpActivityMonitorsDiscovered,'Søkte i oppdragsnavn');
+  assert.equal(en.mcpActivityMonitorsDiscovered,'Viewed monitoring task names');
+  assert.equal(nb.mcpActivityMonitorsDiscovered,'Viste oppdragsnavn');
+  assert.match(en.mcpScopeMonitorsDiscover,/URL-like punctuation or credential words are withheld/);
+  assert.match(nb.mcpScopeMonitorsDiscover,/URL-lignende tegnsetting eller ord for påloggingsopplysninger holdes tilbake/);
 });
 
 test('message write policy copy discloses creating, editing, cancelling, and withdrawing for selected recipients', () => {
