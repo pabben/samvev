@@ -48,6 +48,8 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:displays:layout:write'), 'mcpScopeDisplaysLayoutWrite');
   assert.match(en.mcpDisplayLayoutWriteDependency, /display and display setup read access/);
   assert.match(nb.mcpDisplayLayoutWriteDependency, /lesetilgang til skjermer og skjermoppsett/);
+  assert.match(en.mcpDisplayLayoutWriteDependency, /its own setup for future edits, with the same content selections, access permissions, and appearance\. Other displays keep their setups\. Uncheck a display/);
+  assert.match(nb.mcpDisplayLayoutWriteDependency, /sitt eget oppsett for videre redigering, med samme innholdsvalg, tilgangsrettigheter og utseende\. Andre skjermer beholder sine oppsett/);
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
   assert.match(en.mcpScopeMonitorsDraftWrite, /without recipients/);
   assert.match(en.mcpScopeMonitorsDraftWrite, /do not fetch, use AI, run, schedule, or send anything/);

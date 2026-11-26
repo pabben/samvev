@@ -919,7 +919,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpScopeDisplaysRead: "Lese valgte skjermer",
   mcpScopeDisplaysSetupRead: "Lese kortoppsett, rekkefølge, språk og tema for valgte skjermer. Krever også lesetilgang til skjermer.",
   mcpScopeDisplaysLayoutWrite: "Endre oppsett på valgte skjermer",
-  mcpDisplayLayoutWriteDependency: "Med lesetilgang til skjermer og skjermoppsett kan klienten endre kort, kortrekkefølgen og familieoppsettet på hver valgte skjerm. Fjern avmerkingen for en skjerm eller fjern tillatelsen til å endre oppsettet for å trekke tilgangen tilbake.",
+  mcpDisplayLayoutWriteDependency: "Med lesetilgang til skjermer og skjermoppsett kan klienten endre kort, kortrekkefølge og familieoppsett. Etter en endring får den valgte skjermen sitt eget oppsett for videre redigering, med samme innholdsvalg, tilgangsrettigheter og utseende. Andre skjermer beholder sine oppsett. Fjern avmerkingen for en skjerm eller fjern tillatelsen til å endre oppsettet for å trekke tilgangen tilbake.",
   mcpScopeDisplaysAppearanceWrite: "Endre utseende på valgte skjermer",
   mcpDisplayAppearanceWriteDependency: "Med lesetilgang til skjermer kan klienten endre navn, språk og tema på hver valgte skjerm. Fjern avmerkingen for en skjerm eller fjern tillatelsen til å endre utseendet for å trekke tilgangen tilbake.",
   mcpScopeMessagesRead: "Lese delte beskjeder og valgte personers beskjeder",
