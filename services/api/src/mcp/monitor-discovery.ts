@@ -11,15 +11,16 @@ export const monitorDiscoveryOutputSchema=z.strictObject({
 });
 export type MonitorDiscoveryInput=z.infer<typeof monitorDiscoveryInputSchema>;
 
-const credentialWords=/(?<![\p{L}\p{M}\p{N}])(?:api\s+key|access\s+key|private\s+key|client\s+secret|auth|authorization|sig|signature|code|password|passwd|pwd|credential|session|bearer|token|secret)(?![\p{L}\p{M}\p{N}])/iu;
+const credentialWords=/(?<![\p{L}\p{M}\p{N}])(?:api[ '’(),–-]*key|access[ '’(),–-]*key|private[ '’(),–-]*key|client[ '’(),–-]*secret|auth|authorization|sig|signature|code|password|passwd|pwd|credential|session|bearer|token|secret)(?![\p{L}\p{M}\p{N}])/iu;
 const ordinaryNameCharacters=/^[\p{L}\p{M}\p{N} ’'\-–,()]+$/u;
 const longAlphaNumeric=/[\p{L}\p{M}\p{N}]{32,}/u;
+const longAccountNumber=/\p{N}{12,}/u;
 
 // Task names may embed sensitive fragments. Inspect the full normalized name,
 // then either disclose it whole or withhold it whole to avoid partial leaks.
 export function safeMonitorName(name:string):string {
   const normalized=name.normalize('NFKC');
-  if(!ordinaryNameCharacters.test(normalized)||credentialWords.test(normalized)||longAlphaNumeric.test(normalized))return '[name withheld]';
+  if(!ordinaryNameCharacters.test(normalized)||credentialWords.test(normalized)||longAlphaNumeric.test(normalized)||longAccountNumber.test(normalized))return '[name withheld]';
   let output='';
   for(const character of normalized){if(output.length+character.length>80)break;output+=character;}
   return output;
