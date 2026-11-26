@@ -11,6 +11,7 @@ const origin = 'https://school-workflow.test.invalid';
 const callback = 'https://synthetic-school-client.test.invalid/oauth/callback';
 const sourcePageUrl = 'https://school.example.invalid/classes/synthetic-1a/';
 const pdfUrl = 'https://school.example.invalid/files/week-53.pdf';
+const pdfBytes = Buffer.from('%PDF-1.7\n1 0 obj\n<<>>\nendobj\n%%EOF\n');
 const checkTime = (minute: number) => `2026-11-20T10:${String(minute).padStart(2, '0')}:00.000Z`;
 const meta = {
   [PROTOCOL_VERSION_META_KEY]: '2026-07-28',
@@ -71,7 +72,12 @@ before(async () => {
   }
   await migrate();
   await pool.query('TRUNCATE installations,pairing_requests,rate_limits RESTART IDENTITY CASCADE');
-  app = await buildApp({ runtimeConfig: { publicOrigin: origin, secureCookies: true, trustProxy: false } });
+  app = await buildApp({ runtimeConfig: { publicOrigin: origin, secureCookies: true, trustProxy: false },
+    schoolPdfFetcher: { fetch: async (approvedPage, exactPdf) => {
+      assert.equal(approvedPage, sourcePageUrl);
+      assert.equal(exactPdf, pdfUrl);
+      return pdfBytes;
+    } } });
   const begin = await inject({ method: 'POST', url: '/api/v1/setup/begin', headers: { origin } });
   const claim = await inject({ method: 'POST', url: '/api/v1/setup/claim', headers: { origin }, payload: {
     claimToken: begin.json().claimToken,
@@ -100,7 +106,7 @@ after(async () => { if (app) await app.close(); await pool.end(); });
 test('authorized school source discovery and plan writes preserve revision and last valid content', async () => {
   const approved = await inject({ method: 'POST', url: `/api/v1/households/${householdId}/school-plan-sources`, headers: {
     cookie: adminCookie, 'x-csrf-token': adminCsrf, origin, 'content-type': 'application/json',
-  }, payload: { connectionId, personId, classKey: 'synthetic-1a', sourcePageUrl } });
+  }, payload: { connectionId, personId, classKey: 'synthetic-1a', sourcePageUrl, displayPdfLinksAllowed: true } });
   assert.equal(approved.statusCode, 201, approved.body);
   sourceId = approved.json().source.id;
 
@@ -146,12 +152,23 @@ test('authorized school source discovery and plan writes preserve revision and l
   assert.equal(rpc(staleWrite).result.isError, true);
   assert.match(rpc(staleWrite).result.content[0].text, /CONFLICT/);
 
+  const verified = await call(token, 'school.plans.verify_pdf', { sourceId, isoYear: 2020, isoWeek: 53, expectedRevision: 1 }, 8);
+  assert.equal(verified.statusCode, 200, verified.body);
+  const verification = rpc(verified).result.structuredContent.result;
+  const expectedSha256 = createHash('sha256').update(pdfBytes).digest('hex');
+  assert.equal(verification.result, 'verified');
+  assert.equal(verification.sha256, expectedSha256);
+  const memberPdf = await inject({ method: 'GET', url: `/api/v1/households/${householdId}/school-plans/${planId}/pdf`, headers: { cookie: adminCookie } });
+  assert.equal(memberPdf.statusCode, 200, memberPdf.body);
+  assert.equal(memberPdf.headers['content-type'], 'application/pdf');
+  assert.deepEqual(memberPdf.rawPayload, pdfBytes, 'member PDF delivery returns the exact bytes verified through MCP');
+
   const failure = await call(token, 'school.plans.source_failure', { sourceId, personId, sourcePageUrl,
-    classKey: 'synthetic-1a', isoYear: 2020, isoWeek: 53, expectedRevision: 1, checkedAt: checkTime(6), reason: 'timeout' }, 8);
+    classKey: 'synthetic-1a', isoYear: 2020, isoWeek: 53, expectedRevision: 1, checkedAt: checkTime(6), reason: 'timeout' }, 9);
   assert.equal(failure.statusCode, 200, failure.body);
   assert.equal(rpc(failure).result.structuredContent.result.sourceStatus, 'stale');
   assert.equal(rpc(failure).result.structuredContent.result.contentRevision, 1);
-  const preserved = await call(token, 'school.plans.get', { sourceId, isoYear: 2020, isoWeek: 53 }, 9);
+  const preserved = await call(token, 'school.plans.get', { sourceId, isoYear: 2020, isoWeek: 53 }, 10);
   assert.equal(preserved.statusCode, 200, preserved.body);
   const finalPlan = rpc(preserved).result.structuredContent.plan;
   assert.equal(finalPlan.id, planId);
@@ -160,6 +177,11 @@ test('authorized school source discovery and plan writes preserve revision and l
   assert.equal(finalPlan.revision, 2);
   assert.equal(finalPlan.contentRevision, 1);
   assert.equal(finalPlan.days[0].activities[0].title, 'Synthetic lesson');
-  assert.deepEqual(finalPlan.pdf, { status: 'unverified_link', url: pdfUrl });
+  assert.equal(finalPlan.pdf.status, 'server_verified');
+  assert.equal(finalPlan.pdf.url, pdfUrl);
+  assert.equal(finalPlan.pdf.sha256, expectedSha256);
+  const preservedPdf = await inject({ method: 'GET', url: `/api/v1/households/${householdId}/school-plans/${planId}/pdf`, headers: { cookie: adminCookie } });
+  assert.equal(preservedPdf.statusCode, 200, preservedPdf.body);
+  assert.deepEqual(preservedPdf.rawPayload, pdfBytes, 'a failed source check retains the last verified PDF snapshot');
   assert.doesNotMatch(preserved.body, /password|credential|private|real household/i);
 });
