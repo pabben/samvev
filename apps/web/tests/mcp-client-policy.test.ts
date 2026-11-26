@@ -41,6 +41,8 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:people:write'), 'mcpScopePeopleWrite');
   assert.equal(mcpScopeTranslationKey('mcp:displays:read'), 'mcpScopeDisplaysRead');
   assert.equal(mcpScopeTranslationKey('mcp:displays:setup:read'), 'mcpScopeDisplaysSetupRead');
+  assert.match(en.mcpScopeDisplaysSetupRead, /Also requires display read access\./);
+  assert.match(nb.mcpScopeDisplaysSetupRead, /Krever også lesetilgang til skjermer\./);
   assert.equal(mcpScopeTranslationKey('mcp:displays:appearance:write'), 'mcpScopeDisplaysAppearanceWrite');
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');

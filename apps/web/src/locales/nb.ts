@@ -916,7 +916,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpScopePeopleRead: "Lese husstandens personer",
   mcpScopePeopleWrite: "Oppdatere valgte personer i husstanden",
   mcpScopeDisplaysRead: "Lese valgte skjermer",
-  mcpScopeDisplaysSetupRead: "Lese kortoppsett, rekkefølge, språk og tema for valgte skjermer",
+  mcpScopeDisplaysSetupRead: "Lese kortoppsett, rekkefølge, språk og tema for valgte skjermer. Krever også lesetilgang til skjermer.",
   mcpScopeDisplaysAppearanceWrite: "Endre utseende på valgte skjermer",
   mcpDisplayAppearanceWriteDependency: "Med lesetilgang til skjermer kan klienten endre navn, språk og tema på hver valgte skjerm. Fjern avmerkingen for en skjerm eller fjern tillatelsen til å endre utseendet for å trekke tilgangen tilbake.",
   mcpScopeMessagesRead: "Lese delte beskjeder og valgte personers beskjeder",

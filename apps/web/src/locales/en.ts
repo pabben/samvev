@@ -915,7 +915,7 @@ export const en = {
   mcpScopePeopleRead: "Read household people",
   mcpScopePeopleWrite: "Update selected household people",
   mcpScopeDisplaysRead: "Read selected displays",
-  mcpScopeDisplaysSetupRead: "Read the card layout, order, language, and theme of selected displays",
+  mcpScopeDisplaysSetupRead: "Read the card layout, order, language, and theme of selected displays. Also requires display read access.",
   mcpScopeDisplaysAppearanceWrite: "Change selected display appearance",
   mcpDisplayAppearanceWriteDependency: "With display read access, this client can change the name, language and theme of each selected display. Clear a display or remove appearance access to revoke this permission.",
   mcpScopeMessagesRead: "Read shared messages and messages for selected people",
