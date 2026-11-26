@@ -48,6 +48,21 @@ test('message write policy copy discloses creating, editing, cancelling, and wit
   assert.match(nb[key], /opprette, endre, avlyse eller trekke tilbake beskjeder for valgte mottakere/i);
 });
 
+test('message write activity uses readable action labels in both locales', () => {
+  const expected = [
+    ['mcp.message_created', 'Created a message', 'Opprettet en beskjed'],
+    ['mcp.message_edited', 'Edited a message', 'Endret en beskjed'],
+    ['message.edited_by_admin', 'Edited a message with administrator permissions', 'Endret en beskjed med administratortilgang'],
+    ['mcp.message_withdrawn', 'Cancelled or withdrew a message', 'Avlyste eller trakk tilbake en beskjed'],
+  ] as const;
+  for (const [action, english, norwegian] of expected) {
+    const key = mcpActivityTranslationKey(action);
+    assert.ok(key, action);
+    assert.equal(en[key], english);
+    assert.equal(nb[key], norwegian);
+  }
+});
+
 test('grocery write scope copy discloses deletion in consent and admin policy locales', () => {
   assert.match(en.mcpScopeGroceriesWrite, /delete/i);
   assert.match(nb.mcpScopeGroceriesWrite, /fjerne/i);
