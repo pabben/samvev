@@ -392,7 +392,7 @@ export function registerHouseholdTools(
           id: row.id, title: row.title, startsAt: row.starts_at?.toISOString() ?? null, endsAt: row.ends_at?.toISOString() ?? null,
           allDay: row.metadata.allDay === true, sourceId: row.activity_source_id,
           sourceName: native && row.activity_source_id === principal.householdId ? NATIVE_CALENDAR_NAME : row.activity_source_id ? names.get(row.activity_source_id) ?? null : null,
-          personIds: row.person_ids.filter((id) => allowedPeople.has(id)).slice(0, 100)
+          personIds: row.activity_person_ids.filter((id) => allowedPeople.has(id)).slice(0, 100)
         }));
         counts.calendar = Math.min(rows.length, 25); truncated.calendar = rows.length > 25;
       }

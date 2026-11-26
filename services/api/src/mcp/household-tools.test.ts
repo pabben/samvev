@@ -107,7 +107,7 @@ test('home calendar preserves the strict person bound and reports the shared rea
   const rows=Array.from({length:26},(_,index)=>({
     id:`aaaaaaaa-aaaa-4aaa-8aaa-${String(index+1).padStart(12,'0')}`,title:`Synthetic event ${index+1}`,
     starts_at:new Date(`2027-03-20T${String(index%24).padStart(2,'0')}:00:00Z`),ends_at:null,
-    metadata:{allDay:false},activity_source_id:sourceId,person_ids:personIds
+    metadata:{allDay:false},activity_source_id:sourceId,person_ids:[],activity_person_ids:personIds
   }));
   const client={async query(sql:string,values?:unknown[]){
     calls.push({sql,values});
