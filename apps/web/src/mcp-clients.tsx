@@ -136,7 +136,7 @@ export function McpAuthorizationCard({authorization,base,householdId,timezone,pe
   };
   return <article className="surface-card mcp-authorization-card">
     <div className="mcp-authorization-title"><div><h3>{authorization.client_name}</h3><p className="field-hint">{t('mcpAuthorizedOn', { date: formatDate(authorization.created_at, locale, timezone) })}</p></div><span className={`mcp-status${revoked?' is-revoked':''}`}>{t(revoked?'mcpStatusRevoked':'mcpStatusActive')}</span></div>
-    <div className="mcp-scopes"><h4>{t('mcpGrantedAccess')}</h4><ul>{scopeIds.map(scope => <li key={scope}>{mcpScopeTranslationKey(scope) ? t(mcpScopeTranslationKey(scope)!) : scope}</li>)}</ul></div>
+    <div className="mcp-scopes"><h4>{t(revoked?'mcpPreviouslyGrantedAccess':'mcpGrantedAccess')}</h4><ul>{authorization.scopes.map(scope => <li key={scope}>{mcpScopeTranslationKey(scope) ? t(mcpScopeTranslationKey(scope)!) : scope}</li>)}</ul></div>
     <p className="mcp-last-used"><strong>{t('mcpLastUsed')}:</strong> {authorization.last_used_at ? formatDate(authorization.last_used_at, locale, timezone) : t('mcpNeverUsed')}</p>
     {authorization.scopes.some(scope=>['mcp:school-plans:read','mcp:school-plans:write'].includes(scope))&&<p className="mcp-policy-pending" role="note">{approvedMcpResourceCount(authorization,'school_source')?t('mcpSchoolResourceApproved',{count:approvedMcpResourceCount(authorization,'school_source')}):t('mcpSchoolResourcePending')}</p>}
     {authorization.scopes.includes('mcp:calendar:read')&&<p className="mcp-policy-pending" role="note">{approvedMcpResourceCount(authorization,'calendar_source')?t('mcpCalendarResourceApproved',{count:approvedMcpResourceCount(authorization,'calendar_source')}):t('mcpCalendarResourcePending')}</p>}

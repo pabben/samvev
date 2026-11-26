@@ -18,6 +18,13 @@ const authorization: McpAuthorization = {
   resources: [{ kind: 'school_source', id: 'synthetic-approved-source-id' }],
 };
 
+test('authorization labels distinguish granted and previously granted access in both locales', () => {
+  assert.equal(en.mcpGrantedAccess, 'Granted access');
+  assert.equal(nb.mcpGrantedAccess, 'Innvilget tilgang');
+  assert.equal(en.mcpPreviouslyGrantedAccess, 'Previously granted access');
+  assert.equal(nb.mcpPreviouslyGrantedAccess, 'Tidligere innvilget tilgang');
+});
+
 test('backend MCP scope names are translated without exposing namespace prefixes', () => {
   assert.equal(mcpScopeTranslationKey('mcp:context'), 'mcpScopeContext');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:read'), 'mcpScopeMonitorsRead');
