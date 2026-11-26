@@ -79,6 +79,12 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });
 
+test('monitor discovery activity is localized without exposing filter text',()=>{
+  assert.equal(mcpActivityTranslationKey('mcp.monitors_discovered'),'mcpActivityMonitorsDiscovered');
+  assert.equal(en.mcpActivityMonitorsDiscovered,'Searched monitoring task names');
+  assert.equal(nb.mcpActivityMonitorsDiscovered,'Søkte i oppdragsnavn');
+});
+
 test('message write policy copy discloses creating, editing, cancelling, and withdrawing for selected recipients', () => {
   const key = mcpScopeTranslationKey('mcp:messages:write');
   assert.ok(key);
