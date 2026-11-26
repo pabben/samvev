@@ -13,20 +13,24 @@ export interface ExternalItemRow {
   acl_witness?:string;acl_sensor_id?:string|null;
 }
 
+export function calendarFreshnessProjection(row:Pick<ExternalItemRow,'metadata'|'calendar_connection_state'|'calendar_owner_authorized'|'calendar_provider_status'|'calendar_source_error_code'>):{freshness:'current'|'stale';lastSuccessfulSyncAt:string|null;reason?:string}|undefined{
+  const stored=row.metadata.calendar&&typeof row.metadata.calendar==='object'&&!Array.isArray(row.metadata.calendar)?row.metadata.calendar as Record<string,unknown>:undefined;
+  if(!stored||!row.calendar_connection_state)return undefined;
+  const storedReason=['sync_failed','provider_disabled','reauthorization_required','source_missing'].includes(String(stored.freshnessReason))?String(stored.freshnessReason):undefined;
+  const stale=row.calendar_owner_authorized!==true||stored.freshness==='stale'||!['connected','syncing','error'].includes(row.calendar_connection_state);
+  return{
+    freshness:stale?'stale':'current',lastSuccessfulSyncAt:typeof stored.lastSuccessfulSyncAt==='string'?stored.lastSuccessfulSyncAt:null,
+    ...(stale?{reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':storedReason??(row.calendar_source_error_code?'sync_failed':'reauthorization_required')}:{})
+  };
+}
+
 export function mapExternalItem(row:ExternalItemRow,options:{includeExternalId?:boolean;forDisplay?:boolean;selectedPersonIds?:string[]}={}):Record<string,unknown>{
   const source=options.forDisplay
     ? Object.fromEntries(Object.entries(row.source).filter(([key])=>!['url','links'].includes(key)))
     : row.source;
   const metadata=Object.fromEntries(Object.entries(row.metadata).filter(([key])=>key!=='nativeCalendar'&&(!options.forDisplay||key!=='actionUrl')));
   if(row.native_calendar)metadata.nativeCalendar=true;
-  const storedCalendar=metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)?metadata.calendar as Record<string,unknown>:undefined;
-  const storedFreshnessReason=['sync_failed','provider_disabled','reauthorization_required','source_missing'].includes(String(storedCalendar?.freshnessReason))?String(storedCalendar?.freshnessReason):undefined;
-  const calendarIsStale=storedCalendar&&row.calendar_connection_state?row.calendar_owner_authorized!==true||storedCalendar.freshness==='stale'||!['connected','syncing','error'].includes(row.calendar_connection_state):false;
-  const calendarFreshness=storedCalendar&&row.calendar_connection_state?{
-    freshness:calendarIsStale?'stale':'current',
-    lastSuccessfulSyncAt:typeof storedCalendar.lastSuccessfulSyncAt==='string'?storedCalendar.lastSuccessfulSyncAt:null,
-    ...(calendarIsStale?{reason:row.calendar_owner_authorized!==true?'reauthorization_required':row.calendar_provider_status==='disabled'?'provider_disabled':storedFreshnessReason??(row.calendar_source_error_code?'sync_failed':'reauthorization_required')}:{})
-  }:undefined;
+  const calendarFreshness=calendarFreshnessProjection(row);
   const calendarMetadata=calendarFreshness&&metadata.calendar&&typeof metadata.calendar==='object'&&!Array.isArray(metadata.calendar)
     ?{...Object.fromEntries(Object.entries(metadata.calendar as Record<string,unknown>).filter(([key])=>key!=='freshnessReason')),...calendarFreshness}
     :calendarFreshness;
@@ -72,6 +76,7 @@ export interface CalendarActivityReadInput {
   cursor?:ActivityCursor; upcomingOnly?:boolean; display?:DisplayActivityContext;
   requirePersonAudience?:boolean;
   nativeSourceApproved?:boolean;
+  excludeCancelled?:boolean;
 }
 
 /** Shared implementation of the calendar half of personActivities. The API
@@ -115,11 +120,12 @@ export async function readCalendarActivityRows(input:CalendarActivityReadInput,c
           AND (${displayCalendarSource} OR ${displayGenericSource})))
       AND ($18::timestamptz IS NULL OR (activity.ends_at IS NULL AND activity.starts_at>=$18::timestamptz OR activity.ends_at>$18::timestamptz))
       AND ($18::timestamptz IS NULL OR COALESCE(i.metadata#>>'{calendar,status}','') NOT IN ('cancelled','canceled','declined'))
+      AND (NOT $22::boolean OR COALESCE(i.metadata#>>'{calendar,status}','') NOT IN ('cancelled','canceled','declined'))
       AND ($8::uuid[] IS NULL OR EXISTS(SELECT 1 FROM calendar_occurrences occurrence WHERE occurrence.integration_item_id=i.id AND occurrence.source_id=ANY($8))
         OR ($21::boolean AND ${samvevNativeEventPredicate}
           AND NOT EXISTS(SELECT 1 FROM integration_item_person_targets other_reader WHERE other_reader.item_id=i.id AND other_reader.person_id<>ALL($2::uuid[]))))
       AND NOT EXISTS(SELECT 1 FROM home_assistant_temperature_sensors hidden_sensor WHERE hidden_sensor.integration_item_id=i.id)
       ${calendarCursor}
-    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null,display?.selectedPersonIds??[],input.requirePersonAudience??false,input.nativeSourceApproved??false]);
+    ORDER BY activity.starts_at,i.id LIMIT $7`,[householdId,personIds,from,to,canViewAll,viewer.personId,limit+1,sourceIds??null,cursor?.at??null,cursor?.rank??null,cursor?.id??null,display?.id??null,display?.externalItemsEnabled??false,Boolean(display?.cards.includes('external_items')),display?.allSources??false,display?.sourceIds??[],display?.calendarSourceIds??[],input.upcomingOnly?new Date():null,display?.selectedPersonIds??[],input.requirePersonAudience??false,input.nativeSourceApproved??false,input.excludeCancelled??false]);
   return calendar.rows;
 }

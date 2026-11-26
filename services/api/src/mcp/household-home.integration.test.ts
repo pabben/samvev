@@ -56,12 +56,12 @@ before(async()=>{
 });
 after(async()=>{if(app)await app.close();await pool.end();});
 
-async function addCalendarEvent(input:{sourceId:string;personId:string;key:string;title:string;startsAt:Date|string;endsAt:Date|string|null;allDay:boolean}){
+async function addCalendarEvent(input:{sourceId:string;personId:string;key:string;title:string;startsAt:Date|string;endsAt:Date|string|null;allDay:boolean;status?:string;freshness?:'current'|'stale';lastSuccessfulSyncAt?:string}){
   const item=(await pool.query<{id:string}>(`INSERT INTO integration_items(household_id,connection_id,external_id,kind,target_household,title,body,priority,starts_at,ends_at,publish_at,expires_at,source,metadata,request_hash)
     VALUES($1,$2,$3,'event',false,$4,'Synthetic private calendar detail','normal',$5,$6,clock_timestamp()-interval '1 day',clock_timestamp()+interval '400 days',$7,$8,$9) RETURNING id`,[
     householdId,integrationConnectionId,input.key,input.title,input.startsAt,input.endsAt,
     JSON.stringify({url:'https://calendar.test.invalid/private-token',observedAt:new Date().toISOString(),uncertainty:'low'}),
-    JSON.stringify({allDay:input.allDay,calendar:{provider:'ics',sourceId:input.sourceId},evidence:{quote:'Synthetic private evidence'}}),
+    JSON.stringify({allDay:input.allDay,calendar:{provider:'ics',sourceId:input.sourceId,...(input.status?{status:input.status}:{}),...(input.freshness?{freshness:input.freshness}:{}),...(input.lastSuccessfulSyncAt?{lastSuccessfulSyncAt:input.lastSuccessfulSyncAt}:{})},evidence:{quote:'Synthetic private evidence'}}),
     createHash('sha256').update(input.key).digest('hex')
   ])).rows[0]!.id;
   await pool.query('INSERT INTO integration_item_person_subjects(household_id,item_id,person_id) VALUES($1,$2,$3)',[householdId,item,input.personId]);
@@ -99,8 +99,11 @@ test('home MCP composes calendar, active messages and household boards without w
   const overnight=(await pool.query<{starts_at:Date;ends_at:Date}>(`SELECT
     ($1::date+time '23:30') AT TIME ZONE $3 AS starts_at,
     ($2::date+time '01:00') AT TIME ZONE $3 AS ends_at`,[today,tomorrow,timezone])).rows[0]!;
-  const visibleOvernight=await addCalendarEvent({sourceId:calendarSourceId,personId,key:'synthetic-visible-overnight',title:'Synthetic overnight activity',startsAt:overnight.starts_at,endsAt:overnight.ends_at,allDay:false});
-  const visibleAllDay=await addCalendarEvent({sourceId:calendarSourceId,personId,key:'synthetic-visible-all-day',title:'Synthetic all-day activity',startsAt:`${tomorrow}T00:00:00.000Z`,endsAt:`${afterTomorrow}T00:00:00.000Z`,allDay:true});
+  const visibleOvernight=await addCalendarEvent({sourceId:calendarSourceId,personId,key:'synthetic-visible-overnight',title:'Synthetic overnight activity',startsAt:overnight.starts_at,endsAt:overnight.ends_at,allDay:false,freshness:'current',lastSuccessfulSyncAt:`${today}T10:00:00.000Z`});
+  const visibleAllDay=await addCalendarEvent({sourceId:calendarSourceId,personId,key:'synthetic-visible-all-day',title:'Synthetic all-day activity',startsAt:`${tomorrow}T00:00:00.000Z`,endsAt:`${afterTomorrow}T00:00:00.000Z`,allDay:true,freshness:'stale',lastSuccessfulSyncAt:`${today}T09:00:00.000Z`});
+  const visibleTentative=await addCalendarEvent({sourceId:calendarSourceId,personId,key:'synthetic-visible-tentative',title:'Synthetic tentative activity',startsAt:overnight.starts_at,endsAt:overnight.ends_at,allDay:false,status:'tentative'});
+  const cancelled=await addCalendarEvent({sourceId:calendarSourceId,personId,key:'synthetic-cancelled',title:'Synthetic cancelled activity',startsAt:overnight.starts_at,endsAt:overnight.ends_at,allDay:false,status:'cancelled'});
+  const declined=await addCalendarEvent({sourceId:calendarSourceId,personId,key:'synthetic-declined',title:'Synthetic declined activity',startsAt:overnight.starts_at,endsAt:overnight.ends_at,allDay:false,status:'declined'});
   const hiddenPersonEvent=await addCalendarEvent({sourceId:calendarSourceId,personId:ungrantedPersonId,key:'synthetic-hidden-person',title:'Synthetic hidden person activity',startsAt:overnight.starts_at,endsAt:overnight.ends_at,allDay:false});
   const hiddenSourceEvent=await addCalendarEvent({sourceId:ungrantedCalendarSourceId,personId,key:'synthetic-hidden-source',title:'Synthetic hidden source activity',startsAt:overnight.starts_at,endsAt:overnight.ends_at,allDay:false});
 
@@ -129,9 +132,11 @@ test('home MCP composes calendar, active messages and household boards without w
   const rpc=response.json().result;assert.notEqual(rpc.isError,true,response.body);
   const home=rpc.structuredContent as Record<string,any>;
   assert.deepEqual(Object.keys(home).sort(),['calendar','dinners','groceries','householdId','locale','messages','serverNow','timezone','today','tomorrow','truncated'].sort());
-  assert.deepEqual(home.calendar.map((event:{id:string})=>event.id).sort(),[visibleAllDay,visibleOvernight].sort());
+  assert.deepEqual(home.calendar.map((event:{id:string})=>event.id).sort(),[visibleAllDay,visibleOvernight,visibleTentative].sort());
   assert.equal(home.calendar.find((event:{id:string})=>event.id===visibleAllDay)?.allDay,true);
   assert.equal(home.calendar.find((event:{id:string})=>event.id===visibleOvernight)?.endsAt,overnight.ends_at.toISOString());
+  assert.deepEqual(home.calendar.find((event:{id:string})=>event.id===visibleOvernight)&&{freshness:home.calendar.find((event:{id:string})=>event.id===visibleOvernight).freshness,lastSuccessfulSyncAt:home.calendar.find((event:{id:string})=>event.id===visibleOvernight).lastSuccessfulSyncAt},{freshness:'current',lastSuccessfulSyncAt:`${today}T10:00:00.000Z`});
+  assert.deepEqual(home.calendar.find((event:{id:string})=>event.id===visibleAllDay)&&{freshness:home.calendar.find((event:{id:string})=>event.id===visibleAllDay).freshness,lastSuccessfulSyncAt:home.calendar.find((event:{id:string})=>event.id===visibleAllDay).lastSuccessfulSyncAt},{freshness:'stale',lastSuccessfulSyncAt:`${today}T09:00:00.000Z`});
   assert.ok(home.calendar.every((event:{sourceId:string;personIds:string[]})=>event.sourceId===calendarSourceId&&event.personIds.length===1&&event.personIds[0]===personId));
   assert.deepEqual(home.messages.map((message:{id:string})=>message.id).sort(),[activeMessage,overnightMessage].sort(),'date filtering precedes the limit, so the older active message survives 205 newer history rows');
   assert.deepEqual(home.groceries,[{id:grocery,label:'Synthetic apples',checked:false,revision:1}]);
@@ -139,10 +144,10 @@ test('home MCP composes calendar, active messages and household boards without w
   assert.deepEqual(new Set(home.dinners.map((dinner:{id:string})=>dinner.id)),new Set(dinnerRows.rows.filter((dinner)=>dinner.local_date!==afterTomorrow).map((dinner)=>dinner.id)));
   const serialized=JSON.stringify(home);
   assert.doesNotMatch(serialized,/private-token|private calendar detail|private evidence|irrelevant history|ended message|beyond-window|deleted grocery|later dinner/i);
-  for(const hidden of [ungrantedPersonId,ungrantedCalendarSourceId,hiddenPersonEvent,hiddenSourceEvent])assert.equal(serialized.includes(hidden),false);
+  for(const hidden of [ungrantedPersonId,ungrantedCalendarSourceId,hiddenPersonEvent,hiddenSourceEvent,cancelled,declined])assert.equal(serialized.includes(hidden),false);
   assert.deepEqual(home.truncated,{calendar:false,messages:false,groceries:false,dinners:false});
   const audit=(await pool.query<{metadata:Record<string,unknown>}>(`SELECT metadata FROM audit_events WHERE household_id=$1 AND action='mcp.home_read' ORDER BY occurred_at DESC,id DESC LIMIT 1`,[householdId])).rows[0]!;
-  assert.deepEqual(audit.metadata,{sections,counts:{calendar:2,messages:2,groceries:1,dinners:2},truncated:{calendar:false,messages:false,groceries:false,dinners:false}});
+  assert.deepEqual(audit.metadata,{sections,counts:{calendar:3,messages:2,groceries:1,dinners:2},truncated:{calendar:false,messages:false,groceries:false,dinners:false}});
 
   for(const [index,[section,scope]] of ([['calendar','mcp:calendar:read'],['messages','mcp:messages:read'],['groceries','mcp:groceries:read'],['dinners','mcp:dinners:read']] as const).entries()){
     await pool.query('UPDATE mcp_oauth_grants SET scopes=scopes-$2 WHERE id=$1',[grantId,scope]);

@@ -5,7 +5,7 @@ import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
 import { listMessages } from '../messages/read.ts';
-import { readCalendarActivityRows } from '../calendar/activity-reader.ts';
+import { calendarFreshnessProjection, readCalendarActivityRows, type ActivityRow } from '../calendar/activity-reader.ts';
 import { localDateInTimezone } from '../people/domain.ts';
 import { messageService, type MessageCreateActor, type MessageEditAudit, type MessageService, type MessageWithdrawAudit } from '../messages/service.ts';
 import { hasNativeCalendarGrant, NATIVE_CALENDAR_NAME, registerCalendarWriteTools } from './calendar-write.ts';
@@ -133,7 +133,8 @@ const messageRecordOutput = z.object({ id: idOutput, body: z.string().max(10000)
 const homePersonOutput = z.strictObject({ id: uuid, displayName: z.string().min(1).max(100), revision: revisionOutput });
 const homeEventOutput = z.strictObject({
   id: idOutput, title: z.string().max(500), startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(),
-  allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), personIds: z.array(uuid).max(100)
+  allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), personIds: z.array(uuid).max(100),
+  freshness: z.enum(['current','stale','unknown']), lastSuccessfulSyncAt: z.iso.datetime().nullable()
 });
 const homeMessageOutput = z.strictObject({
   id: uuid, body: z.string().max(10000), importance: z.enum(['normal', 'attention']), authorName: z.string().max(200).nullable(),
@@ -157,6 +158,12 @@ const editedMessageOutput = z.strictObject({
 const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, state: z.enum(['withdrawn', 'cancelled']), revision: revisionOutput }).passthrough() });
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
+function homeCalendarFreshness(row:ActivityRow):{freshness:'current'|'stale'|'unknown';lastSuccessfulSyncAt:string|null}{
+  const value=calendarFreshnessProjection(row);
+  if(!value)return{freshness:'unknown',lastSuccessfulSyncAt:null};
+  const sync=typeof value.lastSuccessfulSyncAt==='string'&&z.iso.datetime().safeParse(value.lastSuccessfulSyncAt).success?value.lastSuccessfulSyncAt:null;
+  return{freshness:value.freshness,lastSuccessfulSyncAt:sync};
+}
 
 export type HouseholdMcpScope = 'mcp:home:read' | 'mcp:people:read' | 'mcp:people:write' | 'mcp:people:create' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number] | typeof displayLayoutWriteScopes[number];
 type Capability = MemberCapability;
@@ -331,7 +338,7 @@ export function registerHouseholdTools(
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
 
   registrar.registerTool('household.home.get', {
-    description: 'Read a bounded household-local today/tomorrow overview. Each requested section also requires its existing read permission. This does not expose birthdays, photos, Home Assistant data, school evidence, source URLs, credentials, or a display snapshot.',
+    description: 'Read a bounded household-local today/tomorrow overview. serverNow is response-generation time, not provider sync time. Each requested section also requires its existing read permission. This does not expose birthdays, photos, Home Assistant data, school evidence, source URLs, credentials, or a display snapshot.',
     inputSchema: homeInput, outputSchema: homeOutput, requiredScopes: ['mcp:home:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     const input = homeInput.parse(raw);
@@ -384,7 +391,7 @@ export function registerHouseholdTools(
           householdId: principal.householdId, personIds,
           viewer: { personId: authority.personId, membershipId: principal.membershipId }, canViewAll: true,
           from: today, to: tomorrow, limit: 25, sourceIds: sources.map(({ id }) => id), upcomingOnly: false,
-          requirePersonAudience: true, nativeSourceApproved: Boolean(native)
+          requirePersonAudience: true, nativeSourceApproved: Boolean(native), excludeCancelled: true
         }, client) : [];
         const names = new Map(sources.map((source) => [source.id, source.name]));
         const allowedPeople = new Set(personIds);
@@ -392,7 +399,7 @@ export function registerHouseholdTools(
           id: row.id, title: row.title, startsAt: row.starts_at?.toISOString() ?? null, endsAt: row.ends_at?.toISOString() ?? null,
           allDay: row.metadata.allDay === true, sourceId: row.activity_source_id,
           sourceName: native && row.activity_source_id === principal.householdId ? NATIVE_CALENDAR_NAME : row.activity_source_id ? names.get(row.activity_source_id) ?? null : null,
-          personIds: row.activity_person_ids.filter((id) => allowedPeople.has(id)).slice(0, 100)
+          personIds: row.activity_person_ids.filter((id) => allowedPeople.has(id)).slice(0, 100),...homeCalendarFreshness(row)
         }));
         counts.calendar = Math.min(rows.length, 25); truncated.calendar = rows.length > 25;
       }

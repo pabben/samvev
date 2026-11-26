@@ -98,6 +98,11 @@ test('home overview requires fresh home plus selected section scope and returns 
   assert.deepEqual(calls[0]!.values?.[4],['mcp:home:read','mcp:people:read']);
   assert.match(String(calls.at(-1)!.values?.[3]),/"sections":\["people"\]/);
   assert.doesNotMatch(JSON.stringify(result),/birthDate|photo|school|evidence|sourceUrl|credential|avatar/i);
+  const event={id:'99999999-9999-4999-8999-999999999999',title:'Synthetic event',startsAt:'2027-03-20T09:00:00.000Z',endsAt:null,allDay:false,sourceId:null,sourceName:null,personIds:[],freshness:'unknown',lastSuccessfulSyncAt:null};
+  const calendarResult={householdId:principal.householdId,timezone:'Europe/Oslo',locale:'en',serverNow:'2027-03-20T09:00:00.000Z',today:'2027-03-20',tomorrow:'2027-03-21',calendar:[event],truncated:{calendar:false}};
+  assert.equal(householdToolSchemas.homeOutput.safeParse(calendarResult).success,true);
+  assert.equal(householdToolSchemas.homeOutput.safeParse({...calendarResult,calendar:[{...event,freshness:'fresh'}]}).success,false);
+  assert.equal(householdToolSchemas.homeOutput.safeParse({...calendarResult,calendar:[{...event,metadata:{calendar:{url:'https://private.invalid'}}}]}).success,false);
 });
 
 test('home calendar preserves the strict person bound and reports the shared reader overfetch',async()=>{
@@ -107,7 +112,7 @@ test('home calendar preserves the strict person bound and reports the shared rea
   const rows=Array.from({length:26},(_,index)=>({
     id:`aaaaaaaa-aaaa-4aaa-8aaa-${String(index+1).padStart(12,'0')}`,title:`Synthetic event ${index+1}`,
     starts_at:new Date(`2027-03-20T${String(index%24).padStart(2,'0')}:00:00Z`),ends_at:null,
-    metadata:{allDay:false},activity_source_id:sourceId,person_ids:[],activity_person_ids:personIds
+    source:{},metadata:{allDay:false},activity_source_id:sourceId,person_ids:[],activity_person_ids:personIds
   }));
   const client={async query(sql:string,values?:unknown[]){
     calls.push({sql,values});
@@ -125,6 +130,7 @@ test('home calendar preserves the strict person bound and reports the shared rea
   assert.equal(result.calendar.length,25);assert.equal(result.calendar[0]!.personIds.length,100);assert.equal(result.truncated.calendar,true);
   const calendarQuery=calls.find((call)=>call.sql.includes('explicit_person'))!;
   assert.equal(calendarQuery.values?.[6],26,'the shared reader receives limit+1 and makes truncation observable');
+  assert.equal(calendarQuery.values?.[21],true,'Home excludes cancelled and declined rows independently of the upcoming-only filter');
 });
 
 function dependencies(options: { allowed?: boolean; people?: unknown[] } = {}) {
