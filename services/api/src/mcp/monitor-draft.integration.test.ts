@@ -25,6 +25,7 @@ async function callTool(token:string,name:string,args:Record<string,unknown>,id:
 async function call(token:string,args:Record<string,unknown>,id:number){return callTool(token,'samvev_monitor_draft_create',args,id);}
 async function update(token:string,args:Record<string,unknown>,id:number){return callTool(token,'samvev_monitor_draft_update',args,id);}
 async function remove(token:string,args:Record<string,unknown>,id:number){return callTool(token,'samvev_monitor_draft_delete',args,id);}
+async function getDraft(token:string,args:Record<string,unknown>,id:number){return callTool(token,'samvev_monitor_draft_get',args,id);}
 
 async function client(name:string){
   const registered=await inject({method:'POST',url:'/oauth/register',payload:{client_name:name,redirect_uris:[callback],token_endpoint_auth_method:'none'}});
@@ -341,4 +342,25 @@ test('monitor draft manage waits for grant revocation and rejects without changi
   }finally{if(open)await revoker.query('ROLLBACK');revoker.release();await pending;}
   assert.deepEqual((await pool.query<{name:string;revision:number}>(`SELECT name,revision FROM monitor_tasks WHERE id=$1`,[taskId])).rows[0],{name:'Synthetic source draft',revision:1});
   assert.equal((await pool.query(`SELECT count(*)::int count FROM audit_events WHERE action='mcp.monitor_draft_updated' AND subject_id=$1`,[taskId])).rows[0]!.count,0);
+});
+
+
+test('monitor draft content read requires fresh consent and returns only eligible same-grant proposal fields',async()=>{
+  const scopes='mcp:monitors:read mcp:monitors:draft:write mcp:monitors:draft:content';
+  const token=await authorize(await client('Synthetic monitor draft content reader'),scopes);
+  const noContent=await authorize(await client('Synthetic monitor draft reader without content'), 'mcp:monitors:read mcp:monitors:draft:write');
+  const created=await call(token,validInput(requestKey(301)),301);assert.equal(created.statusCode,200,created.body);
+  const taskId=rpc(created).result.structuredContent.creation.taskId as string;
+  const result=await getDraft(token,{taskId},302);assert.equal(result.statusCode,200,result.body);
+  const proposal=rpc(result).result.structuredContent;
+  assert.deepEqual(proposal,{taskId,revision:1,name:'Synthetic source draft',instruction:'Check the synthetic public source for useful updates.',sourceUrl:'https://example.test.invalid/monitor',checkIntervalMinutes:60,noticeDaysBefore:1,noticeLocalTime:'18:00',providerPolicy:'default',modelTier:'routine'});
+  for(const key of ['targets','state','status','history','runs','events','results','source_final_url','credentials','interpretedRule'])assert.equal(key in proposal,false,`strict output omits ${key}`);
+  const deniedScope=await getDraft(noContent,{taskId},303);assert.equal(deniedScope.statusCode,403,deniedScope.body);
+  assert.match(String(deniedScope.headers['www-authenticate']),/insufficient_scope/);
+  const otherGrant=await authorize(await client('Synthetic other-grant draft content reader'),scopes);
+  const deniedGrant=await getDraft(otherGrant,{taskId},304);assert.equal(rpc(deniedGrant).result.isError,true,deniedGrant.body);assert.match(rpc(deniedGrant).result.content[0].text,/NOT_FOUND/);
+  await inject({method:'PATCH',url:`/api/v1/households/${householdId}/monitors/${taskId}`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{expectedRevision:1,targets:{personIds:[personId],displayIds:[]}}});
+  const browserCompleted=await getDraft(token,{taskId},305);assert.equal(rpc(browserCompleted).result.isError,true,browserCompleted.body);assert.match(rpc(browserCompleted).result.content[0].text,/NOT_FOUND/);
+  const readAudit=(await pool.query<{metadata:Record<string,unknown>}>(`SELECT metadata FROM audit_events WHERE action='mcp.monitor_draft_read' AND subject_id=$1`,[taskId])).rows;
+  assert.equal(readAudit.length,1,'only the successful read is audited');assert.deepEqual(Object.keys(readAudit[0]!.metadata).sort(),['clientId','revision']);assert.equal(readAudit[0]!.metadata.revision,1);assert.doesNotMatch(JSON.stringify(readAudit[0]!.metadata),/synthetic public source|example\.test/i,'source text is absent from audit metadata');
 });

@@ -27,6 +27,7 @@ interface Dependencies{
 
 const REQUIRED_SCOPES=['mcp:monitors:read','mcp:monitors:draft:write'] as const;
 const REQUIRED_MANAGE_SCOPES=['mcp:monitors:read','mcp:monitors:draft:write','mcp:monitors:draft:manage'] as const;
+const REQUIRED_CONTENT_SCOPES=['mcp:monitors:read','mcp:monitors:draft:write','mcp:monitors:draft:content'] as const;
 const REQUIRED_CAPABILITIES=['household.manage','message.create.household','message.schedule'] as const satisfies readonly Capability[];
 
 export const monitorDraftUpdateInputSchema=z.strictObject({
@@ -97,7 +98,7 @@ export async function assertMcpMonitorDraftManageAuthority(client:DbClient,princ
 
 const DRAFT_ELIGIBILITY_SQL=`
   SELECT task.id,task.revision,task.name,task.instruction,task.source_url,task.check_interval_minutes,
-    task.notice_days_before,task.notice_local_time::text AS notice_local_time,task.provider_policy,task.model_tier
+    task.notice_days_before,to_char(task.notice_local_time,'HH24:MI') AS notice_local_time,task.provider_policy,task.model_tier
   FROM monitor_tasks task
   WHERE task.id=$1 AND task.household_id=$2 AND task.owner_membership_id=$3 AND task.state='draft'
     AND task.approved_revision IS NULL AND task.approved_ai_provider IS NULL
@@ -119,6 +120,48 @@ const DRAFT_ELIGIBILITY_SQL=`
     AND NOT EXISTS(SELECT 1 FROM monitor_quality_audits quality_audit WHERE quality_audit.task_id=task.id)
     AND NOT EXISTS(SELECT 1 FROM monitor_task_subjects subject WHERE subject.task_id=task.id)
     AND NOT EXISTS(SELECT 1 FROM monitor_task_subject_audits subject_audit WHERE subject_audit.task_id=task.id)`;
+
+export const monitorDraftGetInputSchema=z.strictObject({taskId:z.uuid()});
+export const monitorDraftGetOutputSchema=z.strictObject({
+  taskId:z.uuid(),revision:z.number().int().positive(),name:z.string().max(80),instruction:z.string().max(2000),sourceUrl:z.string().max(2048).nullable(),
+  checkIntervalMinutes:z.number().int().min(15).max(10080),noticeDaysBefore:z.number().int().min(0).max(30),noticeLocalTime:z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  providerPolicy:z.enum(['default','local','openai']),modelTier:z.enum(['routine','strong'])
+});
+
+export async function getMcpMonitorDraft(principal:McpPrincipal,raw:unknown,deps:Pick<Dependencies,'transaction'|'audit'>):Promise<z.output<typeof monitorDraftGetOutputSchema>>{
+  const input=monitorDraftGetInputSchema.parse(raw);
+  if(REQUIRED_CONTENT_SCOPES.some(scope=>!principal.scopes.includes(scope)))throw new DomainError('FORBIDDEN',403,{reason:'mcp_scope_required'});
+  return deps.transaction(async client=>{
+    await assertDraftContentAuthority(client,principal);
+    await assertMcpDraftReceipt(client,principal,input.taskId);
+    await client.query('SELECT id FROM monitor_tasks WHERE id=$1 AND household_id=$2 FOR SHARE',[input.taskId,principal.householdId]);
+    const current=(await client.query<Record<string,unknown>>(DRAFT_ELIGIBILITY_SQL,[input.taskId,principal.householdId,principal.membershipId,principal.grantId])).rows[0];
+    if(!current)throw new DomainError('NOT_FOUND',404);
+    await assertDraftContentAuthority(client,principal);
+    const result=monitorDraftGetOutputSchema.parse({taskId:input.taskId,revision:Number(current.revision),name:current.name,instruction:current.instruction,
+      sourceUrl:current.source_url??null,checkIntervalMinutes:Number(current.check_interval_minutes),noticeDaysBefore:Number(current.notice_days_before),
+      noticeLocalTime:current.notice_local_time,providerPolicy:current.provider_policy,modelTier:current.model_tier});
+    await deps.audit(client,input.taskId,result.revision);
+    return result;
+  });
+}
+
+async function assertDraftContentAuthority(client:DbClient,principal:McpPrincipal):Promise<void>{
+  const row=await client.query(`SELECT 1 FROM mcp_oauth_grants oauth_grant
+    JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=oauth_grant.id AND token_set.id=$5
+    JOIN memberships membership ON membership.id=oauth_grant.membership_id AND membership.household_id=oauth_grant.household_id AND membership.account_id=oauth_grant.account_id
+    JOIN accounts account ON account.id=oauth_grant.account_id AND account.installation_id=$8 AND account.disabled_at IS NULL
+    JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id AND person.age_group='adult'
+    JOIN households household ON household.id=oauth_grant.household_id AND household.installation_id=oauth_grant.installation_id
+    JOIN mcp_oauth_clients oauth_client ON oauth_client.id=oauth_grant.client_id AND oauth_client.installation_id=oauth_grant.installation_id AND oauth_client.revoked_at IS NULL
+    WHERE oauth_grant.id=$1 AND oauth_grant.household_id=$2 AND oauth_grant.account_id=$3 AND oauth_grant.membership_id=$4 AND oauth_grant.installation_id=$8
+      AND oauth_grant.revoked_at IS NULL AND oauth_grant.scopes ?& $6::text[] AND token_set.revoked_at IS NULL
+      AND token_set.access_expires_at>clock_timestamp() AND token_set.scopes ?& $6::text[] AND membership.capabilities ?& $7::text[]
+    FOR SHARE OF oauth_grant,token_set,membership,account,person,household,oauth_client`,[
+    principal.grantId,principal.householdId,principal.accountId,principal.membershipId,principal.tokenSetId,REQUIRED_CONTENT_SCOPES,REQUIRED_CAPABILITIES,principal.installationId
+  ]);
+  if(!row.rowCount)throw new DomainError('FORBIDDEN',403,{reason:'mcp_monitor_draft_content_authority_required'});
+}
 
 async function assertMcpDraftReceipt(client:DbClient,principal:McpPrincipal,taskId:string):Promise<void>{
   const receipt=await client.query(`SELECT 1 FROM mcp_monitor_draft_requests

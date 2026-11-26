@@ -33,6 +33,9 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:monitors:review'), 'mcpScopeMonitorsReview');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:write'), 'mcpScopeMonitorsDraftWrite');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:manage'), 'mcpScopeMonitorsDraftManage');
+  assert.equal(mcpScopeTranslationKey('mcp:monitors:draft:content'), 'mcpScopeMonitorsDraftContent');
+  assert.match(en.mcpScopeMonitorsDraftContent, /sensitive, untrusted text/);
+  assert.match(nb.mcpScopeMonitorsDraftContent, /sensitiv, ubetrodd tekst/);
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:read'), 'mcpScopeSchoolRead');
   assert.equal(mcpScopeTranslationKey('mcp:school-plans:write'), 'mcpScopeSchoolWrite');
   assert.equal(mcpScopeTranslationKey('offline_access'), 'mcpScopeOffline');
@@ -74,6 +77,9 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_reviewed'), 'mcpActivityMonitorResultReviewed');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_review_read'), 'mcpActivityMonitorResultReviewRead');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_created'), 'mcpActivityMonitorDraftCreated');
+  assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_read'), 'mcpActivityMonitorDraftRead');
+  assert.equal(en.mcpActivityMonitorDraftRead, 'Read sensitive details of an inactive monitor draft');
+  assert.equal(nb.mcpActivityMonitorDraftRead, 'Leste sensitive detaljer i et inaktivt oppdragsutkast');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_updated'), 'mcpActivityMonitorDraftUpdated');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_deleted'), 'mcpActivityMonitorDraftDeleted');
   assert.equal(en.mcpActivityMonitorDraftCreated, 'Created an inactive monitor draft');
