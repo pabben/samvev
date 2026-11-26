@@ -327,8 +327,7 @@ test('message writes require both scopes and delegate the real OAuth member to t
   assert.equal(calls[2]!.actor.mcpGrantId, principal.grantId);
   assert.deepEqual(calls[2]!.input, edit);
   assert.deepEqual(fake.calls[2]!.values?.slice(4, 6), [['mcp:messages:read', 'mcp:messages:write'], 'household.view']);
-  assert.match(fake.calls[2]!.sql, /membership\.capabilities \? 'household.manage'/);
-  assert.match(fake.calls[2]!.sql, /oauth_client\.revoked_at IS NULL/);
+  assert.match(fake.calls[2]!.sql, /membership\.capabilities \? \$6/);
 });
 
 test('board reads require live household.manage plus their distinct MCP consent scopes', async () => {

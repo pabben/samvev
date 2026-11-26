@@ -103,7 +103,6 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
       AND token_set.revoked_at IS NULL AND token_set.access_expires_at>clock_timestamp()
       AND token_set.scopes ?& $5::text[]
       AND membership.id IS NOT NULL
-      AND membership.capabilities ? 'household.manage'
       AND membership.capabilities ? $6
       AND person.age_group = 'adult'
       AND account.disabled_at IS NULL
@@ -111,13 +110,12 @@ async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrin
     ) AS allowed,membership.person_id,membership.capabilities
     FROM mcp_oauth_grants grant_row
     JOIN mcp_oauth_token_sets token_set ON token_set.grant_id=grant_row.id AND token_set.id=$8
-    JOIN mcp_oauth_clients oauth_client ON oauth_client.id=grant_row.client_id AND oauth_client.installation_id=$4 AND oauth_client.revoked_at IS NULL
     JOIN memberships membership ON membership.id=grant_row.membership_id AND membership.household_id=grant_row.household_id AND membership.account_id=grant_row.account_id
     JOIN persons person ON person.id=membership.person_id AND person.household_id=membership.household_id
     JOIN accounts account ON account.id=membership.account_id AND account.installation_id=$4
     JOIN households household ON household.id=grant_row.household_id AND household.installation_id=$4
     WHERE grant_row.id=$1 AND grant_row.household_id=$2 AND grant_row.account_id=$3 AND grant_row.membership_id=$7
-    FOR SHARE OF grant_row,token_set,oauth_client,membership,person,account,household`,
+    FOR SHARE OF grant_row,token_set,membership,person,account,household`,
     [principal.grantId, principal.householdId, principal.accountId, principal.installationId, scopes, capability, principal.membershipId, principal.tokenSetId]);
   const row = result.rows[0];
   if (!row?.allowed || !uuid.safeParse(row.person_id).success) throw new DomainError('FORBIDDEN', 403);

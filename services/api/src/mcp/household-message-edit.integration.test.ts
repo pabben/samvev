@@ -3,11 +3,13 @@ import { createHash } from 'node:crypto';
 import test, { after, before } from 'node:test';
 import { CLIENT_CAPABILITIES_META_KEY, CLIENT_INFO_META_KEY, PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server';
 import type { Capability } from '@samvev/contracts';
+import { tokenHash } from '@samvev/core';
 import type { FastifyInstance, InjectOptions, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.ts';
-import { pool } from '../db.ts';
+import { assertIsolatedTestDatabase, pool } from '../db.ts';
 import { migrate } from '../db/migrate.ts';
 import { messageService, type MessageCreateActor } from '../messages/service.ts';
+import { registerHouseholdTools } from './household-tools.ts';
 
 const origin = 'https://samvev.test.invalid';
 const callback = 'https://message-editor.test.invalid/oauth/callback';
@@ -141,6 +143,7 @@ async function addDisplay(name: string) {
 }
 
 before(async () => {
+  assertIsolatedTestDatabase(process.env.DATABASE_URL);
   await migrate();
   await pool.query('TRUNCATE installations,pairing_requests,rate_limits RESTART IDENTITY CASCADE');
   app = await buildApp({ runtimeConfig: { publicOrigin: origin, secureCookies: true, trustProxy: false } });
@@ -307,4 +310,33 @@ test('a failed transactional edit audit rolls back body, audiences and lifecycle
   });
   const events = await pool.query('SELECT revision FROM message_lifecycle_events WHERE message_id=$1 ORDER BY revision', [messageId]);
   assert.deepEqual(events.rows, [{ revision: 1 }]);
+});
+
+test('the message list tool accepts a valid delegated principal with only household.view', async () => {
+  const messageId = await createMessage('message-list-view-only', { personIds: [personId] });
+  const tokenSet = await pool.query<{ id: string }>(
+    'SELECT id FROM mcp_oauth_token_sets WHERE grant_id=$1 AND access_token_hash=$2', [grantId, tokenHash(token)]
+  );
+  assert.equal(tokenSet.rowCount, 1);
+
+  // Exercise live tool authorization after principal resolution. The HTTP
+  // transport's separate administrator requirement is unchanged.
+  let list: ((input: unknown) => Promise<unknown>) | undefined;
+  registerHouseholdTools({
+    registerTool(name, _options, handler) {
+      if (name === 'household.messages.list') list = handler;
+    }
+  }, { principal: { ...actor, grantId, tokenSetId: tokenSet.rows[0]!.id } });
+  assert.ok(list);
+
+  const { capabilities } = (await pool.query<{ capabilities: Capability[] }>(
+    'SELECT capabilities FROM memberships WHERE id=$1', [actor.membershipId]
+  )).rows[0]!;
+  await pool.query('UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1', [actor.membershipId, JSON.stringify(['household.view'])]);
+  try {
+    const listed = await list({}) as { messages: Array<{ id: string }> };
+    assert.ok(listed.messages.some((message) => message.id === messageId));
+  } finally {
+    await pool.query('UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1', [actor.membershipId, JSON.stringify(capabilities)]);
+  }
 });
