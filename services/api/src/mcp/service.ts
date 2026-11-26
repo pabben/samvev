@@ -686,7 +686,7 @@ export class McpOAuthService {
         return toolResult({runs});
       }));
       const householdAuditActions:Record<string,string>={'household.people.list':'mcp.people_listed','household.messages.list':'mcp.messages_listed','household.messages.create':'mcp.message_created','household.groceries.list':'mcp.groceries_listed','household.groceries.add':'mcp.grocery_added','household.groceries.update':'mcp.grocery_updated','household.dinners.list':'mcp.dinners_listed','household.dinners.options.list':'mcp.dinner_options_listed','household.dinners.assign':'mcp.dinner_assigned','calendar.events.list':'mcp.calendar_events_listed','calendar.sources.list':'mcp.calendar_sources_listed'};
-      registerHouseholdTools({registerTool:(name,options,handler)=>server.registerTool(name,{description:options.description,inputSchema:options.inputSchema,scopeChallenge:requireScopes(...options.requiredScopes),annotations:{readOnlyHint:options.readOnlyHint,destructiveHint:options.destructiveHint,idempotentHint:true,openWorldHint:false}},async(input)=>{
+      registerHouseholdTools({registerTool:(name,options,handler)=>server.registerTool(name,{description:options.description,inputSchema:options.inputSchema,scopeChallenge:requireScopes(...options.requiredScopes),annotations:{readOnlyHint:options.readOnlyHint,destructiveHint:options.destructiveHint,idempotentHint:options.idempotentHint??options.readOnlyHint,openWorldHint:false}},async(input)=>{
         const result=await handler(input) as Record<string,unknown>;
         if(name==='household.people.update'){ /* Domain service writes person.updated in this transaction. */ }else if(name==='household.messages.create'){
           const message=result.message as {id?:string}|undefined;

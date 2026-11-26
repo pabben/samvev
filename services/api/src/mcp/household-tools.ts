@@ -28,6 +28,7 @@ export interface HouseholdMcpToolRegistrar {
     requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]];
     readOnlyHint: boolean;
     destructiveHint: boolean;
+    idempotentHint?: boolean;
   }, handler: (input: unknown) => Promise<unknown>): void;
 }
 export interface HouseholdMcpToolDependencies {
@@ -116,7 +117,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.people.update', {
     description: 'Update the profile of one explicitly approved household person. Does not change their account, roles, or permissions.',
-    inputSchema: personUpdateInput, requiredScopes: ['mcp:people:write'], readOnlyHint: false, destructiveHint: false
+    inputSchema: personUpdateInput, requiredScopes: ['mcp:people:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: false
   }, async (raw) => {
     const { personId, ...body } = personUpdateInput.parse(raw);
     if (!dependencies.personProfileAudit) throw new DomainError('FORBIDDEN', 403);
@@ -225,7 +226,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.messages.create', {
     description: 'Create and publish or schedule one message for explicitly granted people or displays. Household-wide broadcasts are not supported; each recipient must also be permitted for the delegated member.',
-    inputSchema: messageCreateSchema, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: false
+    inputSchema: messageCreateSchema, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
     const actor: MessageCreateActor = {
       accountId: principal.accountId, installationId: principal.installationId, householdId: principal.householdId,
@@ -254,12 +255,12 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.groceries.add', {
     description: 'Add one grocery item. Requires a durable request key for safe retries.', inputSchema: groceryCreateSchema,
-    requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: false
+    requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => boardService.createGrocery(boardActor, groceryCreateSchema.parse(raw)));
 
   registrar.registerTool('household.groceries.update', {
     description: 'Update, check, or uncheck one grocery item using its current revision and a durable request key.', inputSchema: groceryUpdateInput,
-    requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: false
+    requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
     const { id, ...input } = groceryUpdateInput.parse(raw);
     return boardService.updateGrocery(boardActor, id, input);
@@ -298,7 +299,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.dinners.assign', {
     description: 'Assign or clear a dinner option for one date using its current revision and a durable request key.', inputSchema: dinnerAssignmentInput,
-    requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: true
+    requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: true
   }, async (raw) => {
     const { localDate, ...input } = dinnerAssignmentInput.parse(raw);
     return boardService.setDinner(boardActor, localDate, input);

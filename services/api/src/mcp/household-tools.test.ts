@@ -130,6 +130,7 @@ test('people update requires write consent, people.manage, and the exact granted
   assert.deepEqual(tools.options.get('household.people.update')?.requiredScopes,['mcp:people:write']);
   assert.equal(tools.options.get('household.people.update')?.readOnlyHint,false);
   assert.equal(tools.options.get('household.people.update')?.destructiveHint,false);
+  assert.equal(tools.options.get('household.people.update')?.idempotentHint,false);
   assert.deepEqual(calls[0]!.values?.slice(4,6),[['mcp:people:write'],'people.manage']);
   assert.match(calls[1]!.sql,/grant_person\.grant_id=\$1 AND grant_person\.household_id=\$2 AND grant_person\.person_id=\$3/);
   assert.deepEqual(calls[1]!.values,[principal.grantId,principal.householdId,principal.membershipId]);
@@ -251,6 +252,7 @@ test('board write tools use the existing board service with strict idempotent in
   assert.deepEqual(tools.options.get('household.groceries.add')?.requiredScopes, ['mcp:groceries:read', 'mcp:groceries:write']);
   assert.deepEqual(tools.options.get('household.dinners.assign')?.requiredScopes, ['mcp:dinners:read', 'mcp:dinners:write']);
   assert.equal(tools.options.get('household.dinners.assign')?.destructiveHint, true);
+  assert.equal(tools.options.get('household.dinners.assign')?.idempotentHint, true);
   assert.equal(calls[0]!.actor.kind, 'integration');
   assert.equal(calls[0]!.actor.id, principal.grantId, 'the durable board actor is the MCP grant, never a fabricated browser session');
   assert.equal((calls[0]!.input as { label: string }).label, 'Synthetic apples');
