@@ -48,6 +48,7 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.display_appearance_updated'), 'mcpActivityDisplayAppearanceUpdated');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_read'), 'mcpActivityMonitorResultRead');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_reviewed'), 'mcpActivityMonitorResultReviewed');
+  assert.equal(mcpActivityTranslationKey('mcp.monitor_result_review_read'), 'mcpActivityMonitorResultReviewRead');
   assert.equal(mcpActivityTranslationKey('mcp.grocery_deleted'), 'mcpActivityGroceryDeleted');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });

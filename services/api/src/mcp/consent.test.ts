@@ -70,6 +70,8 @@ test('monitor review consent describes personal review and monitor read access i
     clientName: 'Synthetic monitor review client',
     households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
   });
+  assert.match(render('en'), /View your review status for a monitor result/);
   assert.match(render('en'), /Save, mark as handled, or dismiss an existing monitor result on your behalf. Also requires monitor read access/);
+  assert.match(render('nb'), /Se din vurdering av et oppdragsresultat/);
   assert.match(render('nb'), /Lagre, merke som håndtert eller avvise et eksisterende oppdragsresultat på dine vegne. Krever også lesetilgang/);
 });

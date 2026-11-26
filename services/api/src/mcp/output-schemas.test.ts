@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 35 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 36 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 35 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 35);
+  assert.equal(tools.length, 36);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -67,6 +67,9 @@ test('MCP discovery advertises object output schemas for all 35 tools', async (t
   assert.deepEqual(outputByName.get('samvev_context')?.required?.sort(), ['household', 'scopes']);
   assert.deepEqual(outputByName.get('samvev_monitor_get')?.required, ['task']);
   assert.deepEqual(outputByName.get('samvev_monitor_runs_list')?.required, ['runs']);
+  const reviewStatus = outputByName.get('samvev_monitor_result_review_get');
+  assert.deepEqual(reviewStatus?.required.sort(), ['disposition', 'reviewRevision']);
+  assert.equal(reviewStatus?.additionalProperties, false);
   const review = outputByName.get('samvev_monitor_result_review');
   assert.deepEqual(review?.required.sort(), ['disposition', 'revision', 'runId', 'taskId']);
   assert.equal(review?.additionalProperties, false);

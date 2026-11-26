@@ -55,7 +55,7 @@ before(async()=>{
 after(async()=>{await app.close();await pool.end();});
 
 test('monitor MCP reviews share the browser revision, stay private, and recheck concurrent revocation',async()=>{
-  const tool='samvev_monitor_result_review';
+  const tool='samvev_monitor_result_review',statusTool='samvev_monitor_result_review_get';
   const register=await inject({method:'POST',url:'/oauth/register',payload:{client_name:'Synthetic monitor review client',redirect_uris:[callback],token_endpoint_auth_method:'none'}});
   assert.equal(register.statusCode,201,register.body);
   const reviewClient=register.json().client_id as string;
@@ -68,12 +68,25 @@ test('monitor MCP reviews share the browser revision, stay private, and recheck 
     SELECT id,'unrelated-reviewer@test.invalid','en','system' FROM installations WHERE singleton RETURNING id`)).rows[0]!.id;
   await pool.query(`INSERT INTO monitor_result_reviews(task_id,run_id,account_id,disposition,revision) VALUES($1,$2,$3,'dismissed',4)`,[taskId,runId,otherAccount]);
   for(const scope of ['mcp:monitors:read mcp:monitors:content','mcp:monitors:review']){
-    const insufficient=await call(await authorize(scope,reviewClient),tool,args,60);
+    const limitedToken=await authorize(scope,reviewClient);
+    const insufficient=await call(limitedToken,tool,args,60);
     assert.equal(insufficient.statusCode,403,insufficient.body);
     assert.match(String(insufficient.headers['www-authenticate']),/insufficient_scope/);
+    const statusDenied=await call(limitedToken,statusTool,{taskId,runId},68);
+    assert.equal(statusDenied.statusCode,403,statusDenied.body);
+    assert.match(String(statusDenied.headers['www-authenticate']),/insufficient_scope/);
   }
 
-  const token=await authorize('mcp:monitors:read mcp:monitors:review',reviewClient);
+  let token=await authorize('mcp:monitors:read mcp:monitors:review',reviewClient);
+  const history=await call(token,'samvev_monitor_runs_list',{taskId},69);
+  assert.equal(rpc(history).result.structuredContent.runs.find((run:{outcome:string})=>run.outcome==='changed').id,runId);
+  // Another account already reviewed this run, so 0 must be specific to this authorizing account.
+  const unreviewed=await call(token,statusTool,{taskId,runId},70);
+  assert.equal(unreviewed.statusCode,200,unreviewed.body);
+  assert.deepEqual(rpc(unreviewed).result.structuredContent,{disposition:'unreviewed',reviewRevision:0});
+  assert.deepEqual(JSON.parse(rpc(unreviewed).result.content[0].text),rpc(unreviewed).result.structuredContent);
+  const attemptedOtherAccount=await call(token,statusTool,{taskId,runId,accountId:otherAccount},71);
+  assert.equal(rpc(attemptedOtherAccount).result.isError,true,attemptedOtherAccount.body);
   const contentDenied=await call(token,'samvev_monitor_result_get',{taskId},61);
   assert.equal(contentDenied.statusCode,403,contentDenied.body);
   const domainState=async()=>(await pool.query(`SELECT to_jsonb(task) AS task,
@@ -91,6 +104,15 @@ test('monitor MCP reviews share the browser revision, stay private, and recheck 
   assert.doesNotMatch(successful.body,new RegExp(privateText+'|private\\.invalid|synthetic-secret|sourceUrl|personId|recipient'));
   assert.deepEqual(await domainState(),initialDomainState);
 
+  const originalToken=token;
+  token=await authorize('mcp:monitors:read mcp:monitors:review',reviewClient);
+  const obsoleteToken=await call(originalToken,statusTool,{taskId,runId},72);
+  assert.equal(obsoleteToken.statusCode,401,obsoleteToken.body);
+  const ownReview=await call(token,statusTool,{taskId,runId},73);
+  assert.equal(ownReview.statusCode,200,ownReview.body);
+  assert.deepEqual(rpc(ownReview).result.structuredContent,{disposition:'handled',reviewRevision:1});
+  assert.deepEqual(JSON.parse(rpc(ownReview).result.content[0].text),rpc(ownReview).result.structuredContent);
+  assert.doesNotMatch(ownReview.body,new RegExp(privateText+'|private\\.invalid|synthetic-secret|sourceUrl|personId|recipient'));
   const stale=await call(token,tool,args,63);
   assert.equal(rpc(stale).result.isError,true,stale.body);
   assert.match(rpc(stale).result.content[0].text,/REVISION_CONFLICT/);
@@ -99,6 +121,10 @@ test('monitor MCP reviews share the browser revision, stay private, and recheck 
     assert.equal(rpc(denied).result.isError,true,denied.body);
     assert.match(rpc(denied).result.content[0].text,/NOT_FOUND/);
     assert.doesNotMatch(denied.body,new RegExp(privateText));
+    const status=await call(token,statusTool,{taskId:requestedTaskId,runId:requestedRunId},74);
+    assert.equal(rpc(status).result.isError,true,status.body);
+    assert.match(rpc(status).result.content[0].text,/NOT_FOUND/);
+    assert.doesNotMatch(status.body,new RegExp(privateText));
   }
 
   // Browser reviews may use a historical result after a task edit, and both channels share the account's CAS revision.
@@ -107,7 +133,10 @@ test('monitor MCP reviews share the browser revision, stay private, and recheck 
     const browser=await inject({method:'PUT',url:`/api/v1/households/${householdId}/monitors/${taskId}/results/${runId}/review`,headers:{cookie:adminCookie,origin,'x-csrf-token':adminCsrf},payload:{disposition:'saved',expectedRevision:1}});
     assert.equal(browser.statusCode,200,browser.body);
     assert.deepEqual(browser.json(),{taskId,runId,disposition:'saved',revision:2});
-    const historical=await call(token,tool,{...args,expectedRevision:2},65);
+    const historicalStatus=await call(token,statusTool,{taskId,runId},75);
+    const historicalReview=rpc(historicalStatus).result.structuredContent;
+    assert.deepEqual(historicalReview,{disposition:'saved',reviewRevision:2});
+    const historical=await call(token,tool,{...args,expectedRevision:historicalReview.reviewRevision},65);
     assert.deepEqual(rpc(historical).result.structuredContent,{taskId,runId,disposition:'handled',revision:3});
   }finally{
     await pool.query('UPDATE monitor_tasks SET revision=revision-1 WHERE id=$1',[taskId]);
@@ -142,6 +171,8 @@ test('monitor MCP reviews share the browser revision, stay private, and recheck 
   }
   const revoked=await call(token,tool,{...args,expectedRevision:3},67);
   assert.equal(revoked.statusCode,401,revoked.body);
+  const revokedStatus=await call(token,statusTool,{taskId,runId},76);
+  assert.equal(revokedStatus.statusCode,401,revokedStatus.body);
 
   const reviews=await pool.query(`SELECT account_id,disposition,revision FROM monitor_result_reviews WHERE task_id=$1 AND run_id=$2`,[taskId,runId]);
   assert.deepEqual(reviews.rows.find(row=>row.account_id===accountId),{account_id:accountId,disposition:'handled',revision:3});

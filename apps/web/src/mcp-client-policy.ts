@@ -51,7 +51,7 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   'mcp:calendar:read': 'mcpScopeCalendarRead',
   'mcp:calendar:write': 'mcpScopeCalendarWrite',
 };
-const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMonitorResultRead'|'mcpActivityMonitorResultReviewed'|'mcpActivityMessagesListed'|'mcpActivityMessageCreated'|'mcpActivityMessageEdited'|'mcpActivityMessageEditedByAdmin'|'mcpActivityMessageWithdrawn'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityGroceryDeleted'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'|'mcpActivityDisplayAppearanceUpdated'|'mcpActivityCalendarEventCreated'|'mcpActivityCalendarEventUpdated'|'mcpActivityCalendarEventDeleted'>={
+const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMonitorResultRead'|'mcpActivityMonitorResultReviewed'|'mcpActivityMonitorResultReviewRead'|'mcpActivityMessagesListed'|'mcpActivityMessageCreated'|'mcpActivityMessageEdited'|'mcpActivityMessageEditedByAdmin'|'mcpActivityMessageWithdrawn'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityGroceryDeleted'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'|'mcpActivityDisplayAppearanceUpdated'|'mcpActivityCalendarEventCreated'|'mcpActivityCalendarEventUpdated'|'mcpActivityCalendarEventDeleted'>={
   'mcp.school_sources_listed':'mcpActivitySchoolSourcesListed',
   'mcp.school_plans_listed':'mcpActivitySchoolPlansListed',
   'mcp.school_plan_read':'mcpActivitySchoolPlanRead',
@@ -63,6 +63,7 @@ const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpAc
   'mcp.monitor_runs_listed':'mcpActivityMonitorRunsListed',
   'mcp.monitor_result_read':'mcpActivityMonitorResultRead',
   'mcp.monitor_result_reviewed':'mcpActivityMonitorResultReviewed',
+  'mcp.monitor_result_review_read':'mcpActivityMonitorResultReviewRead',
   'mcp.messages_listed':'mcpActivityMessagesListed',
   'mcp.message_created':'mcpActivityMessageCreated',
   'mcp.message_edited':'mcpActivityMessageEdited',
