@@ -63,7 +63,11 @@ const messageEditInput = messageUpdateSchema.extend({
   audience: messageUpdateSchema.shape.audience.unwrap().extend({
     household: z.literal(false).default(false)
   }).optional()
-});
+}).refine(
+  ({ body, importance, audience, publishAt, expiresAt }) =>
+    body !== undefined || importance !== undefined || audience !== undefined || publishAt !== undefined || expiresAt !== undefined,
+  'Supply at least one message field to edit.'
+);
 const messageWithdrawInput = z.object({ messageId: uuid, expectedRevision: z.number().int().positive() }).strict();
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const groceryDeleteInput = z.object({ id: uuid, expectedRevision: groceryUpdateSchema.shape.expectedRevision, requestKey: groceryCreateSchema.shape.requestKey }).strict();

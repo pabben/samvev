@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test, { after, before } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { CLIENT_CAPABILITIES_META_KEY, CLIENT_INFO_META_KEY, PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server';
 import type { Capability } from '@samvev/contracts';
 import { tokenHash } from '@samvev/core';
@@ -339,4 +340,103 @@ test('the message list tool accepts a valid delegated principal with only househ
   } finally {
     await pool.query('UPDATE memberships SET capabilities=$2::jsonb WHERE id=$1', [actor.membershipId, JSON.stringify(capabilities)]);
   }
+});
+
+async function waitForBlockedQuery(blockingPid: number, queryFragment: string) {
+  const deadline = Date.now() + 4_000;
+  while (Date.now() < deadline) {
+    const query = await pool.query<{ pid: number }>(`SELECT activity.pid FROM pg_stat_activity activity
+      WHERE activity.datname=current_database() AND activity.wait_event_type='Lock'
+        AND $1=ANY(pg_blocking_pids(activity.pid)) AND position($2 in activity.query)>0`, [blockingPid, queryFragment]);
+    if (query.rows[0]) return query.rows[0].pid;
+    await delay(20);
+  }
+  assert.fail(`No lock wait reached for ${queryFragment}`);
+}
+
+test('concurrent MCP edit and display revocation finish in authority order and cannot requeue a revoked display', { timeout: 15_000 }, async () => {
+  const raceDisplay = await addDisplay('Synthetic concurrent revocation display');
+  const credential = 'synthetic-concurrent-revocation-display-credential';
+  await pool.query(`UPDATE displays SET credential_hash=$2,credential_expires_at=clock_timestamp()+interval '1 hour'
+    WHERE id=$1`, [raceDisplay, tokenHash(credential)]);
+  await pool.query('INSERT INTO mcp_oauth_grant_displays(household_id,grant_id,display_id) VALUES($1,$2,$3)', [actor.householdId, grantId, raceDisplay]);
+  const messageId = await createMessage('message-edit-revocation-race', { displayIds: [raceDisplay] });
+  const displayProjection = () => inject({ method: 'GET', url: '/api/v1/display/projection', headers: { cookie: `samvev_display=${credential}` } });
+  const previousProjection = await displayProjection();
+  assert.equal(previousProjection.statusCode, 200, previousProjection.body);
+
+  const blocker = await pool.connect();
+  const pending: Promise<LightMyRequestResponse>[] = [];
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM messages WHERE id=$1 FOR UPDATE', [messageId]);
+    const { pid: blockerPid } = (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!;
+    pending.push(editViaMcp(messageId, 1, { body: 'Synthetic edit preceding revocation' }));
+    // The edit now holds its delegated actor authority and is waiting for the
+    // message row. A display-first revocation would lock the display while
+    // waiting on that actor, forming a cycle when the blocker is released.
+    const editPid = await waitForBlockedQuery(blockerPid, 'FROM messages WHERE id=');
+    pending.push(inject({
+      method: 'PATCH', url: `/api/v1/households/${actor.householdId}/displays/${raceDisplay}`,
+      headers: browserHeaders(), payload: { revoked: true }
+    }));
+    await waitForBlockedQuery(editPid, 'FROM sessions session JOIN accounts account');
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+    await Promise.allSettled(pending);
+  }
+
+  assert.equal(pending.length, 2);
+  const edited = result(await pending[0]!);
+  assert.deepEqual(edited.structuredContent, { message: { id: messageId, state: 'published', revision: 2 } });
+  const revoked = await pending[1]!;
+  assert.equal(revoked.statusCode, 200, revoked.body);
+  assert.ok(revoked.json().revoked_at);
+  assertToolError(await editViaMcp(messageId, 2, { body: 'Synthetic edit after revocation' }), 'NOT_FOUND');
+
+  const delivery = await pool.query(`SELECT delivery_state,delivered_revision,failure_code
+    FROM message_display_targets WHERE message_id=$1 AND display_id=$2`, [messageId, raceDisplay]);
+  assert.deepEqual(delivery.rows, [{ delivery_state: 'failed', delivered_revision: null, failure_code: 'DISPLAY_REVOKED' }]);
+  const stored = await pool.query('SELECT body,revision FROM messages WHERE id=$1', [messageId]);
+  assert.deepEqual(stored.rows, [{ body: 'Synthetic edit preceding revocation', revision: 2 }]);
+  const deniedProjection = await displayProjection();
+  assert.equal(deniedProjection.statusCode, 401, deniedProjection.body);
+});
+
+test('display revocation still checks session expiry after waiting for the display lock', { timeout: 12_000 }, async () => {
+  const waitingDisplay = await addDisplay('Synthetic display blocked during session expiry');
+  const sessionCookie = browserCookie.split('; ').find((cookie) => cookie.startsWith('samvev_session='));
+  assert.ok(sessionCookie);
+  const session = (await pool.query<{ id: string; expires_at: Date }>(
+    'SELECT id,expires_at FROM sessions WHERE token_hash=$1', [tokenHash(sessionCookie.slice('samvev_session='.length))]
+  )).rows[0];
+  assert.ok(session);
+
+  const blocker = await pool.connect();
+  let pending: Promise<LightMyRequestResponse> | undefined;
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM displays WHERE id=$1 FOR UPDATE', [waitingDisplay]);
+    const { pid: blockerPid } = (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!;
+    await pool.query("UPDATE sessions SET expires_at=clock_timestamp()+interval '3 seconds' WHERE id=$1", [session.id]);
+    pending = inject({
+      method: 'PATCH', url: `/api/v1/households/${actor.householdId}/displays/${waitingDisplay}`,
+      headers: browserHeaders(), payload: { revoked: true }
+    });
+    await waitForBlockedQuery(blockerPid, 'FROM displays WHERE id=$1 AND household_id=$2 FOR UPDATE');
+    await pool.query(`SELECT pg_sleep(greatest(0, extract(epoch FROM (expires_at-clock_timestamp()))+0.05))
+      FROM sessions WHERE id=$1`, [session.id]);
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+    if (pending) await Promise.allSettled([pending]);
+    await pool.query('UPDATE sessions SET expires_at=$2 WHERE id=$1', [session.id, session.expires_at]);
+  }
+
+  assert.ok(pending);
+  const denied = await pending;
+  assert.equal(denied.statusCode, 401, denied.body);
+  const display = await pool.query('SELECT revoked_at FROM displays WHERE id=$1', [waitingDisplay]);
+  assert.deepEqual(display.rows, [{ revoked_at: null }]);
 });

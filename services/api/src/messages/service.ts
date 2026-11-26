@@ -61,7 +61,7 @@ export async function validateMessageAudience(
   if (!displayIds.length) return;
 
   if (needsDisplayPublish) requireCapability(capabilities, 'message.publish.display');
-  const found = await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL FOR SHARE', [actor.householdId, displayIds]);
+  const found = await client.query('SELECT id FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) AND revoked_at IS NULL ORDER BY id FOR SHARE', [actor.householdId, displayIds]);
   if (found.rowCount !== new Set(displayIds).size) throw new DomainError('NOT_FOUND', 404);
   if (actor.mcpGrantId) {
     const granted = await client.query(`SELECT display_id FROM mcp_oauth_grant_displays
@@ -168,6 +168,12 @@ export class MessageService {
       const current = existing.rows[0];
       if (!current) throw new DomainError('NOT_FOUND', 404);
 
+      // Lock both audiences together in display-id order, as display policy
+      // updates can lock multiple devices exclusively in the same transaction.
+      await client.query(`SELECT id FROM displays WHERE household_id=$1 AND (id=ANY($3::uuid[]) OR id IN (
+          SELECT display_id FROM message_display_targets WHERE household_id=$1 AND message_id=$2 AND delivery_state<>'cancelled'
+        )) ORDER BY id FOR SHARE`, [actor.householdId, messageId, body.audience?.displayIds ?? []]);
+
       if (actor.mcpGrantId) {
         await requireGrantedMessageAudience(client, actor, capabilities, messageId, current.audience_household, true);
       }
@@ -202,6 +208,9 @@ export class MessageService {
         if (current.state === 'published') throw new DomainError('CONFLICT', 409, { reason: 'published_cannot_reschedule' });
       }
 
+      // The held row locks fence concurrent revocation; recheck time-based
+      // authority after waiting for the message and display locks.
+      await authorize(client, actor);
       const updated = await client.query<MessageEditResult>(`UPDATE messages SET body=COALESCE($3,body),importance=COALESCE($4,importance),
         audience_household=COALESCE($5,audience_household),publish_at=$6,expires_at=$7,revision=revision+1,updated_at=clock_timestamp()
         WHERE id=$1 AND household_id=$2 AND revision=$8 RETURNING id,body,importance,audience_household,publish_at,expires_at,state,revision`,

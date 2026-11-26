@@ -231,6 +231,14 @@ async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:
   return row.capabilities;
 }
 
+async function lockDisplayAdministration(client:DbClient,request:FastifyRequest,auth:AuthContext):Promise<void>{
+  // Lock installation and actor authority before display and setup rows.
+  // Message writes take the same authority locks before their display audiences.
+  // Recheck again after target locks so a session that expires while waiting cannot mutate.
+  await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE',[auth.installationId]);
+  await recheckHouseholdAuth(client,request,auth,'display.manage');
+}
+
 async function recheckPersonPhotoAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,personId:string,lock=true):Promise<void>{
   // Account/membership management takes installation before actor rows. Pin
   // that parent first so the photo audit FK cannot invert those locks.
@@ -2540,7 +2548,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
     const body=parse(displaySetupCreateSchema,request.body) as DisplaySetupInput;
     const setup=await transaction(async(client)=>{
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await lockDisplayAdministration(client,request,auth);
       const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,cards,card_order,family_layout_enabled,album_ids,background_id,locale,theme)
         VALUES($1,$2,$3::jsonb,$4::jsonb,$5,$6::jsonb,$7,$8,$9) RETURNING id`,[auth.householdId,body.name,JSON.stringify(body.cards),JSON.stringify(body.cardOrder),body.familyLayoutEnabled,JSON.stringify(body.albumIds),body.backgroundId,body.locale,body.theme]);
       await writeDisplaySetupSelections(client,auth.householdId,inserted.rows[0]!.id,body,auth.membershipId,false);
@@ -2553,6 +2561,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const auth=await authForHousehold(request,params(request).householdId!);requireCapability(auth.capabilities,'display.manage');
     const body=parse(displaySetupUpdateSchema,request.body);const input:DisplaySetupInput=body;
     return transaction(async(client)=>{
+      await lockDisplayAdministration(client,request,auth);
       const current=(await client.query<{revision:number}>(`SELECT revision FROM display_setups WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).setupId,auth.householdId])).rows[0];
       if(!current)throw new DomainError('NOT_FOUND',404);
       await recheckHouseholdAuth(client,request,auth,'display.manage');
@@ -2577,15 +2586,16 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     requireCapability(auth.capabilities, 'display.manage');
     const body = parse(displayUpdateSchema, request.body);
     return transaction(async(client)=>{
+      await lockDisplayAdministration(client,request,auth);
       const locked=(await client.query<{id:string}>('SELECT id FROM displays WHERE id=$1 AND household_id=$2 FOR UPDATE',[params(request).displayId,auth.householdId])).rows[0];
       if(!locked)throw new DomainError('NOT_FOUND',404);
       if(body.setupId){const setup=await client.query('SELECT id FROM display_setups WHERE household_id=$1 AND id=$2 FOR SHARE',[auth.householdId,body.setupId]);if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);}
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
       if(body.birthdayPersonIds!==undefined){const current=(await client.query<{birthday_mode:string}>('SELECT birthday_mode FROM displays WHERE id=$1 AND household_id=$2',[params(request).displayId,auth.householdId])).rows[0]!;if(current.birthday_mode!=='legacy_selected')throw new DomainError('VALIDATION_FAILED',400,{reason:'birthday_policy_explicit_required'});}
       if(body.personIdsOverride?.length){
         const people=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.personIdsOverride]);
         if(people.rowCount!==body.personIdsOverride.length)throw new DomainError('NOT_FOUND',404);
       }
+      await recheckHouseholdAuth(client,request,auth,'display.manage');
       const result = await client.query(`UPDATE displays SET setup_id=COALESCE($10::uuid,setup_id),locale=CASE WHEN $3::boolean THEN $4::text ELSE locale END,theme=CASE WHEN $5::boolean THEN $6::text ELSE theme END,
         privacy_mode=COALESCE($7,privacy_mode),external_items_enabled=COALESCE($8,external_items_enabled),revoked_at=CASE WHEN $9::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $9::boolean IS TRUE THEN NULL ELSE credential_hash END
         WHERE id=$1 AND household_id=$2 RETURNING id`, [params(request).displayId,auth.householdId,Object.hasOwn(body,'locale'),body.locale??null,Object.hasOwn(body,'theme'),body.theme??null,body.privacyMode ?? null,body.externalItemsEnabled ?? null,body.revoked ?? null,body.setupId??null]);
@@ -2603,6 +2613,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const body=parse(displayActionPolicyUpdateSchema,request.body);const displayId=params(request).displayId!;
     return transaction(async(client)=>{
       if(body.displayIds.includes(displayId))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
+      await lockDisplayAdministration(client,request,auth);
       const lockIds=[...new Set([displayId,...body.displayIds])].sort();
       const lockedDisplays=(await client.query<{id:string;revoked_at:Date|null;credential_expires_at:Date|null}>(`SELECT id,revoked_at,credential_expires_at FROM displays WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR UPDATE`,[auth.householdId,lockIds])).rows;
       if(lockedDisplays.length!==lockIds.length)throw new DomainError('NOT_FOUND',404);
@@ -2689,6 +2700,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const result=await transaction(async(client)=>{
       const pairing=(await client.query<{id:string}>(`SELECT id FROM pairing_requests WHERE code_hash=$1 AND expires_at>clock_timestamp() AND approved_at IS NULL AND redeemed_at IS NULL FOR UPDATE`,[tokenHash(body.code)])).rows[0];
       if(!pairing)throw new DomainError('PAIRING_INVALID',404);
+      await lockDisplayAdministration(client,request,auth);
       const device=(await client.query<{id:string;credential_generation:number}>(`SELECT id,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[params(request).displayId,auth.householdId])).rows[0];
       if(!device)throw new DomainError('NOT_FOUND',404);
       await recheckHouseholdAuth(client,request,auth,'display.manage');
@@ -2718,7 +2730,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
     const result = await transaction(async (client) => {
       const pairing = await client.query<{id:string}>(`SELECT id FROM pairing_requests WHERE code_hash=$1 AND expires_at>clock_timestamp() AND approved_at IS NULL AND redeemed_at IS NULL FOR UPDATE`, [tokenHash(body.code)]);
       if (!pairing.rowCount) throw new DomainError('PAIRING_INVALID', 404);
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await lockDisplayAdministration(client,request,auth);
       let setupId=body.setupId;
       if(setupId){
         const setup=await client.query('SELECT id FROM display_setups WHERE id=$1 AND household_id=$2 FOR SHARE',[setupId,auth.householdId]);

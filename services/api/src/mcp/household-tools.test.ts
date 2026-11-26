@@ -328,6 +328,12 @@ test('message writes require both scopes and delegate the real OAuth member to t
   assert.deepEqual(calls[2]!.input, edit);
   assert.deepEqual(fake.calls[2]!.values?.slice(4, 6), [['mcp:messages:read', 'mcp:messages:write'], 'household.view']);
   assert.match(fake.calls[2]!.sql, /membership\.capabilities \? \$6/);
+
+  const emptyEdit = { messageId: principal.accountId, expectedRevision: 2 };
+  assert.equal(editOptions.inputSchema.safeParse(emptyEdit).success, false);
+  await assert.rejects(tools.get('household.messages.edit')(emptyEdit), /Supply at least one message field to edit/);
+  assert.equal(calls.length, 3, 'an empty edit never invokes the writer');
+  assert.equal(fake.calls.length, 3, 'an empty edit never checks database authority or changes delivery');
 });
 
 test('board reads require live household.manage plus their distinct MCP consent scopes', async () => {
