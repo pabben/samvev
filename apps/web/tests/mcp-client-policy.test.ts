@@ -40,6 +40,11 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
 });
 
+test('grocery write scope copy discloses deletion in consent and admin policy locales', () => {
+  assert.match(en.mcpScopeGroceriesWrite, /delete/i);
+  assert.match(nb.mcpScopeGroceriesWrite, /fjerne/i);
+});
+
 test('monitor result content is described precisely and its read-scope dependency is explicit in both locales', () => {
   assert.equal(en.mcpScopeMonitorsContent.includes('monitor result text'), true);
   assert.equal(en.mcpScopeMonitorsContent.includes('monitor text,'), false);

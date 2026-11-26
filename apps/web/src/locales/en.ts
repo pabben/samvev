@@ -915,7 +915,7 @@ export const en = {
   mcpScopeDisplaysRead: "Read selected displays",
   mcpScopeMessagesRead: "Read shared messages and messages for selected people",
   mcpScopeGroceriesRead: "Read grocery lists",
-  mcpScopeGroceriesWrite: "Add and update grocery items",
+  mcpScopeGroceriesWrite: "Add, update, and delete grocery items",
   mcpScopeDinnersRead: "Read dinner plans",
   mcpScopeDinnersWrite: "Create, edit, and remove dinner options; assign or clear dinner",
   mcpScopeCalendarRead: "Read selected calendar sources",
