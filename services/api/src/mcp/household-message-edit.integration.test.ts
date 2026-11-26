@@ -440,3 +440,34 @@ test('display revocation still checks session expiry after waiting for the displ
   const display = await pool.query('SELECT revoked_at FROM displays WHERE id=$1', [waitingDisplay]);
   assert.deepEqual(display.rows, [{ revoked_at: null }]);
 });
+
+test('display writes sharing a browser session serialize on authority without a session lock upgrade deadlock', { timeout: 15_000 }, async () => {
+  const firstDisplay = await addDisplay('Synthetic first display in same-session writes');
+  const secondDisplay = await addDisplay('Synthetic second display in same-session writes');
+  const update = (target: string) => inject({
+    method: 'PATCH', url: `/api/v1/households/${actor.householdId}/displays/${target}`,
+    headers: browserHeaders(), payload: { privacyMode: true }
+  });
+
+  const blocker = await pool.connect();
+  const pending: Promise<LightMyRequestResponse>[] = [];
+  try {
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM displays WHERE id=$1 FOR UPDATE', [firstDisplay]);
+    const { pid: blockerPid } = (await blocker.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')).rows[0]!;
+    pending.push(update(firstDisplay));
+    const firstPid = await waitForBlockedQuery(blockerPid, 'FROM displays WHERE id=$1 AND household_id=$2 FOR UPDATE');
+    pending.push(update(secondDisplay));
+    await waitForBlockedQuery(firstPid, 'FROM sessions session JOIN accounts account');
+  } finally {
+    await blocker.query('ROLLBACK');
+    blocker.release();
+    await Promise.allSettled(pending);
+  }
+
+  assert.equal(pending.length, 2);
+  for (const response of await Promise.all(pending)) {
+    assert.equal(response.statusCode, 200, response.body);
+    assert.equal(response.json().privacy_mode, true);
+  }
+});

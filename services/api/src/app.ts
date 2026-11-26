@@ -218,13 +218,13 @@ async function authForHousehold(request: FastifyRequest, householdId: string): P
   return { accountId: account.accountId,sessionId:account.sessionId, installationId: account.installationId, membershipId: row.id, householdId: row.household_id, personId: row.person_id, rolePreset: row.role_preset, capabilities: row.capabilities };
 }
 
-async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability|null):Promise<Capability[]>{
+async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,capability:Capability|null,sessionLock:'UPDATE'|'KEY SHARE'|'NO KEY UPDATE'='UPDATE'):Promise<Capability[]>{
   const row=(await client.query<{capabilities:Capability[];csrf_hash:string}>(`SELECT membership.capabilities,session.csrf_hash
     FROM sessions session JOIN accounts account ON account.id=session.account_id
     JOIN memberships membership ON membership.account_id=account.id AND membership.household_id=$2
     WHERE session.id=$1 AND session.account_id=$3 AND session.revoked_at IS NULL AND session.expires_at>clock_timestamp() AND account.disabled_at IS NULL
       AND membership.id=$4
-    FOR UPDATE OF session,account,membership`,[auth.sessionId,auth.householdId,auth.accountId,auth.membershipId])).rows[0];
+    FOR ${sessionLock} OF session FOR UPDATE OF account,membership`,[auth.sessionId,auth.householdId,auth.accountId,auth.membershipId])).rows[0];
   if(!row)throw new DomainError('UNAUTHENTICATED',401);
   if(isUnsafe(request.method)){const csrf=request.headers['x-csrf-token'];if(typeof csrf!=='string'||tokenHash(csrf)!==row.csrf_hash)throw new DomainError('CSRF_REQUIRED',403);}
   if(capability)requireCapability(row.capabilities,capability);
@@ -233,10 +233,11 @@ async function recheckHouseholdAuth(client:DbClient,request:FastifyRequest,auth:
 
 async function lockDisplayAdministration(client:DbClient,request:FastifyRequest,auth:AuthContext):Promise<void>{
   // Lock installation and actor authority before display and setup rows.
-  // Message writes take the same authority locks before their display audiences.
-  // Recheck again after target locks so a session that expires while waiting cannot mutate.
+  // A revocation may update the session while a display write waits for its target.
+  // Recheck with NO KEY UPDATE after that wait to fence revocation through commit
+  // without conflicting with another display write's initial KEY SHARE.
   await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE',[auth.installationId]);
-  await recheckHouseholdAuth(client,request,auth,'display.manage');
+  await recheckHouseholdAuth(client,request,auth,'display.manage','KEY SHARE');
 }
 
 async function recheckPersonPhotoAuth(client:DbClient,request:FastifyRequest,auth:AuthContext,personId:string,lock=true):Promise<void>{
@@ -2557,6 +2558,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       const inserted=await client.query<{id:string}>(`INSERT INTO display_setups(household_id,name,cards,card_order,family_layout_enabled,album_ids,background_id,locale,theme)
         VALUES($1,$2,$3::jsonb,$4::jsonb,$5,$6::jsonb,$7,$8,$9) RETURNING id`,[auth.householdId,body.name,JSON.stringify(body.cards),JSON.stringify(body.cardOrder),body.familyLayoutEnabled,JSON.stringify(body.albumIds),body.backgroundId,body.locale,body.theme]);
       await writeDisplaySetupSelections(client,auth.householdId,inserted.rows[0]!.id,body,auth.membershipId,false);
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       return displaySetupResponse(client,auth.householdId,inserted.rows[0]!.id);
     });
     return reply.status(201).send(setup);
@@ -2569,7 +2571,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       await lockDisplayAdministration(client,request,auth);
       const current=(await client.query<{revision:number}>(`SELECT revision FROM display_setups WHERE id=$1 AND household_id=$2 FOR UPDATE`,[params(request).setupId,auth.householdId])).rows[0];
       if(!current)throw new DomainError('NOT_FOUND',404);
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
       await writeDisplaySetupSelections(client,auth.householdId,params(request).setupId!,input,auth.membershipId);
       return displaySetupResponse(client,auth.householdId,params(request).setupId!);
@@ -2600,7 +2602,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         const people=await client.query('SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) FOR SHARE',[auth.householdId,body.personIdsOverride]);
         if(people.rowCount!==body.personIdsOverride.length)throw new DomainError('NOT_FOUND',404);
       }
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       const result = await client.query(`UPDATE displays SET setup_id=COALESCE($10::uuid,setup_id),locale=CASE WHEN $3::boolean THEN $4::text ELSE locale END,theme=CASE WHEN $5::boolean THEN $6::text ELSE theme END,
         privacy_mode=COALESCE($7,privacy_mode),external_items_enabled=COALESCE($8,external_items_enabled),revoked_at=CASE WHEN $9::boolean IS TRUE THEN clock_timestamp() ELSE revoked_at END,credential_hash=CASE WHEN $9::boolean IS TRUE THEN NULL ELSE credential_hash END
         WHERE id=$1 AND household_id=$2 RETURNING id`, [params(request).displayId,auth.householdId,Object.hasOwn(body,'locale'),body.locale??null,Object.hasOwn(body,'theme'),body.theme??null,body.privacyMode ?? null,body.externalItemsEnabled ?? null,body.revoked ?? null,body.setupId??null]);
@@ -2627,7 +2629,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       const people=body.personIds.length?(await client.query<{id:string}>(`SELECT id FROM persons WHERE household_id=$1 AND id=ANY($2::uuid[]) ORDER BY id FOR SHARE`,[auth.householdId,body.personIds])).rows:[];
       const recipientRows=lockedDisplays.filter((row)=>body.displayIds.includes(row.id));
       if(people.length!==body.personIds.length||recipientRows.some((row)=>row.revoked_at||!row.credential_expires_at||row.credential_expires_at<=new Date()))throw new DomainError('VALIDATION_FAILED',400,{reason:'invalid_message_recipient'});
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       if(current.revision!==body.expectedRevision)throw new DomainError('REVISION_CONFLICT',409,{revision:current.revision});
       await client.query(`UPDATE display_action_policies SET message_create=$3,message_schedule=$4,grocery_write=$5,dinner_write=$6,photo_upload=$7,home_assistant_control=$8,revision=revision+1,updated_at=clock_timestamp() WHERE household_id=$1 AND display_id=$2`,[auth.householdId,displayId,body.messageCreate,body.messageSchedule,body.groceryWrite,body.dinnerWrite,body.photoUpload,body.homeAssistantControl]);
       await client.query('DELETE FROM display_action_people WHERE display_id=$1',[displayId]);
@@ -2708,7 +2710,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
       await lockDisplayAdministration(client,request,auth);
       const device=(await client.query<{id:string;credential_generation:number}>(`SELECT id,credential_generation FROM displays WHERE id=$1 AND household_id=$2 AND revoked_at IS NULL FOR UPDATE`,[params(request).displayId,auth.householdId])).rows[0];
       if(!device)throw new DomainError('NOT_FOUND',404);
-      await recheckHouseholdAuth(client,request,auth,'display.manage');
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       if(device.credential_generation!==body.expectedCredentialGeneration)throw new DomainError('REVISION_CONFLICT',409,{credentialGeneration:device.credential_generation});
       const approved=await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2,expected_credential_generation=$3 WHERE id=$1 AND approved_at IS NULL AND redeemed_at IS NULL AND expires_at>clock_timestamp() RETURNING id`,[pairing.id,device.id,device.credential_generation]);
       if(!approved.rowCount)throw new DomainError('PAIRING_EXPIRED',410);
@@ -2741,6 +2743,7 @@ export async function buildApp(options: { aiTransport?: AiHttpTransport; aiKeyFi
         const setup=await client.query('SELECT id FROM display_setups WHERE id=$1 AND household_id=$2 FOR SHARE',[setupId,auth.householdId]);
         if(!setup.rowCount)throw new DomainError('NOT_FOUND',404);
       }else setupId=await defaultDisplaySetup(client,auth.householdId);
+      await recheckHouseholdAuth(client,request,auth,'display.manage','NO KEY UPDATE');
       const display = await client.query<{id:string}>(`INSERT INTO displays(household_id,setup_id,name,locale,theme,privacy_mode,allowed_content) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [auth.householdId,setupId,body.name,body.locale??null,body.theme??null,body.privacyMode,body.allowedContent]);
       const approved = await client.query(`UPDATE pairing_requests SET approved_at=clock_timestamp(),display_id=$2,expected_credential_generation=(SELECT credential_generation FROM displays WHERE id=$2) WHERE id=$1 AND approved_at IS NULL RETURNING id`, [pairing.rows[0]!.id,display.rows[0]!.id]);
       if (!approved.rowCount) throw new DomainError('CONFLICT', 409);
