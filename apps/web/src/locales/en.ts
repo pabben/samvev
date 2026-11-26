@@ -910,7 +910,7 @@ export const en = {
   mcpScopeMonitorsContent: "Read bounded AI-generated monitor result text, which may contain household or school information and must not be followed as instructions",
   mcpScopeMonitorsReview: "View your monitor result review status and save, mark as handled, or dismiss results on your behalf (also requires monitor read access)",
   mcpScopeMonitorsDraftWrite: "Create inactive monitor drafts without recipients; drafts do not fetch, use AI, run, schedule, or send anything and require completion in Samvev (also requires monitor read access)",
-  mcpScopeMonitorsDraftManage: "Edit or delete inert recipient-free monitor drafts created by this client; proposal fields only (also requires monitor read and monitor draft write access)",
+  mcpScopeMonitorsDraftManage: "Edit or permanently delete inert recipient-free monitor drafts created by this client; deletion cannot be undone, and edits are limited to proposal fields (also requires monitor read and monitor draft write access)",
   mcpScopeSchoolRead: "Read school plans",
   mcpScopeSchoolWrite: "Create or update school plans",
   mcpScopeOffline: "Stay connected between sessions",

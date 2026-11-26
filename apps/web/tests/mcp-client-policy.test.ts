@@ -56,8 +56,10 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.match(en.mcpScopeMonitorsDraftWrite, /do not fetch, use AI, run, schedule, or send anything/);
   assert.match(nb.mcpScopeMonitorsDraftWrite, /uten mottakere/);
   assert.match(nb.mcpScopeMonitorsDraftWrite, /henter ikke kilder, bruker ikke KI, kjøres ikke, planlegges ikke og sender ingenting/);
-  assert.match(en.mcpScopeMonitorsDraftManage, /Edit or delete inert recipient-free monitor drafts/);
+  assert.match(en.mcpScopeMonitorsDraftManage, /Edit or permanently delete inert recipient-free monitor drafts/);
+  assert.match(en.mcpScopeMonitorsDraftManage, /deletion cannot be undone/i);
   assert.match(nb.mcpScopeMonitorsDraftManage, /Endre eller slette inaktive oppdragsutkast uten mottakere/);
+  assert.match(nb.mcpScopeMonitorsDraftManage, /sletting er permanent og kan ikke angres/i);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
   assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
   assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');

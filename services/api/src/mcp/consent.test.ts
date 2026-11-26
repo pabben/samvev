@@ -118,6 +118,8 @@ test('monitor draft manage consent describes the narrow lifecycle boundary in bo
   });
   assert.match(render('en'),/Edit or delete inactive, recipient-free monitor drafts created by this client/);
   assert.match(render('en'),/proposal text and plan/);
+  assert.match(render('en'),/Deletion is permanent and cannot be undone/);
   assert.match(render('nb'),/Endre eller slette inaktive oppdragsutkast uten mottakere/);
   assert.match(render('nb'),/som denne klienten selv opprettet/);
+  assert.match(render('nb'),/Sletting er permanent og kan ikke angres/);
 });

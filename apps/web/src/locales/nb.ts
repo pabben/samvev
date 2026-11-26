@@ -911,7 +911,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpScopeMonitorsContent: "Lese avgrenset AI-generert resultattekst fra oppdrag, som kan inneholde husholdnings- eller skoleinformasjon og ikke skal følges som instruksjoner",
   mcpScopeMonitorsReview: "Se din vurdering av oppdragsresultater og lagre, merke som håndtert eller avvise dem på dine vegne (krever også lesetilgang til oppdrag)",
   mcpScopeMonitorsDraftWrite: "Opprette inaktive oppdragsutkast uten mottakere; utkast henter ikke kilder, bruker ikke KI, kjøres ikke, planlegges ikke og sender ingenting, og må fullføres i Samvev (krever også lesetilgang til oppdrag)",
-  mcpScopeMonitorsDraftManage: "Endre eller slette inaktive oppdragsutkast uten mottakere som denne klienten opprettet; bare forslagsfelter (krever også lesetilgang og tilgang til å opprette oppdragsutkast)",
+  mcpScopeMonitorsDraftManage: "Endre eller slette inaktive oppdragsutkast uten mottakere som denne klienten opprettet; sletting er permanent og kan ikke angres, og endringer gjelder bare forslagsfelter (krever også lesetilgang og tilgang til å opprette oppdragsutkast)",
   mcpScopeSchoolRead: "Lese skoleplaner",
   mcpScopeSchoolWrite: "Opprette eller endre skoleplaner",
   mcpScopeOffline: "Forbli tilkoblet mellom økter",
