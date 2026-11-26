@@ -15,10 +15,41 @@ const context: HouseholdMcpToolContext = { principal };
 
 class Tools implements HouseholdMcpToolRegistrar {
   readonly handlers = new Map<string, (input: unknown) => Promise<unknown>>();
-  readonly options = new Map<string, { description: string; inputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean; idempotentHint?: boolean }>();
-  registerTool(name: string, options: { description: string; inputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean; idempotentHint?: boolean }, handler: (input: unknown) => Promise<unknown>) { this.options.set(name, options); this.handlers.set(name, handler); }
+  readonly options = new Map<string, { description: string; inputSchema: ZodType; outputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean; idempotentHint?: boolean }>();
+  registerTool(name: string, options: { description: string; inputSchema: ZodType; outputSchema: ZodType; requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]]; readOnlyHint: boolean; destructiveHint: boolean; idempotentHint?: boolean }, handler: (input: unknown) => Promise<unknown>) { this.options.set(name, options); this.handlers.set(name, handler); }
   get(name: string) { const handler = this.handlers.get(name); assert.ok(handler, `tool ${name} registered`); return handler; }
 }
+
+test('all household tools publish meaningful output schemas that validate returned projections', () => {
+  const tools = new Tools();
+  registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run({ query: async () => ({ rows: [] }) } as unknown as DbClient) });
+  assert.equal(tools.options.size, 18);
+  for (const [name, options] of tools.options) {
+    assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
+    assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
+  }
+  const samples: Record<string, unknown> = {
+    'household.displays.list': { displays: [] },
+    'household.people.update': { id: principal.membershipId, revision: 2 },
+    'calendar.sources.list': { sources: [{ id: 'source-1', name: 'Synthetic calendar', provider: 'ics' }] },
+    'calendar.events.list': { events: [{ id: 'event-1', title: 'Synthetic event', description: null, startsAt: '2027-03-20T09:00:00.000Z', endsAt: null, allDay: false, sourceId: 'source-1', sourceName: 'Synthetic calendar' }] },
+    'household.people.list': { people: [{ id: 'person-1', displayName: 'Synthetic member', ageGroup: 'adult' }] },
+    'household.messages.list': { messages: [{ id: 'message-1', body: 'Synthetic message' }] },
+    'household.messages.create': { message: { id: 'message-1' } },
+    'household.messages.withdraw': { message: { id: 'message-1', state: 'withdrawn', revision: 2 } },
+    'household.groceries.list': { items: [{ id: 'grocery-1', label: 'Synthetic apples', checked: false, revision: 1, createdAt: new Date('2027-03-20T09:00:00.000Z'), updatedAt: new Date('2027-03-20T09:00:00.000Z') }] },
+    'household.groceries.add': { item: { id: 'grocery-1', label: 'Synthetic apples', checked: false, revision: 1, createdAt: '2027-03-20T09:00:00.000Z', updatedAt: '2027-03-20T09:00:00.000Z' } },
+    'household.groceries.update': { item: { id: 'grocery-1', label: 'Synthetic apples', checked: true, revision: 2, createdAt: '2027-03-20T09:00:00.000Z', updatedAt: '2027-03-20T09:01:00.000Z' } },
+    'household.groceries.delete': { item: { id: 'grocery-1', revision: 2 } },
+    'household.dinners.list': { from: '2027-03-20', to: '2027-03-20', assignments: [{ id: 'assignment-1', localDate: '2027-03-20', title: null, emoji: null, revision: 1, cleared: true }] },
+    'household.dinners.options.list': { options: [{ id: 'option-1', title: 'Synthetic soup', emoji: '🍲', revision: 1 }] },
+    'household.dinners.assign': { assignment: { id: 'assignment-1', localDate: '2027-03-20', title: 'Synthetic soup', emoji: '🍲', revision: 1, cleared: false } },
+    'household.dinners.options.create': { option: { id: 'option-1', title: 'Synthetic soup', emoji: '🍲', revision: 1 } },
+    'household.dinners.options.update': { option: { id: 'option-1', title: 'Synthetic soup', emoji: '🍲', revision: 2 } },
+    'household.dinners.options.delete': { option: { id: 'option-1', revision: 2 } }
+  };
+  for (const [name, result] of Object.entries(samples)) assert.equal(tools.options.get(name)?.outputSchema.safeParse(result).success, true, `${name} accepts its returned output shape`);
+});
 
 function dependencies(options: { allowed?: boolean; people?: unknown[] } = {}) {
   const calls: Array<{ sql: string; values?: unknown[] }> = [];

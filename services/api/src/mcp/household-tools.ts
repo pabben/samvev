@@ -25,6 +25,7 @@ export interface HouseholdMcpToolRegistrar {
   registerTool(name: string, options: {
     description: string;
     inputSchema: ZodType;
+    outputSchema: ZodType;
     requiredScopes: readonly [HouseholdMcpScope, ...HouseholdMcpScope[]];
     readOnlyHint: boolean;
     destructiveHint: boolean;
@@ -62,6 +63,22 @@ const groceryDeleteInput = z.object({ id: uuid, expectedRevision: groceryUpdateS
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
 const dinnerOptionUpdateInput = dinnerOptionUpdateSchema.extend({ id: uuid });
 const dinnerOptionDeleteInput = z.object({ id: uuid, expectedRevision: z.number().int().positive(), requestKey: dinnerOptionCreateSchema.shape.requestKey }).strict();
+const revisionOutput = z.number().int().positive();
+const idOutput = z.string().min(1).max(128);
+const nullableTextOutput = z.string().max(5000).nullable();
+const displayOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), locale: z.string().max(35).nullable(), theme: z.string().max(20).nullable(), privacyMode: z.boolean(), setupName: z.string().min(1).max(200), createdAt: z.union([z.date(), z.iso.datetime()]) });
+const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult']) });
+const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50) });
+const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable() });
+const groceryOutput = z.object({ id: idOutput, label: z.string().min(1).max(200), checked: z.boolean(), revision: revisionOutput, createdAt: z.union([z.date(), z.iso.datetime()]), updatedAt: z.union([z.date(), z.iso.datetime()]) });
+const groceryDeletionOutput = z.object({ item: z.object({ id: idOutput, revision: revisionOutput }) });
+const dinnerAssignmentOutput = z.object({ id: idOutput, localDate: date, title: z.string().max(500).nullable(), emoji: z.string().max(32).nullable(), revision: z.number().int().positive(), cleared: z.boolean() });
+const dinnerOptionOutput = z.object({ id: idOutput, title: z.string().min(1).max(200), emoji: z.string().min(1).max(32), revision: revisionOutput });
+const dinnerOptionDeletionOutput = z.object({ option: z.object({ id: idOutput, revision: revisionOutput }) });
+const boardAssignmentWriteOutput = z.object({ assignment: z.object({ id: idOutput, localDate: date, title: z.string().max(500).nullable(), emoji: z.string().max(32).nullable(), revision: z.number().int().positive(), cleared: z.boolean() }) });
+const messageRecordOutput = z.object({ id: idOutput, body: z.string().max(10000) }).passthrough();
+const createdMessageOutput = z.object({ message: z.object({ id: idOutput }).passthrough() });
+const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, state: z.enum(['withdrawn', 'cancelled']), revision: revisionOutput }).passthrough() });
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
@@ -133,7 +150,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.displays.list', {
     description: 'List only active displays explicitly approved for this client, with a minimal display configuration projection.',
-    inputSchema: emptyInput, requiredScopes: ['mcp:displays:read'], readOnlyHint: true, destructiveHint: false
+    inputSchema: emptyInput, outputSchema: z.object({ displays: z.array(displayOutput).max(100) }), requiredScopes: ['mcp:displays:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     emptyInput.parse(raw);
     return dependencies.transaction(async (client) => {
@@ -152,7 +169,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.people.update', {
     description: 'Update the profile of one explicitly approved household person. Does not change their account, roles, or permissions.',
-    inputSchema: personUpdateInput, requiredScopes: ['mcp:people:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: false
+    inputSchema: personUpdateInput, outputSchema: z.object({ id: idOutput, revision: revisionOutput }), requiredScopes: ['mcp:people:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: false
   }, async (raw) => {
     const { personId, ...body } = personUpdateInput.parse(raw);
     if (!dependencies.personProfileAudit) throw new DomainError('FORBIDDEN', 403);
@@ -171,7 +188,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('calendar.sources.list', {
     description: 'List only calendar sources currently granted to this client and readable by the delegated household member.',
-    inputSchema: emptyInput, requiredScopes: ['mcp:calendar:read'], readOnlyHint: true, destructiveHint: false
+    inputSchema: emptyInput, outputSchema: z.object({ sources: z.array(sourceOutput).max(100) }), requiredScopes: ['mcp:calendar:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     emptyInput.parse(raw);
     return dependencies.transaction(async (client) => {
@@ -183,7 +200,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('calendar.events.list', {
     description: 'List upcoming events only from calendar sources and for people explicitly approved for this OAuth authorization.',
-    inputSchema: calendarInput, requiredScopes: ['mcp:calendar:read'], readOnlyHint: true, destructiveHint: false
+    inputSchema: calendarInput, outputSchema: z.object({ events: z.array(eventOutput).max(50) }), requiredScopes: ['mcp:calendar:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     const input = calendarInput.parse(raw);
     return dependencies.transaction(async (client) => {
@@ -230,7 +247,7 @@ export function registerHouseholdTools(
   );
 
   registrar.registerTool('household.people.list', {
-    description: 'List only household people explicitly included in this OAuth grant.', inputSchema: emptyInput,
+    description: 'List only household people explicitly included in this OAuth grant.', inputSchema: emptyInput, outputSchema: z.object({ people: z.array(personOutput).max(100) }),
     requiredScopes: ['mcp:people:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     emptyInput.parse(raw);
@@ -247,7 +264,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.messages.list', {
     description: 'List messages visible to this household member, including household messages and messages for people explicitly granted to this OAuth authorization.',
-    inputSchema: emptyInput, requiredScopes: ['mcp:messages:read'], readOnlyHint: true, destructiveHint: false
+    inputSchema: emptyInput, outputSchema: z.object({ messages: z.array(messageRecordOutput).max(200) }), requiredScopes: ['mcp:messages:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     emptyInput.parse(raw);
     return dependencies.transaction(async (client) => {
@@ -262,7 +279,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.messages.create', {
     description: 'Create and publish or schedule one message for explicitly granted people or displays. Household-wide broadcasts are not supported; each recipient must also be permitted for the delegated member.',
-    inputSchema: messageCreateSchema, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
+    inputSchema: messageCreateSchema, outputSchema: createdMessageOutput, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
     const actor: MessageCreateActor = {
       accountId: principal.accountId, installationId: principal.installationId, householdId: principal.householdId,
@@ -277,7 +294,7 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.messages.withdraw', {
     description: 'Withdraw or cancel one message authored by this member, or managed by a member with current message management rights. Every recipient must be explicitly granted to this OAuth authorization and permitted for the member.',
-    inputSchema: messageWithdrawInput, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: false
+    inputSchema: messageWithdrawInput, outputSchema: withdrawnMessageOutput, requiredScopes: ['mcp:messages:read', 'mcp:messages:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: false
   }, async (raw) => {
     const input = messageWithdrawInput.parse(raw);
     const actor: MessageCreateActor = {
@@ -292,7 +309,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.groceries.list', {
-    description: 'Read the household grocery list with explicit whole-household consent.', inputSchema: emptyInput,
+    description: 'Read the household grocery list with explicit whole-household consent.', inputSchema: emptyInput, outputSchema: z.object({ items: z.array(groceryOutput).max(200) }),
     requiredScopes: ['mcp:groceries:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     emptyInput.parse(raw);
@@ -306,12 +323,12 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.groceries.add', {
-    description: 'Add one grocery item. Requires a durable request key for safe retries.', inputSchema: groceryCreateSchema,
+    description: 'Add one grocery item. Requires a durable request key for safe retries.', inputSchema: groceryCreateSchema, outputSchema: z.object({ item: groceryOutput }),
     requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => boardService.createGrocery(boardActor, groceryCreateSchema.parse(raw)));
 
   registrar.registerTool('household.groceries.update', {
-    description: 'Update, check, or uncheck one grocery item using its current revision and a durable request key.', inputSchema: groceryUpdateInput,
+    description: 'Update, check, or uncheck one grocery item using its current revision and a durable request key.', inputSchema: groceryUpdateInput, outputSchema: z.object({ item: groceryOutput }),
     requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
     const { id, ...input } = groceryUpdateInput.parse(raw);
@@ -319,7 +336,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.groceries.delete', {
-    description: 'Remove one grocery item using its current revision and a durable request key.', inputSchema: groceryDeleteInput,
+    description: 'Remove one grocery item using its current revision and a durable request key.', inputSchema: groceryDeleteInput, outputSchema: groceryDeletionOutput,
     requiredScopes: ['mcp:groceries:read', 'mcp:groceries:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: true
   }, async (raw) => {
     const { id, ...input } = groceryDeleteInput.parse(raw);
@@ -331,7 +348,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.dinners.list', {
-    description: 'Read assigned dinners for a date range of at most 31 days, with explicit whole-household consent.', inputSchema: dinnersInput,
+    description: 'Read assigned dinners for a date range of at most 31 days, with explicit whole-household consent.', inputSchema: dinnersInput, outputSchema: z.object({ from: date, to: date, assignments: z.array(dinnerAssignmentOutput).max(62) }),
     requiredScopes: ['mcp:dinners:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     const input = dinnersInput.parse(raw);
@@ -349,7 +366,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.dinners.options.list', {
-    description: 'List dinner options that may be assigned to a date.', inputSchema: emptyInput,
+    description: 'List dinner options that may be assigned to a date.', inputSchema: emptyInput, outputSchema: z.object({ options: z.array(dinnerOptionOutput).max(100) }),
     requiredScopes: ['mcp:dinners:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     emptyInput.parse(raw);
@@ -362,7 +379,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.dinners.assign', {
-    description: 'Assign or clear a dinner option for one date using its current revision and a durable request key.', inputSchema: dinnerAssignmentInput,
+    description: 'Assign or clear a dinner option for one date using its current revision and a durable request key.', inputSchema: dinnerAssignmentInput, outputSchema: boardAssignmentWriteOutput,
     requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: true
   }, async (raw) => {
     const { localDate, ...input } = dinnerAssignmentInput.parse(raw);
@@ -370,12 +387,12 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.dinners.options.create', {
-    description: 'Create a dinner option using a durable request key for safe retries.', inputSchema: dinnerOptionCreateSchema,
+    description: 'Create a dinner option using a durable request key for safe retries.', inputSchema: dinnerOptionCreateSchema, outputSchema: z.object({ option: dinnerOptionOutput }),
     requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => boardService.createDinnerOption(boardActor, dinnerOptionCreateSchema.parse(raw), dependencies.dinnerOptionAudit ? (client, result) => dependencies.dinnerOptionAudit!(client, 'mcp.dinner_option_created', result.option.id) : undefined));
 
   registrar.registerTool('household.dinners.options.update', {
-    description: 'Update one dinner option using its current revision and a durable request key.', inputSchema: dinnerOptionUpdateInput,
+    description: 'Update one dinner option using its current revision and a durable request key.', inputSchema: dinnerOptionUpdateInput, outputSchema: z.object({ option: dinnerOptionOutput }),
     requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
   }, async (raw) => {
     const { id, ...input } = dinnerOptionUpdateInput.parse(raw);
@@ -383,7 +400,7 @@ export function registerHouseholdTools(
   });
 
   registrar.registerTool('household.dinners.options.delete', {
-    description: 'Remove one dinner option using its current revision and a durable request key. Existing dinner assignments keep their saved title and emoji.', inputSchema: dinnerOptionDeleteInput,
+    description: 'Remove one dinner option using its current revision and a durable request key. Existing dinner assignments keep their saved title and emoji.', inputSchema: dinnerOptionDeleteInput, outputSchema: dinnerOptionDeletionOutput,
     requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: true
   }, async (raw) => {
     const { id, ...input } = dinnerOptionDeleteInput.parse(raw);
