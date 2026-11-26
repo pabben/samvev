@@ -397,7 +397,8 @@ test('scheduler does not starve due rows behind active published rows and migrat
     '061_mcp_monitor_content_scope.sql',
     '062_mcp_native_calendar_write.sql',
     '063_mcp_display_appearance.sql',
-    '064_mcp_monitor_review_scope.sql'
+    '064_mcp_monitor_review_scope.sql',
+    '065_mcp_display_setup_read_scope.sql'
   ]);
   assert.deepEqual((await pool.query<{conname:string}>(`SELECT conname FROM pg_constraint WHERE conrelid IN ('monitor_runs'::regclass,'monitor_tool_audits'::regclass) AND conname IN ('monitor_tool_audits_outcome_error_check','monitor_tool_audits_diagnostic_bounds','monitor_runs_diagnostic_bounds') ORDER BY conname`)).rows.map((row)=>row.conname),['monitor_runs_diagnostic_bounds','monitor_tool_audits_diagnostic_bounds','monitor_tool_audits_outcome_error_check']);
 });
