@@ -28,6 +28,11 @@ test('authorization labels distinguish granted and previously granted access in 
 test('backend MCP scope names are translated without exposing namespace prefixes', () => {
   assert.equal(mcpScopeTranslationKey('mcp:context'), 'mcpScopeContext');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:read'), 'mcpScopeMonitorsRead');
+  assert.equal(mcpScopeTranslationKey('mcp:monitors:pause'), 'mcpScopeMonitorsPause');
+  assert.match(en.mcpScopeMonitorsPause,/withdraws its scheduled and published notices/);
+  assert.match(en.mcpScopeMonitorsPause,/not restored automatically/);
+  assert.match(nb.mcpScopeMonitorsPause,/trekker tilbake planlagte og publiserte varsler/);
+  assert.match(nb.mcpScopeMonitorsPause,/gjenopprettes ikke automatisk/);
   assert.equal(mcpScopeTranslationKey('mcp:monitors:discover'), 'mcpScopeMonitorsDiscover');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:content'), 'mcpScopeMonitorsContent');
   assert.equal(mcpScopeTranslationKey('mcp:monitors:review'), 'mcpScopeMonitorsReview');
@@ -84,6 +89,7 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(nb.mcpActivityMonitorDraftRead, 'Leste sensitive detaljer i et inaktivt oppdragsutkast');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_updated'), 'mcpActivityMonitorDraftUpdated');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_draft_deleted'), 'mcpActivityMonitorDraftDeleted');
+  assert.equal(mcpActivityTranslationKey('mcp.monitor_paused'), 'mcpActivityMonitorPaused');
   assert.equal(en.mcpActivityMonitorDraftCreated, 'Created an inactive monitor draft');
   assert.equal(nb.mcpActivityMonitorDraftCreated, 'Opprettet et inaktivt oppdragsutkast');
   assert.equal(mcpActivityTranslationKey('mcp.person_profile_created'), 'mcpActivityPersonProfileCreated');

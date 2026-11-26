@@ -75,7 +75,7 @@ export async function validateMessageAudience(
   }
 }
 
-async function requireGrantedMessageAudience(
+export async function requireGrantedMessageAudience(
   client: DbClient,
   actor: MessageCreateActor,
   capabilities: Capability[],

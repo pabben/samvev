@@ -45,6 +45,15 @@ test('monitor result consent distinguishes content from status in both locales',
   assert.match(english, /Read bounded AI-generated result text, which may contain household or school information/);
 });
 
+test('monitor pause consent discloses notice withdrawal and non-restoration in both locales',()=>{
+  const pauseRequest:AuthorizeRequest={...request,scopes:['mcp:monitors:read','mcp:monitors:pause','mcp:messages:read','mcp:messages:write']};
+  const render=(locale:'en'|'nb')=>authorizationConsentHtml({request:pauseRequest,clientName:'Synthetic pause client',households:[{id:'synthetic-household',name:'Synthetic',locale}],csrf:'synthetic-csrf'});
+  assert.match(render('en'),/withdraws the task’s scheduled and published notices/);
+  assert.match(render('en'),/not restored automatically if the task is later resumed/);
+  assert.match(render('nb'),/trekker tilbake planlagte og publiserte varsler/);
+  assert.match(render('nb'),/gjenopprettes ikke automatisk hvis oppdraget senere startes igjen/);
+});
+
 test('calendar write consent discloses native scope and the calendar read dependency in both locales', () => {
   const calendarRequest: AuthorizeRequest = { ...request, scopes: ['mcp:calendar:read', 'mcp:calendar:write'] };
   const render = (locale: 'en' | 'nb') => authorizationConsentHtml({

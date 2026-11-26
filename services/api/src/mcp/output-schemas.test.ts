@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 44 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 45 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 44 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 44);
+  assert.equal(tools.length, 45);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -67,6 +67,10 @@ test('MCP discovery advertises object output schemas for all 44 tools', async (t
   assert.deepEqual(outputByName.get('samvev_context')?.required?.sort(), ['household', 'scopes']);
   assert.deepEqual(outputByName.get('samvev_monitor_get')?.required, ['task']);
   assert.deepEqual(outputByName.get('samvev_monitor_runs_list')?.required, ['runs']);
+  const pause=outputByName.get('samvev_monitor_pause');
+  assert.deepEqual(pause?.required.sort(),['revision','state','taskId']);
+  assert.equal(pause?.additionalProperties,false);
+  assert.deepEqual(Object.keys(pause?.properties??{}).sort(),['revision','state','taskId']);
   const monitorDiscovery=outputByName.get('samvev_monitors_discover');
   assert.deepEqual(monitorDiscovery?.required.sort(),['nextAfterId','tasks']);
   assert.equal(monitorDiscovery?.type,'object');
@@ -154,6 +158,7 @@ test('MCP output validation accepts serialized monitor and authorization results
       if (sql.includes('SELECT household.id,household.name')) {
         return { rows: [{ ...household, grant_scopes: ['mcp:context'], token_scopes: ['mcp:context'] }] };
       }
+      if (sql.includes('SELECT membership.capabilities FROM mcp_oauth_grants')) return { rowCount: 1, rows: [{ capabilities: ['household.manage'] }] };
       if (sql.includes('SELECT task.id,task.state')) return { rows: [monitorRow] };
       if (/^(?:BEGIN|COMMIT|ROLLBACK|SELECT 1 FROM|INSERT INTO audit_events)/.test(sql)) return { rowCount: 1, rows: [] };
       assert.fail('Unexpected query in schema test');
