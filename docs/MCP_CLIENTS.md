@@ -1,6 +1,6 @@
 # MCP client compatibility
 
-Status: research snapshot, 2026-11-26. Local candidate `334e4df` contains 43 MCP tools through migration 071; its exact isolated suite passed 925/925, API/web typechecks and isolated build passed. A synthetic schema-71 restore remains pending. The schema-48→70 restore applies only to predecessor `36487d5`. Public source remains `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48), with no MCP endpoint. Public restore and named-client validation remain unverified. No named client has been connected or tested against a live Samvev endpoint; client compatibility and scheduled invocation remain unknown.
+Status: research snapshot, 2026-11-26. Local candidate `334e4df` contains 43 MCP tools through migration 071; its exact isolated suite passed 925/925, API/web typechecks and isolated build passed. An isolated synthetic schema-48→71 restore passed at `4e3699c`. The schema-48→70 restore applies only to predecessor `36487d5`. Public source remains `8391041ca17ffea124870118b7312f0c50e3da5c` (schema 48), with no MCP endpoint. Public restore and named-client validation remain unverified. No named client has been connected or tested against a live Samvev endpoint; client compatibility and scheduled invocation remain unknown.
 
 ## Client status
 
