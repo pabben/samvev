@@ -75,6 +75,9 @@ test('MCP board writes use live delegated authority, revisions and durable reque
 
   const integrationActor:IntegrationBoardActor={kind:'integration',id:'00000000-0000-4000-8000-000000000099',householdId,installationId:(await pool.query<{installation_id:string}>('SELECT installation_id FROM households WHERE id=$1',[householdId])).rows[0]!.installation_id,credentialId:'00000000-0000-4000-8000-000000000099',credentialRevision:0,capabilities:[]};
   const directBoard=new HouseholdBoardService(async()=>{},async()=>{});
+  const rollbackGrocery=await directBoard.createGrocery(integrationActor,{label:'Synthetic delete audit rollback',checked:false,requestKey:'grocery-delete-audit-rollback-01'});
+  await assert.rejects(directBoard.deleteGrocery(integrationActor,rollbackGrocery.item.id,{expectedRevision:1,requestKey:'grocery-delete-audit-failure-01'},async()=>{throw new Error('synthetic grocery audit insert failure');}),/synthetic grocery audit insert failure/);
+  assert.equal((await pool.query(`SELECT 1 FROM household_grocery_items WHERE id=$1 AND deleted_at IS NULL AND revision=1`,[rollbackGrocery.item.id])).rowCount,1,'audit failure rolls back grocery soft deletion');
   const optionCountBefore=(await pool.query<{count:number}>(`SELECT count(*)::int AS count FROM household_dinner_options WHERE household_id=$1`,[householdId])).rows[0]!.count;
   await assert.rejects(directBoard.createDinnerOption(integrationActor,{title:'Synthetic rolled back',emoji:'🥣',requestKey:'dinner-audit-failure-0001'},async()=>{throw new Error('synthetic audit insert failure');}),/synthetic audit insert failure/);
   assert.equal((await pool.query<{count:number}>(`SELECT count(*)::int AS count FROM household_dinner_options WHERE household_id=$1`,[householdId])).rows[0]!.count,optionCountBefore,'audit failure rolls back option write');
