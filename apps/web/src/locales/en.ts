@@ -963,6 +963,7 @@ export const en = {
   mcpDisplaysPolicy: "Displays this client may access",
   mcpSavePolicy: "Save access policy",
   mcpPolicySaved: "Access policy saved.",
+  mcpPolicyUnsavedChanges: "Changes are not active until you save them.",
   mcpPolicyPending: "Access policy controls are not available for this authorization yet. No household resources are approved by this screen.",
   mcpSchoolResourcePending: "School-plan access is not enabled: an administrator must approve a specific school source. A school-plan scope by itself grants no school data.",
   mcpSchoolResourceApproved: "{count} specific school source(s) approved. School access remains limited to those sources.",

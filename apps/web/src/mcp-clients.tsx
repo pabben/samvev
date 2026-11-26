@@ -3,7 +3,7 @@ import { api } from './api';
 import { formatDate } from './time';
 import { Check, Dialog, Empty, ErrorNotice, Icon, Loading, useI18n } from './ui';
 import type { Display, Person } from './types';
-import { calendarProviderTranslationKey, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, calendarSourceRecords as calendarSourceRecordsForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type McpCalendarSource, type SchoolPlanSource } from './mcp-client-policy';
+import { approvedMcpResourceCount, calendarProviderTranslationKey, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, calendarSourceRecords as calendarSourceRecordsForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type McpCalendarSource, type SchoolPlanSource } from './mcp-client-policy';
 
 type McpAuthorizations = { authorizations: McpAuthorization[] };
 type McpActivity = { occurredAt:string; action:string; subjectType:string; subjectId:string };
@@ -134,8 +134,9 @@ export function McpAuthorizationCard({authorization,base,timezone,people,display
     <div className="mcp-authorization-title"><div><h3>{authorization.client_name}</h3><p className="field-hint">{t('mcpAuthorizedOn', { date: formatDate(authorization.created_at, locale, timezone) })}</p></div><span className={`mcp-status${revoked?' is-revoked':''}`}>{t(revoked?'mcpStatusRevoked':'mcpStatusActive')}</span></div>
     <div className="mcp-scopes"><h4>{t('mcpGrantedAccess')}</h4><ul>{scopeIds.map(scope => <li key={scope}>{mcpScopeTranslationKey(scope) ? t(mcpScopeTranslationKey(scope)!) : scope}</li>)}</ul></div>
     <p className="mcp-last-used"><strong>{t('mcpLastUsed')}:</strong> {authorization.last_used_at ? formatDate(authorization.last_used_at, locale, timezone) : t('mcpNeverUsed')}</p>
-    {hasSchoolScope&&<p className="mcp-policy-pending" role="note">{schoolResourceIds.length?t('mcpSchoolResourceApproved',{count:schoolResourceIds.length}):t('mcpSchoolResourcePending')}</p>}
-    {hasCalendarScope&&<p className="mcp-policy-pending" role="note">{calendarResourceIds.length?t('mcpCalendarResourceApproved',{count:calendarResourceIds.length}):t('mcpCalendarResourcePending')}</p>}
+    {authorization.scopes.some(scope=>['mcp:school-plans:read','mcp:school-plans:write'].includes(scope))&&<p className="mcp-policy-pending" role="note">{approvedMcpResourceCount(authorization,'school_source')?t('mcpSchoolResourceApproved',{count:approvedMcpResourceCount(authorization,'school_source')}):t('mcpSchoolResourcePending')}</p>}
+    {authorization.scopes.includes('mcp:calendar:read')&&<p className="mcp-policy-pending" role="note">{approvedMcpResourceCount(authorization,'calendar_source')?t('mcpCalendarResourceApproved',{count:approvedMcpResourceCount(authorization,'calendar_source')}):t('mcpCalendarResourcePending')}</p>}
+    {changed&&<p className="field-hint" role="status">{t('mcpPolicyUnsavedChanges')}</p>}
     {Array.isArray(authorization.person_ids)&&Array.isArray(authorization.display_ids)&&Array.isArray(authorization.resources)&&<section className="mcp-policy" aria-label={t('mcpPolicyTitle')}>
       <h4>{t('mcpPolicyTitle')}</h4>
       <fieldset disabled={!canEdit||busy}>

@@ -59,6 +59,12 @@ export function schoolWeekActivityAlreadyShown(date: string, title: string, pers
   return activities.some(activity => activity.date === date && (!activity.personId || activity.personId === personId) && activity.title.trim().toLocaleLowerCase() === normalizedTitle);
 }
 
+/** The compact board avoids repeating a monitor item; the full source view
+ * keeps every activity and its attached details for verification. */
+export function schoolWeekVisibleActivities(day: SchoolWeekDay, personId: string, alreadyShown: { date: string; title: string; personId?: string }[], full: boolean) {
+  return full ? day.activities : day.activities.filter(activity => !schoolWeekActivityAlreadyShown(day.date, activity.title, personId, alreadyShown));
+}
+
 export function schoolWeekIdentity(date: string) {
   const [year, month, day] = date.split('-').map(Number);
   const value = new Date(Date.UTC(year!, month! - 1, day!));

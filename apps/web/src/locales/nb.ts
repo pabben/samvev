@@ -962,6 +962,7 @@ export const nb: Record<TranslationKey, string> = {
   mcpDisplaysPolicy: "Skjermer klienten kan bruke",
   mcpSavePolicy: "Lagre tilgangspolicy",
   mcpPolicySaved: "Tilgangspolicyen er lagret.",
+  mcpPolicyUnsavedChanges: "Endringene gjelder ikke før du lagrer dem.",
   mcpPolicyPending: "Tilgangspolicyen er ikke tilgjengelig for denne godkjenningen ennå. Dette skjermbildet godkjenner ingen husstandsdata.",
   mcpSchoolResourcePending: "Tilgang til skoleplaner er ikke aktivert: En administrator må godkjenne en bestemt skolekilde. En skoleplantillatelse alene gir ingen tilgang til skoledata.",
   mcpSchoolResourceApproved: "{count} bestemt(e) skolekilde(r) er godkjent. Tilgangen er fortsatt begrenset til disse kildene.",

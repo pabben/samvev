@@ -16,6 +16,9 @@ export type McpAuthorization = {
   resources?: McpPolicyResource[];
 };
 export type McpPolicyResource={kind:'school_source'|'calendar_source';id:string};
+export function approvedMcpResourceCount(authorization:McpAuthorization,kind:McpPolicyResource['kind']){
+  return (authorization.resources??[]).filter(resource=>resource.kind===kind).length;
+}
 export type SchoolPlanSource = {
   id: string;
   personId: string;

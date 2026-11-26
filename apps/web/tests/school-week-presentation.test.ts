@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { currentSchoolWeekPlans, requestSchoolWeekPdf, schoolWeekActivityAlreadyShown, schoolWeekDateAtNoon, schoolWeekDay, schoolWeekHomework, schoolWeekIdentity, schoolWeekPdfAvailable, schoolWeekPlansPath, schoolWeekPreviewPlans, schoolWeekRequirementKey, schoolWeekTimeLabel, schoolWeekTomorrow, schoolWeekUncertaintyKey, type SchoolWeekPlan } from '../src/school-week-presentation';
+import { currentSchoolWeekPlans, requestSchoolWeekPdf, schoolWeekActivityAlreadyShown, schoolWeekDateAtNoon, schoolWeekDay, schoolWeekHomework, schoolWeekIdentity, schoolWeekPdfAvailable, schoolWeekPlansPath, schoolWeekPreviewPlans, schoolWeekRequirementKey, schoolWeekTimeLabel, schoolWeekTomorrow, schoolWeekUncertaintyKey, schoolWeekVisibleActivities, type SchoolWeekPlan } from '../src/school-week-presentation';
 
 const plan: SchoolWeekPlan = {
   id: 'synthetic-plan-id', personId: 'synthetic-person-id', isoYear: 2026, isoWeek: 48,
@@ -50,6 +50,9 @@ test('school week card omits an activity already visible in the existing househo
   assert.equal(schoolWeekActivityAlreadyShown('2026-11-25', 'Synthetic library visit', 'synthetic-person-id', existing), true);
   assert.equal(schoolWeekActivityAlreadyShown('2026-11-25', 'Synthetic library visit', 'another-person', existing), false);
   assert.equal(schoolWeekActivityAlreadyShown('2026-11-26', 'Synthetic library visit', 'synthetic-person-id', existing), false);
+  assert.deepEqual(schoolWeekVisibleActivities(plan.days[0]!, 'synthetic-person-id', existing, false), []);
+  assert.deepEqual(schoolWeekVisibleActivities(plan.days[0]!, 'synthetic-person-id', existing, true), plan.days[0]!.activities,
+    'full week retains the source activity and its practical requirements');
 });
 
 test('calendar date strings retain their household-local day in widely separated time zones', () => {

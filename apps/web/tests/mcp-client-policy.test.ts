@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
+import { approvedMcpResourceCount, calendarResourcesForPolicy, calendarSourcePolicyLabel, calendarSourcesForPolicy, hasMcpDisplayPolicyScope, hasMcpPeoplePolicyScope, hasMcpSchoolScope, isValidMcpScopeNarrowing, mcpActivityTranslationKey, mcpScopeTranslationKey, saveMcpPolicy, schoolResourcesForPolicy, unlistedCalendarResources, unlistedSchoolResources, type McpAuthorization, type SchoolPlanSource } from '../src/mcp-client-policy';
 
 const authorization: McpAuthorization = {
   id: 'synthetic-grant-id',
@@ -110,6 +110,14 @@ test('calendar resource selection preserves existing school grants byte-for-byte
   assert.deepEqual(calendarResourcesForPolicy([school,calendar],[],[],[]),[school]);
   assert.throws(()=>calendarResourcesForPolicy([],['synthetic-calendar-source'],[],[]),/mcp_calendar_source_requires_people/);
   assert.deepEqual(schoolResourcesForPolicy([school],['synthetic-school'],[],['synthetic-person-id']),[school]);
+});
+
+test('approval summary counts only persisted grants, not unsaved picker selections',()=>{
+  const saved={...authorization,resources:[{kind:'school_source' as const,id:'saved-school'}]};
+  const unsavedCalendarSelection=['pending-calendar'];
+  assert.equal(approvedMcpResourceCount(saved,'school_source'),1);
+  assert.equal(approvedMcpResourceCount(saved,'calendar_source'),0);
+  assert.equal(unsavedCalendarSelection.length,1);
 });
 
 test('policy update uses backend snake_case authorization fields and preserves approved resources in the mocked API request', async () => {
