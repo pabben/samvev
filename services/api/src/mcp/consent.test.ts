@@ -55,6 +55,16 @@ test('calendar write consent discloses native scope and the calendar read depend
   assert.match(render('nb'), /Opprette, endre og fjerne avtaler i Samvevs egen kalender for eksplisitt godkjente personer. Krever også lesetilgang/);
 });
 
+test('people profile write consent discloses the people read dependency in both locales', () => {
+  const peopleRequest: AuthorizeRequest = { ...request, scopes: ['mcp:people:read', 'mcp:people:write'] };
+  const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
+    request: peopleRequest, clientName: 'Synthetic people client',
+    households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
+  });
+  assert.match(render('en'), /Update profiles for people you explicitly select\. Also requires people read access/);
+  assert.match(render('nb'), /Endre profilfelt for eksplisitt tillatte personer\. Krever også lesetilgang til personer/);
+});
+
 test('display appearance consent covers prior and future display selections in both locales', () => {
   const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
     request: { ...request, scopes: ['mcp:displays:read', 'mcp:displays:appearance:write'] },

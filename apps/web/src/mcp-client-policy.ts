@@ -114,7 +114,7 @@ export function hasMcpSchoolScope(scopes: string[]) {
 }
 
 export function hasMcpPeoplePolicyScope(scopes: string[]) {
-  return hasMcpSchoolScope(scopes) || scopes.some(scope=>['mcp:calendar:read','mcp:people:read','mcp:people:write','mcp:messages:read','mcp:messages:write'].includes(scope));
+  return hasMcpSchoolScope(scopes) || scopes.some(scope=>['mcp:calendar:read','mcp:people:read','mcp:messages:read','mcp:messages:write'].includes(scope));
 }
 
 export function hasMcpDisplayPolicyScope(scopes: string[]) {

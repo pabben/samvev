@@ -157,10 +157,10 @@ export function McpAuthorizationCard({authorization,base,householdId,timezone,pe
             if(!hasMcpSchoolScope(next))setSchoolResourceIds([]);
             if(!next.includes('mcp:calendar:read')){setCalendarResourceIds([]);setNativeSelected(false)}
             if(!hasMcpDisplayPolicyScope(next))setDisplayIds([]);
-            if(!hasMcpPeoplePolicyScope(next))setPersonIds([]);
           }}/>;
         })}
         {hasMcpMonitorContentScope(authorization.scopes)&&<p className="field-hint" role="note">{t('mcpMonitorContentDependency')}</p>}
+        {scopeIds.includes('mcp:people:write')&&!scopeIds.includes('mcp:people:read')&&<p className="field-hint" role="note">{t('mcpPeopleWriteDependency')}</p>}
         {authorization.scopes.includes('mcp:calendar:write')&&<p className="field-hint" role="note">{t('mcpCalendarWriteDependency')}</p>}
         {authorization.scopes.includes('mcp:displays:layout:write')&&<p className="field-hint" role="note">{t('mcpDisplayLayoutWriteDependency')}</p>}
         {authorization.scopes.includes('mcp:displays:appearance:write')&&<p className="field-hint" role="note">{t('mcpDisplayAppearanceWriteDependency')}</p>}

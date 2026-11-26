@@ -81,10 +81,20 @@ test('MCP profile updates share member PATCH behavior and enforce grant, capabil
   const stale=await callUpdate(token,5,{personId:targetPersonId,displayName:'Stale profile write',expectedRevision:listedRevision});assert.equal(stale.statusCode,200,stale.body);assert.equal(rpc(stale).result.isError,true);
   assert.equal((await pool.query<{display_name:string}>('SELECT display_name FROM persons WHERE id=$1',[targetPersonId])).rows[0]!.display_name,fields.displayName);
 
-  const currentGrant=(await pool.query<{revision:number}>('SELECT revision FROM mcp_oauth_grants WHERE id=$1',[grant.id])).rows[0]!;
+  let currentGrant=(await pool.query<{revision:number}>('SELECT revision FROM mcp_oauth_grants WHERE id=$1',[grant.id])).rows[0]!;
+  policy=await selectPerson(grant.id,currentGrant.revision,[targetPersonId],['mcp:people:write','mcp:context']);
+  assert.deepEqual(policy.personIds,[targetPersonId],'narrowing away read access retains the existing exact-person grant');
+  assert.deepEqual((await pool.query<{person_id:string}>('SELECT person_id FROM mcp_oauth_grant_people WHERE grant_id=$1',[grant.id])).rows.map(row=>row.person_id),[targetPersonId]);
+  const addedPersonWithoutRead=await inject({method:'PUT',url:`/api/v1/households/${householdId}/mcp/authorizations/${grant.id}/policy`,headers:{cookie:ownerCookie,'x-csrf-token':ownerCsrf,origin,'content-type':'application/json'},payload:{expectedRevision:policy.revision,scopes:['mcp:people:write','mcp:context'],personIds:[targetPersonId,ungrantedPersonId],displayIds:[],resources:[]}});
+  assert.equal(addedPersonWithoutRead.statusCode,400,addedPersonWithoutRead.body);assert.match(addedPersonWithoutRead.body,/resource_scope_required/,'write-only policy cannot select another person');
+  const writeOnly=await authorize(3,'mcp:people:write mcp:context');
+  const writeOnlyList=await callPeopleList(writeOnly,6);assert.equal(rpc(writeOnlyList).result.isError,true,'write-only consent cannot read person data or its revision');
+  const writeOnlyUpdate=await callUpdate(writeOnly,7,{personId:targetPersonId,displayName:'Write-only profile update',expectedRevision:mcpProfile.revision});assert.equal(rpc(writeOnlyUpdate).result.isError,true,'write-only consent cannot update without read permission');
+  assert.match(rpc(writeOnlyUpdate).result.content[0].text,/FORBIDDEN/);
+  currentGrant=(await pool.query<{revision:number}>('SELECT revision FROM mcp_oauth_grants WHERE id=$1',[grant.id])).rows[0]!;
   policy=await selectPerson(grant.id,currentGrant.revision,[],['mcp:context']);
   const revoked=await callUpdate(token,5,{personId:targetPersonId,displayName:'Narrowed scope denied',expectedRevision:mcpProfile.revision});assert.equal(revoked.statusCode,401,revoked.body);
-  const contextOnly=await authorize(3,'mcp:context');
-  const noWrite=await callUpdate(contextOnly,6,{personId:targetPersonId,displayName:'Narrowed scope denied',expectedRevision:mcpProfile.revision});assert.equal(noWrite.statusCode,403,noWrite.body);assert.match(String(noWrite.headers['www-authenticate']),/mcp%3Apeople%3Awrite|mcp:people:write/);
+  const contextOnly=await authorize(4,'mcp:context');
+  const noWrite=await callUpdate(contextOnly,8,{personId:targetPersonId,displayName:'Narrowed scope denied',expectedRevision:mcpProfile.revision});assert.equal(noWrite.statusCode,403,noWrite.body);assert.match(String(noWrite.headers['www-authenticate']),/mcp%3Apeople%3Awrite|mcp:people:write/);
   assert.equal((await pool.query<{display_name:string}>('SELECT display_name FROM persons WHERE id=$1',[targetPersonId])).rows[0]!.display_name,fields.displayName);
 });

@@ -141,8 +141,18 @@ test('school and display policy controls require a matching current consent scop
   assert.equal(hasMcpDisplayPolicyScope(['mcp:messages:write']), true);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:displays:read']), true);
   assert.equal(hasMcpDisplayPolicyScope(['mcp:groceries:read']), false);
-  assert.equal(hasMcpPeoplePolicyScope(['mcp:people:write']), true);
+  assert.equal(hasMcpPeoplePolicyScope(['mcp:people:write']), false);
+  assert.equal(hasMcpPeoplePolicyScope(['mcp:people:read']), true);
   assert.equal(hasMcpPeoplePolicyScope(['mcp:monitors:read']), false);
+});
+
+test('people profile write copy and policy guidance disclose the read dependency in both locales', () => {
+  assert.match(en.mcpScopePeopleWrite, /also requires people read access/i);
+  assert.match(nb.mcpScopePeopleWrite, /krever også lesetilgang til personer/i);
+  assert.match(en.mcpPeopleWriteDependency, /both people read access and update access/i);
+  assert.match(en.mcpPeopleWriteDependency, /existing people selections are retained/i);
+  assert.match(nb.mcpPeopleWriteDependency, /både lesetilgang til personer og tilgang til å oppdatere/i);
+  assert.match(nb.mcpPeopleWriteDependency, /valgte personer beholdes/i);
 });
 
 test('scope policy permits only subsets and requires a non-offline permission', () => {

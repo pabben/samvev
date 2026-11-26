@@ -235,7 +235,7 @@ test('people tool returns only grant-selected fields and rechecks current delega
   assert.doesNotMatch(JSON.stringify(result), /email|password|photo|private|calendar/i);
 });
 
-test('people update requires write consent, people.manage, and the exact granted person before using the shared profile service', async () => {
+test('people update requires read and write consent, people.manage, and the exact granted person before using the shared profile service', async () => {
   const tools = new Tools(), calls:Array<{sql:string;values?:unknown[]}>=[],audits:Array<{personId:string;fields:string[]}>=[];
   const client={async query(sql:string,values?:unknown[]){
     calls.push({sql,values});
@@ -251,11 +251,11 @@ test('people update requires write consent, people.manage, and the exact granted
   assert.deepEqual(result,{id:principal.membershipId,revision:2});
   assert.equal(tools.options.get('household.people.update')?.inputSchema.safeParse({personId:principal.membershipId,displayName:'Safe profile update',birthDate:'2008-11-24',expectedRevision:1}).success,false);
   assert.equal(tools.options.get('household.people.update')?.inputSchema.safeParse({personId:principal.membershipId,displayName:'Safe profile update',ageGroup:'adult',expectedRevision:1}).success,false);
-  assert.deepEqual(tools.options.get('household.people.update')?.requiredScopes,['mcp:people:write']);
+  assert.deepEqual(tools.options.get('household.people.update')?.requiredScopes,['mcp:people:read','mcp:people:write']);
   assert.equal(tools.options.get('household.people.update')?.readOnlyHint,false);
   assert.equal(tools.options.get('household.people.update')?.destructiveHint,false);
   assert.equal(tools.options.get('household.people.update')?.idempotentHint,false);
-  assert.deepEqual(calls[0]!.values?.slice(4,6),[['mcp:people:write'],'people.manage']);
+  assert.deepEqual(calls[0]!.values?.slice(4,6),[['mcp:people:read','mcp:people:write'],'people.manage']);
   assert.match(calls[1]!.sql,/grant_person\.grant_id=\$1 AND grant_person\.household_id=\$2 AND grant_person\.person_id=\$3/);
   assert.deepEqual(calls[1]!.values,[principal.grantId,principal.householdId,principal.membershipId]);
   assert.equal(calls.filter(call=>call.sql.includes('UPDATE persons')).length,1);

@@ -426,12 +426,12 @@ export function registerHouseholdTools(
 
   registrar.registerTool('household.people.update', {
     description: 'Update the profile of one explicitly approved household person. Does not change their account, roles, or permissions.',
-    inputSchema: personUpdateInput, outputSchema: z.object({ id: idOutput, revision: revisionOutput }), requiredScopes: ['mcp:people:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: false
+    inputSchema: personUpdateInput, outputSchema: z.object({ id: idOutput, revision: revisionOutput }), requiredScopes: ['mcp:people:read', 'mcp:people:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: false
   }, async (raw) => {
     const { personId, ...body } = personUpdateInput.parse(raw);
     if (!dependencies.personProfileAudit) throw new DomainError('FORBIDDEN', 403);
     return dependencies.transaction(async (client) => {
-      await assertLiveAuthority(client, principal, ['mcp:people:write'], 'people.manage');
+      await assertLiveAuthority(client, principal, ['mcp:people:read', 'mcp:people:write'], 'people.manage');
       const personGrant = await client.query(`SELECT grant_person.person_id FROM mcp_oauth_grant_people grant_person
         JOIN persons person ON person.id=grant_person.person_id AND person.household_id=grant_person.household_id
         WHERE grant_person.grant_id=$1 AND grant_person.household_id=$2 AND grant_person.person_id=$3
