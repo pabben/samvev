@@ -54,3 +54,12 @@ test('calendar write consent discloses native scope and the calendar read depend
   assert.match(render('en'), /Create, edit, and remove appointments in the native Samvev calendar for explicitly approved people. Also requires calendar read access/);
   assert.match(render('nb'), /Opprette, endre og fjerne avtaler i Samvevs egen kalender for eksplisitt godkjente personer. Krever også lesetilgang/);
 });
+
+test('display appearance consent covers prior and future display selections in both locales', () => {
+  const render = (locale: 'en' | 'nb') => authorizationConsentHtml({
+    request: { ...request, scopes: ['mcp:displays:read', 'mcp:displays:appearance:write'] },
+    clientName: 'Synthetic display client', households: [{ id: 'synthetic-household', name: 'Synthetic', locale }], csrf: 'synthetic-csrf'
+  });
+  assert.match(render('en'), /Change the name, language and theme of displays already selected or later selected for this client\. Also requires display read access/);
+  assert.match(render('nb'), /Endre navn, språk og tema for skjermer som allerede er valgt eller senere velges for denne klienten\. Krever også lesetilgang/);
+});

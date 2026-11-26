@@ -1,5 +1,5 @@
 import { DomainError } from '@samvev/core';
-import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, messageUpdateSchema, personUpdateSchema, type Capability as MemberCapability } from '@samvev/contracts';
+import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, groceryCreateSchema, groceryUpdateSchema, localeSchema, messageCreateSchema, messageUpdateSchema, nameSchema, personUpdateSchema, themeSchema, type Capability as MemberCapability } from '@samvev/contracts';
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
@@ -42,6 +42,7 @@ export interface HouseholdMcpToolDependencies {
   messageEditAudit?: MessageEditAudit;
   messageWithdrawAudit?: MessageWithdrawAudit;
   personProfileAudit?: PersonProfileAudit;
+  displayAppearanceAudit?: (client: DbClient, displayId: string, revision: number) => Promise<void>;
   calendarAudit?: Parameters<typeof registerCalendarWriteTools>[2]['audit'];
 }
 
@@ -79,7 +80,21 @@ const dinnerOptionDeleteInput = z.object({ id: uuid, expectedRevision: z.number(
 const revisionOutput = z.number().int().positive();
 const idOutput = z.string().min(1).max(128);
 const nullableTextOutput = z.string().max(5000).nullable();
-const displayOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), locale: z.string().max(35).nullable(), theme: z.string().max(20).nullable(), privacyMode: z.boolean(), setupName: z.string().min(1).max(200), createdAt: z.iso.datetime() });
+const displayAppearanceScopes = ['mcp:displays:read', 'mcp:displays:appearance:write'] as const;
+const displayAppearanceOutput = z.strictObject({
+  id: uuid, name: z.string().min(1).max(200), localeOverride: localeSchema.nullable(), themeOverride: themeSchema.nullable(),
+  appearanceRevision: revisionOutput
+});
+const displayAppearanceColumns = `display.id,display.name,display.locale AS "localeOverride",display.theme AS "themeOverride",
+  display.appearance_revision AS "appearanceRevision"`;
+const displayAppearanceInput = z.strictObject({
+  displayId: uuid, expectedAppearanceRevision: revisionOutput, name: nameSchema.optional(),
+  localeOverride: localeSchema.nullable().optional(), themeOverride: themeSchema.nullable().optional()
+}).refine(({ name, localeOverride, themeOverride }) => name !== undefined || localeOverride !== undefined || themeOverride !== undefined,
+  'Supply at least one display appearance field to update.');
+const displayOutput = displayAppearanceOutput.extend({
+  locale: localeSchema.nullable(), theme: themeSchema.nullable(), privacyMode: z.boolean(), setupName: z.string().min(1).max(200), createdAt: z.iso.datetime()
+});
 const personOutput = z.object({ id: idOutput, displayName: z.string().min(1).max(100), ageGroup: z.enum(['child', 'teen', 'adult']) });
 const sourceOutput = z.object({ id: idOutput, name: z.string().min(1).max(200), provider: z.string().min(1).max(50), writable: z.boolean().optional() });
 const eventOutput = z.object({ id: idOutput, title: z.string().max(500), description: nullableTextOutput, startsAt: z.iso.datetime().nullable(), endsAt: z.iso.datetime().nullable(), allDay: z.boolean(), sourceId: idOutput.nullable(), sourceName: z.string().max(200).nullable(), revision: revisionOutput.optional(), writable: z.boolean().optional(), personIds: z.array(z.uuid()).max(50).optional(), location: z.string().max(160).optional() });
@@ -98,7 +113,7 @@ const withdrawnMessageOutput = z.object({ message: z.object({ id: idOutput, stat
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
-export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | 'mcp:displays:read';
+export type HouseholdMcpScope = 'mcp:people:read' | 'mcp:people:write' | 'mcp:messages:read' | 'mcp:messages:write' | 'mcp:groceries:read' | 'mcp:groceries:write' | 'mcp:dinners:read' | 'mcp:dinners:write' | 'mcp:calendar:read' | 'mcp:calendar:write' | typeof displayAppearanceScopes[number];
 type Capability = MemberCapability;
 
 async function assertLiveAuthority(client: DbClient, principal: HouseholdMcpPrincipal, scopes: readonly HouseholdMcpScope[], capability: Capability): Promise<{personId:string;capabilities:Capability[];calendarWriteAllowed:boolean}> {
@@ -169,13 +184,13 @@ export function registerHouseholdTools(
       !uuid.safeParse(principal.installationId).success) throw new DomainError('UNAUTHENTICATED', 401);
 
   registrar.registerTool('household.displays.list', {
-    description: 'List only active displays explicitly approved for this client, with a minimal display configuration projection.',
+    description: 'List non-revoked displays explicitly approved for this client. Includes appearance overrides and their revision for a conditional appearance update.',
     inputSchema: emptyInput, outputSchema: z.object({ displays: z.array(displayOutput).max(100) }), requiredScopes: ['mcp:displays:read'], readOnlyHint: true, destructiveHint: false
   }, async (raw) => {
     emptyInput.parse(raw);
     return dependencies.transaction(async (client) => {
       await assertLiveAuthority(client, principal, ['mcp:displays:read'], 'display.manage');
-      const result = await client.query(`SELECT display.id,display.name,
+      const result = await client.query(`SELECT ${displayAppearanceColumns},
           COALESCE(display.locale,setup.locale) AS locale,COALESCE(display.theme,setup.theme) AS theme,
           display.privacy_mode AS "privacyMode",setup.name AS "setupName",display.created_at AS "createdAt"
         FROM mcp_oauth_grant_displays grant_display
@@ -184,6 +199,52 @@ export function registerHouseholdTools(
         WHERE grant_display.grant_id=$1 AND grant_display.household_id=$2 AND display.revoked_at IS NULL
         ORDER BY display.id LIMIT 100 FOR SHARE OF grant_display,display,setup`, [principal.grantId, principal.householdId]);
       return { displays: result.rows };
+    });
+  });
+
+  registrar.registerTool('household.displays.appearance.update', {
+    description: 'Update the name, language override, or theme override of one explicitly approved display. Pass its current appearance revision from household.displays.list. Set an override to null to inherit the display setup setting.',
+    inputSchema: displayAppearanceInput, outputSchema: z.strictObject({ display: displayAppearanceOutput }),
+    requiredScopes: displayAppearanceScopes, readOnlyHint: false, destructiveHint: false, idempotentHint: false
+  }, async (raw) => {
+    const { displayId, expectedAppearanceRevision, name, localeOverride, themeOverride } = displayAppearanceInput.parse(raw);
+    const audit = dependencies.displayAppearanceAudit;
+    if (!audit) throw new DomainError('FORBIDDEN', 403);
+    return dependencies.transaction(async (client) => {
+      // Browser display administration and account management take installation
+      // and member authority before display rows. OAuth consent changes take
+      // member authority before the grant. Keep that order for this write.
+      await client.query('SELECT id FROM installations WHERE id=$1 FOR KEY SHARE', [principal.installationId]);
+      const actor = await client.query(`SELECT 1 FROM memberships membership JOIN accounts account ON account.id=membership.account_id
+        WHERE membership.id=$1 AND membership.household_id=$2 AND account.id=$3 FOR SHARE OF membership,account`,
+      [principal.membershipId, principal.householdId, principal.accountId]);
+      if (!actor.rowCount) throw new DomainError('FORBIDDEN', 403);
+      await assertLiveAuthority(client, principal, displayAppearanceScopes, 'display.manage');
+      const scopes = await client.query(`SELECT scope FROM mcp_oauth_scope_catalog WHERE scope=ANY($1::text[]) AND active ORDER BY scope FOR SHARE`, [displayAppearanceScopes]);
+      if (scopes.rowCount !== displayAppearanceScopes.length) throw new DomainError('FORBIDDEN', 403);
+      const current = (await client.query<z.infer<typeof displayAppearanceOutput>>(`SELECT ${displayAppearanceColumns}
+        FROM mcp_oauth_grant_displays grant_display
+        JOIN displays display ON display.id=grant_display.display_id AND display.household_id=grant_display.household_id
+        WHERE grant_display.grant_id=$1 AND grant_display.household_id=$2 AND grant_display.display_id=$3 AND display.revoked_at IS NULL
+        FOR SHARE OF grant_display FOR NO KEY UPDATE OF display`, [principal.grantId, principal.householdId, displayId])).rows[0];
+      if (!current) throw new DomainError('NOT_FOUND', 404);
+      // Locks fence consent and account changes. The token may still expire
+      // while we wait for a busy display row.
+      await assertLiveAuthority(client, principal, displayAppearanceScopes, 'display.manage');
+      if (current.appearanceRevision !== expectedAppearanceRevision) throw new DomainError('REVISION_CONFLICT', 409);
+      const nextName = name ?? current.name;
+      const nextLocale = localeOverride === undefined ? current.localeOverride : localeOverride;
+      const nextTheme = themeOverride === undefined ? current.themeOverride : themeOverride;
+      if (nextName === current.name && nextLocale === current.localeOverride && nextTheme === current.themeOverride) return { display: current };
+
+      const display = (await client.query<z.infer<typeof displayAppearanceOutput>>(`UPDATE displays AS display SET
+        name=$4,locale=$5,theme=$6
+        WHERE id=$1 AND household_id=$2 AND appearance_revision=$3 AND revoked_at IS NULL
+        RETURNING ${displayAppearanceColumns}`,
+      [displayId, principal.householdId, expectedAppearanceRevision, nextName, nextLocale, nextTheme])).rows[0];
+      if (!display) throw new DomainError('REVISION_CONFLICT', 409);
+      await audit(client, display.id, display.appearanceRevision);
+      return { display };
     });
   });
 

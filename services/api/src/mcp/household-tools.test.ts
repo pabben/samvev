@@ -24,7 +24,7 @@ class Tools implements HouseholdMcpToolRegistrar {
 test('all household tools publish meaningful output schemas that validate returned projections', () => {
   const tools = new Tools();
   registerHouseholdTools(tools, context, { transaction: async <T>(run: (client: DbClient) => Promise<T>) => run({ query: async () => ({ rows: [] }) } as unknown as DbClient) });
-  assert.equal(tools.options.size, 22);
+  assert.equal(tools.options.size, 23);
   for (const [name, options] of tools.options) {
     assert.ok(options.outputSchema instanceof Object, `${name} has an output schema`);
     assert.equal(options.outputSchema.safeParse(null).success, false, `${name} schema rejects unrelated values`);
@@ -32,6 +32,7 @@ test('all household tools publish meaningful output schemas that validate return
   }
   const samples: Record<string, unknown> = {
     'household.displays.list': { displays: [] },
+    'household.displays.appearance.update': { display: { id: principal.membershipId, name: 'Synthetic display', localeOverride: null, themeOverride: 'dark', appearanceRevision: 2 } },
     'household.people.update': { id: principal.membershipId, revision: 2 },
     'calendar.sources.list': { sources: [{ id: 'source-1', name: 'Synthetic calendar', provider: 'ics' }] },
     'calendar.events.create': { event: { id: principal.accountId, revision: 1 } },

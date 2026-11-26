@@ -162,6 +162,7 @@ export function McpAuthorizationCard({authorization,base,householdId,timezone,pe
         })}
         {hasMcpMonitorContentScope(authorization.scopes)&&<p className="field-hint" role="note">{t('mcpMonitorContentDependency')}</p>}
         {authorization.scopes.includes('mcp:calendar:write')&&<p className="field-hint" role="note">{t('mcpCalendarWriteDependency')}</p>}
+        {authorization.scopes.includes('mcp:displays:appearance:write')&&<p className="field-hint" role="note">{t('mcpDisplayAppearanceWriteDependency')}</p>}
         <p className="field-hint" role="note">{t('mcpScopesWidenConsent')}</p>
       </fieldset>
       <fieldset disabled={!canEdit||busy||!hasPeopleScope}><legend>{t('mcpPeoplePolicy')}</legend>{!hasPeopleScope&&<p className="field-hint">{t('mcpPeopleScopeRequired')}</p>}{people.map(person=><Check key={person.id} label={person.display_name} checked={personIds.includes(person.id)} onChange={checked=>{const next=checked?[...personIds,person.id]:personIds.filter(id=>id!==person.id);setPersonIds(next);if(!checked)setSchoolResourceIds(current=>current.filter(id=>!schoolSources.some(source=>source.id===id&&source.personId===person.id)));if(next.length===0){setCalendarResourceIds([]);setNativeSelected(false)}}}/>)}</fieldset>

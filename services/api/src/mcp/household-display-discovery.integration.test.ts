@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test, { after, before } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { CLIENT_CAPABILITIES_META_KEY, CLIENT_INFO_META_KEY, PROTOCOL_VERSION_META_KEY } from '@modelcontextprotocol/server';
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify';
 import { buildApp } from '../app.ts';
@@ -9,6 +10,8 @@ import { migrate } from '../db/migrate.ts';
 
 const origin='https://display-discovery.test.invalid',callback='https://display-discovery-client.test.invalid/oauth/callback';
 const scope='mcp:displays:read';
+const writeScope='mcp:displays:appearance:write';
+const updateTool='household.displays.appearance.update';
 let app:FastifyInstance,householdId='',installationId='',adminCookie='',adminCsrf='',clientId='',grantedDisplayId='',foreignDisplayId='',grantId='';
 const meta={[PROTOCOL_VERSION_META_KEY]:'2026-07-28',[CLIENT_INFO_META_KEY]:{name:'synthetic-display-discovery-client',version:'1.0.0'},[CLIENT_CAPABILITIES_META_KEY]:{}};
 
@@ -19,16 +22,41 @@ function challenge(verifier:string){return createHash('sha256').update(verifier)
 function mcpHeaders(name:string){return{'mcp-protocol-version':'2026-07-28','mcp-method':'tools/call','mcp-name':name};}
 function rpc(response:LightMyRequestResponse):any{return response.json();}
 
-async function authorize(serial:number){
+async function authorize(serial:number,scopes=[scope]){
   const verifier=`synthetic-display-discovery-verifier-${serial}-abcdefghijklmnopqrstuvwxyz0123456789`,state=`display-discovery-state-${serial}-0123456789`;
-  const query=new URLSearchParams({response_type:'code',client_id:clientId,redirect_uri:callback,code_challenge:challenge(verifier),code_challenge_method:'S256',resource:`${origin}/mcp`,scope,state});
+  const query=new URLSearchParams({response_type:'code',client_id:clientId,redirect_uri:callback,code_challenge:challenge(verifier),code_challenge_method:'S256',resource:`${origin}/mcp`,scope:scopes.join(' '),state});
   const page=await inject({method:'GET',url:`/oauth/authorize?${query}`,headers:{cookie:adminCookie}});assert.equal(page.statusCode,200,page.body);
   const approved=await inject({method:'POST',url:'/oauth/authorize',headers:{cookie:adminCookie,origin,'content-type':'application/x-www-form-urlencoded'},payload:form({...Object.fromEntries(query),_csrf:adminCsrf,household_id:householdId,decision:'approve'})});assert.equal(approved.statusCode,303,approved.body);
   const code=new URL(String(approved.headers.location)).searchParams.get('code')!;
   const exchanged=await inject({method:'POST',url:'/oauth/token',headers:{'content-type':'application/x-www-form-urlencoded'},payload:form({grant_type:'authorization_code',client_id:clientId,code,redirect_uri:callback,code_verifier:verifier,resource:`${origin}/mcp`})});assert.equal(exchanged.statusCode,200,exchanged.body);return exchanged.json().access_token as string;
 }
-async function call(token:string,id:number){return inject({method:'POST',url:'/mcp',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json',...mcpHeaders('household.displays.list')},payload:{jsonrpc:'2.0',id,method:'tools/call',params:{name:'household.displays.list',arguments:{},_meta:meta}}});}
-async function setDisplayPolicy(expectedRevision:number,displayIds:string[]){return inject({method:'PUT',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/policy`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:{expectedRevision,scopes:[scope],personIds:[],displayIds,resources:[]}});}
+async function call(token:string,id:number,name='household.displays.list',args:Record<string,unknown>={}){return inject({method:'POST',url:'/mcp',headers:{authorization:`Bearer ${token}`,'content-type':'application/json',accept:'application/json',...mcpHeaders(name)},payload:{jsonrpc:'2.0',id,method:'tools/call',params:{name,arguments:args,_meta:meta}}});}
+async function setDisplayPolicy(expectedRevision:number,displayIds:string[],scopes=[scope]){return inject({method:'PUT',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/policy`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin,'content-type':'application/json'},payload:{expectedRevision,scopes,personIds:[],displayIds,resources:[]}});}
+async function grantRevision(){return (await pool.query<{revision:number}>('SELECT revision FROM mcp_oauth_grants WHERE id=$1',[grantId])).rows[0]!.revision;}
+
+function succeeded(response:LightMyRequestResponse){
+  assert.equal(response.statusCode,200,response.body);
+  const result=rpc(response).result;
+  assert.ok(result?.structuredContent,response.body);
+  return result.structuredContent;
+}
+
+function failed(response:LightMyRequestResponse,error:RegExp){
+  assert.equal(response.statusCode,200,response.body);
+  assert.equal(rpc(response).result?.isError,true,response.body);
+  assert.match(response.body,error);
+}
+
+async function waitForBlockedQuery(fragment:string){
+  const until=Date.now()+5_000;
+  while(Date.now()<until){
+    const blocked=await pool.query(`SELECT 1 FROM pg_stat_activity WHERE pid<>pg_backend_pid()
+      AND query LIKE $1 AND cardinality(pg_blocking_pids(pid))>0`,[`%${fragment}%`]);
+    if(blocked.rowCount)return;
+    await delay(15);
+  }
+  assert.fail(`Expected blocked query containing ${fragment}`);
+}
 
 before(async()=>{
   const url=new URL(process.env.DATABASE_URL??'');
@@ -56,7 +84,7 @@ test('display discovery requires consent, supports exact policy selection, and d
 
   const listed=await call(token,1);assert.equal(listed.statusCode,200,listed.body);
   const displays=rpc(listed).result.structuredContent.displays as Array<Record<string,unknown>>;
-  assert.deepEqual(displays,[{id:grantedDisplayId,name:'Synthetic authorized display',locale:'en',theme:'light',privacyMode:true,setupName:'Synthetic MCP setup',createdAt:displays[0]?.createdAt}]);
+  assert.deepEqual(displays,[{id:grantedDisplayId,name:'Synthetic authorized display',locale:'en',theme:'light',localeOverride:'en',themeOverride:'light',appearanceRevision:1,privacyMode:true,setupName:'Synthetic MCP setup',createdAt:displays[0]?.createdAt}]);
   assert.doesNotMatch(listed.body,/Synthetic foreign private display|credential|pairing|background|asset|url|repeat|aaaaaaaa/i);
   assert.equal(displays.some(display=>display.id===foreignDisplayId),false);
 
@@ -70,4 +98,107 @@ test('display discovery requires consent, supports exact policy selection, and d
 
   const currentAgain=(await pool.query<{revision:number}>('SELECT revision FROM mcp_oauth_grants WHERE id=$1',[grantId])).rows[0]!;
   const crossHousehold=await setDisplayPolicy(currentAgain.revision,[foreignDisplayId]);assert.equal(crossHousehold.statusCode,400,crossHousehold.body);assert.doesNotMatch(crossHousehold.body,/Synthetic foreign private display/);
+});
+
+test('appearance update enforces consent, the exact display grant and CAS, preserving device access and policy',async()=>{
+  const credential='synthetic-display-appearance-token';
+  const credentialHash=createHash('sha256').update(credential).digest('hex');
+  const setupId=(await pool.query<{setup_id:string}>('SELECT setup_id FROM displays WHERE id=$1',[grantedDisplayId])).rows[0]!.setup_id;
+  const target=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,locale,theme,privacy_mode,setup_id,credential_hash,credential_expires_at,external_items_enabled)
+    VALUES($1,'Synthetic appearance display',NULL,'light',true,$2,$3,clock_timestamp()+interval '1 day',true) RETURNING id`,[householdId,setupId,credentialHash])).rows[0]!.id;
+  const ungranted=(await pool.query<{id:string}>(`INSERT INTO displays(household_id,name,setup_id) VALUES($1,'Synthetic ungranted display',$2) RETURNING id`,[householdId,setupId])).rows[0]!.id;
+  await pool.query(`INSERT INTO display_person_grants(household_id,display_id,person_id,profile_allowed,birthday_allowed)
+    SELECT $1,$2,person_id,true,true FROM memberships WHERE household_id=$1`,[householdId,target]);
+  await pool.query('UPDATE display_action_policies SET grocery_write=true WHERE display_id=$1',[target]);
+  await pool.query('UPDATE display_board_read_grants SET grocery_read=true WHERE display_id=$1',[target]);
+  const snapshot=async()=>(await pool.query(`SELECT to_jsonb(display)-ARRAY['name','locale','theme','appearance_revision','last_seen_at'] AS display,
+    to_jsonb(setup) AS setup,to_jsonb(actions) AS actions,to_jsonb(boards) AS boards,
+    (SELECT jsonb_agg(to_jsonb(g) ORDER BY g.person_id) FROM display_person_grants g WHERE g.display_id=display.id) AS people
+    FROM displays display JOIN display_setups setup ON setup.id=display.setup_id
+    JOIN display_action_policies actions ON actions.display_id=display.id JOIN display_board_read_grants boards ON boards.display_id=display.id
+    WHERE display.id=$1`,[target])).rows[0];
+  const deviceProjection=()=>inject({method:'GET',url:'/api/v1/display/projection',headers:{cookie:`samvev_display=${credential}`}});
+  const originalProjection=await deviceProjection();
+  assert.equal(originalProjection.statusCode,200,originalProjection.body);
+  const original=await snapshot();
+
+  const input={displayId:target,expectedAppearanceRevision:1,name:'Synthetic new display name',localeOverride:'nb',themeOverride:null};
+  const update=(token:string,id:number,change:Record<string,unknown>={})=>call(token,id,updateTool,{...input,...change});
+  const widening=await setDisplayPolicy(await grantRevision(),[target],[scope,writeScope]);
+  assert.equal(widening.statusCode,400,widening.body);
+  assert.match(widening.body,/scope_broadening_requires_consent/);
+  assert.equal((await setDisplayPolicy(await grantRevision(),[target])).statusCode,200);
+  const readToken=await authorize(4);
+  const noWrite=await update(readToken,5);
+  assert.match(noWrite.body,/insufficient_scope/);
+
+  const writeOnlyToken=await authorize(5,[writeScope]);
+  assert.match((await update(writeOnlyToken,6)).body,/insufficient_scope/);
+  const token=await authorize(6,[scope,writeScope]);
+  assert.equal((await update(readToken,7)).statusCode,401);
+  const before=succeeded(await call(token,8)).displays;
+  assert.deepEqual(before.map(({id,locale,localeOverride,themeOverride,appearanceRevision}:Record<string,unknown>)=>({id,locale,localeOverride,themeOverride,appearanceRevision})),
+    [{id:target,locale:'en',localeOverride:null,themeOverride:'light',appearanceRevision:1}]);
+
+  for(const displayId of [ungranted,foreignDisplayId])failed(await update(token,9,{displayId}),/NOT_FOUND/);
+  for(const extra of [{privacyMode:false},{credentialHash:'synthetic'},{setupId},{externalItemsEnabled:false},{personIdsOverride:[]}]){
+    const invalid=await update(token,10,extra);
+    assert.ok(rpc(invalid).error||rpc(invalid).result?.isError,invalid.body);
+  }
+  const updated=await update(token,11);
+  assert.deepEqual(succeeded(updated),{display:{id:target,name:input.name,localeOverride:'nb',themeOverride:null,appearanceRevision:2}});
+  assert.doesNotMatch(updated.body,/credential|pairing|privacyMode|people|policy|setup|url/i);
+  assert.deepEqual(await snapshot(),original);
+  const newProjection=await deviceProjection();
+  assert.equal(newProjection.statusCode,200,newProjection.body);
+  const oldView=originalProjection.json(),newView=newProjection.json();
+  assert.equal(newView.display.name,input.name);
+  assert.equal(newView.display.locale,'nb');
+  assert.equal(newView.display.theme,'dark');
+  for(const key of ['setup','displayGrants','householdBoards','actionAvailability'])assert.deepEqual(newView[key],oldView[key],key);
+  assert.deepEqual(succeeded(await update(token,20,{expectedAppearanceRevision:2})),succeeded(updated));
+
+  failed(await update(token,12,{name:'Synthetic stale display name'}),/REVISION_CONFLICT/);
+  const patchFromBrowser=(payload:Record<string,unknown>)=>inject({method:'PATCH',url:`/api/v1/households/${householdId}/displays/${target}`,
+    headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin},payload});
+  const browserPrivacy=await patchFromBrowser({privacyMode:false,theme:null});
+  assert.equal(browserPrivacy.statusCode,200,browserPrivacy.body);
+  assert.equal(succeeded(await call(token,21)).displays[0].appearanceRevision,2);
+  const browserPatch=await patchFromBrowser({theme:'system'});
+  assert.equal(browserPatch.statusCode,200,browserPatch.body);
+  failed(await update(token,13,{expectedAppearanceRevision:2}),/REVISION_CONFLICT/);
+  assert.equal(succeeded(await call(token,14)).displays[0].appearanceRevision,3);
+  const membership=(await pool.query<{id:string;capabilities:string[]}>('SELECT id,capabilities FROM memberships WHERE household_id=$1',[householdId])).rows[0]!;
+  await pool.query(`UPDATE memberships SET capabilities=capabilities-'display.manage' WHERE id=$1`,[membership.id]);
+  failed(await update(token,15,{expectedAppearanceRevision:3}),/FORBIDDEN/);
+  await pool.query('UPDATE memberships SET capabilities=$2 WHERE id=$1',[membership.id,JSON.stringify(membership.capabilities)]);
+
+  const blocker=await pool.connect();
+  let revoke:Promise<LightMyRequestResponse>,waiting:Promise<LightMyRequestResponse>;
+  try{
+    await blocker.query('BEGIN');
+    await blocker.query('SELECT id FROM mcp_oauth_grants WHERE id=$1 FOR UPDATE',[grantId]);
+    revoke=inject({method:'POST',url:`/api/v1/households/${householdId}/mcp/authorizations/${grantId}/revoke`,headers:{cookie:adminCookie,'x-csrf-token':adminCsrf,origin}});
+    await waitForBlockedQuery('SELECT id,client_id FROM mcp_oauth_grants');
+    waiting=update(token,16,{expectedAppearanceRevision:3,name:'Synthetic raced display name'});
+    await waitForBlockedQuery('FROM mcp_oauth_grants grant_row');
+  }finally{
+    await blocker.query('ROLLBACK');
+    blocker.release();
+  }
+  const revoked=await revoke!;
+  assert.equal(revoked.statusCode,204,revoked.body);
+  failed(await waiting!,/FORBIDDEN/);
+  assert.equal((await update(token,17,{expectedAppearanceRevision:3})).statusCode,401);
+
+  const fresh=await authorize(7,[scope,writeScope]);
+  const deviceRevocation=await patchFromBrowser({revoked:true});
+  assert.equal(deviceRevocation.statusCode,200,deviceRevocation.body);
+  failed(await update(fresh,18,{expectedAppearanceRevision:3}),/NOT_FOUND/);
+  assert.deepEqual(succeeded(await call(fresh,19)).displays,[]);
+  const stored=(await pool.query('SELECT name,locale,theme,appearance_revision FROM displays WHERE id=$1',[target])).rows[0];
+  assert.deepEqual(stored,{name:input.name,locale:'nb',theme:'system',appearance_revision:3});
+  const audits=await pool.query(`SELECT actor_type,metadata->>'revision' AS revision FROM audit_events
+    WHERE household_id=$1 AND subject_id=$2 AND action='mcp.display_appearance_updated'`,[householdId,target]);
+  assert.deepEqual(audits.rows,[{actor_type:'mcp',revision:'2'}]);
 });

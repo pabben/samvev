@@ -30,7 +30,7 @@ export type SchoolPlanSource = {
 };
 export type McpCalendarSource = {id:string;connectionId:string;connectionName:string;accountLabel:string|null;provider:CalendarConnection['provider'];connectionState:string;enabled:boolean;purpose:'calendar'|'waste';name:string;displayName:string|null};
 
-const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeMonitorsContent' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeDisplaysRead' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead' | 'mcpScopeCalendarWrite'> = {
+const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead' | 'mcpScopeMonitorsContent' | 'mcpScopeSchoolRead' | 'mcpScopeSchoolWrite' | 'mcpScopeOffline' | 'mcpScopePeopleRead' | 'mcpScopePeopleWrite' | 'mcpScopeDisplaysRead' | 'mcpScopeDisplaysAppearanceWrite' | 'mcpScopeMessagesRead' | 'mcpScopeMessagesWrite' | 'mcpScopeGroceriesRead' | 'mcpScopeGroceriesWrite' | 'mcpScopeDinnersRead' | 'mcpScopeDinnersWrite' | 'mcpScopeCalendarRead' | 'mcpScopeCalendarWrite'> = {
   context: 'mcpScopeContext', 'mcp:context': 'mcpScopeContext',
   'monitors:read': 'mcpScopeMonitorsRead', 'mcp:monitors:read': 'mcpScopeMonitorsRead',
   'mcp:monitors:content': 'mcpScopeMonitorsContent',
@@ -40,6 +40,7 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   'mcp:people:read': 'mcpScopePeopleRead',
   'mcp:people:write': 'mcpScopePeopleWrite',
   'mcp:displays:read': 'mcpScopeDisplaysRead',
+  'mcp:displays:appearance:write': 'mcpScopeDisplaysAppearanceWrite',
   'mcp:messages:read': 'mcpScopeMessagesRead',
   'mcp:messages:write': 'mcpScopeMessagesWrite',
   'mcp:groceries:read': 'mcpScopeGroceriesRead',
@@ -49,7 +50,7 @@ const scopeTranslation: Record<string, 'mcpScopeContext' | 'mcpScopeMonitorsRead
   'mcp:calendar:read': 'mcpScopeCalendarRead',
   'mcp:calendar:write': 'mcpScopeCalendarWrite',
 };
-const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMonitorResultRead'|'mcpActivityMessagesListed'|'mcpActivityMessageCreated'|'mcpActivityMessageEdited'|'mcpActivityMessageEditedByAdmin'|'mcpActivityMessageWithdrawn'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityGroceryDeleted'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'|'mcpActivityCalendarEventCreated'|'mcpActivityCalendarEventUpdated'|'mcpActivityCalendarEventDeleted'>={
+const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpActivitySchoolPlansListed'|'mcpActivitySchoolPlanRead'|'mcpActivitySchoolPlanUpserted'|'mcpActivitySchoolSourceFailure'|'mcpActivitySchoolPdfVerified'|'mcpActivityMonitorsListed'|'mcpActivityMonitorRead'|'mcpActivityMonitorRunsListed'|'mcpActivityMonitorResultRead'|'mcpActivityMessagesListed'|'mcpActivityMessageCreated'|'mcpActivityMessageEdited'|'mcpActivityMessageEditedByAdmin'|'mcpActivityMessageWithdrawn'|'mcpActivityGroceriesListed'|'mcpActivityGroceryAdded'|'mcpActivityGroceryUpdated'|'mcpActivityGroceryDeleted'|'mcpActivityDinnersListed'|'mcpActivityDinnerOptionsListed'|'mcpActivityDinnerAssigned'|'mcpActivityCalendarSourcesListed'|'mcpActivityDisplaysListed'|'mcpActivityDisplayAppearanceUpdated'|'mcpActivityCalendarEventCreated'|'mcpActivityCalendarEventUpdated'|'mcpActivityCalendarEventDeleted'>={
   'mcp.school_sources_listed':'mcpActivitySchoolSourcesListed',
   'mcp.school_plans_listed':'mcpActivitySchoolPlansListed',
   'mcp.school_plan_read':'mcpActivitySchoolPlanRead',
@@ -75,6 +76,7 @@ const activityTranslation: Record<string,'mcpActivitySchoolSourcesListed'|'mcpAc
   'mcp.calendar_event_updated':'mcpActivityCalendarEventUpdated',
   'mcp.calendar_event_deleted':'mcpActivityCalendarEventDeleted',
   'mcp.displays_listed':'mcpActivityDisplaysListed',
+  'mcp.display_appearance_updated':'mcpActivityDisplayAppearanceUpdated',
   'mcp.dinner_options_listed':'mcpActivityDinnerOptionsListed',
   'mcp.dinner_assigned':'mcpActivityDinnerAssigned',
 };

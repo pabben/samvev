@@ -32,10 +32,12 @@ test('backend MCP scope names are translated without exposing namespace prefixes
   assert.equal(mcpScopeTranslationKey('mcp:messages:write'), 'mcpScopeMessagesWrite');
   assert.equal(mcpScopeTranslationKey('mcp:people:write'), 'mcpScopePeopleWrite');
   assert.equal(mcpScopeTranslationKey('mcp:displays:read'), 'mcpScopeDisplaysRead');
+  assert.equal(mcpScopeTranslationKey('mcp:displays:appearance:write'), 'mcpScopeDisplaysAppearanceWrite');
   assert.equal(mcpScopeTranslationKey('mcp:future:scope'), undefined);
   assert.equal(mcpActivityTranslationKey('mcp.school_plan_read'), 'mcpActivitySchoolPlanRead');
   assert.equal(mcpActivityTranslationKey('mcp.calendar_sources_listed'), 'mcpActivityCalendarSourcesListed');
   assert.equal(mcpActivityTranslationKey('mcp.displays_listed'), 'mcpActivityDisplaysListed');
+  assert.equal(mcpActivityTranslationKey('mcp.display_appearance_updated'), 'mcpActivityDisplayAppearanceUpdated');
   assert.equal(mcpActivityTranslationKey('mcp.monitor_result_read'), 'mcpActivityMonitorResultRead');
   assert.equal(mcpActivityTranslationKey('mcp.grocery_deleted'), 'mcpActivityGroceryDeleted');
   assert.equal(mcpActivityTranslationKey('mcp.future_action'), undefined);
