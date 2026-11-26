@@ -298,13 +298,19 @@ test('board write tools use the existing board service with strict idempotent in
   const boardService = {
     async createGrocery(actor: any, input: any) { calls.push({ operation: 'add', actor, input }); return { item: { id: 'grocery-created', revision: 1 } }; },
     async updateGrocery(actor: any, id: string, input: any) { calls.push({ operation: 'update', actor, id, input }); return { item: { id, checked: input.checked, revision: 2 } }; },
-    async setDinner(actor: any, date: string, input: any) { calls.push({ operation: 'assign', actor, date, input }); return { assignment: { localDate: date, revision: 1 } }; }
+    async setDinner(actor: any, date: string, input: any) { calls.push({ operation: 'assign', actor, date, input }); return { assignment: { localDate: date, revision: 1 } }; },
+    async createDinnerOption(actor: any, input: any) { calls.push({ operation: 'option-create', actor, input }); return { option: { id: 'option-created', revision: 1 } }; },
+    async updateDinnerOption(actor: any, id: string, input: any) { calls.push({ operation: 'option-update', actor, id, input }); return { option: { id, revision: 2 } }; },
+    async deleteDinnerOption(actor: any, id: string, input: any) { calls.push({ operation: 'option-delete', actor, id, input }); return { option: { id, revision: 2 } }; }
   };
   registerHouseholdTools(tools, context, { ...fake.deps, boardService });
 
   await tools.get('household.groceries.add')({ label: '  Synthetic apples  ', checked: false, requestKey: 'grocery-add-0001' });
   await tools.get('household.groceries.update')({ id: principal.accountId, checked: true, expectedRevision: 1, requestKey: 'grocery-check-0001' });
   await tools.get('household.dinners.assign')({ localDate: '2027-03-20', optionId: principal.membershipId, expectedRevision: 0, requestKey: 'dinner-assign-0001' });
+  await tools.get('household.dinners.options.create')({ title: '  Synthetic stew  ', emoji: '🍲', requestKey: 'dinner-option-create-001' });
+  await tools.get('household.dinners.options.update')({ id: principal.accountId, title: 'Synthetic soup', expectedRevision: 1, requestKey: 'dinner-option-update-001' });
+  await tools.get('household.dinners.options.delete')({ id: principal.accountId, expectedRevision: 2, requestKey: 'dinner-option-delete-001' });
 
   assert.deepEqual(tools.options.get('household.groceries.add')?.requiredScopes, ['mcp:groceries:read', 'mcp:groceries:write']);
   assert.deepEqual(tools.options.get('household.dinners.assign')?.requiredScopes, ['mcp:dinners:read', 'mcp:dinners:write']);
@@ -316,12 +322,24 @@ test('board write tools use the existing board service with strict idempotent in
   assert.equal(calls[1]!.id, principal.accountId);
   assert.equal(calls[2]!.date, '2027-03-20');
   assert.equal((calls[2]!.input as { optionId: string }).optionId, principal.membershipId);
+  assert.deepEqual(calls.slice(3).map(call => call.operation), ['option-create', 'option-update', 'option-delete']);
+  for (const name of ['household.dinners.options.create', 'household.dinners.options.update', 'household.dinners.options.delete']) {
+    assert.deepEqual(tools.options.get(name)?.requiredScopes, ['mcp:dinners:read', 'mcp:dinners:write']);
+    assert.equal(tools.options.get(name)?.idempotentHint, true);
+  }
+  assert.equal(tools.options.get('household.dinners.options.delete')?.destructiveHint, true);
+  assert.equal(calls[3]!.actor.id, principal.grantId);
+  assert.equal((calls[3]!.input as { title: string }).title, 'Synthetic stew');
+  assert.equal(calls[4]!.id, principal.accountId);
+  assert.equal(calls[5]!.id, principal.accountId);
   assert.equal(fake.calls.length, 0, 'the board service owns write transaction semantics');
 });
 
 test('write schemas reject unknown fields and empty grocery changes before board access', async () => {
   assert.equal(householdToolSchemas.groceryUpdateInput.safeParse({ id: principal.accountId, expectedRevision: 1, requestKey: 'grocery-empty-0001' }).success, false);
   assert.equal(householdToolSchemas.dinnerAssignmentInput.safeParse({ localDate: '2027-03-20', optionId: null, expectedRevision: 0, requestKey: 'dinner-clear-0001', householdId: principal.householdId }).success, false);
+  assert.equal(householdToolSchemas.dinnerOptionUpdateInput.safeParse({ id: principal.accountId, expectedRevision: 1, requestKey: 'dinner-option-update-001' }).success, false);
+  assert.equal(householdToolSchemas.dinnerOptionDeleteInput.safeParse({ id: principal.accountId, expectedRevision: 0, requestKey: 'dinner-option-delete-001' }).success, false);
   assert.equal(householdToolSchemas.messageWithdrawInput.safeParse({ messageId: principal.accountId, expectedRevision: 1, householdId: principal.householdId }).success, false);
   assert.equal(householdToolSchemas.messageWithdrawInput.safeParse({ messageId: principal.accountId, expectedRevision: 0 }).success, false);
 });

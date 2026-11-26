@@ -1,5 +1,5 @@
 import { DomainError } from '@samvev/core';
-import { dinnerAssignmentSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, personUpdateSchema, type Capability as MemberCapability } from '@samvev/contracts';
+import { dinnerAssignmentSchema, dinnerOptionCreateSchema, dinnerOptionUpdateSchema, groceryCreateSchema, groceryUpdateSchema, messageCreateSchema, personUpdateSchema, type Capability as MemberCapability } from '@samvev/contracts';
 import { z, type ZodType } from 'zod';
 import { transaction, type DbClient } from '../db.ts';
 import { HouseholdBoardService, type IntegrationBoardActor } from '../household-board/service.ts';
@@ -33,7 +33,7 @@ export interface HouseholdMcpToolRegistrar {
 }
 export interface HouseholdMcpToolDependencies {
   transaction<T>(run: (client: DbClient) => Promise<T>): Promise<T>;
-  boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner'>;
+  boardService?: Pick<HouseholdBoardService, 'createGrocery' | 'updateGrocery' | 'setDinner' | 'createDinnerOption' | 'updateDinnerOption' | 'deleteDinnerOption'>;
   messageService?: Pick<MessageService, 'create' | 'withdraw'>;
   personProfileAudit?: PersonProfileAudit;
 }
@@ -56,6 +56,8 @@ const personUpdateInput = z.object({
 const messageWithdrawInput = z.object({ messageId: uuid, expectedRevision: z.number().int().positive() }).strict();
 const groceryUpdateInput = groceryUpdateSchema.extend({ id: uuid });
 const dinnerAssignmentInput = dinnerAssignmentSchema.extend({ localDate: date });
+const dinnerOptionUpdateInput = dinnerOptionUpdateSchema.extend({ id: uuid });
+const dinnerOptionDeleteInput = z.object({ id: uuid, expectedRevision: z.number().int().positive(), requestKey: dinnerOptionCreateSchema.shape.requestKey }).strict();
 const MAX_DINNER_DAYS = 31;
 function dateOffset(value:string,offset:number):string{const date=new Date(`${value}T00:00:00Z`);date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
 
@@ -350,7 +352,28 @@ export function registerHouseholdTools(
     const { localDate, ...input } = dinnerAssignmentInput.parse(raw);
     return boardService.setDinner(boardActor, localDate, input);
   });
+
+  registrar.registerTool('household.dinners.options.create', {
+    description: 'Create a dinner option using a durable request key for safe retries.', inputSchema: dinnerOptionCreateSchema,
+    requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
+  }, async (raw) => boardService.createDinnerOption(boardActor, dinnerOptionCreateSchema.parse(raw)));
+
+  registrar.registerTool('household.dinners.options.update', {
+    description: 'Update one dinner option using its current revision and a durable request key.', inputSchema: dinnerOptionUpdateInput,
+    requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: false, idempotentHint: true
+  }, async (raw) => {
+    const { id, ...input } = dinnerOptionUpdateInput.parse(raw);
+    return boardService.updateDinnerOption(boardActor, id, input);
+  });
+
+  registrar.registerTool('household.dinners.options.delete', {
+    description: 'Remove one dinner option using its current revision and a durable request key. Existing dinner assignments keep their saved title and emoji.', inputSchema: dinnerOptionDeleteInput,
+    requiredScopes: ['mcp:dinners:read', 'mcp:dinners:write'], readOnlyHint: false, destructiveHint: true, idempotentHint: true
+  }, async (raw) => {
+    const { id, ...input } = dinnerOptionDeleteInput.parse(raw);
+    return boardService.deleteDinnerOption(boardActor, id, input);
+  });
 }
 
 /** Exported for focused authorization tests without registering an MCP server. */
-export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, dinnerAssignmentInput, personUpdateInput, messageWithdrawInput } as const;
+export const householdToolSchemas = { emptyInput, dinnersInput, groceryUpdateInput, dinnerAssignmentInput, dinnerOptionUpdateInput, dinnerOptionDeleteInput, personUpdateInput, messageWithdrawInput } as const;
