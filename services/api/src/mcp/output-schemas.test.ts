@@ -49,7 +49,7 @@ function client(service: McpOAuthService) {
   };
 }
 
-test('MCP discovery advertises object output schemas for all 37 tools', async (t) => {
+test('MCP discovery advertises object output schemas for all 38 tools', async (t) => {
   const service = new McpOAuthService('https://samvev.test.invalid');
   t.after(() => service.close());
 
@@ -57,7 +57,7 @@ test('MCP discovery advertises object output schemas for all 37 tools', async (t
   const { tools } = await client(service)('tools/list') as {
     tools: Array<{ name: string; outputSchema?: OutputSchema }>;
   };
-  assert.equal(tools.length, 37);
+  assert.equal(tools.length, 38);
   for (const { name, outputSchema } of tools) {
     assert.equal(outputSchema?.type, 'object', name);
     assert.ok(Object.keys(outputSchema.properties).length > 0, name);
@@ -67,6 +67,23 @@ test('MCP discovery advertises object output schemas for all 37 tools', async (t
   assert.deepEqual(outputByName.get('samvev_context')?.required?.sort(), ['household', 'scopes']);
   assert.deepEqual(outputByName.get('samvev_monitor_get')?.required, ['task']);
   assert.deepEqual(outputByName.get('samvev_monitor_runs_list')?.required, ['runs']);
+  const draftCreation = outputByName.get('samvev_monitor_draft_create');
+  assert.deepEqual(draftCreation?.required, ['creation']);
+  assert.equal(draftCreation?.additionalProperties, false);
+  const creation = draftCreation?.properties.creation as {
+    type: string; properties: Record<string, Record<string, unknown>>; required: string[]; additionalProperties?: boolean;
+  };
+  assert.equal(creation.type, 'object');
+  assert.deepEqual(Object.keys(creation.properties).sort(), ['createdAs', 'createdRevision', 'recipientCountAtCreation', 'requiresBrowserCompletion', 'taskId']);
+  assert.deepEqual(creation.required, ['taskId', 'createdRevision', 'createdAs', 'recipientCountAtCreation', 'requiresBrowserCompletion']);
+  assert.equal(creation.additionalProperties, false);
+  assert.equal(creation.properties.taskId?.type, 'string');
+  assert.equal(creation.properties.taskId?.format, 'uuid');
+  assert.equal(creation.properties.createdRevision?.type, 'integer');
+  assert.equal(creation.properties.createdRevision?.exclusiveMinimum, 0);
+  assert.equal(creation.properties.createdAs?.const, 'draft');
+  assert.equal(creation.properties.recipientCountAtCreation?.const, 0);
+  assert.equal(creation.properties.requiresBrowserCompletion?.const, true);
   const reviewStatus = outputByName.get('samvev_monitor_result_review_get');
   assert.deepEqual(reviewStatus?.required.sort(), ['disposition', 'reviewRevision']);
   assert.equal(reviewStatus?.additionalProperties, false);
